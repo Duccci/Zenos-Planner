@@ -1,0 +1,133 @@
+graph TB
+    subgraph "CLI Layer"
+        InitCmd[Init Command]
+        GatesCmd[Gates Command]
+        ReqCmd[Requirements Command]
+        ProposalCmd[Proposal Command]
+        ArchCmd[Architecture Command]
+        ReposCmd[Repos Command]
+        StatusCmd[Status Command]
+        RescopeCmd[Rescope Command]
+    end
+    
+    subgraph "Core Components"
+        ZenoEngine[Zeno Engine<br/>━━━━━━━━━━<br/>generateGates<br/>calculateProgress<br/>applyZenosParadox]
+        
+        GateManager[Gate Manager<br/>━━━━━━━━━━<br/>startGate<br/>completeGate<br/>trackProgress<br/>validateCompletion]
+        
+        ReplanEngine[Replan Engine<br/>━━━━━━━━━━<br/>rescope<br/>regenerateGates<br/>createRescopeGate<br/>analyzeImpact]
+    end
+    
+    subgraph "Analysis Components"
+        CodeAnalyzer[Code Analyzer<br/>━━━━━━━━━━<br/>parseAST<br/>extractDependencies<br/>calculateMetrics<br/>detectPatterns]
+        
+        RepoDetector[Repo Detector<br/>━━━━━━━━━━<br/>detectBoundaries<br/>calculateCoupling<br/>analyzeDomains<br/>scoreConfidence]
+        
+        DepTracker[Dependency Tracker<br/>━━━━━━━━━━<br/>trackDependency<br/>getDependencies<br/>detectConflicts<br/>buildGraph]
+    end
+    
+    subgraph "Generation Components"
+        ReqGenerator[Requirement Generator<br/>━━━━━━━━━━<br/>decomposeGate<br/>buildHierarchy<br/>generateAcceptance<br/>assignPriority]
+        
+        MermaidGen[Mermaid Generator<br/>━━━━━━━━━━<br/>generateSystem<br/>generateDataFlow<br/>generateWishbone<br/>generateDepGraph]
+        
+        ProposalGen[Proposal Generator<br/>━━━━━━━━━━<br/>generateFromReq<br/>applyTemplate<br/>trackChanges<br/>linkDependencies]
+        
+        PRDGen[PRD Generator<br/>━━━━━━━━━━<br/>generateFromGate<br/>populateTemplate<br/>addUserStories<br/>defineSchema]
+    end
+    
+    subgraph "Validation Components"
+        AutoChecks[Automated Checks<br/>━━━━━━━━━━<br/>runLint<br/>runTypeCheck<br/>runTests<br/>checkCoverage<br/>scanSecurity<br/>validateDeps]
+        
+        QualityGates[Quality Gates<br/>━━━━━━━━━━<br/>enforceCoverage: 90%<br/>enforceSecurity: 0<br/>enforceLint: <0.01%<br/>validateThresholds]
+        
+        DepValidator[Dependency Validator<br/>━━━━━━━━━━<br/>checkConflicts<br/>validateVersions<br/>detectCircular<br/>scoreConfidence]
+    end
+    
+    subgraph "Storage Components"
+        DBManager[Database Manager<br/>━━━━━━━━━━<br/>executeQuery<br/>transaction<br/>migrate<br/>backup]
+        
+        FileStore[File Store<br/>━━━━━━━━━━<br/>readFile<br/>writeFile<br/>ensureDir<br/>watchChanges]
+        
+        HashRegistry[Hash Registry<br/>━━━━━━━━━━<br/>register<br/>resolve<br/>lookup<br/>generateHash]
+        
+        GitOps[Git Operations<br/>━━━━━━━━━━<br/>commit<br/>tag<br/>branch<br/>installHooks]
+    end
+    
+    subgraph "Utility Components"
+        HashUtils[Hash Utils<br/>━━━━━━━━━━<br/>hashContent<br/>shortHash<br/>compareHash]
+        
+        TemplateEngine[Template Engine<br/>━━━━━━━━━━<br/>loadTemplate<br/>populate<br/>validate]
+        
+        Logger[Logger<br/>━━━━━━━━━━<br/>info<br/>warn<br/>error<br/>debug]
+        
+        ConfigManager[Config Manager<br/>━━━━━━━━━━<br/>load<br/>save<br/>validate<br/>merge]
+    end
+    
+    %% CLI to Core
+    InitCmd --> ZenoEngine
+    InitCmd --> CodeAnalyzer
+    GatesCmd --> GateManager
+    ReqCmd --> ReqGenerator
+    ProposalCmd --> ProposalGen
+    ArchCmd --> MermaidGen
+    ReposCmd --> RepoDetector
+    RescopeCmd --> ReplanEngine
+    
+    %% Core interconnections
+    ZenoEngine --> ReqGenerator
+    GateManager --> ProposalGen
+    GateManager --> AutoChecks
+    ReplanEngine --> ZenoEngine
+    
+    %% Analysis interconnections
+    CodeAnalyzer --> RepoDetector
+    CodeAnalyzer --> DepTracker
+    RepoDetector --> DepTracker
+    
+    %% Generation interconnections
+    ReqGenerator --> MermaidGen
+    ReqGenerator --> PRDGen
+    ProposalGen --> DepTracker
+    
+    %% Validation interconnections
+    AutoChecks --> QualityGates
+    AutoChecks --> DepValidator
+    DepValidator --> DepTracker
+    
+    %% Storage usage
+    ZenoEngine --> DBManager
+    GateManager --> DBManager
+    ReqGenerator --> DBManager
+    ProposalGen --> FileStore
+    MermaidGen --> FileStore
+    PRDGen --> FileStore
+    DepTracker --> HashRegistry
+    GateManager --> GitOps
+    
+    %% Utility usage
+    DepTracker --> HashUtils
+    ProposalGen --> TemplateEngine
+    PRDGen --> TemplateEngine
+    InitCmd --> ConfigManager
+    ZenoEngine --> Logger
+    GateManager --> Logger
+    
+    %% Styling
+    classDef cliStyle fill:#9B59B6,stroke:#7D3C98,stroke-width:2px,color:#fff
+    classDef coreStyle fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef analysisStyle fill:#7B68EE,stroke:#5A4AB8,stroke-width:2px,color:#fff
+    classDef generationStyle fill:#50C878,stroke:#3A9B5C,stroke-width:2px,color:#fff
+    classDef validationStyle fill:#FF6B6B,stroke:#CC5555,stroke-width:2px,color:#fff
+    classDef storageStyle fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#fff
+    classDef utilityStyle fill:#95A5A6,stroke:#7F8C8D,stroke-width:2px,color:#fff
+    
+    class InitCmd,GatesCmd,ReqCmd,ProposalCmd,ArchCmd,ReposCmd,StatusCmd,RescopeCmd cliStyle
+    class ZenoEngine,GateManager,ReplanEngine coreStyle
+    class CodeAnalyzer,RepoDetector,DepTracker analysisStyle
+    class ReqGenerator,MermaidGen,ProposalGen,PRDGen generationStyle
+    class AutoChecks,QualityGates,DepValidator validationStyle
+    class DBManager,FileStore,HashRegistry,GitOps storageStyle
+    class HashUtils,TemplateEngine,Logger,ConfigManager utilityStyle
+
+

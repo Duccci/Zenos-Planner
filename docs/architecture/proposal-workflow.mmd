@@ -1,0 +1,115 @@
+sequenceDiagram
+    participant User
+    participant CLI as Zeno CLI
+    participant GateManager
+    participant ProposalGen as Proposal Generator
+    participant DB as SQLite DB
+    participant AutoChecks as Automated Checks
+    participant Git
+    participant LLM as LLM (Cursor)
+    
+    User->>CLI: zeno gates start gate-01
+    CLI->>GateManager: startGate(gate-01)
+    
+    GateManager->>DB: getRequirements(gate-01)
+    DB-->>GateManager: requirements[]
+    
+    GateManager->>ProposalGen: generateProposals(requirements)
+    
+    loop For each requirement
+        ProposalGen->>ProposalGen: Create proposal from template
+        ProposalGen->>DB: insertProposal(proposal)
+        ProposalGen->>DB: trackDependencies(proposal)
+    end
+    
+    ProposalGen-->>GateManager: proposals[]
+    
+    loop For each proposal
+        GateManager->>AutoChecks: validate(proposal)
+        
+        AutoChecks->>AutoChecks: runLintCheck()
+        AutoChecks->>AutoChecks: runTypeCheck()
+        AutoChecks->>AutoChecks: runTestCheck()
+        AutoChecks->>AutoChecks: runCoverageCheck(threshold: 90%)
+        AutoChecks->>AutoChecks: runSecurityCheck(threshold: 0)
+        AutoChecks->>AutoChecks: checkDependencies()
+        
+        alt All checks pass
+            AutoChecks-->>GateManager: { passed: true, results }
+            GateManager->>DB: updateProposal(status: pending_approval)
+        else Some checks fail
+            AutoChecks-->>GateManager: { passed: false, results }
+            GateManager->>DB: updateProposal(status: pending_check, results)
+            GateManager->>ProposalGen: replanWithContext(proposal, results)
+            ProposalGen->>DB: updateProposal(regenerated)
+        end
+    end
+    
+    GateManager->>CLI: presentForApproval(proposals)
+    CLI->>User: Display proposals + check results
+    
+    User->>CLI: zeno proposal approve <hash>
+    CLI->>GateManager: approveProposal(hash)
+    GateManager->>DB: updateProposal(status: approved)
+    
+    GateManager->>User: Proposal approved. Ready for implementation.
+    
+    User->>LLM: Implement proposal <hash>
+    LLM->>DB: getProposal(hash)
+    DB-->>LLM: proposal details + dependencies
+    
+    LLM->>LLM: Generate code based on proposal
+    LLM->>Git: Stage changes
+    
+    LLM->>CLI: zeno proposal validate <hash>
+    CLI->>AutoChecks: validate(proposal)
+    
+    alt Validation passes
+        AutoChecks-->>CLI: All checks passed
+        CLI->>User: ✅ Validation successful
+        
+        User->>CLI: git commit
+        CLI->>Git: Pre-commit hook triggered
+        
+        Git->>CLI: Check pending approvals
+        CLI->>DB: getPendingProposals()
+        DB-->>CLI: 0 pending
+        
+        Git->>CLI: Run automated checks
+        CLI->>AutoChecks: validateAll()
+        AutoChecks-->>CLI: All passed
+        
+        CLI->>Git: Commit allowed
+        Git->>Git: Create commit with structured message
+        
+        Git->>DB: updateProposal(status: implemented)
+        
+        Git-->>User: Commit successful
+        
+    else Validation fails
+        AutoChecks-->>CLI: Checks failed
+        CLI->>User: ❌ Validation failed. Review errors.
+        
+        User->>CLI: zeno proposal reject <hash>
+        CLI->>GateManager: rejectProposal(hash, feedback)
+        GateManager->>DB: updateProposal(status: rejected)
+        GateManager->>ProposalGen: replanWithFeedback(proposal)
+        ProposalGen-->>User: New proposal generated with fixes
+    end
+    
+    User->>CLI: zeno gates complete gate-01
+    CLI->>GateManager: completeGate(gate-01)
+    
+    GateManager->>DB: getAllProposals(gate-01)
+    DB-->>GateManager: proposals[]
+    
+    alt All proposals implemented
+        GateManager->>Git: createTag(gate-01)
+        Git-->>GateManager: Tag created
+        GateManager->>DB: updateGate(status: completed)
+        GateManager-->>User: ✅ Gate 01 complete! Ready for next gate.
+    else Some proposals incomplete
+        GateManager-->>User: ❌ Cannot complete gate. X proposals pending.
+    end
+
+
