@@ -1,7 +1,7 @@
 {
   "name": "zenos-planner",
   "version": "0.1.0",
-  "description": "Asymptotically approach project completion through iterative gates based on Zeno's paradox",
+  "description": "Progressively approach project completion through iterative gates inspired by Zeno's paradox",
   "keywords": [
     "project-planning",
     "ai",
@@ -79,5 +79,9 @@
     "vitest": "^3.2.4"
   }
 }
+
+
+
+
 
 
