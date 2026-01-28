@@ -1,0 +1,14 @@
+{
+  "currentGate": null,
+  "gates": [
+    {
+      "id": "gate-01",
+      "name": "Core Infrastructure",
+      "status": "completed",
+      "completedAt": "2026-01-28T00:00:00.000Z"
+    }
+  ],
+  "lastUpdated": "2026-01-28T00:00:00.000Z",
+  "status": "gate_completed"
+}
+
