@@ -13,7 +13,7 @@ Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration
 - Gate 4: Polish (93.75% to goal)
 - Gate N: Progressively approach completion
 
-**Note**: Percentages shown above are conceptual aids to help humans understand the iterative approach. The tool does not use percentages in its functionality - each gate represents concrete deliverables that move the project closer to the end goal.
+**Note**: Percentages shown above are conceptual aids to help the user understand the iterative approach. The tool does not use percentages in its functionality - each gate represents concrete deliverables that move the project closer to the end goal.
 
 Each gate generates:
 - Requirements (SQLite database with hash-based references)
@@ -179,7 +179,7 @@ Phase 1: Generating architecture diagrams...
 
 Phase 2: Generating requirements...
   24 requirements created
-  Stored in .zeno/requirements.db
+  Stored in zeno/.zeno/requirements.db
   Hash registry updated
 
 Phase 3: Detecting repository boundaries...
@@ -310,21 +310,21 @@ Project rescoped! Continue with Gate 2.
 
 ```
 my-project/
-├── .zeno/                          # Internal state (gitignored)
-│   ├── config.json                 # Project configuration
-│   ├── state.json                  # Current state
-│   └── requirements.db             # SQLite database
-├── zeno/                           # User-facing artifacts
-│   ├── gates/
+├── zeno/                           # All Zeno artifacts
+│   ├── .zeno/                      # Internal state (version controlled)
+│   │   ├── config.json             # Project configuration
+│   │   ├── state.json              # Current state
+│   │   └── requirements.db         # SQLite database
+│   ├── gates/                      # Gate PRDs
 │   │   ├── gate-01-foundation.md
 │   │   ├── gate-02-core-features.md
 │   │   └── ...
-│   ├── architecture/
+│   ├── architecture/               # Mermaid diagrams
 │   │   ├── system-overview.mmd
 │   │   ├── data-flow.mmd
 │   │   └── components.mmd
 │   ├── requirements/
-│   │   └── requirements.db         # Symlink
+│   │   └── requirements.db         # Symlink to .zeno/requirements.db
 │   ├── subprojects/
 │   │   ├── repo-map.json
 │   │   └── dependency-graph.mmd
@@ -479,8 +479,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Documentation
 
-- [PRD](.zeno/docs/PROJECT_PRD.md) - Complete product requirements
-- [Architecture](.zeno/docs/architecture/) - System design diagrams
+- [PRD](zeno/PROJECT_PRD.md) - Complete product requirements
+- [Architecture](zeno/architecture/) - System design diagrams
 - [AGENTS.md](AGENTS.md) - AI agent context guide
 - [API Reference](docs/api.md) - CLI command reference (coming soon)
 - [Examples](examples/) - Example projects (coming soon)

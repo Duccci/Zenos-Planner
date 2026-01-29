@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
     /* Language and Environment */
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    "target": "ES2024",
+    "lib": ["ES2024"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     
     /* Emit */
     "outDir": "./dist",
@@ -53,9 +53,3 @@
     "**/__tests__"
   ]
 }
-
-
-
-
-
-

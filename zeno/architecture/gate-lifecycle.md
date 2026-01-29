@@ -13,16 +13,18 @@
 stateDiagram-v2
     [*] --> Initialized: zeno init
     
-    Initialized --> GatesGenerated: Zeno Engine generates gates
+    Initialized --> ProjectReqsGenerated: Generate project-level requirements
+    
+    ProjectReqsGenerated --> GatesGenerated: Zeno Engine generates gates
     
     GatesGenerated --> GateSelected: User selects gate
     
     GateSelected --> AnalyzingCode: Code analysis (if existing)
-    GateSelected --> GeneratingRequirements: Direct (if greenfield)
+    GateSelected --> GeneratingGateRequirements: Direct (if greenfield)
     
-    AnalyzingCode --> GeneratingRequirements: Analysis complete
+    AnalyzingCode --> GeneratingGateRequirements: Analysis complete
     
-    GeneratingRequirements --> GeneratingArchitecture: Requirements created
+    GeneratingGateRequirements --> GeneratingArchitecture: Gate requirements created
     
     GeneratingArchitecture --> DetectingRepos: Architecture diagrams ready
     
@@ -127,12 +129,16 @@ stateDiagram-v2
 
 ### Initialization Phase
 - **Initialized**: Project created with `zeno init`, end state defined
+- **ProjectReqsGenerated**: High-level project requirements extracted from end state (cross-cutting concerns, constraints)
 - **GatesGenerated**: Zeno's paradox algorithm generates gate sequence
 
 ### Gate Execution Phase
 - **GateSelected**: User chooses next gate to work on
 - **AnalyzingCode**: Deep analysis of existing codebase (AST, metrics, dependencies)
-- **GeneratingRequirements**: Gate decomposed into hierarchical requirements
+- **GeneratingGateRequirements**: Gate decomposed into specific requirements by:
+  - Inheriting applicable project-level requirements
+  - Generating new requirements from gate objectives
+  - Accepting transferred requirements from other gates (if rescoped)
 - **GeneratingArchitecture**: Mermaid diagrams created from requirements
 - **DetectingRepos**: Repository boundaries detected using coupling metrics
 

@@ -1,0 +1,32 @@
+/**
+ * CLI Command Registration
+ *
+ * Central registration point for all CLI commands and categories.
+ */
+
+import type { Command } from 'commander'
+import { registerGatesCommands } from './gates.js'
+import { registerReqCommands } from './req.js'
+import { registerArchCommands } from './arch.js'
+import { registerReposCommands } from './repos.js'
+import { registerProposalCommands } from './proposal.js'
+import { registerInitCommand } from './init.js'
+import { registerStatusCommand } from './status.js'
+import { registerShowCommand } from './show.js'
+
+/**
+ * Register all commands with the CLI program
+ */
+export function registerCommands(program: Command): void {
+  // Register top-level commands
+  registerInitCommand(program)
+  registerStatusCommand(program)
+  registerShowCommand(program)
+
+  // Register command categories
+  registerGatesCommands(program)
+  registerReqCommands(program)
+  registerArchCommands(program)
+  registerReposCommands(program)
+  registerProposalCommands(program)
+}

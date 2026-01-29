@@ -20,15 +20,15 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 | What I Need | Where to Look |
 |------------|---------------|
-| Project scope and goals | `docs/PROJECT_PRD.md` |
-| System architecture | `docs/ARCHITECTURE.md` |
+| Project scope and goals | `zeno/PROJECT_PRD.md` |
+| System architecture | `zeno/architecture/*.md` |
 | Current gate status | `zeno gates list` |
-| Gate details | `.zeno/gates/gate-XX-name.md` |
+| Gate details | `zeno/gates/gate-XX-name.md` |
 | Requirements for gate | `zeno req list --gate <id>` |
 | Specific requirement | `zeno req show <hash>` |
 | Proposal details | `zeno proposal show <hash>` |
 | Architecture diagrams | `zeno/architecture/*.md` |
-| Database queries | `.zeno/requirements.db` |
+| Database queries | `zeno/.zeno/requirements.db` |
 | Hash lookup | `zeno show <hash>` |
 
 ---
@@ -54,13 +54,13 @@ Zeno's Planner uses Zeno's dichotomy paradox as a conceptual framework for proje
 
 ### Hash-Based References
 
-Instead of full file paths, Zeno uses SHA-256 hashes (first 16 chars) for all entities:
+Instead of full file paths, Zeno uses SHA-256 hashes (first 16 chars) for internal tracking of all entities:
 
 ```
 Traditional Spec Systems:
 "Requirement 'User Authentication' in specs/auth/spec.md depends on specs/core/spec.md"
 
-Zeno's Approach:
+Zeno's Internal Approach:
 "Requirement #a3f9c2d1 depends on #b7e4d8f2"
 ```
 
@@ -70,7 +70,15 @@ Zeno's Approach:
 - Provides immutable content-addressable references
 - Works across multiple repositories seamlessly
 
-**Usage**:
+**Critical: Internal Use Only**
+
+Hash references are for **internal tracking and AI-to-system communication only**. When communicating with users:
+- **Always resolve hashes to plain text names**
+- Say "User Authentication requirement" not "#a3f9c2d1"
+- Say "the Config Utilities proposal" not "proposal #b7e4d8f2"
+- Use `zeno show <hash>` to resolve any hash before presenting to user
+
+**Usage** (AI-to-system, not user-facing):
 ```bash
 # Find entity by hash
 zeno show <hash>
@@ -86,7 +94,7 @@ zeno proposal show <hash>
 
 Zeno uses both SQLite and files:
 
-**SQLite** (`.zeno/requirements.db`):
+**SQLite** (`zeno/.zeno/requirements.db`):
 - Gates, requirements, proposals, dependencies
 - Queryable for complex relationships
 - Hash registry for lookups
@@ -115,22 +123,27 @@ These thresholds are enforced automatically and cannot be bypassed in the MVP. F
 
 ```
 zenos-planner/
-├── .zeno/                      # Zeno internal data
-│   ├── config.json             # Project configuration
-│   ├── requirements.db         # SQLite database
-│   ├── AGENTS.md               # This file
-│   └── gates/                  # Per-gate PRDs
-│       ├── gate-01-core-infrastructure.md
-│       ├── gate-02-zeno-engine.md
-│       └── ...
-├── docs/
+├── zeno/                       # All Zeno artifacts
+│   ├── .zeno/                  # Internal state (version controlled)
+│   │   ├── config.json         # Project configuration
+│   │   ├── state.json          # Current state
+│   │   └── requirements.db     # SQLite database
+│   ├── AGENTS.md               # This file - project-specific AI guide
+│   ├── PROJECT_PRD.md          # Master PRD
+│   ├── gates/                  # Per-gate PRDs
+│   │   ├── gate-01-core-infrastructure.md
+│   │   ├── gate-02-zeno-engine.md
+│   │   └── ...
 │   ├── architecture/           # Mermaid diagrams (embedded in .md files)
 │   │   ├── system-overview.md
 │   │   ├── gate-lifecycle.md
 │   │   ├── data-flow.md
 │   │   └── gate-roadmap.md
-│   ├── PROJECT_PRD.md          # Master PRD
-│   └── ARCHITECTURE.md         # Architecture overview
+│   ├── proposals/              # Change proposals
+│   │   ├── active/
+│   │   └── completed/
+│   ├── requirements/           # Requirements artifacts
+│   └── subprojects/            # Multi-repo tracking
 ├── src/                        # Source code
 │   ├── cli/                    # CLI commands
 │   ├── core/                   # Core engines
@@ -139,13 +152,11 @@ zenos-planner/
 │   ├── validation/             # Quality checks
 │   └── storage/                # Data persistence
 ├── templates/                  # Templates for generation
-│   ├── agents-template.md
-│   ├── architecture-template.md
-│   └── project-prd-template.md
-├── openspec/                   # OpenSpec integration
-│   ├── AGENTS.md
-│   ├── project.md
-│   └── specs/
+│   ├── md-templates/
+│   │   ├── agents-template.md
+│   │   ├── gate-prd-template.md
+│   │   └── project-prd-template.md
+│   └── architecture-templates/
 ├── AGENTS.md                   # Tool usage guide (lightweight)
 ├── package.json
 ├── tsconfig.json
@@ -156,7 +167,7 @@ zenos-planner/
 
 ## Reading Zeno Artifacts
 
-### Gates (`.zeno/gates/gate-XX-name.md`)
+### Gates (`zeno/gates/gate-XX-name.md`)
 
 ```markdown
 # Gate X: Name
@@ -171,9 +182,11 @@ zenos-planner/
 ## Requirements
 ### Requirement #hash: Name
 [Description with acceptance criteria]
+Status: pending | implemented | tested
 
 ### Requirement #hash: Name
 [Description with acceptance criteria]
+Status: pending | implemented | tested
 
 ## Architecture Updates
 [Links to .md diagrams with embedded Mermaid]
@@ -196,17 +209,29 @@ zenos-planner/
 
 ### Requirements (SQLite `requirements` table)
 
+Requirements are generated at two levels:
+1. **Project-level**: Generated during `zeno init` from the end state (cross-cutting concerns, constraints)
+2. **Gate-level**: Generated during `zeno gates start` by decomposing project requirements and gate objectives
+
 ```sql
--- Query requirements for a gate
+-- Query project-level requirements
+SELECT r.hash, r.type, r.priority, r.description, r.status
+FROM requirements r
+WHERE r.level = 'project'
+ORDER BY r.priority DESC, r.created_at ASC;
+
+-- Query gate-specific requirements
 SELECT 
   r.hash,
   r.type,
   r.priority,
   r.description,
   r.acceptance_criteria,
-  r.status
+  r.status,
+  r.source,
+  r.project_requirement_id
 FROM requirements r
-WHERE r.gate_id = '<gate-id>'
+WHERE r.gate_id = '<gate-id>' AND r.level = 'gate'
 ORDER BY r.priority DESC, r.created_at ASC;
 
 -- Query dependencies
@@ -221,8 +246,9 @@ WHERE d.source_hash = '<requirement-hash>';
 
 **CLI Alternative**:
 ```bash
-zeno req list --gate <gate-id>
-zeno req show <hash>
+zeno req list --project           # Project-level requirements
+zeno req list --gate <gate-id>    # Gate-specific requirements
+zeno req show <hash>              # Details including parent refs
 zeno req deps <hash>
 ```
 
@@ -241,7 +267,9 @@ Mermaid diagram types (embedded in markdown files):
 - Reference these for implementation context
 - Gate Roadmap shows gate-level structure only; detailed features are in gate-specific PRDs
 
-### Proposals (`.zeno/proposals/<hash>.md`)
+### Proposals
+
+Active proposals use plaintext names (`zeno/proposals/active/<name>.md`), while completed/archived proposals are hashed (`zeno/proposals/completed/<hash>.md`).
 
 ```markdown
 # Proposal: [Title]
@@ -249,7 +277,7 @@ Mermaid diagram types (embedded in markdown files):
 **Hash**: #a3f9c2d1  
 **Gate**: Gate X  
 **Requirement**: #b7e4d8f2  
-**Status**: pending_approval
+**Status**: pending
 
 ## What Changes
 - [Change 1]
@@ -303,6 +331,7 @@ zeno init
 # - Existing codebase path (optional)
 
 # Result:
+# - Project-level requirements generated from end state
 # - Gates generated using Zeno's paradox
 # - Initial architecture diagrams created
 # - SQLite database initialized
@@ -312,9 +341,10 @@ zeno init
 **AI Assistant Tasks**:
 1. Help user articulate clear end state
 2. Analyze existing codebase if provided (AST parsing)
-3. Generate gates based on analysis
-4. Create initial architecture diagrams
-5. Store all data in SQLite + files
+3. Generate project-level requirements (cross-cutting concerns, constraints)
+4. Generate gates based on analysis
+5. Create initial architecture diagrams
+6. Store all data in SQLite + files
 
 ### Workflow 2: Working on a Gate
 
@@ -326,7 +356,9 @@ zeno gates list
 zeno gates start <gate-id>
 
 # System generates:
-# - Requirements (hierarchical tree)
+# - Gate-specific requirements (from project reqs + gate objectives)
+# - Inherits applicable project-level requirements
+# - Accepts transferred requirements from other gates (if any)
 # - Architecture diagrams (updated)
 # - PRD for the gate
 # - Repository boundaries (if multi-repo)
@@ -334,12 +366,14 @@ zeno gates start <gate-id>
 ```
 
 **AI Assistant Tasks**:
-1. Read gate PRD from `.zeno/gates/gate-XX-name.md`
-2. Decompose gate into requirements
-3. Generate architecture updates
-4. Detect repository boundaries (coupling analysis)
-5. Create proposals for implementation
-6. Store requirements with hash references
+1. Read gate PRD from `zeno/gates/gate-XX-name.md`
+2. Identify applicable project-level requirements
+3. Decompose gate objectives into gate-specific requirements
+4. Link gate requirements to parent project requirements
+5. Generate architecture updates
+6. Detect repository boundaries (coupling analysis)
+7. Create proposals for implementation
+8. Store requirements with hash references and source tracking
 
 ### Workflow 3: Implementing a Proposal
 
@@ -361,7 +395,7 @@ zeno proposal approve <hash>
 ```
 
 **AI Assistant Tasks**:
-1. Read proposal from SQLite or `.zeno/proposals/<hash>.md`
+1. Read proposal from SQLite or `zeno/proposals/active/<name>.md`
 2. Implement code changes according to proposal
 3. Write tests (aiming for 90%+ coverage)
 4. Run automated checks locally
@@ -439,7 +473,16 @@ zeno repos deps  # Cross-repo dependency graph
 
 ---
 
-## CLI Command Reference
+## LLM Function Reference
+
+All Zeno operations are invoked by AI agents during workflow execution. These are functions the LLM calls, not commands humans type.
+
+### Execution Model
+1. Human provides prompt/instruction
+2. LLM reads Zeno artifacts and invokes functions
+3. LLM updates entity statuses as work progresses
+4. Human approves/rejects at designated gates
+5. LLM continues based on human decision
 
 ### Project Management
 ```bash
@@ -453,16 +496,19 @@ zeno rescope                        # Rescope project mid-development
 ```bash
 zeno gates list                     # List all gates
 zeno gates show <gate-id>           # Show gate details
-zeno gates start <gate-id>          # Start working on gate
-zeno gates complete <gate-id>       # Mark gate complete (creates tag)
+zeno gates start <gate-id>          # Start gate (status: pending -> in_progress)
+zeno gates complete <gate-id>       # Complete gate (status: -> completed, creates tag)
 zeno gates regenerate               # Regenerate future gates
 ```
 
 ### Requirements
 ```bash
-zeno req list [--gate <id>]         # List requirements
-zeno req show <hash>                # Show requirement details
+zeno req list [--gate <id>]         # List gate-specific requirements
+zeno req list --project             # List project-level requirements
+zeno req show <hash>                # Show requirement details (includes parent refs)
 zeno req deps <hash>                # Show dependency graph
+zeno req status <hash> <status>     # Update status (pending/implemented/tested)
+zeno req transfer <hash> <gate-id>  # Transfer requirement to another gate
 ```
 
 ### Architecture
@@ -485,9 +531,10 @@ zeno repos adjust                   # Manually adjust boundaries
 ```bash
 zeno proposal list [--gate <id>]    # List proposals
 zeno proposal show <hash>           # Show proposal details
+zeno proposal start <hash>          # Start implementation (status: pending -> in_progress)
 zeno proposal validate <hash>       # Run automated checks
-zeno proposal approve <hash>        # Approve proposal (human)
-zeno proposal reject <hash>         # Reject proposal (human)
+zeno proposal approve <hash>        # Approve proposal (status: -> completed)
+zeno proposal reject <hash>         # Reject proposal (status: -> rejected)
 ```
 
 ### Analysis
@@ -506,17 +553,27 @@ zeno registry rebuild               # Rebuild hash registry
 
 ## Best Practices for AI Assistants
 
-### 1. Always Use Hash References
+### 1. Use Hash References Internally, Plain Text for Users
 
-**Good**:
+Hash references are for internal tracking and system commands. When communicating with users, always resolve hashes to human-readable names.
+
+**Internal/System Commands** (Good):
+```bash
+zeno req show #a3f9c2d1
+zeno req deps #b7e4d8f2
+```
+
+**User-Facing Communication** (Good):
+```markdown
+The "User Authentication" requirement depends on the "Core Library" module.
+```
+
+**User-Facing Communication** (Bad):
 ```markdown
 Requirement #a3f9c2d1 depends on module #b7e4d8f2
 ```
 
-**Bad**:
-```markdown
-Requirement "User Authentication" in .zeno/gates/gate-03.md depends on CoreLib at src/core/lib.ts
-```
+Use `zeno show <hash>` to resolve any hash before presenting information to the user.
 
 ### 2. Check Dependencies Before Implementation
 
@@ -629,13 +686,13 @@ zeno proposal show <hash>
 
 ```bash
 # Verify end state is clear
-cat .zeno/config.json | grep end_state
+cat zeno/.zeno/config.json | grep end_state
 
 # Regenerate gates with more context
 zeno gates regenerate --verbose
 
 # Manual adjustment (if needed)
-# Edit gate PRDs in .zeno/gates/
+# Edit gate PRDs in zeno/gates/
 # Update SQLite with manual changes
 ```
 
@@ -816,7 +873,7 @@ AI:
 Zeno's Planner provides a structured approach to project planning and execution with AI assistance:
 
 1. **Gates** represent concrete project milestones that progressively move toward the goal
-2. **Hash-based references** reduce context size and enable cross-repo tracking
+2. **Hash-based references** reduce context size and enable cross-repo tracking (internal use only)
 3. **Quality gates** enforce 90% coverage, 0 security issues, <0.01% linting errors
 4. **Human approval** required at key decision points
 5. **Hybrid storage** uses SQLite for queries, files for human artifacts
@@ -825,7 +882,7 @@ Zeno's Planner provides a structured approach to project planning and execution 
 8. **Architecture diagrams** provide visual system understanding
 
 ### For AI Assistants
-- Use hash references in all communications
+- Use hash references internally for system commands; resolve to plain text names when communicating with users
 - Check dependencies before implementation
 - Respect quality thresholds
 - Wait for human approval
@@ -846,4 +903,4 @@ Zeno's Planner provides a structured approach to project planning and execution 
 **Last Updated**: 2026-01-04  
 **Status**: Active - Zeno's Planner Self-Documentation
 
-**Generated by Zeno's Planner** | [Project Documentation](../docs/PROJECT_PRD.md)
+**Generated by Zeno's Planner** | [Project Documentation](PROJECT_PRD.md)

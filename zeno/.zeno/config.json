@@ -1,0 +1,25 @@
+{
+  "projectName": "Zenos-Planner",
+  "version": "0.1.0",
+  "qualityThresholds": {
+    "codeCoverage": 90,
+    "securityVulnerabilities": 0,
+    "lintingErrorRate": 0.01,
+    "typeCheckingErrors": 0
+  },
+  "hashAlgorithm": "sha256",
+  "hashLength": 16,
+  "git": {
+    "autoCommit": true,
+    "autoTag": true,
+    "autoPush": false,
+    "remote": "origin"
+  },
+  "versioning": {
+    "enabled": true,
+    "proposalBump": "patch",
+    "gateBump": "minor",
+    "lifecycleBump": "major"
+  }
+}
+

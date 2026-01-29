@@ -1,10 +1,17 @@
 # Gate [XX]: [Gate Name]
 
-**Status**: [pending | in_progress | completed | rejected]  
+**Status**: pending  
 **Type**: [feature | quality | rescope]  
 **Created**: [YYYY-MM-DD]  
 **Sequence**: [X of Y]  
 **Hash**: #[hash]
+
+<!-- Status lifecycle:
+  - pending: Gate generated at init, requirements not yet decomposed
+  - in_progress: Gate started via `zeno gates start`, requirements generated
+  - completed: All requirements tested, gate approved
+  - rejected: Gate rejected during review
+-->
 
 ## Overview
 
@@ -45,29 +52,49 @@
 
 ## Requirements
 
-[Generate 3-7 requirements. Each requirement should be granular enough for a single proposal but substantial enough to provide value. Include hash references for dependencies.]
+<!-- Requirements-First Workflow:
+  1. Project-level requirements: PRIMARILY defined during `zeno init` at project inception (BEFORE gates).
+     These are high-level, cross-cutting requirements derived from the end state.
+  2. Gate generation (`/zeno-gate`): Attributes existing project-level requirements to gates.
+     Requirements are PRIMARILY mapped and attributed here, not created.
+     During rebaseline/rescope: Requirements may be updated or added as part of rescoping.
+  3. Gate start (`zeno gates start`): Generates gate-specific requirements that decompose
+     project requirements and gate objectives into actionable items.
+  4. Proposal generation (`/zeno-proposal`): Breaks requirements down into individual tasks.
+  
+  Workflow: Requirements (init - PRIMARY) → Gates (attribute, may update/add during rescope) → Gate Requirements (decompose) → Tasks (proposals)
+-->
 
-### Requirement #[hash]: [Requirement Name]
-**Type**: [functional | non_functional | constraint]  
-**Priority**: [must | should | could | wont]  
-**Status**: [draft | approved | implemented | tested]
+### Project Requirements (Attributed to This Gate)
 
-**Description**:
-[Clear description of what needs to be implemented.]
+[Project-level requirements were defined during `zeno init` at project inception. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.]
 
-**Acceptance Criteria**:
-[List 2-4 specific, testable conditions that define completion.]
-- [ ] [Testable condition]
-- [ ] [Testable condition]
-- [ ] [Testable condition]
+| Hash | Name | Type | Priority | How This Gate Addresses It |
+|------|------|------|----------|---------------------------|
+| #[hash] | [Project Requirement Name] | [functional\|non_functional\|constraint] | [must\|should\|could] | [How this gate addresses it] |
 
-**Dependencies**:
-[List hash references to other requirements or components this depends on or blocks.]
-- Requires: #[hash] - [brief description]
-- Blocks: #[hash] - [brief description]
+### Gate-Specific Requirements
 
-**Implementation Notes**:
-[Technical guidance, architectural considerations, or specific approaches to consider.]
+[Gate-specific requirements are generated when `zeno gates start <gate-id>` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/requirements.db` and queried via `zeno req list --gate <id>`.]
+
+**Status**: Requirements will be generated when gate is started.
+
+[After gate start, view detailed requirement information via: `zeno req show <hash>`]
+
+### Inherited/Transferred Requirements
+
+[Requirements transferred from other gates or shared across gates.]
+
+<!-- Requirement sources:
+  - Transferred: Requirements moved from another gate (e.g., during rescope)
+  - Shared: Requirements that span multiple gates (tracked via dependencies)
+-->
+
+- **From Gate [X]**: #[hash] - [Requirement name and reason for transfer]
+
+### Requirement-to-Task Breakdown
+
+[Individual tasks are created during proposal generation (`/zeno-proposal`), not during gate generation. Each requirement may spawn multiple proposals (tasks) that implement it.]
 
 ---
 
@@ -232,10 +259,17 @@
 
 ---
 
-**Document Version**: 1.0.0  
+**Document Version**: [MAJOR.MINOR.PATCH]  
 **Last Updated**: [YYYY-MM-DD]  
-**Gate Owner**: [Name/Role]  
-**Reviewers**: [Names/Roles]
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+**Gate Owner**: [git.user.name]  
+**Reviewers**: [git.user.name]
+
+### Change Log
+
+| Version | Date | Summary | Author |
+|---------|------|---------|--------|
+| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
 
 **Related Documents**:
 - Project PRD: `docs/PROJECT_PRD.md`

@@ -8,7 +8,7 @@ Templates for generating project documentation for target projects managed by Ze
 
 Zeno's Planner uses templates to generate comprehensive documentation that guides both human stakeholders and AI assistants through project planning and implementation. These templates produce clean, professional documents ready for human review and approval.
 
-**Total Templates Available**: 3
+**Total Templates Available**: 4
 
 **Design Philosophy**: Templates contain bracketed generation instructions `[instruction]` that guide the LLM on what to generate. The final output is clean, professional documentation focused on decision-making content without meta-commentary.
 
@@ -61,12 +61,11 @@ zeno init  # Generates PROJECT_PRD.md at .zeno/PROJECT_PRD.md
 - **Overview**: 2-3 sentences on what this gate accomplishes
 - **Objectives**: 3-5 specific, measurable objectives with completion criteria
 - **Context**: What was completed before, what this enables, scope boundaries
-- **Requirements**: 3-7 granular requirements with:
-  - Type (functional/non_functional/constraint)
-  - Priority (must/should/could/wont)
-  - Description and acceptance criteria
-  - Dependencies (hash references)
-  - Implementation notes
+- **Requirements**: References to requirements from the database (`.zeno/requirements.db`)
+  - Listed by hash reference (#hash)
+  - Brief summary of each requirement
+  - Requirements are queried/viewed via `zeno req list --gate <id>`
+  - Detailed requirement data lives in database, not in this document
 - **Technical Decisions for This Gate**: Gate-specific technical choices (not project-wide)
 - **Architecture Updates**: Components modified/created, diagram changes, integration points
 - **Gate-Specific Quality Considerations**: Security and performance requirements (if applicable)
@@ -83,14 +82,55 @@ zeno gates show <gate-id>   # View generated gate PRD
 ```
 
 **Generation Guidance**:
-- Requirements should be granular enough for a single proposal but substantial enough to provide value
+- Requirements are stored in `.zeno/requirements.db` and referenced by hash
+- Gate PRD lists requirement hashes with brief summaries
+- Detailed requirement structure (type, priority, acceptance criteria, dependencies) lives in database
 - Implementation steps are high-level; detailed tasks come from proposals
 - Focus on gate-specific decisions, not overall project architecture
 - Use hash references (#hash) for all dependencies
 
 ---
 
-### 3. AGENTS.md (`agents-template.md`)
+### 3. Proposal (`proposal-template.md`)
+
+**Purpose**: Lightweight implementation proposal driven by gates/requirements  
+**When**: Generated when starting gate work or creating new proposals (`zeno proposal create`)  
+**Scope**: Single implementation unit (typically 1-5 files)  
+**Audience**: LLM implementers, human reviewers
+
+**Key Sections**:
+- **Summary**: 2-3 sentence outcome description
+- **Context**: Why this change is needed, dependency references
+- **Tasks**: Atomic, LLM-executable tasks with file paths and acceptance criteria
+- **Files Affected**: Table of files and actions (create/modify/delete)
+- **Implementation Notes**: Optional technical guidance
+- **Rollback**: Reversion strategy if rejected
+
+**Usage**:
+```bash
+zeno proposal create "Add hash utility module"  # Generates proposal in proposals/active/
+zeno proposal list                              # List active proposals
+zeno proposal show <hash>                       # View proposal details
+zeno proposal validate <hash>                   # Run automated checks
+```
+
+**Generation Guidance**:
+- Tasks must be atomic: one task = one focused implementation session
+- Each task specifies exact file paths and action type
+- Acceptance criteria must be verifiable (testable, observable)
+- Always include test tasks with coverage expectations
+- Use hash references for all dependencies
+- Keep proposals small: 3-7 tasks is typical; split larger work
+
+**Design Principles**:
+- **Lightweight**: Minimal metadata, maximum actionability
+- **LLM-Optimized**: Tasks are directly executable without interpretation
+- **Human-Reviewable**: Clear structure for approval decisions
+- **Gate-Driven**: Always linked to a gate and optionally a requirement
+
+---
+
+### 4. AGENTS.md (`agents-template.md`)
 
 **Purpose**: AI agent context guide for target project  
 **When**: Generated during project initialization and updated at major milestones  
@@ -138,15 +178,21 @@ Project Level
     └── AGENTS.md (agents-template.md)
     └── Gates
         ├── Gate 1 PRD (gate-prd-template.md)
+        │   ├── Proposal A (proposal-template.md)
+        │   ├── Proposal B (proposal-template.md)
+        │   └── Proposal N (proposal-template.md)
         ├── Gate 2 PRD (gate-prd-template.md)
+        │   └── Proposals...
         └── Gate N PRD (gate-prd-template.md)
+            └── Proposals...
 ```
 
 **Relationships**:
 - **Project PRD** defines overall scope, decisions, and timeline
 - **AGENTS.md** explains how to read all artifacts
 - **Gate PRDs** decompose project into actionable milestones
-- Each gate PRD references back to Project PRD for context
+- **Proposals** provide atomic implementation units within gates
+- Each proposal references its gate and optionally a specific requirement
 
 ---
 
@@ -190,11 +236,22 @@ To create documentation manually:
 
 All templates use standard placeholders:
 
+### Hash References
+
+All `#hash` references in generated documents (e.g., `#a3f9c2d1`) resolve to entities stored in the SQLite database (`.zeno/requirements.db`). Hashes are registered in the `hash_registry` table and point to gates, requirements, proposals, artifacts, or repositories.
+
+**LLM Resolution**: When processing proposals or other artifacts, the LLM automatically resolves hash references by querying the database. No manual lookup required.
+
+**Database Tables**:
+- `hash_registry` - Central lookup: hash -> entity_type + entity_id
+- `dependencies` - Tracks requires/blocks relationships between hashes
+- `requirements`, `gates`, `proposals` - Entity tables with hash columns
+
 ### Simple Replacements
 - `[Project Name]` - Name of the target project
 - `[DATE]` - Generation date (YYYY-MM-DD)
 - `[XX]` - Gate number (01, 02, etc.)
-- `[hash]` - SHA-256 hash reference (first 16 chars)
+- `[hash]` - SHA-256 hash reference (first 16 chars, from `hash_registry`)
 
 ### Generation Instructions
 - `[Generate X items with Y criteria]` - Tells LLM what to produce
@@ -230,6 +287,16 @@ All templates use standard placeholders:
 3. **Implementation Order**: Steps should show logical dependencies
 4. **Gate-Specific**: Don't repeat project-wide decisions from Project PRD
 5. **Actionable**: Focus on what to build, not how to build it
+
+### Proposal Best Practices
+
+1. **Atomic Tasks**: Each task should be completable in one focused session
+2. **Specific Files**: Always include exact file paths, not directories
+3. **Verifiable Acceptance**: Criteria must be testable or observable
+4. **Test Coverage**: Every proposal should include test tasks
+5. **Small Scope**: 3-7 tasks typical; split larger work into multiple proposals
+6. **Hash References**: Use hashes for all dependency references
+7. **Clear Actions**: Specify create/modify/delete/refactor for each file
 
 ### AGENTS.md Best Practices
 
@@ -295,6 +362,13 @@ Documents help AI assistants:
 3. **Completed**: Marked complete when all requirements done
 4. **Archived**: Tagged in git (`gate-XX-name`)
 
+### Proposal
+1. **Generated**: When starting gate work or explicitly via `zeno proposal create`
+2. **Lifecycle**: draft -> pending_check -> pending_approval -> approved -> implemented
+3. **Active**: Stored in `zeno/proposals/active/<name>.md` (human-readable names)
+4. **Archived**: Moved to `zeno/proposals/completed/<hash>.md` on implementation
+5. **Rejected**: Moved to `zeno/proposals/rejected/<hash>.md` with feedback preserved
+
 ### AGENTS.md
 1. **Generated**: During `zeno init`
 2. **Updated**: At major milestones or structural changes
@@ -338,7 +412,7 @@ Adapt templates for your domain:
 ---
 
 **Last Updated**: 2026-01-04  
-**Version**: 1.0.0  
-**Status**: Active - 3 Templates Available  
+**Version**: 1.1.0  
+**Status**: Active - 4 Templates Available  
 **Maintained by**: Zeno's Planner Development Team
 
