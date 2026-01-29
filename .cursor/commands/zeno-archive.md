@@ -83,8 +83,8 @@ Track these steps as TODOs and complete them one by one.
    ```
 
 6A. **Move gate document to archive folder**
-   - Create archive directory if it doesn't exist: `zeno/gates/archived/`
-   - Move gate document from `zeno/gates/gate-XX-name.md` to `zeno/gates/archived/gate-XX-name.md`
+   - Create archive directory if it doesn't exist: `zeno/gates/archive/`
+   - Move gate document from `zeno/gates/gate-XX-name.md` to `zeno/gates/archive/gate-XX-name.md`
    - Verify the move succeeded
    - Update any references to the gate document path in related files if necessary
 
@@ -98,7 +98,7 @@ Track these steps as TODOs and complete them one by one.
      Proposals: X
      Requirements: Y
      
-     See zeno/gates/archived/gate-XX-name.md for details.
+     See zeno/gates/archive/gate-XX-name.md for details.
      ```
    - Use git command: `git tag -a gate-XX-name -m "[message]"`.
 
@@ -118,7 +118,7 @@ Track these steps as TODOs and complete them one by one.
      - Proposals consolidated: X
      - Git tag: gate-XX-name
      - Requirements fulfilled: Y
-     - Moved to zeno/gates/archived/
+     - Moved to zeno/gates/archive/
      
      Gate: gate-XX
      ```
@@ -128,7 +128,7 @@ Track these steps as TODOs and complete them one by one.
    **Important**: Gate archive commits must include ALL changes from the entire gate:
    - All implementation files (src/, bin/, tests/).
    - All proposals (zeno/proposals/completed/).
-   - Gate documentation moved to `zeno/gates/archived/gate-XX-name.md`.
+   - Gate documentation moved to `zeno/gates/archive/gate-XX-name.md`.
    - State files (zeno/.zeno/state.json, zeno/.zeno/config.json).
    - Architecture diagrams (zeno/architecture/).
    - Configuration files (.prettierrc, eslint.config.mjs, vitest.config.ts, etc.).
@@ -145,8 +145,8 @@ Track these steps as TODOs and complete them one by one.
    Requirements fulfilled: Y
    Git tag created: gate-XX-name
    
-   Consolidation added to: zeno/gates/archived/gate-XX-name.md
-   Gate document moved to: zeno/gates/archived/
+   Consolidation added to: zeno/gates/archive/gate-XX-name.md
+   Gate document moved to: zeno/gates/archive/
    
    Changes committed and pushed:
      - All gate implementation files (src/, bin/, tests/)
@@ -210,7 +210,7 @@ Track these steps as TODOs and complete them one by one.
 
 5B. **Update the parent gate**
    - Read the gate PRD from `zeno/gates/gate-XX-name.md`.
-   - Check if all proposals for this gate are now completed/archived:
+   - Check if all proposals for this gate are now completed/archive:
      - If yes, gate may be ready for archive (notify user).
      - If no, report remaining active proposals.
 
