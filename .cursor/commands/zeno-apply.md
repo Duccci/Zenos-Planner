@@ -97,7 +97,7 @@ Track these steps as TODOs and complete them one by one.
     - If all proposals completed, notify user that gate may be ready:
       ```
       All proposals for Gate XX completed.
-      Ready for gate completion: `zeno gates complete <gate-id>`
+      Ready for gate archive: `/zeno-archive gate-XX`
       ```
 
 **Status Update Summary**
