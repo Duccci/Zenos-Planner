@@ -5,6 +5,20 @@
  * Ensures idempotent storage - same requirement content always generates same hash.
  */
 
+import Database from 'better-sqlite3'
+import { getDatabase } from '../storage/database.js'
+import {
+  Requirement,
+  RequirementType,
+  RequirementPriority,
+  RequirementLevel,
+  RequirementSource,
+  RequirementStatus,
+  RequirementCandidate
+} from './types.js'
+import { shortHash } from '../utils/hash.js'
+import { DatabaseError } from '../utils/errors.js'
+
 interface RequirementRow {
   id: string
   gate_id: string | null
@@ -183,10 +197,10 @@ export class RequirementStorage {
         level: row.level as RequirementLevel,
         source: row.source as RequirementSource,
         description: row.description,
-        acceptanceCriteria: row.acceptance_criteria,
+        acceptanceCriteria: row.acceptance_criteria || undefined,
         hash: row.hash,
         status: row.status as RequirementStatus,
-        sourceGateId: row.source_gate_id,
+        sourceGateId: row.source_gate_id || undefined,
         createdAt: new Date(row.created_at),
       }
     } catch (error) {
@@ -233,10 +247,10 @@ export class RequirementStorage {
         level: row.level as RequirementLevel,
         source: row.source as RequirementSource,
         description: row.description,
-        acceptanceCriteria: row.acceptance_criteria,
+        acceptanceCriteria: row.acceptance_criteria || undefined,
         hash: row.hash,
         status: row.status as RequirementStatus,
-        sourceGateId: row.source_gate_id,
+        sourceGateId: row.source_gate_id || undefined,
         createdAt: new Date(row.created_at),
       }))
     } catch (error) {

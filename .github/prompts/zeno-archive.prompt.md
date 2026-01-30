@@ -213,9 +213,10 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Verify no circular dependencies created.
 
 7B. **Move proposal to completed directory**
-   - Rename file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
+   - Move and rename the file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
+   - This is a move operation - the original file is removed from the source location to prevent duplicates or leftover artifacts.
    - Hash becomes the canonical filename (e.g., `p01projconf01.md`).
-   - Verify the move succeeded.
+   - Verify the move succeeded and the original file no longer exists.
 
 8B. **Commit proposal archive**
    If auto-commit enabled:
