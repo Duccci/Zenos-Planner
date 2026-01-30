@@ -60,6 +60,14 @@ const REQUIREMENT_PATTERNS: RequirementPattern[] = [
     confidence: 0.7,
     transform: (match, context) => `System must provide ${extractObject(context, match)}`,
   },
+  {
+    name: 'functional-could-support',
+    pattern: /\bcould support\b/i,
+    type: 'functional',
+    priority: 'could',
+    confidence: 0.6,
+    transform: (match, context) => `System ${match} ${extractObject(context, match)}`,
+  },
 
   // Non-functional requirements - quality attributes
   {
@@ -333,7 +341,7 @@ export function validateCandidates(candidates: RequirementCandidate[]): Requirem
     .filter((c, index, arr) =>
       // Remove near-duplicates (simple string similarity)
       !arr.slice(0, index).some(other =>
-        similarity(c.description, other.description) > 0.8
+        similarity(c.description, other.description) >= 0.8
       )
     )
 }

@@ -33,11 +33,11 @@ export interface ProposalData {
   context: {
     requirementsContext: string;
     whyChange: string;
-    dependencies: Array<{
+    dependencies: {
       hash: string;
       type: string;
       description: string;
-    }>;
+    }[];
   };
   tasks: Task[];
   filesAffected: FileAffected[];
@@ -80,7 +80,7 @@ export function renderProposalTemplate(template: string, data: ProposalData): st
   data.tasks.forEach((task, index) => {
     tasksSection += `### Task ${index + 1}: ${task.title}\n\n**File(s)**: \`${task.files}\`  \n**Action**: ${task.action}\n\n${task.description}\n\n**Acceptance**:\n${task.acceptance.map(acc => `- [ ] ${acc}`).join('\n')}\n\n---\n\n`;
   });
-  rendered = rendered.replace(/### Task 1: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.ts\]`  \n\*\*Action\*\*: create \| modify \| delete \| refactor\n\n\[2-4 line description...\]\n\n\*\*Acceptance\*\*:\n- \[ \] \[Specific, verifiable condition\]\n- \[ \] \[Another verifiable condition\]\n\n---\n\n### Task 2: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.ts\]`  \n\*\*Action\*\*: create \| modify \| delete \| refactor\n\n\[2-4 line description\.\]\n\n\*\*Acceptance\*\*:\n- \[ \] \[Condition\]\n- \[ \] \[Condition\]\n\n---\n\n### Task 3: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.test\.ts\]`  \n\*\*Action\*\*: create \| modify\n\n\[Test task - every proposal...\]\n\n\*\*Acceptance\*\*:\n- \[ \] Tests cover happy path\n- \[ \] Tests cover error cases\n- \[ \] Coverage meets 90% threshold for touched files\n\n---\n\n/g, tasksSection);
+  rendered = rendered.replace(/### Task 1: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.ts\]` {2}\n\*\*Action\*\*: create \| modify \| delete \| refactor\n\n\[2-4 line description...\]\n\n\*\*Acceptance\*\*:\n- \[ \] \[Specific, verifiable condition\]\n- \[ \] \[Another verifiable condition\]\n\n---\n\n### Task 2: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.ts\]` {2}\n\*\*Action\*\*: create \| modify \| delete \| refactor\n\n\[2-4 line description\.\]\n\n\*\*Acceptance\*\*:\n- \[ \] \[Condition\]\n- \[ \] \[Condition\]\n\n---\n\n### Task 3: \[Task Title\]\n\n\*\*File\(s\)\*\*: `\[path\/to\/file\.test\.ts\]` {2}\n\*\*Action\*\*: create \| modify\n\n\[Test task - every proposal...\]\n\n\*\*Acceptance\*\*:\n- \[ \] Tests cover happy path\n- \[ \] Tests cover error cases\n- \[ \] Coverage meets 90% threshold for touched files\n\n---\n\n/g, tasksSection);
 
   // Files Affected table
   const filesRows = data.filesAffected.map(file =>
@@ -94,7 +94,7 @@ export function renderProposalTemplate(template: string, data: ProposalData): st
   // Version info
   rendered = rendered.replace(/\[MAJOR\.MINOR\.PATCH\]/g, '1.0.0');
   const today = new Date().toISOString().split('T')[0];
-  rendered = rendered.replace('[YYYY-MM-DD]', today as string);
+  rendered = rendered.replace('[YYYY-MM-DD]', today!);
 
   return rendered;
 }

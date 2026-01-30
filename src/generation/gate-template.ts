@@ -23,13 +23,13 @@ export interface GateData {
     inScope: string[];
     outOfScope: string[];
   };
-  projectRequirements: Array<{
+  projectRequirements: {
     hash: string;
     name: string;
     type: string;
     priority: string;
     howAddressed: string;
-  }>;
+  }[];
   // Add more fields as needed
 }
 

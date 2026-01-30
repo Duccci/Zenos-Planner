@@ -7,6 +7,7 @@
 
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
+import { mkdirSync } from 'node:fs'
 import { ensureDir } from '../utils/file.js'
 import { getZenoDir } from '../utils/config.js'
 import { DatabaseError } from '../utils/errors.js'
@@ -40,6 +41,9 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
 
   try {
     const dbPath = getDatabasePath(projectRoot)
+
+    // Ensure directory exists
+    mkdirSync(getZenoDir(projectRoot), { recursive: true })
 
     // Create database connection
     dbInstance = new Database(dbPath)
