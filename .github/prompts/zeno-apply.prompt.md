@@ -17,7 +17,7 @@ agent: agent
 Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 - **Create TODO list with TWO levels**: Workflow steps (listed below) AND proposal tasks (from gate proposal document)
 - **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
-- **Mark each proposal task in the markdown as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
+- **Mark each proposal task as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
 - **Do not batch completions** - mark items completed as soon as they are done
 
 1. **Identify the proposal**
@@ -26,17 +26,17 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Confirm the proposal status is `pending` before proceeding.
 
 2. **Read proposal documentation**
-   - Read the proposal file from `zeno/proposals/gate-XX/<name>.md` or use `zeno proposal show "<hash>"`.
+   - Read the proposal file from `zeno/proposals/gate-XX/<name>.md` or use `zeno proposal show <hash>`.
    - Review: Summary, Context, Dependencies, all Tasks with Acceptance criteria, Files Affected.
    - Note any blocked proposals (check Dependencies table for `blocks` entries).
 
 3. **Check dependencies**
    - Verify all `requires` dependencies are complete (status: `completed`).
    - If dependencies are incomplete, stop and report which proposals must be implemented first.
-   - Use `zeno req deps "<hash>"` for dependency graph if needed.
+   - Use `zeno req deps <hash>` for dependency graph if needed.
 
 4. **Start proposal implementation**
-   - **Invoke**: `zeno proposal start "<hash>"` to set status: `pending` -> `in_progress`
+   - **Invoke**: `zeno proposal start <hash>` to set status: `pending` -> `in_progress`
    - This signals work has begun on this proposal.
 
 5. **Implement tasks sequentially**
@@ -52,14 +52,14 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 6. **Update requirements and run tests**
    - For each requirement referenced in the proposal's **Requirement** field:
-     - **Invoke**: `zeno req status "<hash>" implemented` when code is written
-     - **Invoke**: `zeno req status "<hash>" tested` after tests pass
+     - **Invoke**: `zeno req status <hash> implemented` when code is written
+     - **Invoke**: `zeno req status <hash> tested` after tests pass
    - Implement test tasks (usually last task in each proposal).
    - Aim for 90%+ coverage on touched files.
    - Run tests locally: `npm test` or equivalent.
 
 7. **Run automated checks**
-   - **Invoke**: `zeno proposal validate "<hash>"` to run full validation suite
+   - **Invoke**: `zeno proposal validate <hash>` to run full validation suite
    - Or execute manually: `npm run typecheck && npm run lint && npm test -- --coverage && npm audit`
    - All checks must pass before proceeding.
    - If checks fail, fix issues and re-validate.
@@ -67,8 +67,8 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 8. **Request human approval**
    - Present validation results to user.
    - Wait for explicit approval or rejection.
-   - On approval: **Invoke** `zeno proposal approve "<hash>"` (status: `in_progress` -> `completed`)
-   - On rejection: **Invoke** `zeno proposal reject "<hash>"` (status: -> `rejected`)
+   - On approval: **Invoke** `zeno proposal approve <hash>` (status: `in_progress` -> `completed`)
+   - On rejection: **Invoke** `zeno proposal reject <hash>` (status: -> `rejected`)
    - If rejected, stop and await further instructions.
 
 9. **Commit changes**
@@ -89,8 +89,8 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
       ```
 
 **Reference**
-- Use `zeno proposal show "<hash>"` for proposal details during implementation.
-- Use `zeno show "<hash>"` to resolve any hash reference to its entity.
-- Use `zeno req deps "<hash>"` to verify dependency chains.
+- Use `zeno proposal show <hash>` for proposal details during implementation.
+- Use `zeno show <hash>` to resolve any hash reference to its entity.
+- Use `zeno req deps <hash>` to verify dependency chains.
 - Consult `zeno/architecture/*.md` for system context.
 <!-- ZENO:END -->

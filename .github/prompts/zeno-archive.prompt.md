@@ -155,7 +155,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 3B. **Ensure requirements are updated**
    - Read the **Requirement** field from the proposal header.
    - For each requirement hash referenced:
-     - **Invoke**: `zeno req status "<hash>" tested` (if tests passed).
+     - **Invoke**: `zeno req status <hash> tested` (if tests passed).
      - Or verify status is already `tested`.
    - This ensures requirement tracking reflects completion.
 
@@ -213,10 +213,9 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Verify no circular dependencies created.
 
 7B. **Move proposal to completed directory**
-   - Move and rename the file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
-   - This is a move operation - the original file is removed from the source location to prevent duplicates or leftover artifacts.
+   - Rename file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
    - Hash becomes the canonical filename (e.g., `p01projconf01.md`).
-   - Verify the move succeeded and the original file no longer exists.
+   - Verify the move succeeded.
 
 8B. **Commit proposal archive**
    If auto-commit enabled:
@@ -289,8 +288,8 @@ To archive multiple proposals at once:
 - Use `zeno gates list` to find gates ready for archive.
 - Use `zeno gates show <gate-id>` to view gate details.
 - Use `zeno proposal list --status completed` to find archivable proposals.
-- Use `zeno proposal show "<hash>"` to verify proposal details.
-- Use `zeno req show "<hash>"` to check requirement status after archive.
+- Use `zeno proposal show <hash>` to verify proposal details.
+- Use `zeno req show <hash>` to check requirement status after archive.
 - Use `zeno req list --gate <id>` to verify all requirements tested.
 - Consolidation utility: `src/utils/gate-consolidation.ts`.
 - Archived artifacts are immutable; create new proposal if changes needed.

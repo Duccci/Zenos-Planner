@@ -22,7 +22,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 1. **Identify the gate**
    - If the prompt specifies a gate (e.g., `gate-01`, `#g01c0re1nfra`), locate `zeno/gates/gate-XX-name.md`.
-   - Otherwise, run `zeno gates list` or inspect `zeno/gates/` to identify the target gate.
+   - Otherwise, **Invoke** `zeno gates list` or inspect `zeno/gates/` to identify the target gate.
    - Confirm the gate status is `pending` or `in_progress`.
 
 2. **Start gate if pending**
@@ -44,7 +44,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 4. **Review existing codebase and proposals**
    - Inspect `zeno/proposals/gate-XX/` for existing proposals in this gate.
    - Check related code via `ls src/` and `rg` searches to ground proposals in current state.
-   - Run `zeno req list --gate <id>` if CLI is available.
+   - **Invoke** `zeno req list --gate <id>` if CLI is available.
    - Identify what already exists vs. what needs to be created.
 
 5. **Decompose into proposals**
@@ -132,7 +132,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 **Reference**
 - Use `zeno/gates/gate-XX-name.md` as the authoritative source for each gate.
 - Use `templates/md-templates/proposal-template.md` for structural reference.
-- Use `zeno req show "<hash>"` to get detailed requirement information.
+- **Invoke** `zeno req show "<hash>"` to get detailed requirement information.
 - Consult `zeno/architecture/*.md` for component locations and data flow.
 - Inspect existing proposals in `zeno/proposals/gate-XX/` to maintain consistency.
 <!-- ZENO:END -->
