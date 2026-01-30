@@ -50,7 +50,7 @@ project-root/
 - Progress measured by gate completion, not time estimates or percentages
 
 ### Hash-Based References (Internal Only)
-- Hashes like `#a3f9c2d1` are for **internal tracking and system commands only**
+- Hashes like "#a3f9c2d1" are for **internal tracking and system commands only**
 - Reduces LLM context size by 50%+
 - Enables cross-repository dependency tracking
 - Format: SHA-256 (first 16 characters)
@@ -71,55 +71,74 @@ Always wait for approval at:
 
 ## LLM-Invoked Functions
 
-All Zeno operations are invoked by AI agents during workflow execution. These are functions the LLM calls, not commands humans type. Humans interact by providing prompts and approvals.
+**Important**: The `zeno` command is available after installation.
 
 ```bash
-# Project status
+# Project Management
+zeno init                           # Initialize new project
 zeno status                         # Show project overview
+zeno dashboard                      # Launch TUI dashboard (Gate 11+)
+zeno rescope                        # Rescope project mid-development
+
+# Gates
 zeno gates list                     # List all gates
-
-# Working with gates (status: pending -> in_progress -> completed)
 zeno gates show <gate-id>           # Show gate details
-zeno gates start <gate-id>          # Start gate (pending -> in_progress)
-zeno gates complete <gate-id>       # Complete gate (-> completed, creates tag)
+zeno gates start <gate-id>          # Start gate (status: pending -> in_progress)
+zeno gates complete <gate-id>       # Complete gate (status: -> completed, creates tag)
+zeno gates regenerate               # Regenerate future gates
 
-# Requirements (status: pending -> implemented -> tested)
-zeno req list [--gate <id>]         # List requirements
-zeno req show <hash>                # Show requirement details
+# Requirements
+zeno req list [--gate <id>]         # List gate-specific requirements
+zeno req list --project             # List project-level requirements
+zeno req show <hash>                # Show requirement details (includes parent refs)
 zeno req deps <hash>                # Show dependency graph
-zeno req status <hash> <status>     # Update requirement status
+zeno req status <hash> <status>     # Update status (pending/implemented/tested)
+zeno req transfer <hash> <gate-id>  # Transfer requirement to another gate
 
-# Proposals (status: pending -> in_progress -> completed | rejected)
+# Architecture
+zeno arch generate                  # Generate all diagrams
+zeno arch show <type>               # Show specific diagram type
+                                    # Types: system (architecture), lifecycle (state machine),
+                                    # flow (data flow), gate-roadmap (gate roadmap with parallels)
+
+# Repositories
+zeno repos list                     # List detected repositories
+zeno repos deps                     # Show cross-repo dependencies
+zeno repos detect                   # Re-run boundary detection
+zeno repos adjust                   # Manually adjust boundaries
+
+# Proposals
 zeno proposal list [--gate <id>]    # List proposals
 zeno proposal show <hash>           # Show proposal details
 zeno proposal start <hash>          # Start implementation (pending -> in_progress)
 zeno proposal validate <hash>       # Run automated checks
-zeno proposal approve <hash>        # Approve proposal (-> completed)
-zeno proposal reject <hash>         # Reject proposal (-> rejected)
+zeno proposal approve <hash>        # Approve proposal (status: -> completed)
+zeno proposal reject <hash>         # Reject proposal (status: -> rejected)
 
-# Architecture
-zeno arch generate                  # Generate all diagrams
-zeno arch show <type>               # Show specific diagram
+# Analysis
+zeno analyze [path]                 # Deep codebase analysis
+zeno metrics [path]                 # Show code metrics
 
-# Hash lookup
+# Registry
 zeno show <hash>                    # Resolve hash to entity
+zeno registry rebuild               # Rebuild hash registry
 ```
 
 ## Typical Workflow
 
 1. **Check status**: `zeno gates list` to see current gate
 2. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
-3. **Review requirements**: `zeno req list --gate <id>`
-4. **View proposals**: `zeno proposal show <hash>`
-5. **Validate**: `zeno proposal validate <hash>`
-6. **Wait for approval**: Human runs `zeno proposal approve <hash>`
+3. **Review requirements**: `zeno req list --gate "<id>"`
+4. **View proposals**: `zeno proposal show "<hash>"`
+5. **Validate**: `zeno proposal validate "<hash>"`
+6. **Wait for approval**: Human runs `zeno proposal approve "<hash>"`
 7. **Implement**: Execute approved proposal
 8. **Repeat**: Continue with next requirement
 
 ## Best Practices
 
-1. **Use hash references internally** for system commands (`zeno req show #a3f9c2d1`), but **resolve to plain text names** when communicating with users
-2. **Check dependencies** before implementation (`zeno req deps <hash>`)
+1. **Use hash references internally** for system commands (`zeno req show "#a3f9c2d1"`), but **resolve to plain text names** when communicating with users
+2. **Check dependencies** before implementation (`zeno req deps "#a3f9c2d1"`)
 3. **Respect quality thresholds** (90% coverage, 0 vulnerabilities, <0.01% lint errors)
 4. **Wait for human approval** at key decision points
 5. **Reference architecture diagrams** for system context

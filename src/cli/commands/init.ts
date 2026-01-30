@@ -5,7 +5,93 @@
  */
 
 import type { Command } from 'commander'
+import { input, confirm, editor } from '@inquirer/prompts'
 import { logger } from '../../utils/logger.js'
+import { createProjectStructure } from '../../scaffold/index.js'
+import { RequirementGenerator } from '../../generation/requirement-generator.js'
+import { generateGates } from '../../core/gate-generator.js'
+import { writeAgentsMD } from '../../generation/agents-writer.js'
+import { generateAgentsMD } from '../../generation/agents-generator.js'
+import { fileExists, directoryExists } from '../../utils/file.js'
+import { saveConfig, getDefaultConfig } from '../../utils/config.js'
+import { initializeDatabase } from '../../storage/database.js'
+
+/**
+ * Validate project name
+ */
+function validateProjectName(name: string): boolean | string {
+  if (!name.trim()) {
+    return 'Project name cannot be empty'
+  }
+  if (name.length > 100) {
+    return 'Project name must be 100 characters or less'
+  }
+  if (!/^[a-zA-Z0-9\s\-_]+$/.test(name)) {
+    return 'Project name can only contain letters, numbers, spaces, hyphens, and underscores'
+  }
+  return true
+}
+
+/**
+ * Validate codebase path
+ */
+function validateCodebasePath(path: string): boolean | string {
+  if (!directoryExists(path)) {
+    return `Directory does not exist: ${path}`
+  }
+  return true
+}
+
+/**
+ * Run the initialization workflow
+ */
+async function runInitWorkflow(
+  projectName: string,
+  endState: string
+): Promise<void> {
+  const projectRoot = process.cwd()
+
+  logger.info('Initializing Zeno project...')
+  logger.info(`Project: ${projectName}`)
+  logger.info(`Root: ${projectRoot}`)
+
+  // 1. Create project structure
+  logger.info('Creating project structure...')
+  const createdPaths = await createProjectStructure(projectRoot)
+  logger.info(`Created ${createdPaths.length.toString()} directories/files`)
+
+  // 2. Update config with project name
+  const config = getDefaultConfig(projectName)
+  await saveConfig(config, projectRoot)
+
+  // 3. Initialize database
+  logger.info('Initializing database...')
+  await initializeDatabase(projectRoot)
+
+  // 4. Generate project requirements
+  logger.info('Generating project requirements...')
+  const reqGen = new RequirementGenerator()
+  const requirements = reqGen.generateFromEndState(endState)
+  logger.info(`Generated ${requirements.length.toString()} project requirements`)
+
+  // 5. Generate gates
+  logger.info('Generating project gates...')
+  const gatesResult = generateGates(endState, undefined, requirements)
+  logger.info(`Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`)
+
+  // 6. Generate AGENTS.md
+  logger.info('Generating AGENTS.md...')
+  const agentsContent = generateAgentsMD(config, gatesResult.gates, requirements)
+  await writeAgentsMD(agentsContent, projectRoot)
+
+  logger.info('✅ Project initialized successfully!')
+  logger.info('')
+  logger.info('Next steps:')
+  logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
+  logger.info('  2. Check zeno/architecture/ for system diagrams')
+  logger.info('  3. Run "zeno gates list" to see your roadmap')
+  logger.info('  4. Start with "zeno gates start gate-01"')
+}
 
 /**
  * Register init command
@@ -14,15 +100,66 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize a new Zeno project')
-    .action(() => {
-      logger.info('Init command')
-      logger.info('Not yet implemented - Gate 2 required')
-      logger.info('This command will:')
-      logger.info('  - Prompt for project name and end state')
-      logger.info('  - Generate project-level requirements')
-      logger.info('  - Generate gates using Zeno\'s paradox algorithm')
-      logger.info('  - Create initial architecture diagrams')
-      logger.info('  - Initialize SQLite database')
-      logger.info('  - Scaffold project structure')
+    .action(async () => {
+      try {
+        // Check if already initialized
+        if (fileExists('zeno/.zeno/config.json')) {
+          logger.error('Project already initialized. Found zeno/.zeno/config.json')
+          logger.error('To reinitialize, remove the zeno/ directory first')
+          process.exit(1)
+        }
+
+        logger.info('🚀 Welcome to Zeno\'s Planner!')
+        logger.info('Let\'s set up your project.\n')
+
+        // Prompt for project name
+        const projectName = await input({
+          message: 'What is your project name?',
+          validate: validateProjectName,
+        })
+
+        // Prompt for end state description
+        const endState = await editor({
+          message: 'Describe your project\'s end state (what you want to build):',
+          default: 'A complete, production-ready application that...',
+          validate: (text) => text.trim().length > 10 || 'Please provide a more detailed description (at least 10 characters)',
+        })
+
+        // Ask about existing codebase
+        const hasExistingCodebase = await confirm({
+          message: 'Do you have an existing codebase to analyze?',
+          default: false,
+        })
+
+        if (hasExistingCodebase) {
+          const codebasePath = await input({
+            message: 'Path to existing codebase:',
+            validate: validateCodebasePath,
+          })
+          logger.info(`Codebase path: ${codebasePath}`)
+          // TODO: Implement codebase analysis
+        }
+
+        // Confirm and run
+        const confirmed = await confirm({
+          message: 'Ready to initialize project with these settings?',
+          default: true,
+        })
+
+        if (!confirmed) {
+          logger.info('Initialization cancelled')
+          return
+        }
+
+        await runInitWorkflow(projectName, endState)
+
+      } catch (error) {
+        if (error instanceof Error && error.name === 'ExitPromptError') {
+          logger.info('Initialization cancelled')
+        } else {
+          logger.error(`Initialization failed: ${error instanceof Error ? error.message : String(error)}`)
+          process.exit(1)
+        }
+      }
     })
 }

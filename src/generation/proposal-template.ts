@@ -93,7 +93,8 @@ export function renderProposalTemplate(template: string, data: ProposalData): st
 
   // Version info
   rendered = rendered.replace(/\[MAJOR\.MINOR\.PATCH\]/g, '1.0.0');
-  rendered = rendered.replace(/\[YYYY-MM-DD\]/g, new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split('T')[0];
+  rendered = rendered.replace('[YYYY-MM-DD]', today as string);
 
   return rendered;
 }

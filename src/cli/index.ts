@@ -101,7 +101,7 @@ export async function main(): Promise<void> {
 }
 
 /**
- * Main CLI execution function (for bin/zeno.js)
+ * Main CLI execution function (for the zeno command)
  */
 export async function run(): Promise<void> {
   await main()

@@ -37,7 +37,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "dev:cli": "npm run build && node bin/zeno.js",
+    "dev:cli": "npm run build && zeno",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
