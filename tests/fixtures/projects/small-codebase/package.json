@@ -1,0 +1,17 @@
+{
+  "name": "small-codebase-test-project",
+  "version": "1.0.0",
+  "description": "Test fixture for small existing codebase integration tests",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

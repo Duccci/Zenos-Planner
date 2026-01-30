@@ -4,6 +4,16 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 **Note**: For general Zeno's Planner tool usage, see the root `AGENTS.md`. This file is project-specific.
 
+## Cross-File Navigation
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| **Root AGENTS.md** | General Zeno's Planner tool usage | `../AGENTS.md` |
+| **Project AGENTS.md** | Project-specific AI context | `AGENTS.md` (this file) |
+| **Project PRD** | Single source of truth for project scope | `PROJECT_PRD.md` |
+| **Architecture Docs** | System design and diagrams | `architecture/*.md` |
+| **AGENTS Template** | Template for generating project guides | `../templates/md-templates/agents-template.md` |
+
 ---
 
 ## Project Overview
@@ -33,89 +43,21 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 ---
 
-## Understanding Zeno's Planner Concepts
+## Core Concepts
 
-### Core Methodology: Zeno's Paradox
+**[Reference: Root AGENTS.md#core-concepts]**
 
-Zeno's Planner uses Zeno's dichotomy paradox as a conceptual framework for project planning:
 - Gates are concrete project milestones that progressively move toward the end goal
 - Each gate represents actual deliverables, not percentages
-- Gates are generated dynamically based on project analysis and decomposition
-- Conceptually, each gate closes the remaining distance to the goal (inspired by Zeno's paradox)
-- Progress is measured by gate completion, NOT time estimates
+- Progress measured by gate completion, not time estimates
+- Hash-based references reduce context by 50%+, enable cross-repo tracking
+- Quality gates: 90% coverage, 0 vulnerabilities, <0.01% lint errors
 
-**Key Insight**: LLMs cannot reliably estimate time, but they can decompose problems into actionable milestones. Zeno provides structure for breaking down large projects into manageable, measurable chunks.
+## Command Reference
 
-**Example for Zeno's Planner itself**:
-- **Gate 1**: Core Infrastructure (foundation for everything else)
-- **Gate 2**: Zeno Engine & Gate Generation (builds on infrastructure)
-- **Gate 3**: Requirements & Database Layer (extends core capabilities)
-- **Gate 12**: Documentation & Polish (completes the goal)
+**[Reference: Root AGENTS.md#complete-command-reference]**
 
-### Hash-Based References
-
-Instead of full file paths, Zeno uses SHA-256 hashes (first 16 chars) for internal tracking of all entities:
-
-```
-Traditional Spec Systems:
-"Requirement 'User Authentication' in specs/auth/spec.md depends on specs/core/spec.md"
-
-Zeno's Internal Approach:
-"Requirement #a3f9c2d1 depends on #b7e4d8f2"
-```
-
-**Benefits**:
-- Reduces LLM context size by 50%+
-- Enables cross-repository dependency tracking
-- Provides immutable content-addressable references
-- Works across multiple repositories seamlessly
-
-**Critical: Internal Use Only**
-
-Hash references are for **internal tracking and AI-to-system communication only**. When communicating with users:
-- **Always resolve hashes to plain text names**
-- Say "User Authentication requirement" not "#a3f9c2d1"
-- Say "the Config Utilities proposal" not "proposal #b7e4d8f2"
-- Use `zeno show <hash>` to resolve any hash before presenting to user
-
-**Usage** (AI-to-system, not user-facing):
-```bash
-# Find entity by hash
-zeno show <hash>
-
-# View dependencies
-zeno req deps <hash>
-
-# View proposal details
-zeno proposal show <hash>
-```
-
-### Hybrid Storage Model
-
-Zeno uses both SQLite and files:
-
-**SQLite** (`zeno/.zeno/requirements.db`):
-- Gates, requirements, proposals, dependencies
-- Queryable for complex relationships
-- Hash registry for lookups
-
-**Files** (Markdown/Mermaid/DOT/SVG/JSON):
-- Architecture diagrams (embedded Mermaid for simple diagrams or SVG for DOT-based complex diagrams) - version controlled
-- Gate PRDs (per-gate Product Requirements Documents)
-- Proposals (structured change notices with implementation details)
-- AGENTS.md (this file - AI context and instructions)
-
-### Quality Gates (Non-Configurable in MVP)
-
-All proposals must pass automated checks before human review:
-- **Code Coverage**: 90% minimum (statements, branches, functions, lines)
-- **Security Vulnerabilities**: 0 allowed (npm audit checks)
-- **Linting Error Rate**: <0.01% - 1 error per 10,000 lines
-- **Type Checking**: 0 TypeScript errors (strict mode)
-- **Tests**: All unit tests must pass
-- **Dependency Conflicts**: No hash conflicts detected
-
-These thresholds are enforced automatically and cannot be bypassed in the MVP. Future versions may allow per-project configuration.
+All Zeno commands are available. Key commands for this project:
 
 ---
 
@@ -317,34 +259,16 @@ Awaiting human review.
 
 ---
 
-## Common Workflows
+## Workflows
 
-### Workflow 1: Starting a New Project
-
-```bash
-# Initialize Zeno in project directory
-zeno init
-
-# Interactive prompts will ask:
-# - Project name
-# - End state description (natural language goal)
-# - Existing codebase path (optional)
-
-# Result:
-# - Project-level requirements generated from end state
-# - Gates generated using Zeno's paradox
-# - Initial architecture diagrams created
-# - SQLite database initialized
-# - Hash registry established
-```
-
-**AI Assistant Tasks**:
-1. Help user articulate clear end state
-2. Analyze existing codebase if provided (AST parsing)
-3. Generate project-level requirements (cross-cutting concerns, constraints)
-4. Generate gates based on analysis
-5. Create initial architecture diagrams
-6. Store all data in SQLite + files
+| Workflow | Key Commands | AI Tasks | Human Approval Points |
+|----------|-------------|----------|----------------------|
+| **Project Init** | `zeno init` | Analyze codebase, generate gates, create diagrams | Gate generation review |
+| **Gate Work** | `zeno gates start <id>` | Decompose requirements, update architecture, create proposals | Repository boundaries |
+| **Implementation** | `zeno proposal validate <hash>` | Implement code, write tests, run checks | Proposal approval |
+| **Failure Handling** | Auto-replan with context | Parse errors, generate fixes, re-validate | - |
+| **Rescoping** | `zeno rescope` | Document changes, regenerate gates | - |
+| **Multi-Repo** | `zeno repos detect` | Calculate coupling, propose boundaries | Boundary approval |
 
 ### Workflow 2: Working on a Gate
 
@@ -358,119 +282,6 @@ zeno gates start <gate-id>
 # System generates:
 # - Gate-specific requirements (from project reqs + gate objectives)
 # - Inherits applicable project-level requirements
-# - Accepts transferred requirements from other gates (if any)
-# - Architecture diagrams (updated)
-# - PRD for the gate
-# - Repository boundaries (if multi-repo)
-# - Proposals for each requirement
-```
-
-**AI Assistant Tasks**:
-1. Read gate PRD from `zeno/gates/gate-XX-name.md`
-2. Identify applicable project-level requirements
-3. Decompose gate objectives into gate-specific requirements
-4. Link gate requirements to parent project requirements
-5. Generate architecture updates
-6. Detect repository boundaries (coupling analysis)
-7. Create proposals for implementation
-8. Store requirements with hash references and source tracking
-
-### Workflow 3: Implementing a Proposal
-
-```bash
-# List proposals for current gate
-zeno proposal list --gate <gate-id>
-
-# View specific proposal
-zeno proposal show <hash>
-
-# Validate proposal (automated checks)
-zeno proposal validate <hash>
-
-# If validation passes, human approves:
-zeno proposal approve <hash>
-
-# If validation fails, replan:
-# System automatically regenerates with error context
-```
-
-**AI Assistant Tasks**:
-1. Read proposal from SQLite or `zeno/proposals/gate-XX/<name>.md`
-2. Implement code changes according to proposal
-3. Write tests (aiming for 90%+ coverage)
-4. Run automated checks locally
-5. Wait for human approval before proceeding
-6. Auto-commit on approval with structured message
-
-### Workflow 4: Handling Failures
-
-```bash
-# If automated checks fail:
-# - Linting errors → Fix code style
-# - Type errors → Fix TypeScript issues
-# - Test failures → Debug and fix tests
-# - Coverage below 90% → Add more tests
-# - Security vulnerabilities → Update dependencies
-
-# System triggers replan automatically
-# Provides error context for regeneration
-```
-
-**AI Assistant Tasks**:
-1. Parse validation error messages
-2. Identify root cause (lint/type/test/coverage/security)
-3. Generate fix proposal with context
-4. Rerun validation
-5. Iterate until all checks pass
-
-### Workflow 5: Rescoping Mid-Project
-
-```bash
-# User changes end state
-zeno rescope
-
-# Interactive prompt:
-# - New end state description
-# - Reason for rescope
-
-# System:
-# - Creates rescope gate (documents the change)
-# - Regenerates future gates from current position
-# - Preserves completed gates
-# - Updates architecture diagrams
-```
-
-**AI Assistant Tasks**:
-1. Document the rescope (why and what changed)
-2. Regenerate gates using Zeno's paradox from current state
-3. Update architecture diagrams
-4. Identify affected requirements and proposals
-5. Create migration plan if needed
-
-### Workflow 6: Multi-Repository Projects
-
-```bash
-# During gate start, if complexity detected:
-# System analyzes:
-# - Coupling metrics (afferent/efferent)
-# - Domain boundaries (bounded contexts)
-# - Module size (LOC, complexity)
-
-# Generates repo boundary proposal with confidence scores
-zeno repos list
-zeno repos deps  # Cross-repo dependency graph
-
-# Human approves or adjusts boundaries
-```
-
-**AI Assistant Tasks**:
-1. Calculate coupling metrics for modules
-2. Identify domain boundaries
-3. Propose repository split with confidence scores
-4. Generate dependency graph across repos
-5. Scaffold new repositories (package.json, tsconfig)
-6. Update hash registry for cross-repo references
-
 ---
 
 ## LLM Function Reference
@@ -551,166 +362,29 @@ zeno registry rebuild               # Rebuild hash registry
 
 ---
 
-## Best Practices for AI Assistants
+## Best Practices
 
-### 1. Use Hash References Internally, Plain Text for Users
+**[Reference: Root AGENTS.md#best-practices]**
 
-Hash references are for internal tracking and system commands. When communicating with users, always resolve hashes to human-readable names.
-
-**Internal/System Commands** (Good):
-```bash
-zeno req show #a3f9c2d1
-zeno req deps #b7e4d8f2
-```
-
-**User-Facing Communication** (Good):
-```markdown
-The "User Authentication" requirement depends on the "Core Library" module.
-```
-
-**User-Facing Communication** (Bad):
-```markdown
-Requirement #a3f9c2d1 depends on module #b7e4d8f2
-```
-
-Use `zeno show <hash>` to resolve any hash before presenting information to the user.
-
-### 2. Check Dependencies Before Implementation
-
-```bash
-# Before implementing proposal
-zeno req deps <hash>
-zeno proposal show <hash>
-
-# Verify no conflicts
-zeno proposal validate <hash>
-```
-
-### 3. Respect Quality Thresholds
-
-- Write tests FIRST (TDD approach)
-- Aim for 90%+ coverage from the start
-- Run linters before proposing changes
-- Check for security vulnerabilities in dependencies
-- Use TypeScript strict mode
-
-### 4. Wait for Human Approval
-
-Do NOT auto-implement without approval at:
-- Gate generation (human reviews roadmap)
-- Repository boundaries (human validates split)
-- Proposals (human approves implementation)
-- Gate completion (human confirms release)
-
-### 5. Provide Context in Replans
-
-When automated checks fail:
-```markdown
-## Replan Context
-
-**Previous Attempt**: #a3f9c2d1
-**Failure**: Coverage 78% (threshold: 90%)
-**Root Cause**: Missing tests for error handling paths
-**Proposed Fix**: Add 5 test cases for edge conditions
-**New Coverage Estimate**: 93%
-```
-
-### 6. Reference Architecture Diagrams
-
-When implementing:
-- Read `zeno/architecture/system-overview.md` for context
-- Check `zeno/architecture/data-flow.md` for data paths
-- Review `zeno/architecture/gate-lifecycle.md` for state flow
-- Understand `zeno/architecture/gate-roadmap.md` for gate roadmap and parallel relationships
-
-### 7. Use Structured Commit Messages
-
-```
-type(scope): Brief description #hash
-
-Detailed description of changes.
-
-- Change 1
-- Change 2
-
-Proposal: #a3f9c2d1
-Gate: gate-03-requirements-db
-Quality: coverage 92%, security 0, lint 0.005%
-
-Co-authored-by: Zeno <zeno@planner.dev>
-```
-
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+Key practices for this project:
+- Use hash references internally, resolve to plain text for users
+- Check dependencies before implementation
+- Respect quality thresholds (90% coverage, 0 vulnerabilities, <0.01% lint errors)
+- Wait for human approval at key decision points
+- Reference architecture diagrams for context
+- Use structured commit messages
 
 ---
 
 ## Troubleshooting
 
-### Issue: Hash Not Found
-
-```bash
-# Check hash registry
-zeno show <hash>
-
-# If not found, may be stale reference
-# Regenerate hash registry
-zeno registry rebuild
-```
-
-### Issue: Dependency Conflict
-
-```bash
-# View conflict details
-zeno proposal validate <hash>
-
-# Shows:
-# Conflict: Proposal #a3f9c2d1 modifies #b7e4d8f2
-#           Proposal #c8d4e1f5 also modifies #b7e4d8f2
-# Resolution: Serialize proposals or merge changes
-```
-
-### Issue: Quality Gate Failure
-
-```bash
-# Check detailed results
-zeno proposal show <hash>
-
-# Common fixes:
-# - Coverage low: Add more tests
-# - Security vuln: Run `npm audit fix`
-# - Lint errors: Run `npm run lint -- --fix`
-# - Type errors: Fix TypeScript issues
-```
-
-### Issue: Gate Generation Produces Unexpected Results
-
-```bash
-# Verify end state is clear
-cat zeno/.zeno/config.json | grep end_state
-
-# Regenerate gates with more context
-zeno gates regenerate --verbose
-
-# Manual adjustment (if needed)
-# Edit gate PRDs in zeno/gates/
-# Update SQLite with manual changes
-```
-
-### Issue: Multi-Repo Detection Incorrect
-
-```bash
-# View detected boundaries
-zeno repos list
-
-# Check confidence scores
-# If low confidence (<0.8), review manually
-
-# Adjust boundaries
-zeno repos adjust
-
-# Re-run detection with different thresholds
-zeno repos detect --coupling-threshold 0.7
-```
+| Issue | Symptoms | Solution |
+|-------|----------|----------|
+| **Hash Not Found** | `zeno show <hash>` returns error | Run `zeno registry rebuild` |
+| **Dependency Conflict** | Proposal validation fails | Run `zeno proposal validate <hash>` to see conflicts |
+| **Quality Gate Failure** | Coverage <90%, security issues, lint errors | Add tests, fix security vulns, resolve lint issues |
+| **Gate Generation Issues** | Unexpected gate structure | Check `zeno/.zeno/config.json`, run `zeno gates regenerate --verbose` |
+| **Multi-Repo Detection** | Incorrect boundaries, low confidence | Run `zeno repos adjust`, review coupling metrics |
 
 ---
 

@@ -2,6 +2,16 @@
 
 Quick reference for AI coding assistants on how to work with Zeno's Planner projects.
 
+## Cross-File Navigation
+
+| Document | Purpose | Location |
+|----------|---------|----------|
+| **Root AGENTS.md** | General Zeno's Planner tool usage | `AGENTS.md` (this file) |
+| **Project AGENTS.md** | Project-specific AI context | `zeno/AGENTS.md` |
+| **Project PRD** | Single source of truth for project scope | `zeno/PROJECT_PRD.md` |
+| **Architecture Docs** | System design and diagrams | `zeno/architecture/*.md` |
+| **AGENTS Template** | Template for generating project guides | `templates/md-templates/agents-template.md` |
+
 ## File Structure
 
 Zeno's Planner uses a two-level documentation pattern:
@@ -42,18 +52,17 @@ project-root/
 
 ## Core Concepts (Quick Reference)
 
-### Zeno's Paradox Methodology
-- Gates are project milestones that progressively move toward the end goal
-- Each gate represents concrete deliverables, not percentages
-- Conceptually inspired by Zeno's paradox to help humans understand the iterative approach
-- Percentages are NOT used in functionality - only as a conceptual explanation
-- Progress measured by gate completion, not time estimates or percentages
+### Gate-Based Methodology
+- Gates are concrete project milestones that progressively move toward the end goal
+- Each gate represents actual deliverables, not percentages
+- Progress measured by gate completion, not time estimates
 
 ### Hash-Based References (Internal Only)
 - Hashes like "#a3f9c2d1" are for **internal tracking and system commands only**
-- Reduces LLM context size by 50%+
+- Reduces LLM context size by 50%+ through controlled reference locations
 - Enables cross-repository dependency tracking
 - Format: SHA-256 (first 16 characters)
+- **Reference Locations**: Hashes only appear in entity headers, associated parent documents, and explicit dependency sections
 - **When communicating with users**: Always resolve hashes to plain text names (e.g., say "User Authentication requirement" not "#a3f9c2d1")
 
 ### Quality Thresholds (Non-Configurable in MVP)
@@ -69,60 +78,39 @@ Always wait for approval at:
 - Proposals (human approves implementation)
 - Gate completion (human confirms release)
 
-## LLM-Invoked Functions
+## Complete Command Reference
 
-**Important**: The `zeno` command is available after installation.
-
-```bash
-# Project Management
-zeno init                           # Initialize new project
-zeno status                         # Show project overview
-zeno dashboard                      # Launch TUI dashboard (Gate 11+)
-zeno rescope                        # Rescope project mid-development
-
-# Gates
-zeno gates list                     # List all gates
-zeno gates show <gate-id>           # Show gate details
-zeno gates start <gate-id>          # Start gate (status: pending -> in_progress)
-zeno gates complete <gate-id>       # Complete gate (status: -> completed, creates tag)
-zeno gates regenerate               # Regenerate future gates
-
-# Requirements
-zeno req list [--gate <id>]         # List gate-specific requirements
-zeno req list --project             # List project-level requirements
-zeno req show <hash>                # Show requirement details (includes parent refs)
-zeno req deps <hash>                # Show dependency graph
-zeno req status <hash> <status>     # Update status (pending/implemented/tested)
-zeno req transfer <hash> <gate-id>  # Transfer requirement to another gate
-
-# Architecture
-zeno arch generate                  # Generate all diagrams
-zeno arch show <type>               # Show specific diagram type
-                                    # Types: system (architecture), lifecycle (state machine),
-                                    # flow (data flow), gate-roadmap (gate roadmap with parallels)
-
-# Repositories
-zeno repos list                     # List detected repositories
-zeno repos deps                     # Show cross-repo dependencies
-zeno repos detect                   # Re-run boundary detection
-zeno repos adjust                   # Manually adjust boundaries
-
-# Proposals
-zeno proposal list [--gate <id>]    # List proposals
-zeno proposal show <hash>           # Show proposal details
-zeno proposal start <hash>          # Start implementation (pending -> in_progress)
-zeno proposal validate <hash>       # Run automated checks
-zeno proposal approve <hash>        # Approve proposal (status: -> completed)
-zeno proposal reject <hash>         # Reject proposal (status: -> rejected)
-
-# Analysis
-zeno analyze [path]                 # Deep codebase analysis
-zeno metrics [path]                 # Show code metrics
-
-# Registry
-zeno show <hash>                    # Resolve hash to entity
-zeno registry rebuild               # Rebuild hash registry
-```
+| Category | Command | Description |
+|----------|---------|-------------|
+| **Project** | `zeno init` | Initialize new project |
+| | `zeno status` | Show project overview |
+| | `zeno dashboard` | Launch TUI dashboard (Gate 11+) |
+| | `zeno rescope` | Rescope project mid-development |
+| **Gates** | `zeno gates list` | List all gates |
+| | `zeno gates show <id>` | Show gate details |
+| | `zeno gates start <id>` | Start gate (pending → in_progress) |
+| | `zeno gates complete <id>` | Complete gate (→ completed, creates tag) |
+| | `zeno gates regenerate` | Regenerate future gates |
+| **Requirements** | `zeno req list [--gate <id>]` | List requirements |
+| | `zeno req show <hash>` | Show requirement details |
+| | `zeno req deps <hash>` | Show dependency graph |
+| | `zeno req status <hash> <status>` | Update status |
+| | `zeno req transfer <hash> <gate-id>` | Transfer requirement to another gate |
+| **Architecture** | `zeno arch generate` | Generate all diagrams |
+| | `zeno arch show <type>` | Show specific diagram type |
+| **Repositories** | `zeno repos list` | List detected repositories |
+| | `zeno repos deps` | Show cross-repo dependencies |
+| | `zeno repos detect` | Re-run boundary detection |
+| | `zeno repos adjust` | Manually adjust boundaries |
+| **Proposals** | `zeno proposal list [--gate <id>]` | List proposals |
+| | `zeno proposal show <hash>` | Show proposal details |
+| | `zeno proposal validate <hash>` | Run automated checks |
+| | `zeno proposal approve <hash>` | Approve proposal (human) |
+| | `zeno proposal reject <hash>` | Reject proposal (human) |
+| **Analysis** | `zeno analyze [path]` | Deep codebase analysis |
+| | `zeno metrics [path]` | Show code metrics |
+| **Registry** | `zeno show <hash>` | Resolve hash to entity |
+| | `zeno registry rebuild` | Rebuild hash registry |
 
 ## Typical Workflow
 
@@ -137,12 +125,14 @@ zeno registry rebuild               # Rebuild hash registry
 
 ## Best Practices
 
-1. **Use hash references internally** for system commands (`zeno req show "#a3f9c2d1"`), but **resolve to plain text names** when communicating with users
-2. **Check dependencies** before implementation (`zeno req deps "#a3f9c2d1"`)
-3. **Respect quality thresholds** (90% coverage, 0 vulnerabilities, <0.01% lint errors)
-4. **Wait for human approval** at key decision points
-5. **Reference architecture diagrams** for system context
-6. **Use structured commit messages** (see `zeno/AGENTS.md` for format)
+| Practice | Do | Don't |
+|----------|----|-------|
+| **Hash References** | Use `#a3f9c2d1` internally for system commands | Expose full paths to users |
+| **Dependencies** | Check `zeno req deps <hash>` before implementation | Implement without dependency verification |
+| **Quality Gates** | Respect 90% coverage, 0 vulnerabilities, <0.01% lint errors | Skip automated checks |
+| **Human Approval** | Wait for approval at gates, boundaries, proposals | Auto-implement without review |
+| **Architecture** | Reference diagrams for system context | Implement without understanding |
+| **Commits** | Use structured messages with proposal hashes | Generic commit messages |
 
 ## File Locations Quick Reference
 

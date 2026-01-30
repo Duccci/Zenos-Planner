@@ -27,7 +27,7 @@ export function sequenceGates(gates: Gate[]): SequencedGates {
   }
 
   while (queue.length > 0) {
-    const currentId = queue.shift()!;
+    const currentId = queue.splice(0, 1)[0];
     sequencedIds.push(currentId);
 
     // For each gate that depends on current
@@ -58,7 +58,7 @@ export function sequenceGates(gates: Gate[]): SequencedGates {
     const toProcess = [id];
 
     while (toProcess.length > 0) {
-      const currentId = toProcess.shift()!;
+      const currentId = toProcess.splice(0, 1)[0];
       if (processed.has(currentId)) continue;
 
       const gate = gates.find(g => g.id === currentId);

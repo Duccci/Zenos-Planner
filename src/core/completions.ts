@@ -165,7 +165,7 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
       }
     }
   } catch (error) {
-    logger.warn(`Failed to move proposal file for ${proposalHash}: ${error}`)
+    logger.warn(`Failed to move proposal file for ${proposalHash}: ${String(error)}`)
   }
 
   const config = await loadConfig(projectRoot)
@@ -269,7 +269,8 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
       gateContent = await readFile(gatePrdPath)
     } catch {
       // If no PRD exists, create basic one
-      gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${new Date().toISOString().split('T')[0]}\n\n## Overview\n\n${gate.name} implementation.\n`
+      const dateStr: string = new Date().toISOString().split('T')[0];
+      gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
     }
 
     // Append consolidation
@@ -288,7 +289,7 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     try {
       await unlink(originalGatePath)
     } catch (error) {
-      logger.warn(`Failed to remove original gate PRD ${originalGatePath}: ${error}`)
+      logger.warn(`Failed to remove original gate PRD ${originalGatePath}: ${String(error)}`)
     }
 
     // Move proposal files from completed to archive
@@ -300,8 +301,9 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
         const filePath = path.join(completedDir, file)
         const content = await readFile(filePath)
         const gateMatch = /\*\*Gate\*\*:\s*gate-(\d+)/.exec(content)
-        if (gateMatch?.[1]) {
-          const fileGateId = `gate-${gateMatch[1].padStart(2, '0')}`
+        if (gateMatch && typeof gateMatch[1] === 'string') {
+          const num = gateMatch[1]
+          const fileGateId = 'gate-' + num.padStart(2, '0')
           if (fileGateId === gateId) {
             const dest = path.join(archiveDir, file)
             await rename(filePath, dest)
@@ -323,7 +325,7 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     }
 
   } catch (error) {
-    logger.warn(`Failed to consolidate proposals for ${gateId}: ${error}`)
+    logger.warn(`Failed to consolidate proposals for ${gateId}: ${String(error)}`)
     // Don't fail the completion if consolidation fails
   }
 

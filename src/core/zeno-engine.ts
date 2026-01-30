@@ -12,11 +12,11 @@ export function decomposeWork(
   // Base case: work is small enough for a single gate
   if (remainingWork.complexity <= context.maxGateComplexity) {
     gateCounter.count++;
-    const countStr = gateCounter.count.toString();
-    const gateId = `gate-${countStr.padStart(2, '0')}`;
+    const countStr = String(gateCounter.count);
+    const gateId = 'gate-' + countStr.padStart(2, '0');
     return [{
       id: gateId,
-      name: `Gate ${gateCounter.count}`,
+      name: `Gate ${String(gateCounter.count)}`,
       description: remainingWork.description,
       objectives: [{
         description: remainingWork.description,
