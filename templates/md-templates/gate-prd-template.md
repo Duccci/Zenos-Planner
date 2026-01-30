@@ -98,6 +98,20 @@
 
 ---
 
+## Proposals
+
+**Status**: Proposals will be generated when gate is started.
+
+[After gate start, view detailed proposal information via: `zeno proposal show <hash>`]
+
+### Proposal Status
+
+| Proposal | Hash | Status | Notes |
+|----------|------|--------|-------|
+| [proposal-name] | #[hash] | pending | [Optional notes] |
+
+---
+
 ## Technical Decisions for This Gate
 
 [List 2-4 gate-specific technical decisions. Focus on choices specific to this gate, not project-wide architecture.]
@@ -235,6 +249,7 @@
 
 - [ ] All must-have requirements implemented and tested
 - [ ] All should-have requirements implemented or explicitly deferred
+- [ ] All proposals completed and approved
 - [ ] All acceptance criteria met
 - [ ] Architecture diagrams updated
 - [ ] Gate-specific quality considerations addressed

@@ -394,6 +394,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 | 04-gate-engine | #g02p04engine | completed | 2026-01-30 |
 | 05-template-system | #g02p05templates | completed | 2026-01-30 |
 | 06-cli-commands | #g02p06cli | completed | 2026-01-30 |
+| 07-llm-integration | #g02p07llm | completed | 2026-01-30 |
 
 ---
 

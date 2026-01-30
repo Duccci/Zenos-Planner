@@ -28,6 +28,11 @@ This proposal implements tasks derived from requirements. Requirements are prima
 
 List only valid hash references. It is acceptable to have no dependencies if this proposal is self-contained or first in a gate.
 
+**Hash Usage Rules**:
+- Proposal hashes (#xxxxx) should only appear in: the proposal's own header, the associated gate's proposal table, and dependency tables
+- Do not reference proposal hashes in body text, task descriptions, or other sections
+- Use descriptive names instead of hashes for readability in all other contexts
+
 | Hash | Type | Description |
 |------|------|-------------|
 | #[hash] | requires | [What this proposal depends on] |
