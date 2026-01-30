@@ -185,7 +185,7 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
  */
 export async function consolidateGateProposals(
   gateId: string,
-  proposalsDir = 'zeno/proposals/completed'
+  proposalsDir = 'zeno/proposals'
 ): Promise<GateConsolidation> {
   const proposals: ConsolidatedProposal[] = []
   const requirementsFulfilled: { hash: string; proposalHash: string }[] = []

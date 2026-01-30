@@ -224,7 +224,7 @@ For each gate:
 ### File System
 - Gate PRDs (`.zeno/gates/gate-XX-name.md`)
 - Architecture diagrams (`zeno/architecture/*.md`)
-- Proposals (`zeno/proposals/active/gate-XX/<name>.md`, archived: `zeno/proposals/completed/<hash>.md`)
+- Proposals (`zeno/proposals/gate-XX/<name>.md`, archived: `zeno/proposals/archive/<hash>.md`)
 - Project PRD (`docs/PROJECT_PRD.md`)
 - Configuration (`.zeno/config.json`)
 

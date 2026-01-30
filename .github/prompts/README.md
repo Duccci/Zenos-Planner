@@ -25,13 +25,13 @@ These prompt files are formatted for use with VS Code's AI chat features, specif
 ### `/zeno-apply`
 Implement an approved Zeno proposal and track task completion.
 
-**Usage**: `/zeno-apply #p01projconf01` or `/zeno-apply 01-project-configuration`
+**Usage**: `/zeno-apply "#p01projconf01"` or `/zeno-apply "01-project-configuration"`
 
 ### `/zeno-archive`
 Archive a completed artifact (gate or proposal) and update dependent artifacts.
 
 **Usage**: 
-- `/zeno-archive #p01projconf01` (archive proposal)
+- `/zeno-archive "#p01projconf01"` (archive proposal)
 - `/zeno-archive gate-01` (archive gate)
 
 ### `/zeno-gate`

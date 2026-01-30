@@ -42,7 +42,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Note any ambiguities or gaps requiring clarification.
 
 4. **Review existing codebase and proposals**
-   - Inspect `zeno/proposals/active/gate-XX/` for existing proposals in this gate.
+   - Inspect `zeno/proposals/gate-XX/` for existing proposals in this gate.
    - Check related code via `ls src/` and `rg` searches to ground proposals in current state.
    - Run `zeno req list --gate <id>` if CLI is available.
    - Identify what already exists vs. what needs to be created.
@@ -57,7 +57,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Assign sequential filenames: `01-name.md`, `02-name.md`, etc.
 
 6. **Generate proposal files**
-   For each proposal, create `zeno/proposals/active/gate-XX/XX-name.md` using the template structure from `templates/md-templates/proposal-template.md`:
+   For each proposal, create `zeno/proposals/gate-XX/XX-name.md` using the template structure from `templates/md-templates/proposal-template.md`:
 
    ```markdown
    # Proposal: [Descriptive Title]
@@ -132,7 +132,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 **Reference**
 - Use `zeno/gates/gate-XX-name.md` as the authoritative source for each gate.
 - Use `templates/md-templates/proposal-template.md` for structural reference.
-- Use `zeno req show <hash>` to get detailed requirement information.
+- Use `zeno req show "<hash>"` to get detailed requirement information.
 - Consult `zeno/architecture/*.md` for component locations and data flow.
-- Inspect existing proposals in `zeno/proposals/active/gate-XX/` to maintain consistency.
+- Inspect existing proposals in `zeno/proposals/gate-XX/` to maintain consistency.
 <!-- ZENO:END -->

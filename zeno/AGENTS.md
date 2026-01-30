@@ -269,7 +269,7 @@ Mermaid diagram types (embedded in markdown files):
 
 ### Proposals
 
-Active proposals are organized by gate in subdirectories: `zeno/proposals/active/gate-XX/<name>.md` (e.g., `zeno/proposals/active/gate-02/02-metrics-graph.md`). Completed/archived proposals are stored flat and hashed: `zeno/proposals/completed/<hash>.md`.
+Active proposals are organized by gate in subdirectories: `zeno/proposals/gate-XX/<name>.md` (e.g., `zeno/proposals/gate-02/02-metrics-graph.md`). Completed/archived proposals are stored flat and hashed: `zeno/proposals/archive/<hash>.md`.
 
 ```markdown
 # Proposal: [Title]
@@ -395,7 +395,7 @@ zeno proposal approve <hash>
 ```
 
 **AI Assistant Tasks**:
-1. Read proposal from SQLite or `zeno/proposals/active/gate-XX/<name>.md`
+1. Read proposal from SQLite or `zeno/proposals/gate-XX/<name>.md`
 2. Implement code changes according to proposal
 3. Write tests (aiming for 90%+ coverage)
 4. Run automated checks locally

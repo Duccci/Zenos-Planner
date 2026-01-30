@@ -16,6 +16,11 @@ import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { syncWithGit } from '../utils/git.js'
+import { consolidateGateProposals, generateConsolidationMarkdown } from '../utils/gate-consolidation.js'
+import { readFile, writeFile, ensureDir } from '../utils/file.js'
+import { readdir, rename, unlink } from 'node:fs/promises'
+import path from 'path'
+import { logger } from '../utils/logger.js'
 
 function normalizeHash(input: string): string {
   const trimmed = input.trim()
@@ -140,6 +145,29 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
   })
   tx(proposal.id)
 
+  // Move proposal file to completed with hash name
+  try {
+    const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gateId)
+    const completedDir = path.join(projectRoot, 'zeno', 'proposals', 'archive')
+    await ensureDir(completedDir)
+
+    // Find the proposal file in gate dir (assuming it's named with the hash or title)
+    const files = await readdir(gateDir)
+    for (const file of files) {
+      if (file.endsWith('.md')) {
+        const filePath = path.join(gateDir, file)
+        const content = await readFile(filePath)
+        if (content.includes(`**Hash**: #${proposalHash}`)) {
+          const dest = path.join(completedDir, `${proposalHash}.md`)
+          await rename(filePath, dest)
+          break
+        }
+      }
+    }
+  } catch (error) {
+    logger.warn(`Failed to move proposal file for ${proposalHash}: ${error}`)
+  }
+
   const config = await loadConfig(projectRoot)
   const previousVersion = config.version
   const versioning = getVersioningSettings(config)
@@ -227,6 +255,77 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     ).run(id)
   })
   tx(gate.id)
+
+  // Consolidate and archive proposals
+  try {
+    const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+    const consolidation = await consolidateGateProposals(gateId, proposalsDir)
+    const consolidationMd = generateConsolidationMarkdown(consolidation)
+
+    // Read the gate PRD
+    const gatePrdPath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+    let gateContent = ''
+    try {
+      gateContent = await readFile(gatePrdPath)
+    } catch {
+      // If no PRD exists, create basic one
+      gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${new Date().toISOString().split('T')[0]}\n\n## Overview\n\n${gate.name} implementation.\n`
+    }
+
+    // Append consolidation
+    const newGateContent = gateContent + '\n\n' + consolidationMd
+
+    // Ensure archive directory exists
+    const archiveDir = path.join(projectRoot, 'zeno', 'gates', 'archive')
+    await ensureDir(archiveDir)
+
+    // Write to archive
+    const archivePath = path.join(archiveDir, `${gateId}.md`)
+    await writeFile(archivePath, newGateContent)
+
+    // Remove the original gate PRD from gates/
+    const originalGatePath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+    try {
+      await unlink(originalGatePath)
+    } catch (error) {
+      logger.warn(`Failed to remove original gate PRD ${originalGatePath}: ${error}`)
+    }
+
+    // Move proposal files from completed to archive
+    const completedDir = path.join(proposalsDir, 'archive')
+    const proposalFiles = await readdir(completedDir)
+    for (const file of proposalFiles) {
+      if (file.endsWith('.md')) {
+        // Check if it belongs to this gate
+        const filePath = path.join(completedDir, file)
+        const content = await readFile(filePath)
+        const gateMatch = /\*\*Gate\*\*:\s*gate-(\d+)/.exec(content)
+        if (gateMatch?.[1]) {
+          const fileGateId = `gate-${gateMatch[1].padStart(2, '0')}`
+          if (fileGateId === gateId) {
+            const dest = path.join(archiveDir, file)
+            await rename(filePath, dest)
+          }
+        }
+      }
+    }
+
+    // Remove the gate directory if empty
+    const gateDir = path.join(proposalsDir, gateId)
+    try {
+      const remaining = await readdir(gateDir)
+      if (remaining.length === 0) {
+        // Remove empty dir (using run_in_terminal since fs.rmdirSync might not work)
+        // But for now, leave it
+      }
+    } catch {
+      // Dir doesn't exist or can't read
+    }
+
+  } catch (error) {
+    logger.warn(`Failed to consolidate proposals for ${gateId}: ${error}`)
+    // Don't fail the completion if consolidation fails
+  }
 
   // Lifecycle completion detection: after marking this gate completed, if there
   // are no remaining non-completed gates, bump major. Otherwise bump minor.

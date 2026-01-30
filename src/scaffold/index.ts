@@ -26,17 +26,10 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
       'zeno/gates',
       'zeno/architecture',
       'zeno/proposals',
-      'zeno/proposals/active',
-      'zeno/proposals/completed',
+      'zeno/proposals/archive',
       'zeno/requirements',
       'zeno/subprojects',
     ]
-
-    // Gate-based proposal subdirectories (gates 01-99)
-    for (let i = 1; i <= 99; i++) {
-      const gateNum = String(i).padStart(2, '0')
-      directories.push(`zeno/proposals/active/gate-${gateNum}`)
-    }
 
     // Create all directories
     for (const dir of directories) {
@@ -105,4 +98,20 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
       { projectRoot, cause: error }
     )
   }
+}
+
+/**
+ * Create a gate-specific proposal directory if it doesn't exist
+ */
+export async function createGateDirectory(projectRoot: string = process.cwd(), gateId: string): Promise<string | null> {
+  const normalizedGateId = gateId.startsWith('gate-') ? gateId : `gate-${gateId.padStart(2, '0')}`
+  const gateDir = join(projectRoot, 'zeno', 'proposals', normalizedGateId)
+
+  if (!fileExists(gateDir)) {
+    await ensureDir(gateDir)
+    logger.debug(`Created gate directory: ${normalizedGateId}`)
+    return normalizedGateId
+  }
+
+  return null
 }

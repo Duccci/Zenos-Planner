@@ -18,7 +18,7 @@ agent: agent
 **Artifact Type Detection**
 The command automatically detects artifact type based on input:
 - **Gate**: IDs starting with `gate-` (e.g., `gate-01`, `gate-02-core-infrastructure`)
-- **Proposal**: Hashes starting with `#` and typically `p` (e.g., `#p01projconf01`) or filenames in `zeno/proposals/active/gate-XX/`
+- **Proposal**: Hashes starting with `#` and typically `p` (e.g., `#p01projconf01`) or filenames in `zeno/proposals/gate-XX/`
 
 **Steps**
 Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
@@ -31,7 +31,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - If the prompt includes a proposal hash (e.g., `#p01projconf01`) or filename (e.g., `01-project-configuration`), treat as proposal archive.
    - If the conversation references an artifact loosely:
      - For gates: Run `zeno gates list` or inspect `zeno/gates/` to identify candidates.
-     - For proposals: Run `zeno proposal list` or inspect `zeno/proposals/active/gate-XX/` to identify candidates.
+     - For proposals: Run `zeno proposal list` or inspect `zeno/proposals/gate-XX/` to identify candidates.
    - Confirm which artifact the user intends before proceeding.
    - If no artifact can be identified, stop and ask for clarification.
 
@@ -48,7 +48,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Read the gate PRD from `zeno/gates/gate-XX-name.md`.
    - Verify gate status is `in_progress`.
    - Check that all proposals for this gate are completed and archived:
-     - List proposals in `zeno/proposals/completed/` that match this gate.
+     - List proposals in `zeno/proposals/archive/` that match this gate.
      - Verify all proposals have status `completed` and are archived.
      - Check gate document **Proposal Status** table.
    - Verify all requirements are status `tested`:
@@ -86,8 +86,8 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    ```
 
 6A. **Move gate document to archive folder**
-   - Create archive directory if it doesn't exist: `zeno/gates/archived/`
-   - Move gate document from `zeno/gates/gate-XX-name.md` to `zeno/gates/archived/gate-XX-name.md`
+   - Create archive directory if it doesn't exist: `zeno/gates/archive/`
+   - Move gate document from `zeno/gates/gate-XX-name.md` to `zeno/gates/archive/gate-XX-name.md`
    - Verify the move succeeded
    - Update any references to the gate document path in related files if necessary
 
@@ -101,7 +101,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
      Proposals: X
      Requirements: Y
      
-     See zeno/gates/archived/gate-XX-name.md for details.
+     See zeno/gates/archive/gate-XX-name.md for details.
      ```
    - Use git command: `git tag -a gate-XX-name -m "[message]"`.
 
@@ -125,13 +125,13 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    Requirements fulfilled: Y
    Git tag created: gate-XX-name
    
-   Consolidation added to: zeno/gates/archived/gate-XX-name.md
-   Gate document moved to: zeno/gates/archived/
+   Consolidation added to: zeno/gates/archive/gate-XX-name.md
+   Gate document moved to: zeno/gates/archive/
    
    Changes committed and pushed:
      - All gate implementation files (src/, bin/, tests/)
-     - All proposals (zeno/proposals/completed/)
-     - Gate documentation moved to archived folder
+     - All proposals (zeno/proposals/archive/)
+     - Gate documentation moved to archive folder
      - State files updated
      - Git tag pushed to remote
    
@@ -145,7 +145,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 ## PROPOSAL ARCHIVE WORKFLOW
 
 2B. **Validate proposal is ready for archive**
-   - Read the proposal file from `zeno/proposals/active/gate-XX/<name>.md`.
+   - Read the proposal file from `zeno/proposals/gate-XX/<name>.md`.
    - Verify:
      - **Status** is `completed` (human approved).
      - All **Tasks** have acceptance criteria marked `- [x]`.
@@ -155,7 +155,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 3B. **Ensure requirements are updated**
    - Read the **Requirement** field from the proposal header.
    - For each requirement hash referenced:
-     - **Invoke**: `zeno req status <hash> tested` (if tests passed).
+     - **Invoke**: `zeno req status "<hash>" tested` (if tests passed).
      - Or verify status is already `tested`.
    - This ensures requirement tracking reflects completion.
 
@@ -213,7 +213,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - Verify no circular dependencies created.
 
 7B. **Move proposal to completed directory**
-   - Rename file from `zeno/proposals/active/gate-XX/<name>.md` to `zeno/proposals/completed/<hash>.md`.
+   - Rename file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
    - Hash becomes the canonical filename (e.g., `p01projconf01.md`).
    - Verify the move succeeded.
 
@@ -244,7 +244,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
     ```
     Archived proposal #<hash>: [Title]
 
-    Location: zeno/proposals/completed/<hash>.md
+    Location: zeno/proposals/archive/<hash>.md
     Gate: gate-XX - [Gate Name]
     
     Requirements updated:
@@ -288,8 +288,8 @@ To archive multiple proposals at once:
 - Use `zeno gates list` to find gates ready for archive.
 - Use `zeno gates show <gate-id>` to view gate details.
 - Use `zeno proposal list --status completed` to find archivable proposals.
-- Use `zeno proposal show <hash>` to verify proposal details.
-- Use `zeno req show <hash>` to check requirement status after archive.
+- Use `zeno proposal show "<hash>"` to verify proposal details.
+- Use `zeno req show "<hash>"` to check requirement status after archive.
 - Use `zeno req list --gate <id>` to verify all requirements tested.
 - Consolidation utility: `src/utils/gate-consolidation.ts`.
 - Archived artifacts are immutable; create new proposal if changes needed.

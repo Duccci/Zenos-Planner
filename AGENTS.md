@@ -134,8 +134,8 @@ zeno show <hash>                    # Resolve hash to entity
 | Architecture diagrams | `zeno/architecture/*.md` |
 | Gate PRDs | `zeno/gates/gate-XX-name.md` |
 | Requirements database | `zeno/.zeno/requirements.db` |
-| Proposals (active) | `zeno/proposals/active/<name>.md` |
-| Proposals (completed) | `zeno/proposals/completed/<hash>.md` |
+| Proposals (active) | `zeno/proposals/gate-XX/<name>.md` |
+| Proposals (completed) | `zeno/proposals/archive/<hash>.md` |
 | Configuration | `zeno/.zeno/config.json` |
 
 ## Zeno vs Traditional Spec Systems

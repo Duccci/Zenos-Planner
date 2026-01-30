@@ -390,7 +390,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 
 | Proposal | Hash | Status | Archived |
 |----------|------|--------|----------|
-| *Proposals will be generated when gate is started* | | | |
+| 03-requirement-generation | #g02p03reqgen | completed | 2026-01-30 |
 
 ---
 
