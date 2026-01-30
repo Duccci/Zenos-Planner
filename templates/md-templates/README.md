@@ -108,7 +108,7 @@ zeno gates show <gate-id>   # View generated gate PRD
 
 **Usage**:
 ```bash
-zeno proposal create "Add hash utility module"  # Generates proposal in proposals/active/
+zeno proposal create "Add hash utility module"  # Generates proposal in proposals/active/gate-XX/
 zeno proposal list                              # List active proposals
 zeno proposal show <hash>                       # View proposal details
 zeno proposal validate <hash>                   # Run automated checks
@@ -363,9 +363,9 @@ Documents help AI assistants:
 4. **Archived**: Tagged in git (`gate-XX-name`)
 
 ### Proposal
-1. **Generated**: When starting gate work or explicitly via `zeno proposal create`
+1. **Generated**: When starting gate (`zeno gates start`) or explicitly via `zeno proposal create`
 2. **Lifecycle**: draft -> pending_check -> pending_approval -> approved -> implemented
-3. **Active**: Stored in `zeno/proposals/active/<name>.md` (human-readable names)
+3. **Active**: Organized by gate in `zeno/proposals/active/gate-XX/<name>.md` (e.g., `zeno/proposals/active/gate-02/02-metrics-graph.md`)
 4. **Archived**: Moved to `zeno/proposals/completed/<hash>.md` on implementation
 5. **Rejected**: Moved to `zeno/proposals/rejected/<hash>.md` with feedback preserved
 

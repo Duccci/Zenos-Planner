@@ -2,7 +2,6 @@
 name: zeno-gate
 description: Dynamically generate or regenerate gates to rebaseline project scope.
 agent: agent
-model: qwen3-coder
 ---
 
 <!-- ZENO:START -->
@@ -17,7 +16,10 @@ model: qwen3-coder
 - **Requirements-first workflow**: Requirements are primarily defined at project inception (`zeno init`) before gate generation. Gates attribute existing requirements to gates. Requirements can be updated or added during rebaseline/rescope operations, but init is the primary source. Requirements are decomposed into tasks during proposal generation.
 
 **Steps**
-Track these steps as TODOs and complete them one by one.
+Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
+- **Create TODO list with workflow steps** (listed below)
+- **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
+- **Do not batch completions** - mark items completed as soon as they are done
 
 1. **Determine operation mode**
    - **New gates**: Generate gates for a fresh project or extend existing roadmap
@@ -81,7 +83,7 @@ Track these steps as TODOs and complete them one by one.
    - `rescope`: Documents scope change (auto-generated during rebaseline)
 
 6. **Create gate PRD files**
-   For each gate, create `zeno/gates/gate-XX-name.md` using the template structure:
+   For each gate, create `zeno/gates/gate-XX-name.md` using the template structure from `templates/md-templates/gate-prd-template.md`:
 
    ```markdown
    # Gate [XX]: [Gate Name]
@@ -93,54 +95,32 @@ Track these steps as TODOs and complete them one by one.
    **Hash**: #g[XX][abbrev]
 
    ## Overview
-   [2-3 sentences: what this gate accomplishes toward end state]
+   [2-3 sentences: what this gate accomplishes]
 
    ## Objectives
    - [ ] [Measurable objective 1]
    - [ ] [Measurable objective 2]
-   - [ ] [Measurable objective 3]
 
    ## Context
-
-   ### What Was Completed Before This Gate
-   [Previous gate deliverables this builds upon]
-
-   ### What This Gate Enables
-   [Future gates or capabilities that depend on this]
-
-   ### Scope Boundaries
-   **In Scope**:
-   - [Specific deliverable]
-
-   **Out of Scope**:
-   - [Deferred to later gate]
+   [What was completed before, what this enables, scope boundaries]
 
    ## Requirements
-   [Hash references to requirements - status: pending]
+   [Table of attributed requirements with hashes, names, types, priorities, status]
 
-   | Hash | Name | Type | Priority | Status |
-   |------|------|------|----------|--------|
-   | #rXX... | [Name] | functional | must | pending |
-
-   ## Technical Decisions for This Gate
-   [Gate-specific choices, not project-wide]
+   ## Technical Decisions
+   [Gate-specific choices]
 
    ## Architecture Updates
-   [Components to create/modify, diagrams to update]
+   [Components to create/modify]
 
    ## Dependencies
-   - **Depends on Gate(s)**: [Previous gates]
-   - **Blocks Gate(s)**: [Future gates]
+   [Depends on/blocks other gates]
 
    ## Implementation Steps
-   [3-6 ordered steps with sequencing rationale]
+   [3-6 ordered steps]
 
    ## Gate Completion Criteria
-   - [ ] All must-have requirements implemented and tested
-   - [ ] 90% code coverage achieved
-   - [ ] Zero linting errors
-   - [ ] Zero TypeScript errors
-   - [ ] Stakeholder approval obtained
+   [Measurable completion criteria]
    ```
 
 7. **Handle rebaseline-specific artifacts**
@@ -256,21 +236,11 @@ Track these steps as TODOs and complete them one by one.
 
 **Requirements-First Workflow**
 
-The correct order of operations is:
-1. **Project Inception** (`zeno init`): Define project-level requirements from end state (PRIMARY SOURCE)
-2. **Gate Generation** (`/zeno-gate`): Create gates and attribute existing requirements to gates
-   - For rebaseline/rescope: Requirements may be updated or added as part of rescoping
-3. **Gate Start** (`zeno gates start`): Generate gate-specific requirements that decompose project requirements
-4. **Proposal Generation** (`/zeno-proposal`): Break requirements down into individual implementation tasks
-
-**Key Principles**:
-- Requirements are PRIMARILY defined at project inception (`zeno init`) BEFORE gates
-- Requirements can be updated or added during rebaseline/rescope operations
-- Gates organize and attribute requirements, then requirements are decomposed into tasks during proposal generation
+Requirements are primarily defined at project inception (`zeno init`) before gates. Gates attribute existing requirements to gates. Requirements can be updated during rebaseline but init is the primary source. Requirements are decomposed into tasks during proposal generation.
 
 **Reference**
 - Use `zeno/PROJECT_PRD.md` for end state and project scope.
-- Use `templates/md-templates/gate-prd-template.md` for structural reference.
+- Use `templates/md-templates/gate-prd-template.md` for structural reference (exclude HTML comments from generated gates).
 - Use `zeno/architecture/gate-roadmap.md` to visualize gate sequence.
 - Consult completed gates in `zeno/gates/` to maintain consistency.
 - Review `zeno/AGENTS.md` for project conventions.

@@ -2,7 +2,6 @@
 name: zeno-proposal
 description: Generate proposal documents from a Gate PRD for implementation.
 agent: agent
-model: qwen3-coder
 ---
 
 <!-- ZENO:START -->
@@ -16,7 +15,10 @@ model: qwen3-coder
 - **Set initial status to `pending`** for all new proposals.
 
 **Steps**
-Track these steps as TODOs and complete them one by one.
+Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
+- **Create TODO list with workflow steps** (listed below)
+- **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
+- **Do not batch completions** - mark items completed as soon as they are done
 
 1. **Identify the gate**
    - If the prompt specifies a gate (e.g., `gate-01`, `#g01c0re1nfra`), locate `zeno/gates/gate-XX-name.md`.
@@ -40,7 +42,7 @@ Track these steps as TODOs and complete them one by one.
    - Note any ambiguities or gaps requiring clarification.
 
 4. **Review existing codebase and proposals**
-   - Inspect `zeno/proposals/active/` for existing proposals in this gate.
+   - Inspect `zeno/proposals/active/gate-XX/` for existing proposals in this gate.
    - Check related code via `ls src/` and `rg` searches to ground proposals in current state.
    - Run `zeno req list --gate <id>` if CLI is available.
    - Identify what already exists vs. what needs to be created.
@@ -55,81 +57,37 @@ Track these steps as TODOs and complete them one by one.
    - Assign sequential filenames: `01-name.md`, `02-name.md`, etc.
 
 6. **Generate proposal files**
-   For each proposal, create `zeno/proposals/active/XX-name.md` using this structure:
+   For each proposal, create `zeno/proposals/active/gate-XX/XX-name.md` using the template structure from `templates/md-templates/proposal-template.md`:
 
    ```markdown
    # Proposal: [Descriptive Title]
 
    **Hash**: #p[gate][seq][abbrev]  
    **Gate**: gate-XX - [Gate Name]  
-   **Requirement**: #[hash1], #[hash2] (from Requirements table)  
+   **Requirement**: #[hash1], #[hash2]  
    **Status**: pending  
    **Created**: [DATE]
 
-   ---
-
    ## Summary
-
-   [2-3 sentences: what this accomplishes and why it matters for the gate.]
-
-   ---
+   [2-3 sentences: what this accomplishes]
 
    ## Context
-
-   ### Requirements Context
-
-   This proposal implements tasks derived from requirements. Requirements are primarily defined during `zeno init` at project inception and attributed to gates during gate generation. Requirements may be updated or added during rebaseline/rescope operations, but init is the primary source. This proposal breaks down the referenced requirement(s) into individual implementation tasks.
-
-   ### Why This Change
-
-   [Reference the gate objective or requirement this addresses.]
-
-   ### Dependencies
-
-   | Hash | Type | Description |
-   |------|------|-------------|
-   | #[hash] | requires | [Proposal/requirement this depends on] |
-   | #[hash] | blocks | [Proposal/requirement this unblocks] |
-
-   ---
+   [Requirements context, why this change, dependencies table]
 
    ## Tasks
-
    ### Task 1: [Task Title]
-
    **File(s)**: `[path/to/file.ts]`  
    **Action**: create | modify | delete | refactor
-
-   [2-4 lines describing what to implement.]
-
-   **Acceptance**:
-   - [ ] [Specific, verifiable condition]
-   - [ ] [Another condition]
-
-   ---
-
-   [Repeat for each task]
-
-   ---
+   [Description and acceptance criteria]
 
    ## Files Affected
-
-   | File | Action | Description |
-   |------|--------|-------------|
-   | `src/[path]` | create/modify | [Brief description] |
-   | `tests/[path]` | create/modify | [Test description] |
-
-   ---
+   [Table of files and actions]
 
    ## Implementation Notes
-
-   [Optional: Technical guidance, patterns to follow, edge cases.]
-
-   ---
+   [Optional technical guidance]
 
    ## Rollback
-
-   **If rejected or failed**: [How to revert, or "Delete created files"]
+   [How to revert if needed]
    ```
 
 7. **Establish dependency chain**
@@ -171,19 +129,10 @@ Track these steps as TODOs and complete them one by one.
     To implement first proposal: `/zeno-apply #hash1`
     ```
 
-**Status Lifecycle**
-
-| Stage | Status | Set By |
-|-------|--------|--------|
-| Proposal created | pending | /zeno-proposal (this command) |
-| Implementation started | in_progress | `zeno proposal start <hash>` |
-| Checks pass + approved | completed | `zeno proposal approve <hash>` |
-| Human rejects | rejected | `zeno proposal reject <hash>` |
-
 **Reference**
 - Use `zeno/gates/gate-XX-name.md` as the authoritative source for each gate.
 - Use `templates/md-templates/proposal-template.md` for structural reference.
 - Use `zeno req show <hash>` to get detailed requirement information.
 - Consult `zeno/architecture/*.md` for component locations and data flow.
-- Inspect existing proposals in `zeno/proposals/active/` to maintain consistency.
+- Inspect existing proposals in `zeno/proposals/active/gate-XX/` to maintain consistency.
 <!-- ZENO:END -->

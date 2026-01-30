@@ -72,7 +72,7 @@ export const ZenoConfigSchema = z.object({
       gateBump: 'minor',
       lifecycleBump: 'major',
     }),
-}).passthrough()
+}).loose()
 
 /** TypeScript type inferred from schema */
 export type ZenoConfig = z.infer<typeof ZenoConfigSchema>

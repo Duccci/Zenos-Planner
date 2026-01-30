@@ -139,7 +139,7 @@ stateDiagram-v2
   - Inheriting applicable project-level requirements
   - Generating new requirements from gate objectives
   - Accepting transferred requirements from other gates (if rescoped)
-- **GeneratingArchitecture**: Mermaid diagrams created from requirements
+- **GeneratingArchitecture**: Diagrams created from requirements (Mermaid/DOT)
 - **DetectingRepos**: Repository boundaries detected using coupling metrics
 
 ### Approval Checkpoints

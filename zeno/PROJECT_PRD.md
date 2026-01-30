@@ -8,9 +8,9 @@ The tool bridges the gap between high-level project vision and detailed implemen
 ## Key Technical Decisions
 
 ### 1. Technology Stack
-- **Choice**: TypeScript (strict mode), Node.js >= 24.0.0, SQLite (better-sqlite3), Mermaid, Commander.js, Zod, Vitest
+- **Choice**: TypeScript (strict mode), Node.js >= 24.0.0, SQLite (better-sqlite3), Mermaid + Graphviz (DOT/SVG), Commander.js, Zod, Vitest
 - **Alternatives Considered**: JavaScript (no types), PostgreSQL (client-server), Draw.io (binary diagrams), Yargs (CLI), Joi (validation), Jest (testing)
-- **Rationale**: Lightweight, LLM-friendly, cross-platform, rich ecosystem. TypeScript provides type safety without runtime overhead. SQLite requires no server setup. Mermaid diagrams are text-based and version-controllable.
+- **Rationale**: Lightweight, LLM-friendly, cross-platform, rich ecosystem. TypeScript provides type safety without runtime overhead. SQLite requires no server setup. Mermaid supports simple diagrams with minimal blocks; Graphviz DOT/SVG covers complex diagrams with higher visual fidelity.
 - **Trade-offs**: Gained simplicity and portability; lost some advanced database features and GUI diagram editing.
 
 ### 2. Iterative Gate Generation
@@ -73,7 +73,14 @@ The tool bridges the gap between high-level project vision and detailed implemen
 - **Rationale**: Different project types need different documentation (CLI tools don't need network diagrams, libraries don't need deployment diagrams). Reduces documentation overhead while ensuring critical diagrams are created. Core diagrams (system overview, data flow, context, gate roadmap, gate lifecycle) always generated. Gate-level diagrams (sequence, component, package) generated when complexity detected. Infrastructure diagrams (deployment, network) generated for deployment gates.
 - **Trade-offs**: Gained focused documentation without clutter; added complexity to diagram generation logic requiring project type detection.
 
-### 11. Subagent Orchestration via Cursor Workflows
+### 11. Hybrid Diagram Rendering: Mermaid for Simple Diagrams, Prerendered DOT/SVG for Complex Models
+- **Choice**: Use Mermaid for simple diagrams with minimal blocks (low visual density). Use prerendered DOT diagrams rendered to SVG using Graphviz for complex architecture diagrams to improve rendering quality, reduce context bloat, and handle complex models more effectively.
+- **Alternatives Considered**: Mermaid for all diagrams, DOT/PNG for all diagrams, Draw.io, manually created PNG images, D3.js visualization
+- **Rationale**: Mermaid excels at simple diagrams and remains text-based (version-controllable), but struggles with complex models containing many elements, nested relationships, and fine-grained styling. Prerendered DOT SVG images provide superior rendering quality, better visual hierarchy for complex systems, and reduce markdown context when models exceed 5 elements. SVG is vector-based, scalable, web-native, and typically smaller than PNG. DOT (Graphviz) is a stable, standardized language with excellent support for complex directed graphs.
+- **Impact**: Complex architectural diagrams (system-overview, data-flow, component diagrams, deployment models, network diagrams) will be generated as DOT files, rendered to SVG artifacts using Graphviz, and embedded as images in markdown. Simpler diagrams (gate-roadmap, lifecycle, basic context diagrams) remain as Mermaid for text-based maintainability.
+- **Trade-offs**: Gained superior rendering quality and complexity handling; lost text-based editability for complex diagrams. Added Graphviz system dependency. Prerendered SVG requires regeneration when source changes, but automation handles this. SVG files are embedded images and not directly editable in markdown, but source DOT files remain version-controlled.
+
+### 12. Subagent Orchestration via Cursor Workflows
 - **Choice**: Zeno orchestrates work by creating subagents using Cursor's workflow capabilities, enabling parallel task execution and specialized agent delegation
 - **Alternatives Considered**: Single-agent execution only, manual subagent creation, external orchestration tools
 - **Rationale**: Large gates and complex requirements benefit from parallel execution across specialized subagents. Cursor workflows provide native integration for spawning focused agents that handle specific tasks (e.g., one agent for tests, another for implementation, another for documentation). This enables true parallelization of gate work while maintaining coordination through Zeno's state tracking. Subagents report back to the orchestrating agent through Zeno status updates and proposal validation.
@@ -197,13 +204,16 @@ This reduces context size by 50%+ while maintaining precise references. The Hash
 - **c8** - Code coverage reporting
 - **eslint** - Linting engine
 - **prettier** - Code formatting
+- **graphviz** - DOT diagram rendering to PNG/SVG for complex architecture models
 
 ### Internal Dependencies
 - **zeno-engine** - Core gate generation algorithm for iterative decomposition
 - **code-analyzer** - Deep codebase analysis (AST, dependencies, metrics)
 - **gate-manager** - Gate lifecycle management and state tracking
 - **requirement-generator** - Requirement decomposition from gates
-- **mermaid-generator** - Architecture diagram generation with intelligent template selection
+- **diagram-generator** - Hybrid architecture diagram generation (Mermaid for simple, DOT for complex)
+- **mermaid-generator** - Mermaid diagram generation for ≤5 element models
+- **dot-generator** - DOT diagram generation and rendering for >5 element models
 - **agents-generator** - AGENTS.md generation for AI context
 - **repo-detector** - Multi-repository boundary detection
 - **dependency-tracker** - Hash-based dependency tracking system

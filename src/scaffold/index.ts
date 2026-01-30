@@ -32,6 +32,12 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
       'zeno/subprojects',
     ]
 
+    // Gate-based proposal subdirectories (gates 01-99)
+    for (let i = 1; i <= 99; i++) {
+      const gateNum = String(i).padStart(2, '0')
+      directories.push(`zeno/proposals/active/gate-${gateNum}`)
+    }
+
     // Create all directories
     for (const dir of directories) {
       const fullPath = join(projectRoot, dir)

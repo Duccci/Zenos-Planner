@@ -2,7 +2,6 @@
 name: zeno-archive
 description: Archive a completed artifact (gate or proposal) and update dependent artifacts.
 agent: agent
-model: qwen3-coder
 ---
 
 <!-- ZENO:START -->
@@ -19,17 +18,20 @@ model: qwen3-coder
 **Artifact Type Detection**
 The command automatically detects artifact type based on input:
 - **Gate**: IDs starting with `gate-` (e.g., `gate-01`, `gate-02-core-infrastructure`)
-- **Proposal**: Hashes starting with `#` and typically `p` (e.g., `#p01projconf01`) or filenames in `zeno/proposals/active/`
+- **Proposal**: Hashes starting with `#` and typically `p` (e.g., `#p01projconf01`) or filenames in `zeno/proposals/active/gate-XX/`
 
 **Steps**
-Track these steps as TODOs and complete them one by one.
+Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
+- **Create TODO list with workflow steps** (listed below)
+- **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
+- **Do not batch completions** - mark items completed as soon as they are done
 
 1. **Identify the artifact to archive**
    - If the prompt includes a gate ID (e.g., `gate-01`), treat as gate archive.
    - If the prompt includes a proposal hash (e.g., `#p01projconf01`) or filename (e.g., `01-project-configuration`), treat as proposal archive.
    - If the conversation references an artifact loosely:
      - For gates: Run `zeno gates list` or inspect `zeno/gates/` to identify candidates.
-     - For proposals: Run `zeno proposal list` or inspect `zeno/proposals/active/` to identify candidates.
+     - For proposals: Run `zeno proposal list` or inspect `zeno/proposals/active/gate-XX/` to identify candidates.
    - Confirm which artifact the user intends before proceeding.
    - If no artifact can be identified, stop and ask for clarification.
 
@@ -110,32 +112,9 @@ Track these steps as TODOs and complete them one by one.
 
 9A. **Commit gate archive**
    If auto-commit enabled:
-   - Stage ALL changes: `git add -A` (includes all implementation files, tests, configs, proposals, gate docs, state files).
-   - Create commit:
-     ```
-     chore(archive): Archive gate-XX - [Gate Name]
-
-     - Status: in_progress -> completed
-     - Proposals consolidated: X
-     - Git tag: gate-XX-name
-     - Requirements fulfilled: Y
-     - Moved to zeno/gates/archived/
-     
-     Gate: gate-XX
-     ```
-   - Push commit: `git push origin main` (or current branch).
-   - Push tag: `git push origin gate-XX-name` (or `git push origin gate-XX-name --force` if tag was recreated).
-   
-   **Important**: Gate archive commits must include ALL changes from the entire gate:
-   - All implementation files (src/, bin/, tests/).
-   - All proposals (zeno/proposals/completed/).
-   - Gate documentation moved to `zeno/gates/archived/gate-XX-name.md`.
-   - State files (zeno/.zeno/state.json, zeno/.zeno/config.json).
-   - Architecture diagrams (zeno/architecture/).
-   - Configuration files (.prettierrc, eslint.config.mjs, vitest.config.ts, etc.).
-   - Any other artifacts created during gate implementation.
-   
-   Do NOT commit only markdown files. Use `git add -A` to ensure all changes are included.
+   - Stage all changes: `git add -A`
+   - Create commit: `chore(archive): Archive gate-XX - [Gate Name]`
+   - Push commit and tag to remote
 
 10A. **Summary output (Gate)**
    ```
@@ -166,7 +145,7 @@ Track these steps as TODOs and complete them one by one.
 ## PROPOSAL ARCHIVE WORKFLOW
 
 2B. **Validate proposal is ready for archive**
-   - Read the proposal file from `zeno/proposals/active/<name>.md`.
+   - Read the proposal file from `zeno/proposals/active/gate-XX/<name>.md`.
    - Verify:
      - **Status** is `completed` (human approved).
      - All **Tasks** have acceptance criteria marked `- [x]`.
@@ -234,27 +213,15 @@ Track these steps as TODOs and complete them one by one.
    - Verify no circular dependencies created.
 
 7B. **Move proposal to completed directory**
-   - Rename file from `zeno/proposals/active/<name>.md` to `zeno/proposals/completed/<hash>.md`.
+   - Rename file from `zeno/proposals/active/gate-XX/<name>.md` to `zeno/proposals/completed/<hash>.md`.
    - Hash becomes the canonical filename (e.g., `p01projconf01.md`).
    - Verify the move succeeded.
 
 8B. **Commit proposal archive**
    If auto-commit enabled:
-   - Stage ALL changes: `git add -A` (includes implementation files, tests, configs, not just markdown).
-   - Create commit:
-     ```
-     chore(archive): Archive proposal #<hash>
-
-     - Moved to zeno/proposals/completed/
-     - Updated gate: gate-XX
-     - Requirements marked tested: #req1, #req2
-     
-     Proposal: #<proposal-hash>
-     Gate: <gate-id>
-     ```
-   - Push commit: `git push origin main` (or current branch).
-   
-   **Important**: Archive commits must include ALL implementation files, tests, and artifacts created during proposal implementation, not just the proposal markdown file.
+   - Stage all changes: `git add -A`
+   - Create commit: `chore(archive): Archive proposal #<hash>`
+   - Push commit to remote
 
 9B. **Check gate completion**
    After archiving, check if gate is ready for archive:
@@ -308,16 +275,6 @@ The consolidation process automatically extracts and aggregates:
 - **High-Level Delta**: Combined summaries, artifacts, and aggregate quality metrics.
 
 This reduces context size while preserving critical breadcrumbs for future reference.
-
-**Status Update Summary**
-
-| Action | Function Invoked | Status Change |
-|--------|------------------|---------------|
-| Archive gate | `/zeno-archive <gate-id>` | in_progress -> completed |
-| Archive proposal | `/zeno-archive <proposal-hash>` | completed -> archived |
-| Verify requirements | `zeno req status <hash> tested` | implemented -> tested |
-| Consolidate proposals | Automatic during gate archive | (adds section to gate doc) |
-| Create git tag | `git tag -a` | (creates release tag) |
 
 **Batch Archive**
 

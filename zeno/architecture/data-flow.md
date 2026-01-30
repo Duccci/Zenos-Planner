@@ -39,9 +39,9 @@ flowchart TD
     
     InheritReqs --> StoreReqs[(Store Gate Requirements<br/>SQLite level=gate)]
     
-    StoreReqs --> GenArchitecture[Generate Architecture<br/>Mermaid Diagrams]
+   StoreReqs --> GenArchitecture[Generate Architecture<br/>Mermaid/DOT Diagrams]
     
-    GenArchitecture --> StoreArch[(Store Diagrams<br/>.md Files)]
+   GenArchitecture --> StoreArch[(Store Diagrams<br/>.md + SVG)]
     
     StoreArch --> DetectRepos[Detect Repository Boundaries<br/>Coupling + Domain + Size]
     
@@ -158,8 +158,8 @@ For each gate:
 3. Gate requirements stored in SQLite with `level=gate` and source tracking
 
 #### 4b. Architecture Generation
-1. Mermaid diagrams generated from requirements
-2. Diagrams stored as `.md` files with embedded Mermaid (version controlled)
+1. Diagrams generated from requirements (Mermaid for simple, DOT/SVG for complex)
+2. Diagrams stored as `.md` files with embedded Mermaid or SVG (version controlled)
 
 #### 4c. Repository Detection
 1. Analyze coupling metrics, domain boundaries, module size
@@ -224,7 +224,7 @@ For each gate:
 ### File System
 - Gate PRDs (`.zeno/gates/gate-XX-name.md`)
 - Architecture diagrams (`zeno/architecture/*.md`)
-- Proposals (`zeno/proposals/active/<name>.md`, archived: `zeno/proposals/completed/<hash>.md`)
+- Proposals (`zeno/proposals/active/gate-XX/<name>.md`, archived: `zeno/proposals/completed/<hash>.md`)
 - Project PRD (`docs/PROJECT_PRD.md`)
 - Configuration (`.zeno/config.json`)
 

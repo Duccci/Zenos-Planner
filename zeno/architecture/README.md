@@ -4,7 +4,7 @@ This directory contains architecture diagrams and documentation for Zeno's Plann
 
 ## File Structure
 
-Each architecture diagram is contained in a single `.md` file with embedded Mermaid diagrams, descriptions, and context.
+Each architecture diagram is contained in a single `.md` file with embedded Mermaid diagrams for simple cases, or embedded SVG images (rendered from DOT) for complex diagrams.
 
 ## Available Diagrams
 
@@ -33,27 +33,27 @@ Each architecture diagram is contained in a single `.md` file with embedded Merm
 ### To Update a Diagram
 
 1. **Edit the `.md` file directly** - This is the source of truth
-2. Update the embedded Mermaid diagram within the markdown code block
+2. Update the embedded Mermaid diagram (simple) or the DOT source + SVG embed (complex)
 
 ### To Add a New Diagram
 
-1. Create `diagram-name.md` with full documentation and embedded Mermaid diagram
+1. Create `diagram-name.md` with full documentation and embedded Mermaid diagram (simple) or DOT+SVG (complex)
 2. Use `templates/architecture-templates/` as a starting point
 3. Update this README with the new diagram
 
 ## Why This Structure?
 
-**Problem**: Having separate `.mmd` files duplicates content and creates sync issues.
+**Problem**: Having separate diagram source files can duplicate content and create sync issues.
 
 **Solution**: Each diagram is self-contained in its own `.md` file with:
-- Embedded Mermaid diagram
+- Embedded Mermaid diagram (simple) or SVG image (complex)
 - Detailed description
 - Design rationale
 - Related documentation links
 
 **Benefits**:
 - Single source of truth per diagram
-- No duplication between `.md` and `.mmd` files
+- Minimal duplication between `.md` and diagram sources
 - Easy to view and edit
 - Version control friendly
 
@@ -66,9 +66,11 @@ Each architecture diagram is contained in a single `.md` file with embedded Merm
 
 ### In GitHub
 - GitHub natively renders Mermaid diagrams in markdown files
+- SVG images render inline for DOT-based diagrams
 
 ### In Other Viewers
 - Most modern markdown viewers support Mermaid
+- SVG images are widely supported across markdown viewers
 - Alternatively, use [Mermaid Live Editor](https://mermaid.live/)
 
 ---

@@ -197,11 +197,29 @@ export async function consolidateGateProposals(
   const coverageValues: number[] = []
 
   try {
-    const files = await readdir(proposalsDir)
-    const proposalFiles = files.filter((f) => f.endsWith('.md'))
+    // Read all files recursively from the proposals directory
+    // This supports both flat structure (for completed/archived) and gate-based structure (for active)
+    const getAllFiles = async (dir: string): Promise<string[]> => {
+      const allFiles: string[] = []
+      try {
+        const entries = await readdir(dir, { withFileTypes: true })
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            allFiles.push(...(await getAllFiles(fullPath)))
+          } else if (entry.isFile() && entry.name.endsWith('.md')) {
+            allFiles.push(fullPath)
+          }
+        }
+      } catch {
+        // Directory doesn't exist or can't be read
+      }
+      return allFiles
+    }
 
-    for (const file of proposalFiles) {
-      const proposalPath = path.join(proposalsDir, file)
+    const proposalFiles = await getAllFiles(proposalsDir)
+
+    for (const proposalPath of proposalFiles) {
       const proposal = await parseProposal(proposalPath)
 
       // Check if this proposal belongs to the gate

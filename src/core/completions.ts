@@ -62,11 +62,12 @@ function getVersioningSettings(config: Awaited<ReturnType<typeof loadConfig>>): 
   gateBump: VersionBump
   lifecycleBump: VersionBump
 } {
+  const versioning = config.versioning;
   return {
-    enabled: config.versioning?.enabled ?? true,
-    proposalBump: (config.versioning?.proposalBump ?? 'patch') as VersionBump,
-    gateBump: (config.versioning?.gateBump ?? 'minor') as VersionBump,
-    lifecycleBump: (config.versioning?.lifecycleBump ?? 'major') as VersionBump,
+    enabled: versioning.enabled,
+    proposalBump: versioning.proposalBump as VersionBump,
+    gateBump: versioning.gateBump as VersionBump,
+    lifecycleBump: versioning.lifecycleBump as VersionBump,
   }
 }
 

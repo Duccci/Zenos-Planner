@@ -99,7 +99,7 @@ To use templates manually:
 
 1. Copy the appropriate template file
 2. Replace all `[PLACEHOLDER]` values
-3. Update Mermaid diagrams to match your architecture
+3. Update Mermaid (simple) or DOT (complex) diagrams to match your architecture
 4. Fill in all description sections
 5. Save to the appropriate location in your project
 
@@ -122,14 +122,14 @@ All templates use standard placeholders:
 - `[DATE]` - ISO format date (YYYY-MM-DD)
 - `[NAME]` - Component/gate/state names
 - `[DESCRIPTION]` - Text descriptions
-- `[DIAGRAM_CONTENT]` - Mermaid source code
+- `[DIAGRAM_CONTENT]` - Mermaid or DOT source code
 
-### 4. Mermaid-First
-All architecture diagrams use Mermaid syntax for:
-- Version control friendliness
-- GitHub native rendering
-- Text-based editing
-- LLM generation compatibility
+### 4. Hybrid Diagrams
+Use Mermaid for simple diagrams with minimal blocks; use DOT + Graphviz SVGs for complex diagrams for:
+- High-fidelity, scalable visuals
+- Stable, deterministic rendering
+- Large-diagram readability
+- SVG embedding in markdown
 
 ---
 
@@ -147,7 +147,7 @@ To add a new template:
 
 - [ ] Clear purpose statement at top
 - [ ] All placeholders in `[BRACKETS]`
-- [ ] Mermaid diagrams with styling
+- [ ] Mermaid diagrams (simple) or DOT diagrams with SVG output (complex)
 - [ ] Description sections
 - [ ] Related documentation links
 - [ ] Source file reference at bottom
@@ -162,7 +162,7 @@ To add a new template:
 - New diagram types added to Zeno's methodology
 - Improved documentation patterns discovered
 - User feedback on generated documentation
-- New Mermaid features become available
+- New Mermaid or Graphviz/DOT features become available
 
 ### Versioning
 

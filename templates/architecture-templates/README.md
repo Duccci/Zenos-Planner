@@ -8,7 +8,17 @@ Templates for generating architecture documentation for target projects managed 
 
 Zeno's Planner uses intelligent template selection to generate architecture documentation based on target project type, complexity, and gate requirements. Not every project needs every diagram - Zeno generates only what's valuable for your specific project.
 
-**Total Templates Available**: 10
+**Diagram Format Strategy**:
+- **Mermaid**: For simple diagrams with minimal blocks (text-based, version-controllable)
+- **DOT (Graphviz SVG)**: For complex diagrams with many nodes/edges (high-quality, scalable SVG output)
+
+**Total Templates Available**: 10 (Mermaid or DOT/SVG depending on complexity)
+
+---
+
+## Diagram Rendering
+
+All architecture templates support Mermaid for simple diagrams and DOT + Graphviz SVGs for complex diagrams. For DOT diagrams, render SVGs via Graphviz (e.g., `dot -Tsvg diagram.dot -o diagram.svg`) and embed the output in markdown.
 
 ---
 
@@ -20,7 +30,7 @@ These templates apply to the overall project and are typically generated once du
 **Purpose**: High-level system architecture showing layers and components  
 **When**: Generated during project initialization or Gate 1  
 **Scope**: Entire system  
-**Diagram Type**: Mermaid graph with layered subgraphs
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex systems
 
 **Key Sections**:
 - Layered architecture diagram
@@ -34,7 +44,7 @@ These templates apply to the overall project and are typically generated once du
 **Purpose**: End-to-end process flow from start to completion  
 **When**: Generated during project initialization or Gate 1  
 **Scope**: Entire system  
-**Diagram Type**: Mermaid flowchart with decision points
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex flows
 
 **Key Sections**:
 - Flowchart diagram with decision points
@@ -50,7 +60,7 @@ These templates apply to the overall project and are typically generated once du
 **Purpose**: Project roadmap showing gate sequence, dependencies, and parallel work opportunities  
 **When**: Generated during project initialization  
 **Scope**: Project timeline/gates  
-**Diagram Type**: Mermaid graph showing gate relationships
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex roadmaps
 
 **Key Sections**:
 - Gate roadmap diagram (gates only, no feature-level details)
@@ -64,7 +74,7 @@ These templates apply to the overall project and are typically generated once du
 **Purpose**: State machine for any entity or process lifecycle  
 **When**: Generated during project initialization or per gate for entity lifecycles  
 **Scope**: Workflow or entity lifecycle  
-**Diagram Type**: Mermaid state diagram
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex state machines
 
 **Key Sections**:
 - State machine diagram
@@ -81,7 +91,7 @@ These templates apply to the overall project and are typically generated once du
 **Purpose**: System boundary and external interactions  
 **When**: Generated during project initialization or Gate 1  
 **Scope**: System + external dependencies  
-**Diagram Type**: Mermaid graph with central system node
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex contexts
 
 **Key Sections**:
 - System boundary visualization
@@ -100,7 +110,7 @@ These templates are generated for specific gates when detailed documentation is 
 **Purpose**: Temporal interactions for specific use cases  
 **When**: Generated per gate when complex workflows need documentation  
 **Scope**: Single use case or feature  
-**Diagram Type**: Mermaid sequence diagram
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex sequences
 
 **Example Use Cases**:
 - User authentication flow
@@ -121,7 +131,7 @@ These templates are generated for specific gates when detailed documentation is 
 **Purpose**: Detailed component structure within a module  
 **When**: Generated per gate for complex modules  
 **Scope**: Single module or subsystem  
-**Diagram Type**: Mermaid class diagram
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex component graphs
 
 **Example Use Cases**:
 - Authentication module internals
@@ -142,7 +152,7 @@ These templates are generated for specific gates when detailed documentation is 
 **Purpose**: Code organization and module dependencies  
 **When**: Generated per gate when refactoring or organizing code structure  
 **Scope**: Source code organization  
-**Diagram Type**: Mermaid graph showing directory structure
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex module graphs
 
 **Example Use Cases**:
 - Monorepo organization
@@ -167,7 +177,7 @@ These templates document deployment and operational aspects, typically generated
 **Purpose**: Runtime infrastructure and deployment architecture  
 **When**: Generated for deployment/devops gates  
 **Scope**: Production infrastructure  
-**Diagram Type**: Mermaid graph showing nodes and artifacts
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex deployments
 
 **Example Use Cases**:
 - Cloud deployment (AWS/Azure/GCP)
@@ -189,7 +199,7 @@ These templates document deployment and operational aspects, typically generated
 **Purpose**: Network topology and communication patterns  
 **When**: Generated for deployment/devops gates or complex networking  
 **Scope**: Network infrastructure  
-**Diagram Type**: Mermaid graph with subnets and communication paths
+**Diagram Type**: Mermaid (simple) or DOT (Graphviz SVG) for complex networks
 
 **Example Use Cases**:
 - VPC/subnet configuration
@@ -297,7 +307,7 @@ zeno arch generate --type network
 The CLI will:
 1. Read the appropriate template from this directory
 2. Analyze the project structure and gate requirements
-3. Generate Mermaid diagram content based on project analysis
+3. Generate Mermaid (simple) or DOT (complex) diagram content based on project analysis
 4. Fill in template placeholders with intelligent defaults
 5. Write to `.zeno/architecture/[type].md`
 
@@ -308,7 +318,7 @@ To create architecture documentation manually:
 1. Copy the appropriate template file
 2. Rename to match your diagram (e.g., `system-overview.md`)
 3. Replace all `[PLACEHOLDER]` values with actual content
-4. Update the Mermaid diagram to match your architecture
+4. Update the Mermaid (simple) or DOT (complex) diagram to match your architecture
 5. Fill in all description sections with bracketed guidance
 6. Save to `.zeno/architecture/` in your project
 
@@ -320,7 +330,7 @@ All templates use standard placeholders with bracketed generation instructions:
 
 - `[DATE]` - Generation date (YYYY-MM-DD format)
 - `[Draft/Approved/Implemented]` - Document status
-- `[Generate a Mermaid diagram...]` - LLM generation instructions
+- `[Generate a Mermaid or DOT diagram...]` - LLM generation instructions
 - `[Describe X with Y criteria]` - Content generation guidance
 - `[Entity/Process Name]` - Specific names for the target project
 
@@ -330,7 +340,7 @@ All templates use standard placeholders with bracketed generation instructions:
 
 ## Diagram Best Practices
 
-### Mermaid Diagram Guidelines
+### Mermaid Diagram Guidelines (Simple Diagrams)
 
 1. **Keep diagrams focused**: 5-15 nodes maximum per diagram
 2. **Use consistent styling**: Define CSS classes for node types
@@ -354,6 +364,13 @@ classDef customStyle fill:#COLOR,stroke:#COLOR,stroke-width:2px,color:#fff
 class Component1,Component2 customStyle
 ```
 
+### DOT Diagram Guidelines (Complex Diagrams)
+
+1. **Use DOT for large graphs**: Prefer DOT when nodes/edges exceed simple Mermaid readability
+2. **Render to SVG**: Use Graphviz to produce scalable, high-fidelity output
+3. **Keep DOT source in version control**: SVG is generated from DOT
+4. **Embed SVG in markdown**: Reference the SVG file in the diagram section
+
 ### Diagram Maintenance
 
 - **Update with code**: Diagrams should evolve with implementation
@@ -368,7 +385,7 @@ class Component1,Component2 customStyle
 ### Single Source of Truth
 
 Each architecture document is self-contained with:
-- Embedded Mermaid diagram
+- Embedded Mermaid diagram (simple) or SVG image (complex)
 - Detailed descriptions
 - Design rationale
 - Related documentation links

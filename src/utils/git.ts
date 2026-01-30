@@ -222,8 +222,8 @@ export async function getTags(dir: string = process.cwd()): Promise<string[]> {
  * @param dir - Repository directory (default: process.cwd())
  */
 export async function pushCurrentBranch(
-  remote: string = 'origin',
-  dir: string = process.cwd()
+  remote = 'origin',
+  dir = process.cwd()
 ): Promise<void> {
   try {
     const git = getGit(dir)

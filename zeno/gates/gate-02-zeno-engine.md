@@ -6,13 +6,6 @@
 **Sequence**: 2 of 12  
 **Hash**: #g02zenoeng
 
-<!-- Status lifecycle:
-  - pending: Gate generated, project-level requirements attributed to gate
-  - in_progress: Gate started via `zeno gates start`, gate-specific requirements generated
-  - completed: All requirements tested, gate approved
-  - rejected: Gate rejected during review
--->
-
 ## Overview
 
 Implements the core Zeno engine that generates gates through iterative decomposition and enables project initialization. Delivers the `zeno init` command for project setup, code analysis capabilities for existing codebases, gate generation algorithm, and foundational CLI commands for gate management. This gate transforms Zeno from a static infrastructure tool into a functional project planning system.
@@ -29,6 +22,7 @@ Implements the core Zeno engine that generates gates through iterative decomposi
 - [ ] Implement code metrics calculator (coupling, cohesion, complexity)
 - [ ] Create dependency graph generator for existing code
 - [ ] Generate initial AGENTS.md for tool usage guidance
+- [ ] Implement write-time analysis integration for greenfield projects (auto-analyze on gate completion)
 
 ## Context
 
@@ -64,6 +58,11 @@ Gate 01 (Core Infrastructure) established the foundational infrastructure:
 - AGENTS.md generation for AI context
 - Gate confidence scoring system
 - LLM integration layer (command-based, no external API calls)
+- Write-time analysis integration for greenfield projects:
+  - Auto-analyze hook triggered on `zeno gates complete <gate-id>`
+  - Incremental analysis (only parse files changed in current gate)
+  - Update project metadata and dependency graph with newly written code
+  - Store metrics for future gate generation
 - Integration tests for gate generation workflow
 
 **Out of Scope**:
@@ -76,19 +75,6 @@ Gate 01 (Core Infrastructure) established the foundational infrastructure:
 
 ## Requirements
 
-<!-- Requirements-First Workflow:
-  1. Project-level requirements: PRIMARILY defined during `zeno init` at project inception (BEFORE gates).
-     These are high-level, cross-cutting requirements derived from the end state.
-  2. Gate generation (`/zeno-gate`): Attributes existing project-level requirements to gates.
-     Requirements are PRIMARILY mapped and attributed here, not created.
-     During rebaseline/rescope: Requirements may be updated or added as part of rescoping.
-  3. Gate start (`zeno gates start`): Generates gate-specific requirements that decompose
-     project requirements and gate objectives into actionable items.
-  4. Proposal generation (`/zeno-proposal`): Breaks requirements down into individual tasks.
-  
-  Workflow: Requirements (init - PRIMARY) → Gates (attribute, may update/add during rescope) → Gate Requirements (decompose) → Tasks (proposals)
--->
-
 ### Project Requirements (Attributed to This Gate)
 
 Project-level requirements were primarily defined during `zeno init` at project inception. Requirements may be updated or added during rebaseline/rescope operations, but init is the primary source. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.
@@ -100,6 +86,7 @@ Project-level requirements were primarily defined during `zeno init` at project 
 | #p02codeanalysis | Code Analysis Capabilities | functional | must | Implements AST parsing and code metrics |
 | #p02llmint | LLM Integration Layer | functional | must | Creates command-based interaction system |
 | #p02agentsmd | AGENTS.md Generation | functional | must | Generates AI context documentation |
+| #p02writeanalysis | Write-Time Analysis Integration | functional | must | Enables auto-analysis on gate completion for greenfield projects to support data-driven future gate generation |
 
 ### Gate-Specific Requirements
 
@@ -145,6 +132,18 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Impact**: All gate PRDs follow consistent structure while allowing customization
 - **Trade-offs**: Template parsing overhead; gained consistency and maintainability
 
+### Write-Time Analysis for Greenfield Projects
+- **Choice**: Auto-trigger code analysis on `zeno gates complete <gate-id>` to capture newly written code metrics, then use those metrics to inform future gate generation
+- **Alternatives Considered**: Manual analysis only, postpone analysis until all gates complete, scan only at init
+- **Rationale**: Greenfield projects benefit from deterministic analysis like brownfield projects. By analyzing code after each gate completes, future gates are generated based on real metrics (coupling, complexity, LOC) rather than theoretical decomposition alone. This creates a data-driven feedback loop: vision → Gate 1 → analyze → Gate 2 (informed by data) → analyze → Gate 3 (informed by data) → etc.
+- **Implementation Details**:
+  - Gate completion hook calls `zeno analyze --incremental` for only files changed in current gate
+  - Metrics stored in project `start_state` metadata (previously only populated for brownfield analysis)
+  - Dependency graph updated with newly analyzed code
+  - Optional: `zeno gates regenerate --from-analysis` enables LLM to regenerate future gates using real metrics
+- **Impact**: Greenfield projects get same architectural benefits as brownfield (coupling detection, complexity tracking, circular dependency detection, adaptive gate generation)
+- **Trade-offs**: Additional analysis step adds time to gate completion (~5-30s depending on code size); gained significant architectural insights and adaptive planning
+
 ## Architecture Updates
 
 ### Components Modified or Created
@@ -173,6 +172,11 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
   - Purpose: Dependency graph generation from AST analysis
   - Changes: New file - builds graph structure from imports/exports
   - Interfaces: `buildDependencyGraph(analyzedModules)`, `findCircularDependencies(graph)`
+
+- **src/core/write-time-analyzer.ts** (`src/core/`)
+  - Purpose: Incremental analysis hook for greenfield projects on gate completion
+  - Changes: New file - runs analysis on changed files when gate completes, updates project metrics
+  - Interfaces: `analyzeOnGateComplete(gateId)`, `updateProjectMetrics(newMetrics)`, `regenerateGatesFromAnalysis()`
 
 - **src/generation/requirement-generator.ts** (`src/generation/`)
   - Purpose: Project-level requirement generation from end state
@@ -302,11 +306,21 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
    - Document command-based interaction pattern
    - This enables LLM-driven workflow execution
 
-8. **Integration Tests**
+8. **Write-Time Analysis Integration**
+   - Implement `zeno analyze --incremental` for only changed files in current gate
+   - Create gate completion hook that triggers analysis
+   - Update project metadata `start_state` with newly discovered metrics
+   - Implement optional `zeno gates regenerate --from-analysis` command
+   - Enable future gates to be generated using real code metrics instead of purely theoretical decomposition
+   - Document how analysis informs gate regeneration in AGENTS.md
+
+9. **Integration Tests**
    - Write tests for gate generation algorithm
    - Test code analysis on sample codebases
    - Verify requirement generation from end states
    - Validate CLI command workflows end-to-end
+   - Test write-time analysis captures metrics correctly
+   - Test gate regeneration from analysis data
 
 ## Known Issues & Limitations
 

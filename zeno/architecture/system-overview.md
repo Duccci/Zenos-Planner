@@ -31,7 +31,7 @@ graph TB
     
     subgraph "Generation Layer"
         ReqGenerator[Requirement Generator<br/>Gate Decomposition]
-        MermaidGen[Mermaid Generator<br/>Architecture Diagrams]
+        MermaidGen[Diagram Generator<br/>Mermaid/DOT]
         ProposalGen[Proposal Generator<br/>Change Notices]
         PRDGen[PRD Generator<br/>Template-based]
     end
@@ -141,7 +141,7 @@ The system is organized into seven distinct layers, each with specific responsib
 
 ### 4. Generation Layer
 - **Requirement Generator**: Decomposes gates into hierarchical requirements
-- **Mermaid Generator**: Creates architecture diagrams from project state
+- **Diagram Generator**: Creates architecture diagrams (Mermaid for simple, DOT/SVG for complex)
 - **Proposal Generator**: Generates implementation proposals from requirements
 - **PRD Generator**: Creates gate-specific PRDs from templates
 
@@ -152,7 +152,7 @@ The system is organized into seven distinct layers, each with specific responsib
 
 ### 6. Storage Layer
 - **SQLite DB**: Structured storage for requirements, gates, proposals, dependencies
-- **File Store**: Human-readable artifacts (Markdown, JSON, Mermaid diagrams)
+- **File Store**: Human-readable artifacts (Markdown, JSON, Mermaid/DOT/SVG diagrams)
 - **Hash Registry**: Content-addressable lookup for all entities
 - **Git Repository**: Version control integration
 

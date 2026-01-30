@@ -18,7 +18,7 @@ graph TB
     
     G2 --> G3[Gate 3<br/>Requirements & Database Layer]
     
-    G3 --> G4[Gate 4<br/>Architecture & Mermaid Generation]
+    G3 --> G4[Gate 4<br/>Architecture & Diagram Generation]
     G3 --> G5[Gate 5<br/>Multi-Repo & Subproject Detection]
     
     G4 --> G6[Gate 6<br/>Proposal Generation & Management]
@@ -59,7 +59,7 @@ The gate roadmap diagram displays the gate sequence showing dependencies between
 Gates that can be worked on simultaneously:
 
 ### Gates 4 & 5
-- **Gate 4**: Architecture & Mermaid Generation
+- **Gate 4**: Architecture & Diagram Generation
 - **Gate 5**: Multi-Repo & Subproject Detection
 
 These gates are independent and can proceed in parallel after Gate 3 completes.
