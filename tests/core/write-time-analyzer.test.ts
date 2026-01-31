@@ -11,13 +11,15 @@ import { getDatabase } from '../../src/storage/database.js';
 
 // Mock git execution
 vi.mock('child_process', () => ({
-  execSync: vi.fn((command: string) => {
-    if (command.includes('git log')) {
-      // Mock git log output with some changed files
-      return 'src/core/new-file.ts\nsrc/utils/helper.ts\n';
-    }
-    return '';
-  })
+  execSync: vi.fn(() => 'src/core/new-file.ts\nsrc/utils/helper.ts\n')
+}));
+
+// Mock fs
+vi.mock('fs', () => ({
+  promises: {
+    access: vi.fn(),
+    readFile: vi.fn(() => 'mock content')
+  }
 }));
 
 // Mock database
@@ -34,7 +36,7 @@ vi.mock('../../src/storage/database.js', () => ({
 
 // Mock config
 vi.mock('../../src/utils/config.js', () => ({
-  getProjectRoot: vi.fn(() => '/mock/project')
+  findProjectRoot: vi.fn(() => '/mock/project')
 }));
 
 describe('Write-Time Analyzer', () => {
@@ -99,8 +101,8 @@ describe('Write-Time Analyzer', () => {
       vi.mocked(execSync).mockReturnValue('src/core/code.ts\nREADME.md\ndocs/guide.md\n');
 
       mockAnalyzer.analyzeCodebase.mockResolvedValue({
-        modules: new Map([['src/core/code.ts', {
-          filePath: 'src/core/code.ts',
+        modules: new Map([['/mock/project/src/core/code.ts', {
+          filePath: '/mock/project/src/core/code.ts',
           relativePath: 'src/core/code.ts',
           extension: '.ts',
           ast: {} as any,
@@ -170,7 +172,7 @@ describe('Write-Time Analyzer', () => {
         }))
       };
 
-      vi.mocked(require('../../src/storage/database.js').getDatabase).mockReturnValue(mockDb as any);
+      vi.mocked(getDatabase).mockReturnValue(mockDb);
 
       mockAnalyzer.analyzeCodebase.mockResolvedValue({
         modules: new Map(),
@@ -218,7 +220,7 @@ describe('Write-Time Analyzer', () => {
         }))
       };
 
-      vi.mocked(require('../../src/storage/database.js').getDatabase).mockReturnValue(mockDb as any);
+      vi.mocked(getDatabase).mockReturnValue(mockDb);
 
       // This would be used by regenerateGatesFromAnalysis
       // Verify accumulation logic works correctly

@@ -21,6 +21,8 @@ import { readFile, writeFile, ensureDir } from '../utils/file.js'
 import { readdir, rename, unlink } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
+import { analyzeGateChanges } from './write-time-analyzer.js'
+import { regenerateGatesFromAnalysis } from './gate-generator.js'
 
 function normalizeHash(input: string): string {
   const trimmed = input.trim()
@@ -102,15 +104,15 @@ async function updateGateObjectivesFromProposal(projectRoot: string, gateId: str
     
     // Extract proposal summary
     const summaryMatch = /## Summary\s*\n\n([\s\S]*?)\n\n---/.exec(proposalContent)
-    const summary = summaryMatch?.[1]?.toLowerCase() || ''
+    const summary = summaryMatch?.[1]?.toLowerCase() ?? ''
     
     // Extract proposal title
     const titleMatch = /# Proposal: (.+)/.exec(proposalContent)
-    const title = titleMatch?.[1]?.toLowerCase() || ''
+    const title = titleMatch?.[1]?.toLowerCase() ?? ''
     
     // Find objectives section
     const objectivesMatch = /## Objectives\s*\n\n([\s\S]*?)\n\n##/.exec(gateContent)
-    if (!objectivesMatch || !objectivesMatch[1]) return
+    if (!objectivesMatch?.[1]) return
     
     const objectivesSection = objectivesMatch[1]
     
@@ -337,6 +339,16 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
   })
   tx(gate.id)
 
+  // Analyze gate changes for incremental metrics
+  try {
+    await analyzeGateChanges(gateId)
+    // Regenerate future gates based on analysis
+    await regenerateGatesFromAnalysis(gateId)
+  } catch (error) {
+    logger.warn(`Failed to analyze and regenerate gates for ${gateId}: ${String(error)}`)
+    // Don't fail completion if analysis fails
+  }
+
   // Consolidate and archive proposals
   try {
     const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
@@ -392,6 +404,30 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
         }
       }
     }
+
+    // Delete proposals from database after consolidation
+    // First get proposal hashes for cleanup
+    const proposalRows = db.prepare('SELECT hash FROM proposals WHERE gate_id = ?').all(gate.id) as { hash: string }[]
+    const proposalHashes = proposalRows.map(row => row.hash)
+    
+    // Delete dependencies involving these proposals
+    if (proposalHashes.length > 0) {
+      const placeholders = proposalHashes.map(() => '?').join(',')
+      db.prepare(`DELETE FROM dependencies WHERE source_entity_type = 'proposal' AND source_hash IN (${placeholders})`).run(...proposalHashes)
+      db.prepare(`DELETE FROM dependencies WHERE target_entity_type = 'proposal' AND target_hash IN (${placeholders})`).run(...proposalHashes)
+      
+      // Delete from hash registry
+      db.prepare(`DELETE FROM hash_registry WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`).run(...proposalHashes)
+      
+      // Delete from state history
+      db.prepare(`DELETE FROM state_history WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`).run(...proposalHashes)
+    }
+    
+    // Delete the proposals themselves
+    db.prepare('DELETE FROM proposals WHERE gate_id = ?').run(gate.id)
+    
+    // Clear proposal_hashes from the gate record
+    db.prepare('UPDATE gates SET proposal_hashes = NULL WHERE id = ?').run(gate.id)
 
     // Remove the gate directory if empty
     const gateDir = path.join(proposalsDir, gateId)

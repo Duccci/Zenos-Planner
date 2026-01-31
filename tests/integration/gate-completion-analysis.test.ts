@@ -11,7 +11,20 @@ import { getDatabase } from '../../src/storage/database.js';
 
 // Mock all external dependencies
 vi.mock('../../src/storage/database.js');
-vi.mock('../../src/utils/config.js');
+vi.mock('../../src/utils/config.js', () => ({
+  findProjectRoot: vi.fn(() => process.cwd()),
+  getZenoDir: vi.fn(() => 'zeno/.zeno'),
+  loadConfig: vi.fn(() => ({
+    versioning: {
+      enabled: true,
+      lifecycleBump: 'major' as const,
+      gateBump: 'minor' as const
+    },
+    version: '1.0.0'
+  })),
+  saveConfig: vi.fn(),
+  getVersioningSettings: vi.fn((config) => config.versioning)
+}));
 vi.mock('../../src/utils/file.js');
 vi.mock('../../src/utils/gate-consolidation.js');
 vi.mock('../../src/utils/git.js');
@@ -33,9 +46,10 @@ describe('Gate Completion Analysis Integration', () => {
           name: 'Core Infrastructure',
           status: 'in_progress'
         })),
-        run: vi.fn()
+        run: vi.fn(),
+        all: vi.fn(() => [])
       })),
-      transaction: vi.fn((fn) => fn('gate-01'))
+      transaction: vi.fn((fn) => (id: string) => fn(id))
     };
 
     mockAnalyzeGateChanges = vi.fn();
@@ -120,7 +134,9 @@ describe('Gate Completion Analysis Integration', () => {
               }
             }
           })
-        }))
+        })),
+        run: vi.fn(),
+        all: vi.fn(() => [])
       });
 
       mockAnalyzeGateChanges.mockResolvedValue({
@@ -259,7 +275,7 @@ describe('Gate Completion Analysis Integration', () => {
 
       // Verify workflow completed successfully
       expect(mockAnalyzeGateChanges).toHaveBeenCalledTimes(2);
-      expect(mockRegenerateGatesFromAnalysis).toHaveBeenCalledTimes(1);
+      expect(mockRegenerateGatesFromAnalysis).toHaveBeenCalledTimes(2);
     });
   });
 });

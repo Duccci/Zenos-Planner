@@ -12,7 +12,7 @@
 // Babel traverse typing is complex, use lazy loading
 let traverse: any = null;
 
-function getTraverse() {
+function getTraverse(): any {
   if (!traverse) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const traverseModule = require('@babel/traverse');
