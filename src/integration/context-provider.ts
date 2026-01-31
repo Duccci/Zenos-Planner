@@ -120,7 +120,7 @@ function parseGatesOutput(output: string): GateSummary[] {
   for (const line of lines) {
     const regex = /^(gate-\d+):\s*(\w+)\s*-\s*(.+)$/
     const match = regex.exec(line)
-    if (match && match[1] && match[2] && match[3]) {
+    if (match?.[1] && match[2] && match[3]) {
       gates.push({
         id: match[1],
         status: match[2] as 'pending' | 'in_progress' | 'completed',
@@ -145,7 +145,7 @@ function parseProposalsOutput(output: string): { hash: string; status: string }[
   for (const line of lines) {
     const regex = /^(\S+):\s*(\w+)/
     const match = regex.exec(line)
-    if (match && match[1] && match[2]) {
+    if (match?.[1] && match[2]) {
       proposals.push({
         hash: match[1],
         status: match[2]

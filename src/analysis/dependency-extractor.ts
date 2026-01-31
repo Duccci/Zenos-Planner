@@ -11,10 +11,17 @@
    @typescript-eslint/no-unsafe-return,
    @typescript-eslint/restrict-template-expressions */
 
-// Babel traverse typing is complex, use dynamic import style
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const traverseModule = require('@babel/traverse');
-const traverse = traverseModule.default ?? traverseModule;
+// Babel traverse typing is complex, use lazy loading
+let traverse: any = null;
+
+function getTraverse() {
+  if (!traverse) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const traverseModule = require('@babel/traverse');
+    traverse = traverseModule.default ?? traverseModule;
+  }
+  return traverse;
+}
 
 import type { File as BabelFile } from '@babel/types';
 import path from 'path';
@@ -35,7 +42,7 @@ export function extractDependencies(
   const reexports: DependencyInfo[] = [];
   const seenImports = new Set<string>();
 
-  traverse(ast as any, {
+  getTraverse()(ast as any, {
     ImportDeclaration(nodePath: any) {
       const source = nodePath.node.source.value;
       const names = nodePath.node.specifiers.map((spec: any) => {

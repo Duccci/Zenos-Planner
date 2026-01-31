@@ -91,6 +91,60 @@ function getDb(projectRoot: string): Database.Database {
   }
 }
 
+/**
+ * Update gate document objectives based on completed proposal
+ */
+async function updateGateObjectivesFromProposal(projectRoot: string, gateId: string, proposalContent: string): Promise<void> {
+  const gatePath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+  
+  try {
+    const gateContent = await readFile(gatePath)
+    
+    // Extract proposal summary
+    const summaryMatch = /## Summary\s*\n\n([\s\S]*?)\n\n---/.exec(proposalContent)
+    const summary = summaryMatch?.[1]?.toLowerCase() || ''
+    
+    // Extract proposal title
+    const titleMatch = /# Proposal: (.+)/.exec(proposalContent)
+    const title = titleMatch?.[1]?.toLowerCase() || ''
+    
+    // Find objectives section
+    const objectivesMatch = /## Objectives\s*\n\n([\s\S]*?)\n\n##/.exec(gateContent)
+    if (!objectivesMatch || !objectivesMatch[1]) return
+    
+    const objectivesSection = objectivesMatch[1]
+    
+    // Find unchecked objectives that match the proposal
+    const updatedObjectives = objectivesSection.replace(
+      /- \[ \] ([^\n]+)/g,
+      (match, objective: string) => {
+        const objLower = objective.toLowerCase()
+        
+        // Check if objective keywords appear in proposal summary or title
+        const keywords = objLower.split(/\s+/)
+        const matches = keywords.filter((keyword: string) => 
+          keyword.length > 3 && (summary.includes(keyword) || title.includes(keyword))
+        )
+        
+        // If significant matches found, mark as completed
+        if (matches.length >= 2 || (matches.length >= 1 && objLower.includes('command'))) {
+          return `- [x] ${objective}`
+        }
+        
+        return match
+      }
+    )
+    
+    // Update gate content
+    const newGateContent = gateContent.replace(objectivesSection, updatedObjectives)
+    await writeFile(gatePath, newGateContent)
+    
+  } catch (error) {
+    // Gate file might not exist or be readable, skip silently
+    logger.debug(`Could not update gate objectives for ${gateId}: ${String(error)}`)
+  }
+}
+
 export interface ApproveProposalOptions {
   push?: boolean
 }
@@ -112,11 +166,11 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
   const proposal = getRequiredRow(
     db
       .prepare(
-        `SELECT id, gate_id as gateId, title, status
+        `SELECT id, gate_id as gateId, title, status, requirement_id
          FROM proposals
          WHERE hash = ?`
       )
-      .get(proposalHash) as { id: string; gateId: string; title: string; status: string } | undefined,
+      .get(proposalHash) as { id: string; gateId: string; title: string; status: string; requirement_id: string | null } | undefined,
     'Proposal not found',
     { hash: proposalHash }
   )
@@ -134,7 +188,7 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
     })
   }
 
-  const tx = db.transaction((proposalId: string) => {
+  const tx = db.transaction((proposalId: string, requirementId: string | null) => {
     db.prepare(
       `UPDATE proposals
        SET status = 'completed',
@@ -142,10 +196,20 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
            implemented_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).run(proposalId)
+
+    // Update associated requirement to implemented if present
+    if (requirementId) {
+      db.prepare(
+        `UPDATE requirements
+         SET status = 'implemented'
+         WHERE id = ?`
+      ).run(requirementId)
+    }
   })
-  tx(proposal.id)
+  tx(proposal.id, proposal.requirement_id)
 
   // Move proposal file to completed with hash name
+  let proposalContent = ''
   try {
     const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gateId)
     const completedDir = path.join(projectRoot, 'zeno', 'proposals', 'archive')
@@ -158,6 +222,7 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
         const filePath = path.join(gateDir, file)
         const content = await readFile(filePath)
         if (content.includes(`**Hash**: #${proposalHash}`)) {
+          proposalContent = content
           const dest = path.join(completedDir, `${proposalHash}.md`)
           await rename(filePath, dest)
           break
@@ -166,6 +231,15 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
     }
   } catch (error) {
     logger.warn(`Failed to move proposal file for ${proposalHash}: ${String(error)}`)
+  }
+
+  // Update gate document objectives based on proposal completion
+  try {
+    if (proposalContent) {
+      await updateGateObjectivesFromProposal(projectRoot, proposal.gateId, proposalContent)
+    }
+  } catch (error) {
+    logger.warn(`Failed to update gate objectives for ${proposalHash}: ${String(error)}`)
   }
 
   const config = await loadConfig(projectRoot)
@@ -252,6 +326,13 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
        SET status = 'completed',
            completed_at = CURRENT_TIMESTAMP
        WHERE id = ?`
+    ).run(id)
+
+    // Update all requirements for this gate to tested
+    db.prepare(
+      `UPDATE requirements
+       SET status = 'tested'
+       WHERE gate_id = ?`
     ).run(id)
   })
   tx(gate.id)

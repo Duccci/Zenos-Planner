@@ -60,7 +60,7 @@ ${requirements.filter(r => r.level === 'gate').map(r => `- #${r.hash}: ${r.descr
 ---
 
 **Document Version**: ${projectConfig.version}  
-**Last Updated**: ${new Date().toISOString().split('T')[0]}  
+**Last Updated**: ${String(new Date().toISOString().split('T')[0])}  
 **Status**: Active
 
 **${projectConfig.projectName}** | [Project tagline]

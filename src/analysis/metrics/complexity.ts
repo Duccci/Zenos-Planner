@@ -9,10 +9,17 @@
    @typescript-eslint/no-unsafe-argument,
    @typescript-eslint/no-unsafe-assignment */
 
-// Babel traverse typing is complex, use dynamic import style
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const traverseModule = require('@babel/traverse');
-const traverse = traverseModule.default ?? traverseModule;
+// Babel traverse typing is complex, use lazy loading
+let traverse: any = null;
+
+function getTraverse() {
+  if (!traverse) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const traverseModule = require('@babel/traverse');
+    traverse = traverseModule.default ?? traverseModule;
+  }
+  return traverse;
+}
 
 import type { File as BabelFile } from '@babel/types';
 import type { ComplexityMetrics, ModuleComplexity, FunctionComplexity } from '../types.js';
@@ -47,7 +54,7 @@ function calculateModuleComplexity(
 ): ModuleComplexity {
   const functions: FunctionComplexity[] = [];
 
-  traverse(ast as any, {
+  getTraverse()(ast as any, {
     FunctionDeclaration(nodePath: any) {
       const complexity = calculateFunctionComplexity(nodePath);
       const { start, end } = nodePath.node.loc ?? { start: { line: 0 }, end: { line: 0 } };
