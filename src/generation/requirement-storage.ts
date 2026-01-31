@@ -111,9 +111,9 @@ export class RequirementStorage {
 
       return {
         id,
-        gateId: gateId || null,
-        parentId: parentId || null,
-        projectRequirementId: projectRequirementId || null,
+        gateId: gateId ?? null,
+        parentId: parentId ?? null,
+        projectRequirementId: projectRequirementId ?? null,
         type,
         priority,
         level,
@@ -197,10 +197,10 @@ export class RequirementStorage {
         level: row.level as RequirementLevel,
         source: row.source as RequirementSource,
         description: row.description,
-        acceptanceCriteria: row.acceptance_criteria || undefined,
+        acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
         status: row.status as RequirementStatus,
-        sourceGateId: row.source_gate_id || undefined,
+        sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }
     } catch (error) {
@@ -225,7 +225,7 @@ export class RequirementStorage {
         FROM requirements r
         WHERE r.level = 'project'
       `
-      const params: any[] = []
+      const params: unknown[] = []
 
       if (projectId) {
         // If we had project_id in requirements, we could filter by it
@@ -247,10 +247,10 @@ export class RequirementStorage {
         level: row.level as RequirementLevel,
         source: row.source as RequirementSource,
         description: row.description,
-        acceptanceCriteria: row.acceptance_criteria || undefined,
+        acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
         status: row.status as RequirementStatus,
-        sourceGateId: row.source_gate_id || undefined,
+        sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }))
     } catch (error) {

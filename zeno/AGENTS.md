@@ -266,6 +266,7 @@ Awaiting human review.
 | **Project Init** | `zeno init` | Analyze codebase, generate gates, create diagrams | Gate generation review |
 | **Gate Work** | `zeno gates start <id>` | Decompose requirements, update architecture, create proposals | Repository boundaries |
 | **Implementation** | `zeno proposal validate <hash>` | Implement code, write tests, run checks | Proposal approval |
+| **Write-Time Analysis** | `zeno gates complete <id>` | Analyze code changes, store metrics, suggest regeneration | Analysis-based regeneration |
 | **Failure Handling** | Auto-replan with context | Parse errors, generate fixes, re-validate | - |
 | **Rescoping** | `zeno rescope` | Document changes, regenerate gates | - |
 | **Multi-Repo** | `zeno repos detect` | Calculate coupling, propose boundaries | Boundary approval |
@@ -282,6 +283,55 @@ zeno gates start <gate-id>
 # System generates:
 # - Gate-specific requirements (from project reqs + gate objectives)
 # - Inherits applicable project-level requirements
+
+### Workflow 3: Write-Time Analysis
+
+Write-time analysis provides data-driven insights for greenfield projects by analyzing code changes when gates complete. This enables adaptive gate regeneration based on actual implementation metrics rather than theoretical decomposition.
+
+```bash
+# Complete a gate with optional analysis
+zeno gates complete gate-01
+# Prompts: "Analyze code changes for this gate? (y/n)"
+# If yes: runs incremental analysis, shows metrics summary
+
+# Analysis output example:
+# Analysis complete (1250ms)
+# Files analyzed: 12
+# New metrics:
+#   - Coupling hotspots: 2
+#   - Average complexity: 4.2
+#   - Total LOC added: 847
+
+# Regenerate future gates based on analysis
+zeno gates regenerate --from-analysis
+# Shows suggested changes with confidence scores
+# Prompts: "Apply these gate regeneration suggestions? (y/n)"
+```
+
+**When to Use Analysis**:
+- **After major architectural changes**: Detect coupling issues early
+- **Before starting complex gates**: Use metrics to adjust complexity estimates
+- **When implementation differs from plan**: Data-driven course correction
+- **For quality assurance**: Ensure code quality matches gate objectives
+
+**Interpreting Metrics**:
+- **High coupling (>3 hotspots)**: Consider refactoring or repository boundaries
+- **Complexity >8**: May need to split gate or add intermediate refactoring gate
+- **Low LOC growth**: Gates may be too granular, consider combining
+- **Circular dependencies**: Immediate architectural review required
+
+**Decision Points**:
+- **Proceed with original plan**: When metrics align with expectations
+- **Apply regeneration**: When metrics reveal significant architectural issues
+- **Manual adjustment**: When analysis suggests changes but confidence is low
+- **Reject regeneration**: When human judgment overrides data insights
+
+**Analysis Informs Implementation**:
+- **Future gate complexity**: Adjust based on actual development velocity
+- **Repository boundaries**: Use coupling data for multi-repo decisions
+- **Testing strategy**: Higher complexity gates need more comprehensive testing
+- **Documentation needs**: Complex modules require more detailed docs
+
 ---
 
 ## LLM Function Reference

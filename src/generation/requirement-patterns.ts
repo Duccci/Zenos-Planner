@@ -261,7 +261,7 @@ function findMatches(text: string, pattern: RequirementPattern): string[] {
   } else {
     // Regex matching
     const matches = text.match(pattern.pattern)
-    return matches || []
+    return matches ?? []
   }
 }
 

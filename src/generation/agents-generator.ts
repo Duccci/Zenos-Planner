@@ -8,13 +8,11 @@ import { ZenoConfig } from '../utils/config.js';
 import { Gate } from '../core/types.js';
 import { Requirement } from './types.js';
 
-export interface ProjectConfig extends ZenoConfig {}
-
 /**
  * Generate AGENTS.md content
  */
 export function generateAgentsMD(
-  projectConfig: ProjectConfig,
+  projectConfig: ZenoConfig,
   gates: Gate[],
   requirements: Requirement[]
 ): string {
@@ -42,14 +40,14 @@ ${gates.map(gate => `- **${gate.id}**: ${gate.name} - ${gate.description}`).join
 ${requirements.filter(r => r.level === 'project').map(r => `- #${r.hash}: ${r.description}`).join('\n')}
 
 ### Gate-Specific Requirements
-${requirements.filter(r => r.level === 'gate').map(r => `- #${r.hash}: ${r.description} (Gate: ${r.gateId})`).join('\n')}
+${requirements.filter(r => r.level === 'gate').map(r => `- #${r.hash}: ${r.description} (Gate: ${r.gateId ?? 'unknown'})`).join('\n')}
 
 ## Quality Thresholds
 
-- Code Coverage: ${projectConfig.qualityThresholds.codeCoverage}% minimum
-- Security Vulnerabilities: ${projectConfig.qualityThresholds.securityVulnerabilities} allowed
-- Linting Error Rate: <${projectConfig.qualityThresholds.lintingErrorRate}%
-- Type Checking: ${projectConfig.qualityThresholds.typeCheckingErrors} TypeScript errors
+- Code Coverage: ${String(projectConfig.qualityThresholds.codeCoverage)}% minimum
+- Security Vulnerabilities: ${String(projectConfig.qualityThresholds.securityVulnerabilities)} allowed
+- Linting Error Rate: <${String(projectConfig.qualityThresholds.lintingErrorRate)}%
+- Type Checking: ${String(projectConfig.qualityThresholds.typeCheckingErrors)} TypeScript errors
 
 ## Implementation Patterns
 

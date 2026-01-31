@@ -2,9 +2,39 @@ import { WorkDescription, DecompositionContext, GeneratedGates, Gate } from './t
 import { decomposeWork } from './zeno-engine.js';
 import { sequenceGates } from './gate-sequencer.js';
 import { calculateConfidence } from './gate-scoring.js';
+import { getDatabase } from '../storage/database.js';
+import type { CodeMetrics } from '../analysis/types.js';
+
+interface ProjectRow {
+  id: string;
+  name: string;
+  description: string | null;
+  start_state: string | null;
+  end_state: string;
+  current_gate_id: string | null;
+  created_at: string;
+  updated_at: string;
+  analyzedState: string | null;
+}
+
+interface GateRow {
+  id: string;
+  project_id: string;
+  sequence: number;
+  name: string;
+  description: string | null;
+  status: string;
+  type: string;
+  completion_description: string | null;
+  proposal_hashes: string | null;
+  depends_on: string | null;
+  hash: string;
+  created_at: string;
+  completed_at: string | null;
+}
 
 // Assuming these types from other modules
-interface AnalysisResult {
+interface InitialAnalysisResult {
   metrics: {
     linesOfCode: number;
     cyclomaticComplexity: number;
@@ -13,9 +43,30 @@ interface AnalysisResult {
   dependencies: string[];
 }
 
+interface AnalysisResult {
+  gateId: string;
+  changedFiles: string[];
+  newModules: Record<string, unknown>; // Module type from analysis
+  incrementalMetrics: CodeMetrics;
+  analysisTime: number;
+  errors: string[];
+}
+
 interface Requirement {
   id: string;
   description: string;
+}
+
+export interface RegenerationSuggestions {
+  originalGates: Gate[];
+  suggestedGates: Gate[];
+  changes: {
+    type: 'add' | 'modify' | 'remove';
+    gateId: string;
+    reason: string;
+    confidence: number;
+  }[];
+  reasoning: string;
 }
 
 /**
@@ -24,7 +75,7 @@ interface Requirement {
  */
 export function generateGates(
   endState: string,
-  analysisResult?: AnalysisResult,
+  analysisResult?: InitialAnalysisResult,
   requirements?: Requirement[]
 ): GeneratedGates {
   // Convert inputs to WorkDescription
@@ -83,7 +134,7 @@ export function generateGates(
  */
 function estimateInitialComplexity(
   endState: string,
-  analysisResult?: AnalysisResult,
+  analysisResult?: InitialAnalysisResult,
   requirements?: Requirement[]
 ): number {
   let complexity = 50; // base
@@ -103,4 +154,142 @@ function estimateInitialComplexity(
   complexity += endState.length / 100;
 
   return Math.min(100, complexity);
+}
+
+/**
+ * Regenerates future gates based on analyzed code metrics from completed gates.
+ * Compares theoretical decomposition with data-driven insights.
+ */
+export function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions {
+  const db = getDatabase();
+  
+  // Get project and current gates
+  const project = db.prepare(`
+    SELECT p.*, p.start_state as analyzedState
+    FROM projects p
+    JOIN gates g ON g.project_id = p.id
+    WHERE g.id = ?
+  `).get(fromGateId) as ProjectRow | undefined;
+  
+  if (!project) {
+    throw new Error(`Project for gate ${fromGateId} not found`);
+  }
+  
+  // Get all gates for the project
+  const gateRows = db.prepare(`
+    SELECT * FROM gates
+    WHERE project_id = ?
+    ORDER BY sequence
+  `).all(project.id) as GateRow[];
+
+  const allGates: Gate[] = gateRows.map(row => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    objectives: [], // Will be populated by regeneration logic
+    dependencies: row.depends_on?.split(',') ?? [],
+    estimatedComplexity: 0, // Will be calculated
+    confidence: 0, // Will be calculated
+    type: row.type as 'feature' | 'quality' | 'rescope',
+    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected'
+  }));
+  
+  // Get analysis data from completed gates
+  const analyzedState: { gateAnalysis?: Record<string, AnalysisResult> } = project.analyzedState ? JSON.parse(project.analyzedState) as { gateAnalysis?: Record<string, AnalysisResult> } : {};
+  const gateAnalyses = analyzedState.gateAnalysis ?? {};
+  
+  // Find the fromGate index
+  const fromGateIndex = allGates.findIndex(g => g.id === fromGateId);
+  if (fromGateIndex === -1) {
+    throw new Error(`Gate ${fromGateId} not found in project`);
+  }
+  
+  // Get future gates (after fromGate)
+  const futureGates = allGates.slice(fromGateIndex + 1);
+  const completedGates = allGates.slice(0, fromGateIndex + 1);
+  
+  // Aggregate metrics from completed gates
+  const aggregatedMetrics: CodeMetrics = {
+    coupling: { modules: new Map(), averageInstability: 0, highCoupling: [] },
+    complexity: { modules: new Map(), maxComplexity: 0, averageComplexity: 0 },
+    loc: { files: new Map(), totalLines: 0, totalCodeLines: 0, totalBlankLines: 0, totalCommentLines: 0 }
+  };
+  
+  let totalComplexity = 0;
+  let analysisCount = 0;
+  
+  for (const gate of completedGates) {
+    const analysis = gateAnalyses[gate.id];
+    if (analysis) {
+      // Merge coupling high coupling
+      aggregatedMetrics.coupling.highCoupling.push(...analysis.incrementalMetrics.coupling.highCoupling);
+      
+      // Average complexity
+      totalComplexity += analysis.incrementalMetrics.complexity.averageComplexity;
+      analysisCount++;
+      
+      // Sum LOC
+      aggregatedMetrics.loc.totalCodeLines += analysis.incrementalMetrics.loc.totalCodeLines;
+    }
+  }
+  
+  if (analysisCount > 0) {
+    aggregatedMetrics.complexity.averageComplexity = totalComplexity / analysisCount;
+  }
+  
+  // Generate suggestions based on metrics
+  const changes: RegenerationSuggestions['changes'] = [];
+  const suggestedGates = [...futureGates];
+  
+  // If high coupling detected, suggest refactoring gate
+  if (aggregatedMetrics.coupling.highCoupling.length > 2) {
+    const nextGateNum = allGates.length + 1;
+    changes.push({
+      type: 'add',
+      gateId: `gate-${nextGateNum.toString().padStart(2, '0')}`,
+      reason: `High coupling detected in ${aggregatedMetrics.coupling.highCoupling.length.toString()} modules - recommend architectural refactoring`,
+      confidence: 0.85
+    });
+  }
+  
+  // If complexity is high, suggest breaking down complex gates
+  if (aggregatedMetrics.complexity.averageComplexity > 15) {
+    for (const gate of futureGates) {
+      if (gate.estimatedComplexity > 25) {
+        changes.push({
+          type: 'modify',
+          gateId: gate.id,
+          reason: `Gate complexity ${gate.estimatedComplexity.toString()} exceeds recommended threshold - consider splitting`,
+          confidence: 0.75
+        });
+      }
+    }
+  }
+  
+  // If LOC growth is slow, suggest combining small gates
+  const avgGateComplexity = futureGates.reduce((sum, g) => sum + g.estimatedComplexity, 0) / futureGates.length;
+  if (avgGateComplexity < 10 && futureGates.length > 3) {
+    const lastGate = futureGates[futureGates.length - 1];
+    if (lastGate) {
+      changes.push({
+        type: 'modify',
+        gateId: lastGate.id,
+        reason: 'Multiple low-complexity gates detected - consider combining for efficiency',
+        confidence: 0.6
+      });
+    }
+  }
+  
+  const reasoning = `Analysis of ${completedGates.length.toString()} completed gates shows: ` +
+    `${aggregatedMetrics.coupling.highCoupling.length.toString()} coupling hotspots, ` +
+    `avg complexity ${aggregatedMetrics.complexity.averageComplexity.toFixed(1)}, ` +
+    `total LOC ${aggregatedMetrics.loc.totalCodeLines.toString()}. ` +
+    `Suggested ${changes.length.toString()} gate modifications.`;
+  
+  return {
+    originalGates: futureGates,
+    suggestedGates,
+    changes,
+    reasoning
+  };
 }

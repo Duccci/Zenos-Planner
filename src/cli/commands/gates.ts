@@ -9,9 +9,12 @@ import { logger } from '../../utils/logger.js'
 import { completeGate } from '../../core/completions.js'
 import { confirm } from '@inquirer/prompts'
 import { getDatabase } from '../../storage/database.js'
+import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { getZenoDir } from '../../utils/config.js'
+import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
+import { regenerateGatesFromAnalysis } from '../../core/gate-generator.js'
 
 /**
  * Gate status type
@@ -314,8 +317,45 @@ export function registerGatesCommands(program: Command): void {
         })
 
         if (analyze) {
-          logger.info('Analysis not yet implemented - Gate 9 required')
-          logger.info('This will invoke write-time analyzer and display results summary')
+          logger.info('Running write-time analysis...')
+          const analysisResult: GateAnalysisResult = await analyzeGateChanges(gateId)
+          
+          if (analysisResult.errors.length > 0) {
+            logger.warn('Analysis completed with errors:')
+            analysisResult.errors.forEach(error => { logger.warn(`  - ${error}`) })
+          }
+          
+          logger.info(`Analysis complete (${String(analysisResult.analysisTime)}ms)`)
+          logger.info(`Files analyzed: ${String(analysisResult.changedFiles.length)}`)
+          
+          if (analysisResult.changedFiles.length > 0) {
+            logger.info('New metrics:')
+            logger.info(`  - Coupling hotspots: ${analysisResult.incrementalMetrics.coupling.highCoupling.length.toString()}`)
+            logger.info(`  - Average complexity: ${analysisResult.incrementalMetrics.complexity.averageComplexity.toFixed(2)}`)
+            logger.info(`  - Total LOC added: ${analysisResult.incrementalMetrics.loc.totalCodeLines.toString()}`)
+            
+            // Update project metadata with analysis results
+            try {
+              const db: Database.Database = getDatabase();
+              const projectQuery = db.prepare(`
+                SELECT id, start_state FROM projects 
+                WHERE id = (SELECT project_id FROM gates WHERE id = ?)
+              `).get(gateId) as { id: string; start_state: string | null } | undefined
+              
+              if (projectQuery) {
+                const currentState: Record<string, unknown> = projectQuery.start_state ? JSON.parse(projectQuery.start_state) as Record<string, unknown> : {}
+                currentState['gateAnalysis'] ??= {};
+                (currentState['gateAnalysis'] as Record<string, unknown>)[gateId] = JSON.stringify(analysisResult);
+                
+                db.prepare('UPDATE projects SET start_state = ? WHERE id = ?')
+                  .run(JSON.stringify(currentState), projectQuery.id)
+              }
+            } catch (error) {
+              logger.warn('Failed to store analysis results in database:', error)
+            }
+          } else {
+            logger.info('No code changes detected for this gate')
+          }
         }
       } catch {
         // If prompt fails, continue without analysis
@@ -329,15 +369,63 @@ export function registerGatesCommands(program: Command): void {
     .command('regenerate')
     .description('Regenerate future gates')
     .option('--from-analysis', 'Regenerate based on analyzed code metrics')
-    .action((options: { fromAnalysis?: boolean }) => {
+    .action(async (options: { fromAnalysis?: boolean }) => {
       logger.info('Gates command: regenerate')
 
       if (options.fromAnalysis) {
         logger.info('Regenerating gates from analysis data...')
-        logger.info('Not yet implemented - Gate 9 required (#g02p09writeanalysis)')
-        logger.info('This will validate completed gates have analysis data')
-        logger.info('Display comparison: current gate plan vs. data-informed suggestions')
-        logger.info('Require explicit user confirmation before applying changes')
+        
+        // Get the most recently completed gate
+        const db: Database.Database = getDatabase();
+        const recentGate = db.prepare(`
+          SELECT id, name FROM gates 
+          WHERE status = 'completed' 
+          ORDER BY completed_at DESC 
+          LIMIT 1
+        `).get() as { id: string; name: string } | undefined
+        
+        if (!recentGate) {
+          logger.error('No completed gates found with analysis data')
+          return
+        }
+        
+        logger.info(`Using analysis from completed gate: ${recentGate.id} - ${recentGate.name}`)
+        
+        try {
+          const suggestions = regenerateGatesFromAnalysis(recentGate.id)
+          
+          logger.info('Analysis Summary:')
+          logger.info(`  ${suggestions.reasoning}`)
+          logger.info('')
+          
+          if (suggestions.changes.length === 0) {
+            logger.info('No changes suggested - current gate plan appears optimal')
+            return
+          }
+          
+          logger.info('Suggested Changes:')
+          suggestions.changes.forEach(change => {
+            const icon = change.type === 'add' ? '➕' : change.type === 'modify' ? '✏️' : '🗑️'
+            logger.info(`  ${icon} ${change.gateId}: ${change.reason} (${(change.confidence * 100).toFixed(0)}% confidence)`)
+          })
+          
+          logger.info('')
+          const apply = await confirm({
+            message: 'Apply these gate regeneration suggestions?',
+            default: false,
+          })
+          
+          if (apply) {
+            logger.info('Gate regeneration not yet implemented - requires human approval workflow')
+            logger.info('This would update the gate sequence in the database')
+          } else {
+            logger.info('Gate regeneration cancelled')
+          }
+          
+        } catch (error) {
+          logger.error('Failed to regenerate gates from analysis:', error)
+        }
+        
       } else {
         logger.info('Not yet implemented - Gate 2 required')
         logger.info('This command will regenerate gates based on current project state')

@@ -269,7 +269,7 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
       gateContent = await readFile(gatePrdPath)
     } catch {
       // If no PRD exists, create basic one
-      const dateStr: string = new Date().toISOString().split('T')[0];
+      const dateStr: string = new Date().toISOString().split('T')[0] ?? '';
       gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
     }
 

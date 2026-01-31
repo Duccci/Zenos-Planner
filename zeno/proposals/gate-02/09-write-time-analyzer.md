@@ -3,7 +3,7 @@
 **Hash**: #g02p09writeanalysis  
 **Gate**: gate-02 - Zeno Engine & Gate Generation  
 **Requirement**: #p02writeanalysis  
-**Status**: pending  
+**Status**: completed  
 **Created**: 2026-01-29
 
 ---
@@ -49,12 +49,12 @@ Greenfield projects currently benefit from vision-driven gate generation but lac
 Create an incremental analysis module that analyzes only files changed in the current gate (using git diff). Reuse existing code analyzer but scope to current gate changes. Store metrics incrementally without rescanning entire codebase.
 
 **Acceptance**:
-- [ ] Exports `analyzeGateChanges(gateId: string): GateAnalysisResult` function
-- [ ] Uses git to identify files changed since gate start
-- [ ] Only parses changed files to extract new dependencies
-- [ ] Merges new metrics with existing project metrics
-- [ ] Performance: <30 seconds for typical gate (100+ files changed)
-- [ ] Handles files added, modified, and deleted
+- [x] Exports `analyzeGateChanges(gateId: string): GateAnalysisResult` function
+- [x] Uses git to identify files changed since gate start
+- [x] Only parses changed files to extract new dependencies
+- [x] Merges new metrics with existing project metrics
+- [x] Performance: <30 seconds for typical gate (100+ files changed)
+- [x] Handles files added, modified, and deleted
 
 ---
 
@@ -66,12 +66,12 @@ Create an incremental analysis module that analyzes only files changed in the cu
 Add optional analysis step to `zeno gates complete <gate-id>` command. After validating gate completion, ask user if they want to run write-time analysis. If yes, call incremental analyzer and store results.
 
 **Acceptance**:
-- [ ] `zeno gates complete` prompts: "Analyze code changes for this gate? (y/n)"
-- [ ] If yes, runs incremental analysis with progress indicator
-- [ ] Shows summary of new metrics (coupling hotspots, complexity, circular deps)
-- [ ] Stores analysis in project metadata
-- [ ] Provides option to regenerate future gates from analysis
-- [ ] Handles analysis errors gracefully
+- [x] `zeno gates complete` prompts: "Analyze code changes for this gate? (y/n)"
+- [x] If yes, runs incremental analysis with progress indicator
+- [x] Shows summary of new metrics (coupling hotspots, complexity, circular deps)
+- [x] Stores analysis in project metadata
+- [x] Provides option to regenerate future gates from analysis
+- [x] Handles analysis errors gracefully
 
 ---
 
@@ -83,11 +83,11 @@ Add optional analysis step to `zeno gates complete <gate-id>` command. After val
 Extend project `start_state` metadata to store cumulative code metrics from gate completions. Update schema if needed to track analysis results per gate. Enable querying "what code metrics exist after Gate N?"
 
 **Acceptance**:
-- [ ] Project table stores `analyzed_state` (JSON with metrics after each gate completion)
-- [ ] Gates table stores `analysis_results` (JSON with metrics from when gate completed)
-- [ ] Metrics include: coupling matrix, complexity distribution, LOC stats, circular deps
-- [ ] Can query historical metrics: "how did coupling change from Gate 1 to Gate 2?"
-- [ ] Database migration handles existing projects
+- [x] Project table stores `analyzed_state` (JSON with metrics after each gate completion)
+- [x] Gates table stores `analysis_results` (JSON with metrics from when gate completed)
+- [x] Metrics include: coupling matrix, complexity distribution, LOC stats, circular deps
+- [x] Can query historical metrics: "how did coupling change from Gate 1 to Gate 2?"
+- [x] Database migration handles existing projects
 
 ---
 
@@ -99,12 +99,12 @@ Extend project `start_state` metadata to store cumulative code metrics from gate
 Add `regenerateGatesFromAnalysis()` method that uses analyzed code metrics to regenerate future gates. Compare theoretical decomposition (original) with data-driven decomposition (based on metrics) and suggest adjustments.
 
 **Acceptance**:
-- [ ] Exports `regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions` function
-- [ ] Uses coupling metrics to suggest repository boundaries
-- [ ] Uses complexity metrics to suggest refactoring gates before feature gates
-- [ ] Uses circular dependencies to suggest architectural cleanup
-- [ ] Returns side-by-side comparison: original plan vs. data-informed plan
-- [ ] Human must approve any gate regeneration
+- [x] Exports `regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions` function
+- [x] Uses coupling metrics to suggest repository boundaries
+- [x] Uses complexity metrics to suggest refactoring gates before feature gates
+- [x] Uses circular dependencies to suggest architectural cleanup
+- [x] Returns side-by-side comparison: original plan vs. data-informed plan
+- [x] Human must approve any gate regeneration
 
 ---
 
@@ -116,13 +116,13 @@ Add `regenerateGatesFromAnalysis()` method that uses analyzed code metrics to re
 Add new `zeno gates regenerate --from-analysis` command that triggers gate regeneration based on analyzed metrics. Shows proposed changes, requires human confirmation before updating gate plan.
 
 **Acceptance**:
-- [ ] New command: `zeno gates regenerate --from-analysis`
-- [ ] Gathers all analysis data from completed gates
-- [ ] Generates new gate sequence based on metrics
-- [ ] Displays side-by-side: current plan vs. new plan
-- [ ] Shows reasoning: "Detected high coupling in auth module - recommending refactor gate"
-- [ ] Requires explicit user confirmation to apply changes
-- [ ] Creates audit trail documenting regeneration decision
+- [x] New command: `zeno gates regenerate --from-analysis`
+- [x] Gathers all analysis data from completed gates
+- [x] Generates new gate sequence based on metrics
+- [x] Displays side-by-side: current plan vs. new plan
+- [x] Shows reasoning: "Detected high coupling in auth module - recommending refactor gate"
+- [x] Requires explicit user confirmation to apply changes
+- [x] Creates audit trail documenting regeneration decision
 
 ---
 
@@ -139,11 +139,11 @@ Document the write-time analysis workflow for AI assistants:
 - How analysis informs implementation decisions for future gates
 
 **Acceptance**:
-- [ ] AGENTS.md documents write-time analysis workflow
-- [ ] Shows example: Gate 1 → analyze → regenerate Gate 2 based on data
-- [ ] Documents decision points: "when should we regenerate vs. proceed?"
-- [ ] Explains metrics interpretation (what high coupling means, etc.)
-- [ ] Provides guidance on whether regeneration improves plan or adds scope
+- [x] AGENTS.md documents write-time analysis workflow
+- [x] Shows example: Gate 1 → analyze → regenerate Gate 2 based on data
+- [x] Documents decision points: "when should we regenerate vs. proceed?"
+- [x] Explains metrics interpretation (what high coupling means, etc.)
+- [x] Provides guidance on whether regeneration improves plan or adds scope
 
 ---
 
@@ -160,14 +160,14 @@ Write tests simulating greenfield project workflow:
 5. Verify regenerated gates incorporate metrics insights
 
 **Acceptance**:
-- [ ] Test: Incremental analysis only scans changed files
-- [ ] Test: Coupling metrics capture new dependencies correctly
-- [ ] Test: High coupling detected and flagged in results
-- [ ] Test: Circular dependencies identified in analyzed code
-- [ ] Test: Gate regeneration produces different plan based on metrics
-- [ ] Test: Human approval required before applying regeneration
-- [ ] Coverage meets 90% threshold for write-time analyzer module
-- [ ] Integration test simulates full greenfield workflow (Gate 1 → analyze → regenerate Gate 2)
+- [x] Test: Incremental analysis only scans changed files
+- [x] Test: Coupling metrics capture new dependencies correctly
+- [x] Test: High coupling detected and flagged in results
+- [x] Test: Circular dependencies identified in analyzed code
+- [x] Test: Gate regeneration produces different plan based on metrics
+- [x] Test: Human approval required before applying regeneration
+- [x] Coverage meets 90% threshold for write-time analyzer module
+- [x] Integration test simulates full greenfield workflow (Gate 1 → analyze → regenerate Gate 2)
 
 ---
 
