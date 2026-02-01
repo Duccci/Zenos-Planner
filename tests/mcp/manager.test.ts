@@ -58,6 +58,8 @@ describe('MCP Manager', () => {
     vi.mocked(fs.readFileSync).mockReturnValueOnce('not-a-number')
     expect(manager.readPid('/project')).toBeNull()
 
+    // ensure file exists for the successful parse case
+    vi.mocked(fs.existsSync).mockReturnValueOnce(true)
     vi.mocked(fs.readFileSync).mockReturnValueOnce('123\n')
     expect(manager.readPid('/project')).toBe(123)
   })
@@ -76,17 +78,31 @@ describe('MCP Manager', () => {
     vi.spyOn(process, 'kill').mockImplementation(origKill as any)
   })
 
-  it('isServerRunning returns false when no pid and delegates to isProcessRunning', () => {
+  it('isServerRunning returns false when no pid and delegates to isProcessRunning', async () => {
     const readSpy = vi.spyOn(manager, 'readPid').mockReturnValueOnce(null)
     expect(manager.isServerRunning('/project')).toBe(false)
+    readSpy.mockRestore()
 
-    const readSpy2 = vi.spyOn(manager, 'readPid').mockReturnValueOnce(123)
-    const procSpy = vi.spyOn(manager, 'isProcessRunning').mockReturnValueOnce(true)
+    // Arrange: create a fake pid file so the internal readPid() used by isServerRunning picks it up
+    const fs = await import('node:fs')
+    vi.mocked(fs.existsSync).mockReturnValue(true)
+    vi.mocked(fs.readFileSync).mockReturnValue('123\n')
+
+    // Simulate process existing by stubbing process.kill which is used by the internal isProcessRunning
+    const origKill = process.kill
+    vi.spyOn(process, 'kill').mockImplementation(() => undefined as never)
+
+    // sanity-check that readPid is returning the expected value
+    expect(manager.readPid('/project')).toBe(123)
+    expect(manager.isProcessRunning(123)).toBe(true)
     expect(manager.isServerRunning('/project')).toBe(true)
 
-    readSpy.mockRestore()
-    readSpy2.mockRestore()
-    procSpy.mockRestore()
+    // restore original behavior
+    vi.spyOn(process, 'kill').mockImplementation(origKill as any)
+
+    // reset fs mocks
+    vi.mocked(fs.existsSync).mockReset()
+    vi.mocked(fs.readFileSync).mockReset()
   })
 
   it('spawnServerBackground resolves on success and rejects on spawn error', async () => {

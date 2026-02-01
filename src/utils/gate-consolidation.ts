@@ -80,35 +80,59 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
           .trim()
       : ''
 
-  // Extract Dependencies table
+  // Extract Dependencies table (robustly match rows like: | #hash | type | description | )
   const dependencies: ConsolidatedProposal['dependencies'] = { blocks: [], requires: [] }
   const depsStart = content.indexOf('### Dependencies')
   if (depsStart !== -1) {
-    const depsEnd = content.indexOf('---', depsStart + 1)
+    // find section terminator (`---`) on its own line to avoid matching table separator lines
+    const endRegex = /(^|\r?\n)---\s*(\r?\n|$)/m
+    const endMatch = endRegex.exec(content.slice(depsStart + 1))
+    const depsEnd = endMatch ? depsStart + 1 + endMatch.index : -1
     const depsSection = content.slice(depsStart, depsEnd !== -1 ? depsEnd : undefined)
-    const tableMatch = /\|([^|]+)\|([^|]+)\|([^|]+)\|/g.exec(depsSection)
-    if (tableMatch) {
-      // Re-run global regex to collect all rows
+
+    // Directly match rows that contain a hash, a type and a description
+    const rowPattern = /^\|\s*(#\w+)\s*\|\s*(blocks|requires)\s*\|\s*([^\|]+)\|/gim
+    let m: RegExpExecArray | null
+    while ((m = rowPattern.exec(depsSection)) !== null) {
+      const depHash = m[1].trim()
+      const depType = m[2].toLowerCase()
+      const depDesc = m[3].trim()
+      const entry = { hash: depHash, description: depDesc }
+      if (depType === 'blocks') dependencies.blocks.push(entry)
+      else if (depType === 'requires') dependencies.requires.push(entry)
+    }
+
+    // Fallback: if nothing matched, try a more permissive row extraction (handles edge cases)
+    if (dependencies.blocks.length === 0 && dependencies.requires.length === 0) {
       const rowRegex = /\|([^|]+)\|([^|]+)\|([^|]+)\|/g
-      const rows: string[] = []
-      let m: RegExpExecArray | null
-      while ((m = rowRegex.exec(depsSection)) !== null) {
-        rows.push(m[0])
-      }
-      for (const row of rows.slice(1)) {
-        // Skip header row
-        const cells = row.split('|').map((c) => c.trim()).filter((c) => c && c !== 'Hash' && c !== 'Type' && c !== 'Description')
+      let mm: RegExpExecArray | null
+      while ((mm = rowRegex.exec(depsSection)) !== null) {
+        const raw = mm[0]
+        const cells = raw.split('|').map((c) => c.trim()).filter((c) => c && c !== 'Hash' && c !== 'Type' && c !== 'Description')
         if (cells.length >= 3) {
           const depHash = cells[0]
           const depType = cells[1]?.toLowerCase()
           const depDesc = cells[2]
           if (depHash && depHash.startsWith('#') && depType && depDesc) {
             const entry = { hash: depHash, description: depDesc }
-            if (depType === 'blocks') {
-              dependencies.blocks.push(entry)
-            } else if (depType === 'requires') {
-              dependencies.requires.push(entry)
-            }
+            if (depType === 'blocks') dependencies.blocks.push(entry)
+            else if (depType === 'requires') dependencies.requires.push(entry)
+          }
+        }
+      }
+
+      // Final fallback: scan lines for any hash + type keywords
+      if (dependencies.blocks.length === 0 && dependencies.requires.length === 0) {
+        const lines = depsSection.split(/\r?\n/)
+        for (const line of lines) {
+          const hashMatch = /(#\w+)/.exec(line)
+          const typeMatch = /(blocks|requires)/i.exec(line)
+          const descMatch = /\|[^|]+\|[^|]+\|([^|]+)\|?/.exec(line)
+          if (hashMatch && typeMatch) {
+            const entry = { hash: hashMatch[1].trim(), description: descMatch?.[1]?.trim() ?? '' }
+            const t = typeMatch[1].toLowerCase()
+            if (t === 'blocks') dependencies.blocks.push(entry)
+            else if (t === 'requires') dependencies.requires.push(entry)
           }
         }
       }
@@ -128,7 +152,10 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
 
   // Extract Completion Summary
   const completionStart = content.indexOf('## Completion Summary')
-  const completionEnd = content.indexOf('##', completionStart + 1)
+  // find the next top-level `## ` header (not `###`) so sub-sections are included
+  const completionEndRegex = /(^|\r?\n)##\s+/m
+  const completionEndMatch = completionEndRegex.exec(content.slice(completionStart + 1))
+  const completionEnd = completionEndMatch ? completionStart + 1 + completionEndMatch.index : -1
   const completionSection =
     completionStart !== -1
       ? content.slice(completionStart, completionEnd !== -1 ? completionEnd : undefined)
