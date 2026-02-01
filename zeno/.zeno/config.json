@@ -11,13 +11,13 @@
   "git": {
     "autoCommit": true,
     "autoTag": true,
-    "autoPush": false,
+    "autoPush": true,
     "remote": "origin",
-    "commitFormat": "<type>(<scope>): <subject>\n\n<body>",
+    "commitFormat": "<type>(<scope>): <subject>\n\n<summary>",
     "commitExamples": [
-      "feat(gate): archive core-infrastructure gate with 3 proposals",
-      "chore(proposal): archive database-setup proposal with migration scripts",
-      "chore(proposal): archive solitary proposal - template loader infrastructure"
+      "feat(gate): archive core-infrastructure gate with 3 proposals\n\n• Integrated authentication layer\n• Configured infrastructure gates\n• Deployed to production environment",
+      "chore(proposal): archive database-setup proposal with migration scripts\n\n• Created migration scripts\n• Set up database schemas\n• Documented setup procedures",
+      "chore(proposal): archive solitary proposal - template loader infrastructure\n\n• Implemented template loader system\n• Added configuration management"
     ]
   },
   "versioning": {
