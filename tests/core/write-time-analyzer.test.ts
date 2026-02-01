@@ -62,7 +62,8 @@ describe('Write-Time Analyzer', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    // Reset all mocks and implementations to avoid test pollution between cases
+    vi.resetAllMocks();
   });
 
   describe('analyzeGateChanges', () => {

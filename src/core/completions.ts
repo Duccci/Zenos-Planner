@@ -22,7 +22,7 @@ import { readdir, rename, unlink } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
-import { regenerateGatesFromAnalysis } from './gate-generator.js'
+import { regenerateGatesWithAnalysis } from './gate-generator.js'
 
 function normalizeHash(input: string): string {
   const trimmed = input.trim()
@@ -147,11 +147,7 @@ async function updateGateObjectivesFromProposal(projectRoot: string, gateId: str
   }
 }
 
-export interface ApproveProposalOptions {
-  push?: boolean
-}
-
-export async function approveProposal(hashInput: string, options: ApproveProposalOptions = {}): Promise<{
+export async function approveProposal(hashInput: string): Promise<{
   projectRoot: string
   proposalHash: string
   gateId: string
@@ -199,14 +195,7 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
        WHERE id = ?`
     ).run(proposalId)
 
-    // Update associated requirement to implemented if present
-    if (requirementId) {
-      db.prepare(
-        `UPDATE requirements
-         SET status = 'implemented'
-         WHERE id = ?`
-      ).run(requirementId)
-    }
+
   })
   tx(proposal.id, proposal.requirement_id)
 
@@ -244,38 +233,19 @@ export async function approveProposal(hashInput: string, options: ApproveProposa
     logger.warn(`Failed to update gate objectives for ${proposalHash}: ${String(error)}`)
   }
 
+  // Note: Commits deferred to gate completion (archive phase) for human-in-the-loop oversight.
+  // Proposal approval changes the database state but does NOT commit to git.
+  // Human must explicitly approve gate completion via `zeno gates complete` to trigger commits.
+
   const config = await loadConfig(projectRoot)
-  const previousVersion = config.version
-  const versioning = getVersioningSettings(config)
-  const newVersion = versioning.enabled ? bumpSemver(previousVersion, versioning.proposalBump) : previousVersion
-  if (newVersion !== previousVersion) {
-    await saveConfig({ ...config, version: newVersion }, projectRoot)
-  }
-
-  const git = getGitSettings(config)
-  if (git.autoCommit) {
-    const tagName = git.autoTag ? `v${newVersion}-proposal-${proposalHash}` : undefined
-    const tagMessage = git.autoTag
-      ? `Proposal #${proposalHash}: ${proposal.title} (gate ${proposal.gateId})`
-      : undefined
-
-    await syncWithGit({
-      commitMessage: `chore(proposal): complete ${proposal.title} #${proposalHash}\n\nGate: ${proposal.gateId}\nVersion: ${newVersion}\n`,
-      tagName,
-      tagMessage,
-      autoPush: options.push ?? git.autoPush,
-      remote: git.remote,
-      dir: projectRoot,
-    })
-  }
 
   return {
     projectRoot,
     proposalHash,
     gateId: proposal.gateId,
     title: proposal.title,
-    previousVersion,
-    newVersion,
+    previousVersion: config.version,
+    newVersion: config.version,
   }
 }
 
@@ -331,19 +301,21 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     ).run(id)
 
     // Update all requirements for this gate to tested
-    db.prepare(
-      `UPDATE requirements
-       SET status = 'tested'
-       WHERE gate_id = ?`
-    ).run(id)
+
   })
   tx(gate.id)
 
   // Analyze gate changes for incremental metrics
   try {
-    await analyzeGateChanges(gateId)
-    // Regenerate future gates based on analysis
-    await regenerateGatesFromAnalysis(gateId)
+    const analysisPromise = analyzeGateChanges(gateId)
+    if (analysisPromise instanceof Promise) {
+      await analysisPromise
+    }
+    // Regenerate future gates based on analysis (or theoretical if no analysis yet)
+    const regeneratePromise = regenerateGatesWithAnalysis(gateId)
+    if (regeneratePromise instanceof Promise) {
+      await regeneratePromise
+    }
   } catch (error) {
     logger.warn(`Failed to analyze and regenerate gates for ${gateId}: ${String(error)}`)
     // Don't fail completion if analysis fails

@@ -3,7 +3,7 @@
 **Purpose**: Gate roadmap showing parallel relationships and gate dependencies
 
 **Generated**: 2026-01-04  
-**Last Updated**: 2026-01-28  
+**Last Updated**: 2026-01-31  
 **Status**: Approved
 
 ---
@@ -12,11 +12,13 @@
 
 ```mermaid
 graph TB
-    Start([Project Start]) --> G1[Gate 1<br/>Core Infrastructure<br/>✓ Completed]
+    Start([Project Start]) --> G1[Gate 1<br/>Core Infrastructure<br/>Completed]
     
-    G1 --> G2[Gate 2<br/>Zeno Engine & Gate Generation<br/>⏳ Pending]
+    G1 --> G2[Gate 2<br/>Zeno Engine & Gate Generation<br/>In Progress]
     
-    G2 --> G3[Gate 3<br/>Requirements & Database Layer]
+    G2 --> G2_5[Gate 2.5<br/>MCP Server & LLM Tool Integration<br/>Pending]
+    
+    G2_5 --> G3[Gate 3<br/>Requirements & Database Layer]
     
     G3 --> G4[Gate 4<br/>Architecture & Diagram Generation]
     G3 --> G5[Gate 5<br/>Multi-Repo & Subproject Detection]
@@ -33,16 +35,18 @@ graph TB
     G9 --> G10[Gate 10<br/>Rescope & Replan Engine]
     
     G10 --> G11[Gate 11<br/>Dashboard & Visualization]
-    G10 --> G12[Gate 12<br/>Documentation & Polish]
+    G10 --> G12[Gate 12<br/>Subagent Orchestration & Parallel Execution]
     
-    G11 --> End([Complete])
-    G12 --> End
+    G11 --> G13[Gate 13<br/>Documentation & Polish]
+    G12 --> G13
+    
+    G13 --> End([Complete])
     
     %% Styling
     classDef gateStyle fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff,font-weight:bold
     classDef startEndStyle fill:#9B59B6,stroke:#7D3C98,stroke-width:3px,color:#fff,font-weight:bold
     
-    class G1,G2,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12 gateStyle
+    class G1,G2,G2_5,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12,G13 gateStyle
     class Start,End startEndStyle
 ```
 
@@ -51,6 +55,8 @@ graph TB
 ## Description
 
 The gate roadmap diagram displays the gate sequence showing dependencies between gates. Each gate represents concrete deliverables that progressively move the project toward completion.
+
+**New Addition (Gate 2.5)**: MCP Server & LLM Tool Integration bridges CLI execution and native LLM tool integration, enabling AI agents to invoke Zeno functions via structured tools instead of terminal commands.
 
 ---
 
@@ -72,16 +78,25 @@ Validation and approval workflows are independent systems that can be developed 
 
 ### Gates 11 & 12
 - **Gate 11**: Dashboard & Visualization
-- **Gate 12**: Documentation & Polish
+- **Gate 12**: Subagent Orchestration & Parallel Execution
 
-Final polish activities can happen in parallel.
+Dashboard and orchestration features can be developed simultaneously, with Gate 12 leveraging MCP tools (Gate 2.5) to coordinate parallel execution.
+
+---
+
+## Gate Dependencies
+
+- **Gate 2.5 depends on**: Gate 2 (all CLI commands must exist before wrapping in MCP)
+- **Gate 2.5 enables**: All downstream gates (3-13) by providing MCP tool interface
+- **Gate 2.5 is required for**: Subagent orchestration (Gate 12) to work via parallel task execution
 
 ---
 
 ## Related Documentation
 
-- **Project PRD**: `docs/PROJECT_PRD.md` - Full project specification
-- **Gate PRDs**: `.zeno/gates/gate-XX-name.md` - Detailed feature breakdowns per gate
+- **Project PRD**: `zeno/PROJECT_PRD.md` - Full project specification
+- **Gate PRDs**: `zeno/gates/gate-XX-name.md` - Detailed feature breakdowns per gate
+- **MCP Server Gate**: `zeno/gates/gate-02-5-mcp-server.md` - Detailed MCP implementation spec
 - **AGENTS.md**: Root-level AI agent instructions
 
 ---

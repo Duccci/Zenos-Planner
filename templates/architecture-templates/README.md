@@ -239,42 +239,42 @@ These templates document deployment and operational aspects, typically generated
 ## Template Usage by Project Type
 
 ### Simple CLI Tool
-✓ System Overview  
-✓ Data Flow  
-✓ Context Diagram  
-✓ Package Diagram  
-⚠ Sequence Diagram (if complex commands)  
-✗ Deployment Diagram (single binary)  
-✗ Network Diagram (not needed)
+System Overview  
+Data Flow  
+Context Diagram  
+Package Diagram  
+Sequence Diagram (if complex commands)  
+Deployment Diagram (single binary)  
+Network Diagram (not needed)
 
 ### Web Application (Monolith)
-✓ System Overview  
-✓ Data Flow  
-✓ Context Diagram  
-✓ Sequence Diagram (auth, checkout flows)  
-✓ Component Diagram (domain models)  
-✓ Package Diagram  
-✓ Deployment Diagram  
-⚠ Network Diagram (if complex networking)
+System Overview  
+Data Flow  
+Context Diagram  
+Sequence Diagram (auth, checkout flows)  
+Component Diagram (domain models)  
+Package Diagram  
+Deployment Diagram  
+Network Diagram (if complex networking)
 
 ### Microservices Architecture
-✓ System Overview (entire system)  
-✓ Data Flow (cross-service flows)  
-✓ Context Diagram (all services + externals)  
-✓ Sequence Diagram (service interactions)  
-✓ Component Diagram (per service)  
-✓ Package Diagram (per service)  
-✓ Deployment Diagram (orchestration)  
-✓ Network Diagram (service mesh, VPCs)
+System Overview (entire system)  
+Data Flow (cross-service flows)  
+Context Diagram (all services + externals)  
+Sequence Diagram (service interactions)  
+Component Diagram (per service)  
+Package Diagram (per service)  
+Deployment Diagram (orchestration)  
+Network Diagram (service mesh, VPCs)
 
 ### Library/SDK
-✓ System Overview (API structure)  
-✓ Context Diagram (consumer integration)  
-✓ Component Diagram (public API)  
-✓ Package Diagram (exports)  
-⚠ Sequence Diagram (usage examples)  
-✗ Deployment Diagram (not applicable)  
-✗ Network Diagram (not applicable)
+System Overview (API structure)  
+Context Diagram (consumer integration)  
+Component Diagram (public API)  
+Package Diagram (exports)  
+Sequence Diagram (usage examples)  
+Deployment Diagram (not applicable)  
+Network Diagram (not applicable)
 
 ---
 

@@ -3,19 +3,8 @@ import { decomposeWork } from './zeno-engine.js';
 import { sequenceGates } from './gate-sequencer.js';
 import { calculateConfidence } from './gate-scoring.js';
 import { getDatabase } from '../storage/database.js';
+import { readProjectOverview } from '../utils/config.js';
 import type { CodeMetrics } from '../analysis/types.js';
-
-interface ProjectRow {
-  id: string;
-  name: string;
-  description: string | null;
-  start_state: string | null;
-  end_state: string;
-  current_gate_id: string | null;
-  created_at: string;
-  updated_at: string;
-  analyzedState: string | null;
-}
 
 interface GateRow {
   id: string;
@@ -157,30 +146,60 @@ function estimateInitialComplexity(
 }
 
 /**
+ * Intelligently regenerates future gates by blending theoretical decomposition with analyzed metrics.
+ * Automatically detects if analysis data is available:
+ * - If analysis exists: Uses data-driven approach with empirical metrics
+ * - If no analysis: Falls back to pure theoretical decomposition
+ * - Combines both for most accurate gate sequencing
+ */
+export async function regenerateGatesWithAnalysis(fromGateId: string): Promise<RegenerationSuggestions> {
+  const db = getDatabase();
+  
+  // Get gate to check context
+  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined;
+  
+  // If database is empty but we have archived gates, return helpful message
+  if (!gate) {
+    return {
+      originalGates: [],
+      suggestedGates: [],
+      changes: [],
+      reasoning: `Gate ${fromGateId} found in archive but database is not yet synced. Run 'zeno gates list' to view and sync archived gates.`
+    };
+  }
+  
+  // Check if we have analysis data (would be stored in gate metadata or separate analysis table)
+  // For now, assume no analysis data until analysis layer is implemented
+  const hasAnalysisData = false;
+  
+  // Use appropriate regeneration strategy
+  if (hasAnalysisData) {
+    return regenerateGatesFromAnalysis(fromGateId);
+  } else {
+    // Fall back to theoretical regeneration if no analysis data yet
+    return regenerateGatesTheoretical(fromGateId);
+  }
+}
+
+/**
  * Regenerates future gates based on analyzed code metrics from completed gates.
  * Compares theoretical decomposition with data-driven insights.
  */
-export function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions {
+function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions {
   const db = getDatabase();
   
-  // Get project and current gates
-  const project = db.prepare(`
-    SELECT p.*, p.start_state as analyzedState
-    FROM projects p
-    JOIN gates g ON g.project_id = p.id
-    WHERE g.id = ?
-  `).get(fromGateId) as ProjectRow | undefined;
+  // Get gate and project overview
+  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined;
   
-  if (!project) {
-    throw new Error(`Project for gate ${fromGateId} not found`);
+  if (!gate) {
+    throw new Error(`Gate ${fromGateId} not found`);
   }
   
-  // Get all gates for the project
+  // Get all gates (no longer tied to project_id since we removed projects table)
   const gateRows = db.prepare(`
     SELECT * FROM gates
-    WHERE project_id = ?
     ORDER BY sequence
-  `).all(project.id) as GateRow[];
+  `).all() as GateRow[];
 
   const allGates: Gate[] = gateRows.map(row => ({
     id: row.id,
@@ -195,8 +214,8 @@ export function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSug
   }));
   
   // Get analysis data from completed gates
-  const analyzedState: { gateAnalysis?: Record<string, AnalysisResult> } = project.analyzedState ? JSON.parse(project.analyzedState) as { gateAnalysis?: Record<string, AnalysisResult> } : {};
-  const gateAnalyses = analyzedState.gateAnalysis ?? {};
+  // TODO: Implement analysis data storage when analysis layer is added (Gate 4)
+  const gateAnalyses: Record<string, AnalysisResult> = {};
   
   // Find the fromGate index
   const fromGateIndex = allGates.findIndex(g => g.id === fromGateId);
@@ -289,6 +308,133 @@ export function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSug
   return {
     originalGates: futureGates,
     suggestedGates,
+    changes,
+    reasoning
+  };
+}
+
+/**
+ * Theoretical gate regeneration used when no analysis data is available and no completed gates exist.
+ * Regenerates all gates from the project end state.
+ */
+export async function regenerateGatesTheoreticalFromProject(): Promise<RegenerationSuggestions> {
+  const db = getDatabase();
+  
+  // Get project overview (single source of truth)
+  const projectOverview = await readProjectOverview();
+  
+  // Get all gates
+  const gateRows = db.prepare(`
+    SELECT * FROM gates
+    ORDER BY sequence
+  `).all() as GateRow[];
+
+  const allGates: Gate[] = gateRows.map(row => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    objectives: [],
+    dependencies: row.depends_on?.split(',') ?? [],
+    estimatedComplexity: 0,
+    confidence: 0,
+    type: row.type as 'feature' | 'quality' | 'rescope',
+    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected'
+  }));
+  
+  // Regenerate using theoretical decomposition
+  const workDescription: WorkDescription = {
+    description: projectOverview.endState,
+    complexity: 50,
+    requirements: [],
+    existingCodebase: undefined
+  };
+
+  const context: DecompositionContext = {
+    maxGateComplexity: 30,
+    projectRequirements: [],
+    existingAnalysis: undefined
+  };
+
+  const redecomposed = decomposeWork(workDescription, context);
+  const resequenced = sequenceGates(redecomposed);
+  
+  const changes: RegenerationSuggestions['changes'] = [];
+  const reasoning = `Using theoretical decomposition based on project end state: "${projectOverview.endState}". ` +
+    `Complete gates and run analysis to enable data-driven refinements.`;
+  
+  return {
+    originalGates: allGates,
+    suggestedGates: resequenced.gates,
+    changes,
+    reasoning
+  };
+}
+
+/**
+ * Theoretical gate regeneration used when no analysis data is available.
+ * Uses decomposition-based approach to regenerate future gates.
+ */
+function regenerateGatesTheoretical(fromGateId: string): RegenerationSuggestions {
+  const db = getDatabase();
+  
+  // Get gate to establish context
+  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined;
+  
+  if (!gate) {
+    throw new Error(`Gate ${fromGateId} not found`);
+  }
+  
+  // Get all gates (no longer filtered by project_id)
+  const gateRows = db.prepare(`
+    SELECT * FROM gates
+    ORDER BY sequence
+  `).all() as GateRow[];
+
+  const allGates: Gate[] = gateRows.map(row => ({
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    objectives: [],
+    dependencies: row.depends_on?.split(',') ?? [],
+    estimatedComplexity: 0,
+    confidence: 0,
+    type: row.type as 'feature' | 'quality' | 'rescope',
+    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected'
+  }));
+  
+  // Find the fromGate index
+  const fromGateIndex = allGates.findIndex(g => g.id === fromGateId);
+  if (fromGateIndex === -1) {
+    throw new Error(`Gate ${fromGateId} not found in project`);
+  }
+  
+  // Get future gates
+  const futureGates = allGates.slice(fromGateIndex + 1);
+  
+  // Regenerate using theoretical decomposition
+  const workDescription: WorkDescription = {
+    description: 'Complete the project implementation', // Default description since no project overview available
+    complexity: 50,
+    requirements: [],
+    existingCodebase: undefined
+  };
+
+  const context: DecompositionContext = {
+    maxGateComplexity: 30,
+    projectRequirements: [],
+    existingAnalysis: undefined
+  };
+
+  const redecomposed = decomposeWork(workDescription, context);
+  const resequenced = sequenceGates(redecomposed);
+  
+  const changes: RegenerationSuggestions['changes'] = [];
+  const reasoning = `No analysis data available yet. Using theoretical decomposition. ` +
+    `Complete gates and run analysis (zeno gates complete) to enable data-driven refinements.`;
+  
+  return {
+    originalGates: futureGates,
+    suggestedGates: resequenced.gates,
     changes,
     reasoning
   };

@@ -5,92 +5,59 @@ agent: agent
 ---
 
 <!-- ZENO:START -->
+
 **Guardrails**
-- Favor straightforward, minimal implementations first; add complexity only when explicitly required.
-- Keep changes tightly scoped to the proposal's defined tasks.
-- Respect quality thresholds: 90% coverage, 0 security vulnerabilities, <0.01% lint error rate, 0 TypeScript errors.
-- Wait for human approval before marking tasks complete if any automated checks fail.
-- **Invoke status updates** at each workflow stage to maintain accurate project state.
-- Refer to `zeno/AGENTS.md` for project-specific conventions and `AGENTS.md` (root) for tool usage.
+
+- Implement straightforward solutions; add complexity only when required
+- Keep changes tightly scoped to proposal tasks
+- Only modify files and target objects explicitly listed in the proposal's **Files Affected** or the task description (for example, specific functions, classes, modules). Avoid unrelated edits or large refactors that extend beyond the stated scope.
+- Limit test changes to those that directly validate the updated target objects; do not broadly alter the test suite without explicit approval.
+- If a task requires expanding the scope (additional files, refactors, or cross-cutting changes), document the proposed additions in the implementation output and obtain human approval before making those changes.
+- Review dependencies for context only; do not act on, implement, or pre-empt work that belongs to other proposals or later gates. If a dependency is incomplete and belongs to future work, document it as a blocker in the proposal and notify a human for clarification.
+- Use quality thresholds from `config_get()` instead of hard-coded values
+- Wait for human approval if automated checks fail
+- **NEVER perform git operations during apply phase** - commits occur ONLY at gate completion
+- **DO NOT use git add, git commit, or any git commands** during proposal implementation
+- **DO NOT use manage_todo_list tool** if it triggers git operations - use simple text tracking instead
+
+**Functions**
+
+- `getTemplate(name)` - Load template by name
+- `config_get()` - Get project configuration
+- `manage_todo_list()` - Track task progress (mark in-progress, then completed) - AVOID if it triggers git operations
 
 **Steps**
-Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
-- **Create TODO list with TWO levels**: Workflow steps (listed below) AND proposal tasks (from gate proposal document)
-- **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
-- **Mark each proposal task as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
-- **Do not batch completions** - mark items completed as soon as they are done
+Track progress by outputting step completion messages. **DO NOT use manage_todo_list if it triggers git operations.**
 
-1. **Identify the proposal**
-   - If the prompt includes a proposal hash (e.g., `#p01projconf01`) or filename (e.g., `01-project-configuration`), use that directly.
-   - Otherwise, run `zeno proposal list` or inspect `zeno/proposals/gate-XX/` to identify the target.
-   - Confirm the proposal status is `pending` before proceeding.
-
-2. **Read proposal documentation**
-   - Read the proposal file from `zeno/proposals/gate-XX/<name>.md` or use `zeno proposal show <hash>`.
-   - Review: Summary, Context, Dependencies, all Tasks with Acceptance criteria, Files Affected.
-   - Note any blocked proposals (check Dependencies table for `blocks` entries).
-
-3. **Check dependencies**
-   - Verify all `requires` dependencies are complete (status: `completed`).
-   - If dependencies are incomplete, stop and report which proposals must be implemented first.
-   - Use `zeno req deps <hash>` for dependency graph if needed.
-
-4. **Start proposal implementation**
-   - **Invoke**: `zeno proposal start <hash>` to set status: `pending` -> `in_progress`
-   - This signals work has begun on this proposal.
-
-5. **Implement tasks sequentially**
-   - **Create TODO items** for each Task listed in the proposal (Task 1, Task 2, etc.)
-   - Work through each Task in order:
-     - **Mark the task as in-progress** in your TODO list before starting
-     - Read the **File(s)** and **Action** (create/modify/delete/refactor)
-     - Implement the change following the description and **Acceptance** criteria
-     - Mark acceptance criteria as complete in the proposal file: `- [x]` when verified
-     - **Mark the task as completed** in your TODO list immediately after finishing
-   - Keep edits minimal and focused; do not refactor beyond scope.
-   - **Mark this workflow step completed** after ALL proposal tasks are done (not before)
-
-6. **Update requirements and run tests**
-   - For each requirement referenced in the proposal's **Requirement** field:
-     - **Invoke**: `zeno req status <hash> implemented` when code is written
-     - **Invoke**: `zeno req status <hash> tested` after tests pass
-   - Implement test tasks (usually last task in each proposal).
-   - Aim for 90%+ coverage on touched files.
-   - Run tests locally: `npm test` or equivalent.
-
-7. **Run automated checks**
-   - **Invoke**: `zeno proposal validate <hash>` to run full validation suite
-   - Or execute manually: `npm run typecheck && npm run lint && npm test -- --coverage && npm audit`
-   - All checks must pass before proceeding.
-   - If checks fail, fix issues and re-validate.
-
-8. **Request human approval**
-   - Present validation results to user.
-   - Wait for explicit approval or rejection.
-   - On approval: **Invoke** `zeno proposal approve <hash>` (status: `in_progress` -> `completed`)
-   - On rejection: **Invoke** `zeno proposal reject <hash>` (status: -> `rejected`)
-   - If rejected, stop and await further instructions.
-
-9. **Commit changes**
-    - Use structured commit message format: `type(scope): Brief description #hash`
-    - Include proposal and gate references in commit body
-    - Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
-
-10. **Move proposal to completed** (if applicable)
-    - Move file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (automatic on approval).
-    - Update proposal **Status** field to `completed` in the file.
-
-11. **Check gate progress**
-    - After proposal completion, check if all gate proposals are done.
-    - If all proposals completed, notify user that gate may be ready:
-      ```
-      All proposals for Gate XX completed.
-      Ready for gate completion: `zeno gates complete <gate-id>`
-      ```
+1. **Identify proposal** - Use hash or filename to locate proposal
+2. **Read proposal** - Review Summary, Context, Dependencies, Tasks, Files Affected
+3. **Check dependencies** - Review the proposal's `Dependencies` and gate context for situational awareness. Use them for context only and do not implement or modify dependencies that belong to other proposals or later gates. If a dependency is incomplete or scheduled for a later gate, document it as a blocker in the proposal and notify a human for clarification. Continue implementing tasks that do not depend on the incomplete item; if the blocker prevents any meaningful progress, document it and escalate.
+4. **Start proposal** - Invoke: `zeno proposal start <hash>`
+5. **Implement tasks** - For each task in the proposal:
+   - Output: "Starting task: [task description]"
+   - Implement the task
+   - Verify acceptance criteria are met
+   - Update the proposal markdown **immediately after completing each task**:
+     - Mark the task's acceptance items as met (change `- [ ]` to `- [x]`), and update any `completed` flags if the proposal schema is represented in structured metadata.
+     - Add or update a **Completion Summary** section (`## Completion Summary`) that includes at minimum:
+       - `**Tasks Completed**: X/Y` (update X as tasks are completed)
+       - `**Files Modified**: N`
+       - `**Test Coverage**: XX%`
+       - `### Artifacts Created` (list any new artifacts)
+       - `### Quality Metrics` (coverage, security, lint/type errors)
+     - Only edit the proposal file and files explicitly listed in **Files Affected** unless you have documented the scope expansion and obtained human approval.
+   - Output: "Completed task: [task description]"
+6. **Update requirements** - For each requirement: either run `zeno req status <hash> implemented` or note that `zeno proposal approve <hash>` will automatically set the associated requirement to `implemented` when applicable. Final verification that requirement status becomes `tested` occurs during gate completion (`zeno gates complete <gate-id>`).
+7. **Run checks** - Invoke: `zeno proposal validate <hash>` and fix failures
+   - Before approving, **confirm the proposal file contains an up-to-date Completion Summary and all task acceptance boxes are checked**; consolidation and gate metrics are generated from this content.
+   - **DO NOT perform any git operations** - let human decide when to commit via gate completion
+8. **Request gate completion** - If all gate proposals done: Output message for human approval to run `zeno gates complete <gate-id>`
+   - Note: Git commits occur ONLY at gate completion, not during proposal approval (preserves human-in-the-loop)
 
 **Reference**
-- Use `zeno proposal show <hash>` for proposal details during implementation.
-- Use `zeno show <hash>` to resolve any hash reference to its entity.
-- Use `zeno req deps <hash>` to verify dependency chains.
-- Consult `zeno/architecture/*.md` for system context.
+
+- `zeno proposal show <hash>` - Proposal details
+- `zeno show <hash>` - Resolve hash to entity
+- `zeno req deps <hash>` - Dependency chain
+- `zeno/architecture/*.md` - System context
 <!-- ZENO:END -->

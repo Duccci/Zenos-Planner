@@ -110,6 +110,17 @@
 |----------|------|--------|-------|
 | [proposal-name] | #[hash] | pending | [Optional notes] |
 
+### High-Level Delta (Gate Completion Summary)
+
+[1-2 sentence summary of what this gate accomplished overall. Focus on user-facing value, not proposal details.]
+
+**Key Deliverables**:
+- [Key deliverable 1]
+- [Key deliverable 2]
+- [Key deliverable 3]
+
+**Quality Metrics**: Coverage [X]%, Security [Y] issues, Lint <[Z]%
+
 ---
 
 ## Technical Decisions for This Gate
@@ -262,12 +273,12 @@
 
 - [Specific guidance or consideration]
 
-### Lessons Learned
-[To be filled during/after implementation.]
+### Proposal Summary
+[Populated during proposal archival. Contains 1-2 sentence summaries of completed proposals as they are cleaned up, preserving a record of work completed in this gate.]
 
-- [What worked well]
-- [What could be improved]
-- [Unexpected challenges]
+| Proposal Hash | Summary |
+|---------------|---------|
+| #[hash] | [1-2 sentence summary of proposal work completed] |
 
 ### Next Gate Preview
 [Brief preview of what Gate [XX+1] will focus on and how it builds on this gate's deliverables.]

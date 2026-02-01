@@ -49,6 +49,51 @@ ${requirements.filter(r => r.level === 'gate').map(r => `- #${r.hash}: ${r.descr
 - Linting Error Rate: <${String(projectConfig.qualityThresholds.lintingErrorRate)}%
 - Type Checking: ${String(projectConfig.qualityThresholds.typeCheckingErrors)} TypeScript errors
 
+## Template Functions
+
+Available template functions for retrieving documentation templates during workflow execution:
+
+### getTemplate(name: string): Promise<string>
+Loads a single template file by name. Use this to retrieve specific templates for context during implementation.
+
+**Available Templates**:
+
+#### Markdown Templates (5)
+- \`agents-template\` - AGENTS.md generation template for AI context guidance
+- \`gate-prd-template\` - Gate PRD document template with objectives, requirements, and implementation steps
+- \`project-prd-template\` - Project PRD document template for end-state definition and project scope
+- \`proposal-template\` - Proposal document template for implementation work items
+
+#### Architecture Diagram Templates (11)
+- \`system-overview-template\` - Component architecture diagram showing system structure
+- \`gate-roadmap-template\` - Gate progression diagram showing project roadmap and dependencies
+- \`data-flow-template\` - End-to-end data flow diagram showing information movement
+- \`lifecycle-template\` - State machine and lifecycle diagram for entities and processes
+- \`component-diagram-template\` - Component structure diagram showing relationships
+- \`context-diagram-template\` - Context and scope diagram showing system boundaries
+- \`deployment-diagram-template\` - Deployment architecture diagram for infrastructure and environments
+- \`network-diagram-template\` - Network topology diagram for communication patterns
+- \`package-diagram-template\` - Package and module structure diagram
+- \`sequence-diagram-template\` - Sequence and interaction diagram showing process flows
+
+**Usage Examples**:
+- During gate generation: \`getTemplate('gate-prd-template')\` to retrieve the gate PRD structure
+- During proposal creation: \`getTemplate('proposal-template')\` for proposal format reference
+- For architecture documentation: \`getTemplate('system-overview-template')\` to get system diagram template
+
+### loadAllTemplates(): Promise<Record<string, string>>
+Loads all 16 templates as a key-value map. Use this when you need to reference multiple templates or want all templates available in context.
+
+**Usage Example**:
+- When initializing multiple document types: \`loadAllTemplates()\` returns map with all available templates
+
+### getTemplatesByCategory(category: 'markdown' | 'architecture'): Template[]
+Filters templates by category. Use this to find all templates of a specific type.
+
+**Usage Examples**:
+- For document creation: \`getTemplatesByCategory('markdown')\` returns all 5 markdown templates
+- For architecture work: \`getTemplatesByCategory('architecture')\` returns all 11 diagram templates
+
 ## Implementation Patterns
 
 [Document common patterns, conventions, and best practices for this project.]

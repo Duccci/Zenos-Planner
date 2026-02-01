@@ -387,7 +387,13 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - [ ] Integration tests pass for gate generation workflow
 - [ ] Stakeholder approval obtained
 
-## Proposal Status
+## Proposals
+
+**Status**: Proposals were generated and completed during gate execution.
+
+[View archived proposal information via: `zeno proposal show <hash>`]
+
+### Proposal Status
 
 | Proposal | Hash | Status | Archived |
 |----------|------|--------|----------|
@@ -398,18 +404,14 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 | 07-llm-integration | #g02p07llm | completed | 2026-01-30 |
 | 09-write-time-analyzer | #g02p09writeanalysis | completed | 2026-01-30 |
 
----
-
 ## Gate Completion Summary
 
 **Completed**: 2026-01-30  
-**Proposals Completed**: 8  
+**Proposals Completed**: 6  
 **Requirements Fulfilled**: 6  
 **Quality Metrics**: Coverage 92.18%, Security 0, Lint <0.01%
 
 All proposals for this gate have been completed and archived. See **Consolidated Proposals Summary** section for detailed breadcrumbs.
-
-## Consolidated Proposals Summary
 
 *This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
 
@@ -418,9 +420,9 @@ All proposals for this gate have been completed and archived. See **Consolidated
 | Requirement | Proposal |
 |-------------|----------|
 | #p02writeanalysis | #g02p09writeanalysis |
-| #p02codeanalysis | #g02p02metrics |
+| #p02codeanalysis | #g02p04engine |
 | #p02init | #g02p06cli |
-| #p02gategen | #g02p08integration |
+| #p02gategen | #g02p04engine |
 | #p02agentsmd | #g02p05templates |
 | #p02llmint | #g02p07llm |
 
@@ -437,15 +439,21 @@ All proposals for this gate have been completed and archived. See **Consolidated
 ### High-Level Delta
 
 **Summary**:
-Implements write-time analysis integration that auto-triggers code analysis when developers complete a gate (`zeno gates complete <gate-id>`).
- This enables greenfield projects to benefit from the same deterministic architectural analysis as brownfield projects. Incremental analysis captures only files changed in the current gate, storing metrics in project metadata. Optional `zeno gates regenerate --from-analysis` command enables data-driven future gate generation based on real code metrics instead of purely theoretical decomposition. Implements the foundational AST parsing infrastructure using Babel for JavaScript/TypeScript code analysis. This proposal creates the code analyzer module that traverses codebase directory structures and extracts import/export dependencies from source files. These capabilities enable analysis of existing codebases during project initialization. Implements code metrics calculation (afferent/efferent coupling, cyclomatic complexity, lines of code) and builds a dependency graph data structure from analyzed modules. The dependency graph enables analysis of code organization, detection of circular dependencies, and identification of architectural anti-patterns. These metrics inform gate generation decisions and future multi-repo detection. Implements the project-level requirement generator that analyzes the end state description provided during `zeno init` to extract high-level project requirements. Identifies cross-cutting concerns (testing, performance, security, scalability) and constraints from the end state text. Stores requirements in the SQLite database with hash-based content addressing, establishing the foundation for gate-specific requirement decomposition. Implements the core iterative decomposition algorithm that generates gates from an end state description and optional existing codebase analysis. The engine applies Zeno's paradox-inspired decomposition to split remaining work into concrete, achievable milestones. Includes gate sequencing, dependency tracking, and confidence scoring. This is the heart of Zeno's project planning capability. Implements the gate template system that renders markdown Gate PRDs from generated gate data. Creates templates for consistent gate documentation structure while allowing gate-specific customization. Generates AGENTS.md for project-specific AI context and guidance. All templates are markdown-based, version-controllable, and human-friendly. AGENTS.md can be manually edited by users to add custom rules and updates. Implements the `zeno init` command with interactive prompts and gate management commands (`zeno gates list`, `zeno gates show`, `zeno gates start`, `zeno gates complete`). The init command guides users through project setup, collects end state description and existing codebase info, and triggers the full initialization workflow. Gate commands enable project roadmap navigation and gate lifecycle management. Implements the LLM integration layer that defines function signatures for Zeno commands and provides invocation helpers for AI agents. This layer doesn't call external APIs; instead, it documents how LLM-based coding assistants (like Cursor with Claude) can invoke Zeno functions during workflow execution. Enables seamless AI-driven implementation without external dependencies. Implements comprehensive integration tests that validate the end-to-end gate generation workflow. Tests exercise the full system: from project initialization through gate generation, requirement extraction, CLI interaction, and PRD generation. Covers multiple project types (greenfield, existing codebase, various sizes) to ensure robustness. Validates that all components work together correctly and produce expected outputs.                                                                                      
-**Artifacts Created**:
-*No artifacts tracked.*
+Implements core Zeno engine with iterative gate decomposition, project initialization command, code analysis capabilities, and CLI gate management. Delivers `zeno init` for interactive project setup, AST-based code analysis with metrics calculation (coupling, complexity, LOC), gate generation algorithm, gate template system, LLM integration layer for command-based interaction, and write-time analysis that auto-triggers on gate completion to enable data-driven future gate generation for greenfield projects.
 
-**Quality Metrics**:
-- Total Coverage: 92.18%
-- Total Files Modified: 62
-- Total Tasks Completed: 47
+**Key Deliverables**:
+- `zeno init` command with interactive prompts for project setup
+- Core gate generation engine with iterative decomposition algorithm
+- Code analyzer using @babel/parser for JavaScript/TypeScript AST parsing
+- Dependency graph builder and code metrics calculator (coupling, complexity, LOC)
+- Gate template system for PRD generation
+- AGENTS.md generation for AI context and tool usage guidance
+- LLM integration layer with command-based invocation helpers
+- Write-time analysis hook for greenfield projects on gate completion
+- Full CLI command family: `zeno gates list/show/start/complete`
+- Integration tests validating end-to-end gate generation workflow
+
+**Quality Metrics**: Coverage 92.18%, Security 0, Lint <0.01%
 
 ## Notes
 
@@ -474,8 +482,15 @@ Gate 3 (Requirements & Database Layer) builds on gate generation to implement re
 
 **Document Version**: 1.0.0  
 **Last Updated**: 2026-01-30  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
 **Gate Owner**: Development Team  
 **Reviewers**: Project Lead
+
+### Change Log
+
+| Version | Date | Summary | Author |
+|---------|------|---------|--------|
+| 1.0.0 | 2026-01-30 | Initial version | Development Team |
 
 **Related Documents**:
 - Project PRD: `zeno/PROJECT_PRD.md`

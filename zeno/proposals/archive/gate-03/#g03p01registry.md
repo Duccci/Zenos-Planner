@@ -76,7 +76,7 @@ Implement the `FunctionRegistry` class with methods for:
 
 Register all Zeno CLI operations as functions:
 - Gate operations: `gates_list`, `gates_show`, `gates_start`, `gates_complete`, `gates_regenerate`
-- Requirement operations: `req_list`, `req_show`, `req_deps`, `req_status`, `req_transfer`
+- Requirement operations: `req_list`, `req_show`, `req_deps`, `req_transfer`
 - Proposal operations: `proposal_list`, `proposal_show`, `proposal_validate`, `proposal_approve`, `proposal_reject`
 - Repository operations: `repos_list`, `repos_deps`, `repos_detect`, `repos_adjust`
 - Analysis operations: `analyze`, `show_entity`, `metrics`

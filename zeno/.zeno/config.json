@@ -1,6 +1,5 @@
 {
   "projectName": "Zenos-Planner",
-  "version": "0.1.0",
   "qualityThresholds": {
     "codeCoverage": 90,
     "securityVulnerabilities": 0,
@@ -13,7 +12,13 @@
     "autoCommit": true,
     "autoTag": true,
     "autoPush": false,
-    "remote": "origin"
+    "remote": "origin",
+    "commitFormat": "<type>(<scope>): <subject>\n\n<body>",
+    "commitExamples": [
+      "feat(gate): archive core-infrastructure gate with 3 proposals",
+      "chore(proposal): archive database-setup proposal with migration scripts",
+      "chore(proposal): archive solitary proposal - template loader infrastructure"
+    ]
   },
   "versioning": {
     "enabled": true,

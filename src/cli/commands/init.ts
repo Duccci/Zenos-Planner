@@ -12,8 +12,8 @@ import { RequirementGenerator } from '../../generation/requirement-generator.js'
 import { generateGates } from '../../core/gate-generator.js'
 import { writeAgentsMD } from '../../generation/agents-writer.js'
 import { generateAgentsMD } from '../../generation/agents-generator.js'
-import { fileExists, directoryExists } from '../../utils/file.js'
-import { saveConfig, getDefaultConfig } from '../../utils/config.js'
+import { directoryExists } from '../../utils/file.js'
+import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig } from '../../utils/config.js'
 import { initializeDatabase } from '../../storage/database.js'
 
 /**
@@ -60,8 +60,8 @@ async function runInitWorkflow(
   const createdPaths = await createProjectStructure(projectRoot)
   logger.info(`Created ${createdPaths.length.toString()} directories/files`)
 
-  // 2. Update config with project name
-  const config = getDefaultConfig(projectName)
+  // 2. Update config with project name and end state
+  const config = getDefaultConfig(projectName, endState)
   await saveConfig(config, projectRoot)
 
   // 3. Initialize database
@@ -84,7 +84,7 @@ async function runInitWorkflow(
   const agentsContent = generateAgentsMD(config, gatesResult.gates, requirements)
   await writeAgentsMD(agentsContent, projectRoot)
 
-  logger.info('✅ Project initialized successfully!')
+  logger.info('Project initialized successfully!')
   logger.info('')
   logger.info('Next steps:')
   logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
@@ -100,28 +100,46 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize a new Zeno project')
-    .action(async () => {
+    .option('-f, --force', 'Force reinitialization even if project is already initialized')
+    .action(async (options) => {
       try {
-        // Check if already initialized
-        if (fileExists('zeno/.zeno/config.json')) {
-          logger.error('Project already initialized. Found zeno/.zeno/config.json')
-          logger.error('To reinitialize, remove the zeno/ directory first')
-          process.exit(1)
-        }
-
-        logger.info('🚀 Welcome to Zeno\'s Planner!')
+        logger.info('Welcome to Zeno\'s Planner!')
         logger.info('Let\'s set up your project.\n')
+
+        const projectRoot = process.cwd()
+        const existingRoot = findProjectRoot(projectRoot)
+
+        let existingConfig: Awaited<ReturnType<typeof loadConfig>> | null = null
+        if (existingRoot) {
+          try {
+            existingConfig = await loadConfig(existingRoot)
+            if (!(options as { force?: boolean }).force) {
+              logger.info(`Project already initialized: ${existingConfig.projectName}`)
+              if (existingConfig.endState) {
+                logger.info(`End state: ${existingConfig.endState.substring(0, 100)}...`)
+              }
+              logger.info('Use "zeno status" to see project status or "zeno gates list" to see your roadmap.')
+              logger.info('Use --force to reinitialize anyway.')
+              return
+            } else {
+              logger.warn(`Forcing reinitialization of existing project: ${existingConfig.projectName}`)
+            }
+          } catch (_error) {
+            logger.warn('Could not load existing configuration, proceeding with fresh initialization')
+          }
+        }
 
         // Prompt for project name
         const projectName = await input({
           message: 'What is your project name?',
+          default: existingConfig?.projectName,
           validate: validateProjectName,
         })
 
         // Prompt for end state description
         const endState = await editor({
           message: 'Describe your project\'s end state (what you want to build):',
-          default: 'A complete, production-ready application that...',
+          default: existingConfig?.endState ?? 'A complete, production-ready application that...',
           validate: (text) => text.trim().length > 10 || 'Please provide a more detailed description (at least 10 characters)',
         })
 

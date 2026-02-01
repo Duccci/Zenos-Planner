@@ -134,10 +134,18 @@ describe('config utilities', () => {
       const config = getDefaultConfig('My Project')
 
       expect(config.projectName).toBe('My Project')
+      expect(config.endState).toBeUndefined()
       expect(config.version).toBe('0.1.0')
       expect(config.hashAlgorithm).toBe('sha256')
       expect(config.hashLength).toBe(16)
       expect(config.qualityThresholds.codeCoverage).toBe(90)
+    })
+
+    it('creates config with end state', () => {
+      const config = getDefaultConfig('My Project', 'End state description')
+
+      expect(config.projectName).toBe('My Project')
+      expect(config.endState).toBe('End state description')
     })
   })
 

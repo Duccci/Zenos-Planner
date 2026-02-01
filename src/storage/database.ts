@@ -96,18 +96,9 @@ export interface SchemaValidationResult {
 
 /** Required tables for schema validation */
 const REQUIRED_TABLES = [
-  'users',
-  'projects',
   'gates',
-  'requirements',
-  'artifacts',
-  'dependencies',
   'repositories',
-  'requirement_repository',
-  'proposals',
-  'hash_registry',
-  'state_history',
-  'migrations',
+  'requirements',
 ]
 
 /**

@@ -50,33 +50,20 @@ project-root/
    - `zeno/architecture/data-flow.md` - End-to-end flow
    - `zeno/architecture/gate-roadmap.md` - Gate roadmap
 
-## Core Concepts (Quick Reference)
+## Core Concepts
 
-### Gate-Based Methodology
-- Gates are concrete project milestones that progressively move toward the end goal
-- Each gate represents actual deliverables, not percentages
-- Progress measured by gate completion, not time estimates
+- **Gates**: Concrete milestones representing actual deliverables, not percentages. Progress measured by completion, not time
+- **Hash-Based References**: `#a3f9c2d1` format for internal tracking/commands (internal only). Resolve to plain text names when communicating with users
+- **Quality Thresholds**: 90% coverage, 0 vulnerabilities, <0.01% linting, 0 TypeScript errors (strict mode)
+- **Human Approval**: Required at gate generation, repository boundaries, proposals, and gate completion
 
-### Hash-Based References (Internal Only)
-- Hashes like "#a3f9c2d1" are for **internal tracking and system commands only**
-- Reduces LLM context size by 50%+ through controlled reference locations
-- Enables cross-repository dependency tracking
-- Format: SHA-256 (first 16 characters)
-- **Reference Locations**: Hashes only appear in entity headers, associated parent documents, and explicit dependency sections
-- **When communicating with users**: Always resolve hashes to plain text names (e.g., say "User Authentication requirement" not "#a3f9c2d1")
+**MCP Handler-First Policy**: Handler-based tools take precedence over CLI-backed function implementations when registering MCP tools. This allows handlers to provide predictable, schema-validated `structuredContent` for LLMs, while function implementations remain available as a fallback. Prefer adding handler implementations for new or critical tools and migrate CLI implementations into handlers incrementally.
 
-### Quality Thresholds (Non-Configurable in MVP)
-- Code Coverage: 90% minimum
-- Security Vulnerabilities: 0 allowed
-- Linting Error Rate: <0.01%
-- Type Checking: 0 TypeScript errors (strict mode)
-
-### Human Approval Gates
-Always wait for approval at:
-- Gate generation (human reviews roadmap)
-- Repository boundaries (human validates split)
-- Proposals (human approves implementation)
-- Gate completion (human confirms release)
+**Migration guidance**:
+- Implement handler logic in `src/mcp/tools/*` and validate outputs with Zod schemas in `src/mcp/schemas/*`.
+- Register handler factories via `registerTools()` (already implemented) so they override function-based tools.
+- Add tests that mock the `FunctionRegistry` to assert handlers return validated `structuredContent`.
+- Keep CLI commands for backwards compatibility until the handler logic is fully implemented and covered by tests.
 
 ## Complete Command Reference
 
@@ -127,11 +114,11 @@ Always wait for approval at:
 
 | Practice | Do | Don't |
 |----------|----|-------|
-| **Hash References** | Use `#a3f9c2d1` internally for system commands | Expose full paths to users |
-| **Dependencies** | Check `zeno req deps <hash>` before implementation | Implement without dependency verification |
-| **Quality Gates** | Respect 90% coverage, 0 vulnerabilities, <0.01% lint errors | Skip automated checks |
-| **Human Approval** | Wait for approval at gates, boundaries, proposals | Auto-implement without review |
-| **Architecture** | Reference diagrams for system context | Implement without understanding |
+| **References** | Use hashes internally, resolve to names for users | Expose hashes in user-facing text |
+| **Dependencies** | Check `zeno req deps <hash>` before implementation | Implement without verification |
+| **Quality** | Enforce 90% coverage, 0 vulns, <0.01% lint errors | Skip automated checks |
+| **Approval** | Wait for human sign-off at key gates | Auto-implement without review |
+| **Context** | Reference architecture diagrams | Implement blindly |
 | **Commits** | Use structured messages with proposal hashes | Generic commit messages |
 
 ## File Locations Quick Reference

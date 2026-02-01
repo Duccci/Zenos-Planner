@@ -31,11 +31,13 @@ The tool bridges the gap between high-level project vision and detailed implemen
 - **Rationale**: Reduces LLM context size by 50%+, enables dependency tracking across repos, provides immutable references, content-based addressing prevents stale references
 - **Trade-offs**: Gained context efficiency and immutability; lost human readability of references.
 
-### 4. Hybrid Storage
-- **Choice**: SQLite for requirements, gates, proposals, dependencies (queryable); Files for architecture diagrams, PRDs, proposals (human-readable)
-- **Alternatives Considered**: Pure database (PostgreSQL), pure files (JSON/YAML), Git-based storage only
-- **Rationale**: Best of both worlds - structured queries for complex relationships + version control for human artifacts. SQLite is serverless and portable. Architecture diagrams generated selectively based on target project needs rather than all-at-once.
-- **Trade-offs**: Gained query performance and human readability; added complexity of maintaining two storage systems.
+### 4. Minimalist Database Schema: Requirements + Repositories
+- **Choice**: SQLite with exactly 2 core tables: `requirements` (hierarchical, supports spec-driven development) and `repositories` (multi-repo support for Gate 5)
+- **Alternatives Considered**: Monolithic database (12+ tables), multiple databases, pure file-based storage
+- **Rationale**: Lightweight MVP focused on core concerns. Project metadata lives in `project-overview.json` (version-controlled, human-readable). Gate metadata also in `project-overview.json`. Proposals stored as Markdown files in `zeno/proposals/`. State history tracked via Git commits. This eliminates scope creep while preserving queryability where it matters: requirement hierarchies and multi-repo support.
+- **Unified Requirements Format**: Single `requirements` table with flexible content model supports both traditional requirements (functional/non-functional/constraints with acceptance criteria) and project specifications (OpenAPI, GraphQL, Protobuf). No separate tables for specs vs. requirements—same format, different content types.
+- **Approval by Presence**: Requirements in database are implicitly approved. Changes only occur via gate refactors or proposal updates, tracked through Git history.
+- **Trade-offs**: Gained simplicity and reduced maintenance burden; database validates schema on startup, ensuring consistency. Lost some query complexity but gained clarity in what matters: requirements relationships and repository boundaries.
 
 ### 5. Gate Roadmap Diagram Purpose
 - **Choice**: Gate roadmap diagram displays gates and their parallel relationships, showing project roadmap structure
@@ -91,7 +93,7 @@ The tool bridges the gap between high-level project vision and detailed implemen
 2. **LLM-Driven Execution**: All Zeno operations are invoked by AI agents during workflow execution. The CLI serves as the interface through which LLMs call functions, not as a human-facing command line tool. Humans interact by providing prompts and approvals; LLMs execute the actual commands.
 3. **Human-in-the-Loop**: Approval gates at key decision points. Human judgment validates AI decisions. Humans approve/reject; LLMs execute.
 4. **Quality-First**: Automated checks before human review. Catch issues early, enforce standards consistently.
-5. **File + Database Hybrid**: SQLite for queries, files for artifacts. Balance queryability with version control.
+5. **Minimalist Storage**: Database only for requirements and repositories (queryable hierarchy + multi-repo support). Project metadata in `project-overview.json`, proposals as Markdown files, state history in Git. No scope creep—database tracks what matters.
 6. **AI-Contextual**: Generate AGENTS.md to guide AI assistants on artifact interpretation and project conventions.
 7. **Hash-Based References**: Reduce LLM context size by 50%+ through content-addressable storage.
 
@@ -179,7 +181,47 @@ Instead of: "Requirement at /path/to/long/repo/name/src/modules/auth/requirement
 
 Use: "Requirement #a3f9c2d1 depends on #b7e4d8f2"
 
-This reduces context size by 50%+ while maintaining precise references. The Hash Registry resolves these references when needed for actual file operations.
+This reduces context size by 50%+ while maintaining precise references. Requirements and repositories are queryable directly in the database by hash.
+
+## Storage Architecture
+
+### Database Schema (SQLite, 2 Core Tables)
+
+| Table | Purpose | Fields |
+|-------|---------|--------|
+| **requirements** | Hierarchical requirements and project specifications supporting spec-driven development | `id`, `parent_id`, `type` (functional/non_functional/constraint), `priority`, `level` (project/gate), `source` (generated/inherited/transferred), `title`, `description`, `acceptance_criteria`, `hash`, `created_at`, `updated_at` |
+| **repositories** | Multi-repository support for distributed systems (Gate 5+) | `id`, `name`, `path`, `type` (main/service/library/tool), `hash`, `metadata`, `created_at` |
+
+**Key Design Decisions:**
+- No `status` field on requirements—presence in database = approved. Changes tracked via Git.
+- Unified requirements format for traditional requirements and specs (OpenAPI, GraphQL, Protobuf, etc.)
+- No separate proposal table—proposals stored as Markdown files, workflow tracked through Git commits
+- No users table—Git already tracks authorship and attribution
+
+### File Storage
+
+| Location | Content | Format | Rationale |
+|----------|---------|--------|-----------|
+| `project-overview.json` | Project metadata, gates, completion status | JSON | Single source of truth for project state, version-controlled |
+| `.zeno/gates/gate-XX-name.md` | Gate PRDs, objectives, requirements breakdown | Markdown | Human-readable gate specifications |
+| `zeno/proposals/gate-XX/<name>.md` | Implementation proposals | Markdown | Human-readable change documentation |
+| `zeno/proposals/archive/<hash>.md` | Completed proposals (immutable reference) | Markdown | Historical record with content-addressable reference |
+| `zeno/architecture/*.md` | Architecture diagrams and design docs | Mermaid/DOT/SVG | Visual system design and relationships |
+| `.zeno/config.json` | Configuration settings | JSON | Project-specific configuration |
+
+### State History & Audit Trail
+
+**Method**: Git commit history + structured commit messages
+- Proposal approval/rejection: Tracked via Git commits with proposal hash in message
+- Requirement implementation: Tracked via proposal commit and requirement hash reference
+- Architecture changes: Committed with rationale in message
+- Gate completion: Tracked via Git tag (e.g., `gate-03-requirements-database-layer`)
+
+**Advantages**: 
+- Version control provides immutable audit trail
+- Human-readable diffs show what changed and why
+- No separate audit table to maintain
+- Works across distributed teams
 
 ## Project Dependencies
 
@@ -310,6 +352,18 @@ This reduces context size by 50%+ while maintaining precise references. The Hash
 - [ ] Generate initial AGENTS.md for tool usage
 - [ ] Write integration tests for gate generation
 
+### Gate 2.5: MCP Server & LLM Tool Integration
+- [ ] Implement MCP server using `@modelcontextprotocol/sdk` with stdio transport
+- [ ] Define Zod schemas for all Zeno function inputs and outputs
+- [ ] Expose gate, requirement, proposal, and repository functions as MCP tools
+- [ ] Create function registry to centralize all Zeno operations
+- [ ] Refactor CLI commands to delegate to MCP function registry (thin wrapper pattern)
+- [ ] Implement structured error handling with context and recovery suggestions
+- [ ] Add MCP server health checks and diagnostics
+- [ ] Create Cursor and Claude integration setup guides
+- [ ] Write comprehensive tests for all MCP tools (90% coverage minimum)
+- [ ] Achieve 90% test coverage for MCP server module
+
 ### Gate 3: Requirements & Database Layer
 - [ ] Implement gate-specific requirement generation (decompose project requirements + gate objectives)
 - [ ] Create requirement decomposition algorithm (gate → requirements tree)
@@ -432,7 +486,18 @@ This reduces context size by 50%+ while maintaining precise references. The Hash
 - [ ] Build real-time status updates
 - [ ] Write tests for dashboard
 
-### Gate 12: Documentation & Polish
+### Gate 12: Subagent Orchestration & Parallel Execution
+- [ ] Implement subagent creation via Cursor workflows
+- [ ] Build subagent task delegation system (requirements, proposals, gate components)
+- [ ] Create subagent status tracking and progress monitoring
+- [ ] Implement coordination of parallel subagent execution
+- [ ] Build conflict detection for concurrent modifications
+- [ ] Create subagent result consolidation and integration
+- [ ] Implement subagent error handling and retry logic
+- [ ] Build orchestrator state synchronization with Zeno state
+- [ ] Write tests for subagent coordination
+
+### Gate 13: Documentation & Polish
 - [ ] Write comprehensive README with examples
 - [ ] Create CLI command reference documentation
 - [ ] Write architecture documentation
@@ -445,7 +510,7 @@ This reduces context size by 50%+ while maintaining precise references. The Hash
 - [ ] Add inline code documentation
 - [ ] Create video walkthrough (optional)
 
-_Gates are ordered sequentially. Each gate represents an actionable milestone that feeds into more detailed gate-level PRDs._
+_Gates are ordered sequentially. Each gate represents an actionable milestone that feeds into more detailed gate-level PRDs. Total: 13 gates (previously 12, with MCP Server added as Gate 2.5)._
 
 ## Open Questions
 

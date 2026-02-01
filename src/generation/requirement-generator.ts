@@ -115,9 +115,10 @@ export class RequirementGenerator {
   }
 
   /**
-   * Update requirement status
+   * Update a requirement's status via storage layer
    */
   updateRequirementStatus(hash: string, status: 'pending' | 'implemented' | 'tested'): void {
     this.storage.updateRequirementStatus(hash, status)
   }
+
 }

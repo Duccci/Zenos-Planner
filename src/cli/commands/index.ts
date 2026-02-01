@@ -13,6 +13,9 @@ import { registerProposalCommands } from './proposal.js'
 import { registerInitCommand } from './init.js'
 import { registerStatusCommand } from './status.js'
 import { registerShowCommand } from './show.js'
+import { registerTemplateCommand } from './template.js'
+import { registerConfigCommand } from './config.js'
+import { registerMcpCommands } from './mcp.js'
 
 /**
  * Register all commands with the CLI program
@@ -22,6 +25,8 @@ export function registerCommands(program: Command): void {
   registerInitCommand(program)
   registerStatusCommand(program)
   registerShowCommand(program)
+  registerTemplateCommand(program)
+  registerConfigCommand(program)
 
   // Register command categories
   registerGatesCommands(program)
@@ -29,4 +34,5 @@ export function registerCommands(program: Command): void {
   registerArchCommands(program)
   registerReposCommands(program)
   registerProposalCommands(program)
+  registerMcpCommands(program)
 }

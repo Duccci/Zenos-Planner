@@ -62,7 +62,9 @@ vi.mock('../../../src/storage/database.js', () => ({
 }))
 
 vi.mock('../../../src/utils/config.js', () => ({
-  getDefaultConfig: vi.fn().mockReturnValue({ version: '0.1.0' }),
+  findProjectRoot: vi.fn(),
+  loadConfig: vi.fn(),
+  getDefaultConfig: vi.fn((name, endState) => ({ projectName: name, endState, version: '0.1.0' })),
   saveConfig: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -94,6 +96,11 @@ describe('Init Command', () => {
     const initCmd = program.commands.find(cmd => cmd.name() === 'init')
     expect(initCmd).toBeDefined()
     expect(initCmd!.description()).toBe('Initialize a new Zeno project')
+    
+    // Check that the force option is registered
+    const forceOption = initCmd!.options.find(opt => opt.flags === '-f, --force')
+    expect(forceOption).toBeDefined()
+    expect(forceOption!.description).toBe('Force reinitialization even if project is already initialized')
   })
 
   describe('validateProjectName', () => {

@@ -16,7 +16,7 @@ This document lists all Zeno functions available to AI agents for programmatic i
 - [req_list](#req_list)
 - [req_show](#req_show)
 - [req_deps](#req_deps)
-- [req_status](#req_status)
+- [req_transfer](#req_transfer)
 
 ### Proposal Management
 - [proposal_list](#proposal_list)
@@ -32,6 +32,7 @@ This document lists all Zeno functions available to AI agents for programmatic i
 
 ### Utilities
 - [show](#show)
+- [config_get](#config_get)
 
 ---
 
@@ -410,6 +411,23 @@ Resolve a hash to its entity details.
 ```javascript
 const entity = await show("#a3f9c2d1")
 console.log(`${entity.type}: ${entity.name}`)
+```
+
+### config_get
+
+Get project configuration values from zeno/.zeno/config.json.
+
+**Signature:** `config_get()`
+
+**Parameters:** None
+
+**Returns:** `ZenoConfig`
+
+**Examples:**
+```javascript
+const config = await config_get()
+console.log(`Code coverage threshold: ${config.qualityThresholds.codeCoverage}%`)
+console.log(`Security vulnerabilities allowed: ${config.qualityThresholds.securityVulnerabilities}`)
 ```
 
 ---

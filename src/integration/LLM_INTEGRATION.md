@@ -20,7 +20,7 @@ Zeno's Planner is a project management tool that uses iterative gate-based plann
 - `req_list(gateId?, project?)` - List requirements
 - `req_show(hash)` - Show requirement details
 - `req_deps(hash)` - Show dependencies
-- `req_status(hash, status)` - Update requirement status
+- (removed) `req_status` - Requirement lifecycle is recorded via proposal approvals and gate archival (no DB status)
 
 ### Proposal Management
 - `proposal_list(gateId?, status?)` - List proposals

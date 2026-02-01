@@ -17,6 +17,9 @@ export const ZenoConfigSchema = z.object({
   /** Project name (human-readable) */
   projectName: z.string().min(1, 'Project name is required'),
 
+  /** Project end state description */
+  endState: z.string().optional(),
+
   /** Project version (semver format) */
   version: z.string().default('0.1.0'),
 
@@ -77,6 +80,41 @@ export const ZenoConfigSchema = z.object({
 /** TypeScript type inferred from schema */
 export type ZenoConfig = z.infer<typeof ZenoConfigSchema>
 
+/** Project overview schema (single source of truth for project metadata) */
+export const ProjectOverviewSchema = z.object({
+  projectName: z.string(),
+  projectVersion: z.string(),
+  currentGate: z.string().nullable(),
+  totalGatesPlanned: z.number(),
+  endState: z.string(),
+  startState: z.string().nullable(),
+  completedGates: z.array(z.object({
+    sequence: z.number(),
+    name: z.string(),
+    hash: z.string(),
+    completedAt: z.string(),
+    status: z.string()
+  })),
+  currentGateInfo: z.object({
+    sequence: z.number(),
+    name: z.string(),
+    hash: z.string(),
+    status: z.string(),
+    estimatedComplexity: z.string()
+  }).nullable(),
+  upcomingGates: z.array(z.object({
+    sequence: z.number(),
+    name: z.string(),
+    estimatedComplexity: z.string()
+  })),
+  architecture: z.object({
+    layers: z.array(z.string()),
+    keyDependencies: z.record(z.string(), z.string())
+  })
+})
+
+export type ProjectOverview = z.infer<typeof ProjectOverviewSchema>
+
 /** Zeno directory name */
 const ZENO_DIR = join('zeno', '.zeno')
 
@@ -135,9 +173,10 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
  * Note: This schema intentionally matches zeno/.zeno/config.json and does not
  * require an end state string (that data lives in PRDs / DB in later gates).
  */
-export function getDefaultConfig(projectName: string): ZenoConfig {
+export function getDefaultConfig(projectName: string, endState?: string): ZenoConfig {
   return {
     projectName,
+    endState,
     version: '0.1.0',
     qualityThresholds: {
       codeCoverage: 90,
@@ -231,5 +270,58 @@ export async function saveConfig(config: ZenoConfig, projectRoot: string = proce
  */
 export function isZenoProject(projectRoot: string = process.cwd()): boolean {
   return fileExists(getConfigPath(projectRoot))
+}
+
+/**
+ * Get the path to the project-overview.json file.
+ * @param projectRoot - Project root directory (default: process.cwd())
+ * @returns Absolute path to project-overview.json
+ */
+export function getProjectOverviewPath(projectRoot: string = process.cwd()): string {
+  return normalizePath(join(getZenoDir(projectRoot), 'project-overview.json'))
+}
+
+/**
+ * Read project overview from zeno/.zeno/project-overview.json.
+ * This is the single source of truth for project metadata.
+ * @param projectRoot - Project root directory (default: process.cwd())
+ * @returns Project overview data
+ * @throws ConfigError if file doesn't exist or is invalid
+ */
+export async function readProjectOverview(projectRoot: string = process.cwd()): Promise<ProjectOverview> {
+  const overviewPath = getProjectOverviewPath(projectRoot)
+
+  if (!fileExists(overviewPath)) {
+    throw new ConfigError(
+      `Project overview not found: ${overviewPath}`,
+      'PROJECT_OVERVIEW_NOT_FOUND',
+      { path: overviewPath }
+    )
+  }
+
+  try {
+    const data = await readJsonFile(overviewPath)
+
+    const result = ProjectOverviewSchema.safeParse(data)
+    if (!result.success) {
+      throw new ConfigError(
+        'Invalid project overview format',
+        'PROJECT_OVERVIEW_INVALID',
+        { errors: result.error.issues, path: overviewPath }
+      )
+    }
+
+    return result.data
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      throw error
+    }
+    throw new ConfigError(
+      `Failed to read project overview: ${overviewPath}`,
+      'PROJECT_OVERVIEW_READ_FAILED',
+      { path: overviewPath },
+      error instanceof Error ? error : undefined
+    )
+  }
 }
 

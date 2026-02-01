@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { formatError, isZenoError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
+import { initializeDatabase } from '../storage/database.js'
+import { getGlobalRegistry } from '../integration/function-implementations.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -75,6 +77,13 @@ export async function createProgram(): Promise<Command> {
 export async function main(): Promise<void> {
   try {
     const program = await createProgram()
+
+    // Initialize database (creates tables and runs migrations if needed)
+    await initializeDatabase()
+
+    // Initialize function registry (enables all Zeno operations)
+    getGlobalRegistry()
+    logger.debug('Function registry initialized')
 
     // Parse arguments
     await program.parseAsync(process.argv)

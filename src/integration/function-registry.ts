@@ -3,7 +3,11 @@
  *
  * Registry of all Zeno functions that LLMs can invoke.
  * Provides function signatures in a format compatible with LLM function calling APIs.
+ * Also provides the actual invocation infrastructure for executing registered functions.
  */
+
+import { z } from 'zod'
+import { logger } from '../utils/logger.js'
 
 export interface FunctionParameter {
   name: string
@@ -18,6 +22,181 @@ export interface FunctionDefinition {
   parameters: FunctionParameter[]
   returnType: string
   examples: string[]
+}
+
+export interface FunctionDefinition {
+  name: string
+  description: string
+  parameters: FunctionParameter[]
+  returnType: string
+  examples: string[]
+}
+
+/**
+ * Error response structure for consistent error handling
+ */
+export interface FunctionErrorResponse {
+  code: string
+  message: string
+  context?: Record<string, unknown>
+}
+
+/**
+ * Result type for function invocation
+ */
+export type FunctionResult<T = unknown> = 
+  | { success: true; data: T }
+  | { success: false; error: FunctionErrorResponse }
+
+/**
+ * Registered function with implementation
+ */
+export interface RegisteredFunction<T = unknown> {
+  name: string
+  description: string
+  parameters: FunctionParameter[]
+  returnType: string
+  schema: z.ZodSchema
+  implementation: (params: Record<string, unknown>) => T | Promise<T>
+}
+
+/**
+ * Function Registry class for registration and invocation
+ */
+export class FunctionRegistry {
+  private functions: Map<string, RegisteredFunction> = new Map()
+
+  /**
+   * Register a new function
+   */
+  register<T = unknown>(
+    name: string,
+    implementation: (params: Record<string, unknown>) => T | Promise<T>,
+    options: {
+      description: string
+      parameters: FunctionParameter[]
+      returnType: string
+      schema: z.ZodSchema
+    }
+  ): void {
+    const registered: RegisteredFunction<T> = {
+      name,
+      description: options.description,
+      parameters: options.parameters,
+      returnType: options.returnType,
+      schema: options.schema,
+      implementation
+    }
+
+    this.functions.set(name, registered)
+    logger.debug(`Function registered: ${name}`)
+  }
+
+  /**
+   * Invoke a registered function with validation
+   */
+  async invoke<T = unknown>(
+    name: string,
+    params: Record<string, unknown> = {}
+  ): Promise<FunctionResult<T>> {
+    try {
+      const func = this.functions.get(name)
+
+      if (!func) {
+        return {
+          success: false,
+          error: {
+            code: 'FUNCTION_NOT_FOUND',
+            message: `Function '${name}' is not registered`
+          }
+        }
+      }
+
+      // Validate parameters against schema
+      let validatedParams: Record<string, unknown>
+      try {
+        validatedParams = func.schema.parse(params) as Record<string, unknown>
+      } catch (error) {
+        const zodError = error as z.ZodError
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: 'Parameter validation failed',
+            context: {
+              issues: zodError.issues.map(issue => ({
+                path: issue.path.join('.'),
+                message: issue.message,
+                code: issue.code
+              }))
+            }
+          }
+        }
+      }
+
+      // Invoke the function
+      logger.debug(`Invoking function: ${name}`)
+      const result = await Promise.resolve(func.implementation(validatedParams))
+
+      return {
+        success: true,
+        data: result as T
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      const errorStack = error instanceof Error ? error.stack : undefined
+
+      logger.error(`Function invocation failed: ${name} - ${errorMessage}`)
+      if (errorStack) {
+        logger.debug(errorStack)
+      }
+
+      return {
+        success: false,
+        error: {
+          code: 'INVOCATION_ERROR',
+          message: `Error executing function '${name}': ${errorMessage}`,
+          context: {
+            functionName: name,
+            errorType: error instanceof Error ? error.constructor.name : typeof error
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Get all registered functions
+   */
+  list(): RegisteredFunction[] {
+    return Array.from(this.functions.values())
+  }
+
+  /**
+   * Get a specific registered function
+   */
+  get(name: string): RegisteredFunction | undefined {
+    return this.functions.get(name)
+  }
+
+  /**
+   * Get functions by category (based on name prefix)
+   */
+  getByCategory(category: string): RegisteredFunction[] {
+    const categoryPrefixes: Record<string, string[]> = {
+      gates: ['gates_'],
+      requirements: ['req_'],
+      proposals: ['proposal_'],
+      architecture: ['arch_'],
+      templates: ['getTemplate', 'loadAllTemplates', 'getTemplatesByCategory'],
+      general: ['init', 'status', 'show', 'config_get']
+    }
+
+    const prefixes = categoryPrefixes[category] ?? []
+    return this.list().filter(func =>
+      prefixes.some(prefix => func.name.startsWith(prefix))
+    )
+  }
 }
 
 /**
@@ -155,9 +334,10 @@ export const functionRegistry: FunctionDefinition[] = [
       'req_deps("#a3f9c2d1") - Show requirement dependencies'
     ]
   },
+
   {
-    name: 'req_status',
-    description: 'Update the status of a requirement',
+    name: 'req_transfer',
+    description: 'Transfer a requirement to another gate',
     parameters: [
       {
         name: 'hash',
@@ -166,15 +346,15 @@ export const functionRegistry: FunctionDefinition[] = [
         required: true
       },
       {
-        name: 'status',
+        name: 'gateId',
         type: 'string',
-        description: 'New status: pending, implemented, tested',
+        description: 'The target gate ID',
         required: true
       }
     ],
     returnType: 'void',
     examples: [
-      'req_status("#a3f9c2d1", "implemented") - Mark requirement as implemented'
+      'req_transfer("#a3f9c2d1", "gate-04") - Transfer requirement to gate-04'
     ]
   },
   {
@@ -320,6 +500,100 @@ export const functionRegistry: FunctionDefinition[] = [
     returnType: 'EntityDetails',
     examples: [
       'show("#a3f9c2d1") - Resolve hash to entity'
+    ]
+  },
+  {
+    name: 'getTemplate',
+    description: 'Load a single template file by name',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Template name (e.g., "gate-prd-template", "proposal-template", "system-overview-template")',
+        required: true
+      }
+    ],
+    returnType: 'string',
+    examples: [
+      'getTemplate("gate-prd-template") - Load gate PRD template',
+      'getTemplate("proposal-template") - Load proposal template',
+      'getTemplate("system-overview-template") - Load system architecture diagram template'
+    ]
+  },
+  {
+    name: 'template_list',
+    description: 'List all available templates',
+    parameters: [],
+    returnType: 'Template[]',
+    examples: [
+      'template_list() - List available templates'
+    ]
+  },
+  {
+    name: 'template_get',
+    description: 'Get a template by name',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Template name to retrieve',
+        required: true
+      }
+    ],
+    returnType: 'string',
+    examples: [
+      'template_get("gate-prd-template") - Get template content'
+    ]
+  },
+  {
+    name: 'template_context',
+    description: 'Get template formatted for LLM context injection',
+    parameters: [
+      {
+        name: 'name',
+        type: 'string',
+        description: 'Template name to retrieve',
+        required: true
+      }
+    ],
+    returnType: 'string',
+    examples: [
+      'template_context("proposal-template") - Get template context for LLMs'
+    ]
+  },
+  {
+    name: 'loadAllTemplates',
+    description: 'Load all 16 templates as a key-value map',
+    parameters: [],
+    returnType: 'Record<string, string>',
+    examples: [
+      'loadAllTemplates() - Get all available templates'
+    ]
+  },
+  {
+    name: 'getTemplatesByCategory',
+    description: 'Get all templates of a specific category',
+    parameters: [
+      {
+        name: 'category',
+        type: 'string',
+        description: 'Template category: "markdown" or "architecture"',
+        required: true
+      }
+    ],
+    returnType: 'Template[]',
+    examples: [
+      'getTemplatesByCategory("markdown") - Get all markdown templates',
+      'getTemplatesByCategory("architecture") - Get all architecture templates'
+    ]
+  },
+  {
+    name: 'config_get',
+    description: 'Get project configuration values from zeno/.zeno/config.json',
+    parameters: [],
+    returnType: 'ZenoConfig',
+    examples: [
+      'config_get() - Get all configuration values'
     ]
   }
 ]

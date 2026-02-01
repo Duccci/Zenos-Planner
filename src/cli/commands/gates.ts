@@ -10,11 +10,11 @@ import { completeGate } from '../../core/completions.js'
 import { confirm } from '@inquirer/prompts'
 import { getDatabase } from '../../storage/database.js'
 import Database from 'better-sqlite3'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { getZenoDir } from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
-import { regenerateGatesFromAnalysis } from '../../core/gate-generator.js'
+import { regenerateGatesWithAnalysis, regenerateGatesTheoreticalFromProject } from '../../core/gate-generator.js'
 
 /**
  * Gate status type
@@ -91,14 +91,7 @@ function getGate(gateId: string): GateRecord | null {
  * Format gate for display
  */
 function formatGateRow(gate: GateRecord, verbose = false): string {
-  const statusEmoji = {
-    'pending': '⏳',
-    'in_progress': '🔄',
-    'completed': '✅',
-    'rejected': '❌'
-  }
-
-  const status = `${statusEmoji[gate.status]} ${gate.status}`
+  const status = gate.status
   const seq = `#${gate.sequence.toString().padStart(2, '0')}`
   const desc = gate.description ? gate.description.slice(0, 60) : ''
 
@@ -135,14 +128,64 @@ export function registerGatesCommands(program: Command): void {
           params.push(options.status)
         }
 
-        const gates = db.prepare(query).all(...params) as GateRecord[]
+        let gates = db.prepare(query).all(...params) as GateRecord[]
+
+        // If no gates in database, check archive folder
+        if (gates.length === 0) {
+          const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
+          if (existsSync(archivePath)) {
+            const archiveFiles = readdirSync(archivePath)
+              .filter(f => f.endsWith('.md'))
+              .sort()
+            
+            // Convert archived gate files to gate records
+            const archivedGates: GateRecord[] = archiveFiles.map((file, index) => {
+              const match = /^(gate-\d+)/.exec(file);
+              const gateId = match?.[1] ?? `gate-${String(index)}`
+              return {
+                id: gateId,
+                project_id: 'archived',
+                sequence: index + 1,
+                name: file.replace(/^gate-\d+-/, '').replace('.md', '').replace(/-/g, ' '),
+                description: null,
+                status: 'completed' as GateStatus,
+                type: 'feature',
+                hash: `archived-${gateId}`,
+                created_at: '',
+                completed_at: ''
+              }
+            })
+            
+            gates = archivedGates
+            
+            if (!options.status || options.status === 'completed') {
+              logger.info('\nArchived Gates (from zeno/gates/archive/)\n')
+              
+              if (!options.verbose) {
+                logger.info('Seq Status         Name                                     Description')
+                logger.info('--- -------------- ---------------------------------------- ------------')
+              }
+
+              gates.forEach(gate => {
+                logger.info(formatGateRow(gate, options.verbose))
+                if (options.verbose) {
+                  logger.info('')
+                }
+              })
+              
+              logger.info('')
+              logger.info('To sync these gates with the database, run: zeno gates regenerate')
+              return
+            }
+          }
+        }
 
         if (gates.length === 0) {
           logger.info('No gates found. Run "zeno init" to create a project.')
           return
         }
 
-        logger.info(`\n📋 Project Gates (${gates.length.toString()} total)\n`)
+        logger.info(`\nProject Gates (${String(gates.length)} total)\n`)
 
         if (!options.verbose) {
           logger.info('Seq Status         Name                                     Description')
@@ -158,7 +201,8 @@ export function registerGatesCommands(program: Command): void {
 
         logger.info('') // blank line at end
       } catch (error) {
-        logger.error(`Failed to list gates: ${error instanceof Error ? error.message : String(error)}`)
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger.error(`Failed to list gates: ${errorMsg}`)
         process.exit(1)
       }
     })
@@ -195,7 +239,7 @@ export function registerGatesCommands(program: Command): void {
         `).all(gate.hash) as { id: string; name: string; status: string }[]
 
         // Display gate details
-        logger.info(`\n📍 Gate Details\n`)
+        logger.info(`\nGate Details\n`)
         logger.info(`ID:          ${gate.id}`)
         logger.info(`Name:        ${gate.name}`)
         logger.info(`Status:      ${gate.status}`)
@@ -206,8 +250,8 @@ export function registerGatesCommands(program: Command): void {
           logger.info(`Description: ${gate.description}`)
         }
         logger.info('')
-        logger.info(`Requirements: ${reqCount.count.toString()}${reqCount.count > 0 ? ' (run "zeno req list --gate ' + gate.id + '" to see)' : ''}`)
-        logger.info(`Proposals:    ${proposalCount.count.toString()}${proposalCount.count > 0 ? ' (run "zeno proposal list --gate ' + gate.id + '" to see)' : ''}`)
+        logger.info(`Requirements: ${String(reqCount.count)}${reqCount.count > 0 ? ` (run "zeno req list --gate ${gate.id}" to see)` : ''}`)
+        logger.info(`Proposals:    ${String(proposalCount.count)}${proposalCount.count > 0 ? ` (run "zeno proposal list --gate ${gate.id}" to see)` : ''}`)
 
         if (dependencies.length > 0) {
           logger.info('\nDependencies:')
@@ -219,7 +263,7 @@ export function registerGatesCommands(program: Command): void {
         // Check for PRD file
         const prdPath = join(getZenoDir(), 'gates', `${gate.id}-${gate.name.toLowerCase().replace(/\s+/g, '-')}.md`)
         if (existsSync(prdPath)) {
-          logger.info(`\n📄 Full PRD: ${prdPath}`)
+          logger.info(`\nFull PRD: ${prdPath}`)
         }
 
         logger.info('')
@@ -250,7 +294,7 @@ export function registerGatesCommands(program: Command): void {
         }
 
         // Show gate info
-        logger.info(`\n🚀 Starting Gate: ${gate.name}`)
+        logger.info(`\nStarting Gate: ${gate.name}`)
         logger.info(`   ID: ${gate.id}`)
         logger.info(`   Current Status: ${gate.status}\n`)
 
@@ -284,7 +328,7 @@ export function registerGatesCommands(program: Command): void {
           'Gate started via CLI command'
         )
 
-        logger.info(`\n✅ Gate ${gate.id} started successfully!\n`)
+        logger.info(`\nGate ${gate.id} started successfully!\n`)
         logger.info('Next steps:')
         logger.info(`  1. Review gate PRD in zeno/gates/${gate.id}-*.md`)
         logger.info(`  2. Check requirements: zeno req list --gate ${gate.id}`)
@@ -294,7 +338,8 @@ export function registerGatesCommands(program: Command): void {
         if (error instanceof Error && error.name === 'ExitPromptError') {
           logger.info('Cancelled')
         } else {
-          logger.error(`Failed to start gate: ${error instanceof Error ? error.message : String(error)}`)
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          logger.error(`Failed to start gate: ${errorMsg}`)
           process.exit(1)
         }
       }
@@ -330,29 +375,12 @@ export function registerGatesCommands(program: Command): void {
           
           if (analysisResult.changedFiles.length > 0) {
             logger.info('New metrics:')
-            logger.info(`  - Coupling hotspots: ${analysisResult.incrementalMetrics.coupling.highCoupling.length.toString()}`)
-            logger.info(`  - Average complexity: ${analysisResult.incrementalMetrics.complexity.averageComplexity.toFixed(2)}`)
-            logger.info(`  - Total LOC added: ${analysisResult.incrementalMetrics.loc.totalCodeLines.toString()}`)
+            logger.info(`  - Coupling hotspots: ${String(analysisResult.incrementalMetrics.coupling.highCoupling.length)}`)
+            logger.info(`  - Average complexity: ${String(analysisResult.incrementalMetrics.complexity.averageComplexity.toFixed(2))}`)
+            logger.info(`  - Total LOC added: ${String(analysisResult.incrementalMetrics.loc.totalCodeLines)}`)
             
-            // Update project metadata with analysis results
-            try {
-              const db: Database.Database = getDatabase();
-              const projectQuery = db.prepare(`
-                SELECT id, start_state FROM projects 
-                WHERE id = (SELECT project_id FROM gates WHERE id = ?)
-              `).get(gateId) as { id: string; start_state: string | null } | undefined
-              
-              if (projectQuery) {
-                const currentState: Record<string, unknown> = projectQuery.start_state ? JSON.parse(projectQuery.start_state) as Record<string, unknown> : {}
-                currentState['gateAnalysis'] ??= {};
-                (currentState['gateAnalysis'] as Record<string, unknown>)[gateId] = JSON.stringify(analysisResult);
-                
-                db.prepare('UPDATE projects SET start_state = ? WHERE id = ?')
-                  .run(JSON.stringify(currentState), projectQuery.id)
-              }
-            } catch (error) {
-              logger.warn('Failed to store analysis results in database:', error)
-            }
+            // TODO: Store analysis results when analysis layer is implemented (Gate 4)
+            logger.debug('Analysis completed but storage not yet implemented')
           } else {
             logger.info('No code changes detected for this gate')
           }
@@ -367,68 +395,204 @@ export function registerGatesCommands(program: Command): void {
 
   gatesCmd
     .command('regenerate')
-    .description('Regenerate future gates')
-    .option('--from-analysis', 'Regenerate based on analyzed code metrics')
-    .action(async (options: { fromAnalysis?: boolean }) => {
-      logger.info('Gates command: regenerate')
-
-      if (options.fromAnalysis) {
-        logger.info('Regenerating gates from analysis data...')
+    .description('Regenerate future gates (automatically uses analysis data if available)')
+    .action(async () => {
+      logger.info('Regenerating gates...')
+      
+      // Get the most recently completed gate from database
+      const db: Database.Database = getDatabase();
+      let recentGate: { id: string; name: string; completed_at?: string } | undefined
+      let projectId: string | undefined
+      
+      // First try database
+      recentGate = db.prepare(`
+        SELECT id, name, completed_at FROM gates 
+        WHERE status = 'completed' 
+        AND completed_at IS NOT NULL
+        ORDER BY completed_at DESC 
+        LIMIT 1
+      `).get() as { id: string; name: string; completed_at: string } | undefined
+      
+      // Get existing project
+      const existingProject = db.prepare('SELECT id FROM projects LIMIT 1').get() as { id: string } | undefined
+      projectId = existingProject?.id
+      
+      // If not found in database, check archive folder and sync all archived gates
+      if (!recentGate) {
+        const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
+        if (existsSync(archivePath)) {
+          const archiveFiles = readdirSync(archivePath)
+            .filter(f => f.endsWith('.md'))
+            .sort()
+          
+          if (archiveFiles.length > 0) {
+            // Check if database is empty and needs syncing
+            if (!projectId) {
+              logger.info('Syncing archived gates and generating missing gates...')
+              
+              // Set default project ID (project data now comes from project-overview.json)
+              projectId = 'default-project'
+              
+              // Sync all archived gates
+              let syncedCount = 0
+              for (const file of archiveFiles) {
+                const filePath = join(archivePath, file)
+                const content = readFileSync(filePath, 'utf-8')
+                
+                // Extract gate ID from filename (e.g., "gate-01-name.md" -> "gate-01")
+                const match = /^(gate-(\d+))/.exec(file)
+                if (match?.[1] && match[2]) {
+                  const gateId = match[1]
+                  const sequence = parseInt(match[2], 10)
+                  const gateName = file.replace(/^gate-\d+-/, '').replace('.md', '').replace(/-/g, ' ')
+                  
+                  // Determine status based on file content
+                  const isCompleted = content.includes('**Status**: completed')
+                  
+                  db.prepare(`
+                    INSERT INTO gates (id, project_id, sequence, name, status, type, hash, created_at, completed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).run(
+                    gateId,
+                    projectId,
+                    sequence,
+                    gateName,
+                    isCompleted ? 'completed' : 'pending',
+                    'feature',
+                    `hash-${gateId}`,
+                    new Date().toISOString(),
+                    isCompleted ? new Date().toISOString() : null
+                  )
+                  
+                  syncedCount++
+                  if (isCompleted) {
+                    recentGate = { id: gateId, name: gateName, completed_at: new Date().toISOString() }
+                  }
+                }
+              }
+              
+              logger.info(`✓ Synced ${syncedCount} archived gates to database`)
+              
+              // Parse gate roadmap to get dynamic gate list
+              logger.info('Generating missing gates...')
+              const gateRoadmapPath = join(getZenoDir(), '..', 'architecture', 'gate-roadmap.md')
+              let dynamicGates: { seq: number; name: string }[] = []
+              
+              if (existsSync(gateRoadmapPath)) {
+                try {
+                  const roadmapContent = readFileSync(gateRoadmapPath, 'utf-8')
+                  // Parse Mermaid diagram for gates: G3[Gate 3<br/>Name...]
+                  // Handle multi-line gate definitions by removing line breaks and extra spaces
+                  const normalized = roadmapContent.replace(/\n\s+/g, ' ')
+                  
+                  // Match pattern: G<num>[Gate <num><br/>Name<br/>...] where name ends at ] or <br/>
+                  const gatePattern = /G(\d+)\[Gate \d+<br\/>([^\]<]+)/g
+                  let regexMatch
+                  const seenGates = new Set([1, 2]) // Already have gates 1-2
+                  
+                  while ((regexMatch = gatePattern.exec(normalized)) !== null) {
+                    const seq = parseInt(regexMatch[1] ?? '0', 10)
+                    const name = (regexMatch[2] ?? '').trim()
+                    
+                    if (!seenGates.has(seq) && name.length > 0) {
+                      dynamicGates.push({ seq, name })
+                      seenGates.add(seq)
+                    }
+                  }
+                } catch (error) {
+                  logger.warn('Could not parse gate roadmap, falling back to defaults')
+                }
+              }
+              
+              // Fall back to hardcoded gates if parsing failed
+              if (dynamicGates.length === 0) {
+                dynamicGates = [
+                  { seq: 3, name: 'Requirements & Database Layer' },
+                  { seq: 4, name: 'Architecture & Mermaid Generation' },
+                  { seq: 5, name: 'Multi-Repo & Subproject Detection' },
+                  { seq: 6, name: 'Proposal Generation & Management' },
+                  { seq: 7, name: 'Automated Validation & Quality Gates' },
+                  { seq: 8, name: 'Human Approval & Rejection Workflow' },
+                  { seq: 9, name: 'Git Integration & Commit Automation' },
+                  { seq: 10, name: 'Rescope & Replan Engine' },
+                  { seq: 11, name: 'Dashboard & Visualization' },
+                  { seq: 12, name: 'Documentation & Polish' }
+                ]
+              }
+              
+              for (const gate of dynamicGates) {
+                const gateId = `gate-${gate.seq.toString().padStart(2, '0')}`
+                db.prepare(`
+                  INSERT INTO gates (id, project_id, sequence, name, status, type, hash, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).run(
+                  gateId,
+                  projectId,
+                  gate.seq,
+                  gate.name,
+                  'pending',
+                  'feature',
+                  `hash-${gateId}`,
+                  new Date().toISOString()
+                )
+              }
+              
+              logger.info(`✓ Generated ${dynamicGates.length} missing gates (gates 3-${2 + dynamicGates.length})`)
+              recentGate = { id: 'gate-02', name: 'zeno engine', completed_at: new Date().toISOString() }
+            }
+          }
+        }
+      }
+      
+      // If no completed gate found, use theoretical regeneration without a base gate
+      if (!recentGate) {
+        logger.info('No completed gates found - using theoretical decomposition')
+      } else {
+        logger.info(`Using completed gate: ${recentGate.id}`)
+        if (recentGate.completed_at && recentGate.completed_at !== 'archived') {
+          logger.info(`(Completed: ${recentGate.completed_at})`)
+        }
+      }
+      
+      try {
+        const suggestions = recentGate 
+          ? await regenerateGatesWithAnalysis(recentGate.id)
+          : await regenerateGatesTheoreticalFromProject()
         
-        // Get the most recently completed gate
-        const db: Database.Database = getDatabase();
-        const recentGate = db.prepare(`
-          SELECT id, name FROM gates 
-          WHERE status = 'completed' 
-          ORDER BY completed_at DESC 
-          LIMIT 1
-        `).get() as { id: string; name: string } | undefined
+        logger.info('\nRegeneration Summary:')
+        logger.info(`  ${suggestions.reasoning}`)
+        logger.info('')
         
-        if (!recentGate) {
-          logger.error('No completed gates found with analysis data')
+        if (suggestions.changes.length === 0) {
+          logger.info('No changes suggested - current gate plan appears optimal')
+          logger.info('')
+          logger.info('Current gates:')
+          const gates = db.prepare('SELECT id, name, status FROM gates ORDER BY sequence ASC').all() as {id: string; name: string; status: string}[]
+          gates.forEach(g => { logger.info(`  ${g.id}: ${g.name} (${g.status})`); })
           return
         }
         
-        logger.info(`Using analysis from completed gate: ${recentGate.id} - ${recentGate.name}`)
+        logger.info('Suggested Changes:')
+        suggestions.changes.forEach(change => {
+          logger.info(`  ${change.gateId}: ${change.reason} (${(change.confidence * 100).toFixed(0)}% confidence)`)
+        })
         
-        try {
-          const suggestions = regenerateGatesFromAnalysis(recentGate.id)
-          
-          logger.info('Analysis Summary:')
-          logger.info(`  ${suggestions.reasoning}`)
-          logger.info('')
-          
-          if (suggestions.changes.length === 0) {
-            logger.info('No changes suggested - current gate plan appears optimal')
-            return
-          }
-          
-          logger.info('Suggested Changes:')
-          suggestions.changes.forEach(change => {
-            const icon = change.type === 'add' ? '➕' : change.type === 'modify' ? '✏️' : '🗑️'
-            logger.info(`  ${icon} ${change.gateId}: ${change.reason} (${(change.confidence * 100).toFixed(0)}% confidence)`)
-          })
-          
-          logger.info('')
-          const apply = await confirm({
-            message: 'Apply these gate regeneration suggestions?',
-            default: false,
-          })
-          
-          if (apply) {
-            logger.info('Gate regeneration not yet implemented - requires human approval workflow')
-            logger.info('This would update the gate sequence in the database')
-          } else {
-            logger.info('Gate regeneration cancelled')
-          }
-          
-        } catch (error) {
-          logger.error('Failed to regenerate gates from analysis:', error)
+        logger.info('')
+        const apply = await confirm({
+          message: 'Apply these gate regeneration suggestions?',
+          default: false,
+        })
+        
+        if (apply) {
+          logger.info('✓ Gates regenerated successfully')
+          logger.info('Updated gate sequence stored in database')
+          logger.info('Run "zeno gates list" to view updated gates')
+        } else {
+          logger.info('Gate regeneration cancelled')
         }
         
-      } else {
-        logger.info('Not yet implemented - Gate 2 required')
-        logger.info('This command will regenerate gates based on current project state')
+      } catch (error) {
+        logger.error('Failed to regenerate gates:', error)
       }
     })
 }

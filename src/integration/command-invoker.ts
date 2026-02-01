@@ -125,13 +125,16 @@ function buildCommandString(command: string, args: Record<string, unknown>): str
   const argParts: string[] = []
 
   for (const [key, value] of Object.entries(args)) {
+    // Map parameter name to CLI-friendly name
+    const cliName = paramToCliName(key)
+
     if (value === true) {
       // Boolean flag
-      argParts.push(`--${key}`)
+      argParts.push(`--${cliName}`)
     } else if (value !== null && value !== undefined) {
       // Value parameter
       const stringValue = String(value as string | number | boolean)
-      argParts.push(`--${key} "${stringValue.replace(/"/g, '\\"')}"`)
+      argParts.push(`--${cliName} "${stringValue.replace(/"/g, '\\"')}"`)
     }
   }
 
@@ -154,6 +157,21 @@ function functionNameToCliCommand(funcName: string): string {
   const action = actionParts.join('-')
 
   return `${category ?? ''} ${action}`
+}
+
+/**
+ * Convert a registry parameter name to a CLI option name
+ * Examples:
+ *  - gateId -> gate
+ *  - project -> project
+ *  - someFlag -> some-flag
+ */
+function paramToCliName(paramName: string): string {
+  if (paramName.endsWith('Id')) {
+    // Map gateId -> gate, proposalId -> proposal
+    return paramName.slice(0, -2).replace(/([A-Z])/g, '-$1').toLowerCase()
+  }
+  return paramName.replace(/([A-Z])/g, '-$1').toLowerCase()
 }
 
 /**

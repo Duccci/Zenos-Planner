@@ -52,14 +52,7 @@ export function registerReqCommands(program: Command): void {
       logger.info('This command will display dependency graph for a requirement')
     })
 
-  reqCmd
-    .command('status <hash> <status>')
-    .description('Update requirement status (pending/implemented/tested)')
-    .action((hash: string, status: string) => {
-      logger.info(`Requirements command: status ${hash} ${status}`)
-      logger.info('Not yet implemented - Gate 3 required')
-      logger.info('This command will update requirement status in the database')
-    })
+
 
   reqCmd
     .command('transfer <hash> <gate-id>')

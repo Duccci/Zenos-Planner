@@ -37,6 +37,10 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 | Requirements for gate | `zeno req list --gate <id>` |
 | Specific requirement | `zeno req show <hash>` |
 | Proposal details | `zeno proposal show <hash>` |
+| Active gate-tied proposals | `zeno/proposals/gate-XX/` |
+| Active solitary proposals | `zeno/proposals/solitary/` |
+| Completed proposals for gate | `zeno/gates/archive/gate-XX-name.md` (Consolidated Proposals Summary section) |
+| Completed solitary work | `zeno/gates/archive/solitary.md` |
 | Architecture diagrams | `zeno/architecture/*.md` |
 | Database queries | `zeno/.zeno/requirements.db` |
 | Hash lookup | `zeno show <hash>` |
@@ -45,19 +49,23 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 ## Core Concepts
 
-**[Reference: Root AGENTS.md#core-concepts]**
+See [root AGENTS.md](../AGENTS.md) for detailed reference on:
+- Gate-based methodology and workflow
+- Hash-based reference system (internal use)
+- Quality thresholds (90% coverage, 0 vulnerabilities, <0.01% lint errors)
+- Human approval gates and decision points
 
-- Gates are concrete project milestones that progressively move toward the end goal
-- Each gate represents actual deliverables, not percentages
-- Progress measured by gate completion, not time estimates
-- Hash-based references reduce context by 50%+, enable cross-repo tracking
-- Quality gates: 90% coverage, 0 vulnerabilities, <0.01% lint errors
+### MCP Tools: Handler-First Policy
+Handler implementations in `src/mcp/tools` take precedence over CLI-backed functions when registering MCP tools. Handlers should:
+- Return `structuredContent` validated by Zod schemas in `src/mcp/schemas` (avoid free-form text for structured responses).
+- Prefer internal module calls (analysis utilities, DB queries) over parsing CLI outputs.
+- Use `FunctionRegistry.invoke()` only as a fallback when the implementation is not yet available.
 
-## Command Reference
-
-**[Reference: Root AGENTS.md#complete-command-reference]**
-
-All Zeno commands are available. Key commands for this project:
+Migration checklist:
+1. Create handler in `src/mcp/tools` and validate responses using `schema.safeParse()`.
+2. Add integration tests that mock `FunctionRegistry.invoke()` and assert `structuredContent` matches the schema.
+3. Replace CLI-backed implementations only after tests and coverage are satisfactory.
+4. Document the change in PRs and update `zeno/AGENTS.md` and root `AGENTS.md` accordingly.
 
 ---
 
@@ -75,15 +83,35 @@ zenos-planner/
 │   ├── gates/                  # Per-gate PRDs
 │   │   ├── gate-01-core-infrastructure.md
 │   │   ├── gate-02-zeno-engine.md
+│   │   ├── archive/            # Completed gate PRDs
+│   │   │   ├── gate-01-core-infrastructure.md
+│   │   │   ├── gate-02-zeno-engine.md
+│   │   │   └── solitary.md     # Consolidated solitary proposals
 │   │   └── ...
 │   ├── architecture/           # Mermaid (simple) or DOT/SVG (complex) diagrams
 │   │   ├── system-overview.md
 │   │   ├── gate-lifecycle.md
 │   │   ├── data-flow.md
 │   │   └── gate-roadmap.md
-│   ├── proposals/              # Change proposals
-│   │   ├── active/
-│   │   └── completed/
+│   ├── proposals/              # Change proposals (active + archived)
+│   │   ├── gate-01/            # Gate-tied proposals (active)
+│   │   │   ├── 01-component-setup.md
+│   │   │   ├── 02-database-schema.md
+│   │   │   └── 03-api-endpoints.md
+│   │   ├── gate-02/            # Gate-tied proposals (active)
+│   │   │   └── 01-migrations.md
+│   │   ├── solitary/           # Solitary proposals (active, cross-cutting)
+│   │   │   ├── 2026-01-15-01-eslint-upgrade.md
+│   │   │   ├── 2026-01-20-02-typescript-strict.md
+│   │   │   └── 2026-01-25-01-readme-reorganization.md
+│   │   └── archive/            # Completed proposals (archived + hashed)
+│   │       ├── gate-01/
+│   │       │   ├── #p010reinfra.md
+│   │       │   └── #p010setup.md
+│   │       └── solitary/
+│   │           ├── #s20260115eslint.md
+│   │           ├── #s20260120tsstrict.md
+│   │           └── #s20260125readme.md
 │   ├── requirements/           # Requirements artifacts
 │   └── subprojects/            # Multi-repo tracking
 ├── src/                        # Source code
@@ -211,51 +239,223 @@ Mermaid diagram types (embedded in markdown files):
 
 ### Proposals
 
-Active proposals are organized by gate in subdirectories: `zeno/proposals/gate-XX/<name>.md` (e.g., `zeno/proposals/gate-02/02-metrics-graph.md`). Completed/archived proposals are stored flat and hashed: `zeno/proposals/archive/<hash>.md`.
+Proposals are organized into two categories:
+
+#### Gate-Tied Proposals
+Active gate-tied proposals are organized by gate in subdirectories: `zeno/proposals/gate-XX/<name>.md` (e.g., `zeno/proposals/gate-02/02-metrics-graph.md`).
+
+#### Solitary Proposals
+Cross-cutting or foundational work (infrastructure, documentation, maintenance, refactoring, tooling) not tied to a specific gate. Active solitary proposals are stored as: `zeno/proposals/solitary/YYYY-MM-DD-XX-name.md` (date-prefixed for chronological organization).
+
+**Proposal Structure** (both types):
 
 ```markdown
 # Proposal: [Title]
 
 **Hash**: #a3f9c2d1  
-**Gate**: Gate X  
-**Requirement**: #b7e4d8f2  
+**Gate**: Gate X (or "solitary" for cross-cutting work)
 **Status**: pending
 
-## What Changes
-- [Change 1]
-- [Change 2]
+## Summary
+[2-3 sentence description]
 
-## Why
-[Rationale for implementation approach]
-
-## Implementation Details
-[Technical specifics]
-
-## Files Affected
-- `src/module/file.ts` - [Description]
-- `tests/module/file.test.ts` - [Description]
+## Tasks
+1. [Task 1] - File(s), Action, Description, Acceptance Criteria
+2. [Task 2]
+...
 
 ## Dependencies
 - Requires #c8d4e1f5
 - Blocks #f2a7b3c9
 
 ## Automated Checks
-- [x] Linting: PASSED
-- [x] Type Check: PASSED
-- [x] Tests: PASSED (15/15)
-- [x] Coverage: 92.3% (threshold: 90%)
-- [x] Security: 0 vulnerabilities
-- [ ] Human Approval: PENDING
-
-## Approval
-Awaiting human review.
+- Linting, Type Check, Tests, Coverage (90%+), Security (0 vulns)
 ```
 
 **Key Points**:
 - Hash-based references for all entities
 - Automated checks run before human review
 - Dependencies tracked to prevent conflicts
-- Files affected listed explicitly
+- Solitary proposals use "solitary" in Gate field (no Requirement field)
+
+---
+
+## Accessing Archived Work
+
+When gates are completed, their proposals are consolidated into the gate document and archived. This maintains semantic consistency for LLM navigation while reducing file clutter.
+
+### Completed Gates
+
+**Location**: `zeno/gates/archive/gate-XX-name.md`
+
+When a gate completes:
+- Gate status changes to `completed`
+- All proposals for that gate are consolidated into a **Consolidated Proposals Summary** section
+- Key deliverables, implementation notes, and lessons learned are extracted from proposals
+- Gate document is moved to archive folder
+
+**Access patterns**:
+```bash
+# View completed gate details (auto-finds archived location)
+zeno gates show gate-02
+
+# List all completed gates
+ls zeno/gates/archive/
+
+# Check archived gate requirements
+zeno req list --gate gate-02
+# Requirements remain in database with status 'tested'
+```
+
+**Reading archived gate PRD**:
+1. Completed objectives appear as `[x]` in gate document
+2. **Consolidated Proposals Summary** section shows:
+   - Requirements fulfilled (extracted from proposals)
+   - Lessons learned from implementation
+   - Dependencies unblocked for downstream gates
+   - Aggregate quality metrics (coverage, security, linting)
+3. Implementation details no longer shown as separate proposal files
+4. All artifacts and code changes referenced by hash for traceability
+
+### Completed Proposals
+
+**Location**: Consolidated into parent gate document
+
+When a proposal completes:
+- Proposal status changes to `completed`
+- Individual proposal file is removed
+- Key information extracted and merged into gate's **Consolidated Proposals Summary**
+- Proposal hash remains queryable for reference
+
+**Access patterns**:
+```bash
+# View completed proposal details
+zeno proposal show #p01hash01
+
+# Check which proposals contributed to Gate 2
+# → Read zeno/gates/archive/gate-02-name.md, 
+#   see "Consolidated Proposals Summary" section
+
+# See all requirements linked to completed proposals
+zeno req list --gate gate-02
+# All show status 'tested'
+```
+
+### Solitary Proposals
+
+**Location**: 
+- Active: `zeno/proposals/solitary/YYYY-MM-DD-XX-name.md` (date-prefixed for chronological organization)
+- Completed: Consolidated into `zeno/gates/archive/solitary.md` with proposal file moved to `zeno/proposals/archive/solitary/`
+
+Solitary proposals represent cross-cutting or foundational work unrelated to specific gates:
+- Infrastructure improvements (ESLint upgrades, TypeScript strict mode enablement)
+- Documentation enhancements (README reorganization, troubleshooting guides)
+- Maintenance work (security updates, dependency upgrades)
+- Refactoring initiatives (code cleanup, architectural improvements)
+- Tooling additions (pre-commit hooks, testing frameworks)
+
+**Reading active solitary proposals**:
+```bash
+# List all active solitary proposals
+ls zeno/proposals/solitary/
+
+# View specific solitary proposal
+cat zeno/proposals/solitary/2026-01-15-01-eslint-upgrade.md
+```
+
+**Reading completed solitary proposals**:
+
+When a solitary proposal completes:
+1. Implementation summary is extracted (2-3 sentences describing what was accomplished)
+2. Entry is added to `zeno/gates/archive/solitary.md` under appropriate category
+3. Proposal file is moved to `zeno/proposals/archive/solitary/#hash.md`
+4. Completion date is recorded
+
+**Solitary Registry Structure** (`zeno/gates/archive/solitary.md`):
+
+```markdown
+# Solitary Proposals - Completed Work
+
+## [Category Name]
+
+### [Proposal Title] (#hash)
+**Completed**: YYYY-MM-DD
+
+High-level implementation: [2-3 sentence summary of what was accomplished]
+
+## Infrastructure
+
+### ESLint Configuration (#s20260115eslint)
+**Completed**: 2026-01-15
+
+High-level implementation: Updated ESLint to latest version with strict TypeScript rules, added pre-commit hooks to enforce linting on every commit.
+
+### TypeScript Strict Mode (#s20260120tsstrict)
+**Completed**: 2026-01-20
+
+High-level implementation: Enabled strict mode globally across project, fixed all type errors, updated tsconfig.json with strict compiler options.
+
+## Documentation
+
+### README Reorganization (#s20260125readme)
+**Completed**: 2026-01-25
+
+High-level implementation: Restructured README with architecture diagrams, quick start guide, and troubleshooting section for improved developer onboarding.
+
+## Security
+
+### Dependency Audit & Updates (#s20260201deps)
+**Completed**: 2026-02-01
+
+High-level implementation: Performed comprehensive npm audit, updated vulnerable packages, verified zero critical vulnerabilities, added pre-commit security scanning.
+```
+
+**Access patterns**:
+
+```bash
+# View solitary work registry
+cat zeno/gates/archive/solitary.md
+
+# Look up specific solitary proposal (even if completed)
+zeno proposal show #s20260115eslint
+# Returns: Title, category, completion date, high-level summary
+
+# Find related solitary work
+# → Search by category in zeno/gates/archive/solitary.md
+```
+
+**Key Differences from Gate-Tied Proposals**:
+- **Timing**: Can be initiated at any time, not constrained by gate sequence
+- **Scope**: Cross-cutting concerns vs. gate-specific deliverables
+- **Naming**: Date-prefixed (`YYYY-MM-DD-XX-name.md`) vs. gate-prefixed (`gate-XX/XX-name.md`)
+- **Consolidation**: Registry file (`solitary.md`) vs. gate document consolidation
+- **Categories**: Organized by work type (Infrastructure, Documentation, etc.) vs. by gate
+
+### Query Reference
+
+| What I Need | Command/Path | Notes |
+|------------|---|---|
+| Completed gate | `zeno gates show gate-02` | Auto-finds archived location |
+| Completed proposal | `zeno proposal show #p01hash01` | Resolved from archive |
+| Consolidated proposals for gate | `zeno/gates/archive/gate-XX-name.md` | See "Consolidated Proposals Summary" section |
+| Active solitary proposals | `ls zeno/proposals/solitary/` | Date-prefixed files |
+| Completed solitary work | `zeno/gates/archive/solitary.md` | Organized by category |
+| Lookup solitary proposal | `zeno proposal show #s20260115hash` | Works for active and completed |
+
+### Navigation Tips
+
+**When starting a new gate:**
+1. Run `zeno gates list` to see pending gates and current status
+2. For completed gates: `zeno gates show gate-XX` auto-finds archived location
+3. Review lessons learned: Read "Consolidated Proposals Summary" in archived gate
+4. Check dependencies: `zeno req deps #hash` shows what this gate's work depends on
+
+**When resuming after break:**
+1. Read `AGENTS.md` (this file) for quick orientation
+2. Run `zeno status` to see current project state
+3. If last gate was completed: Find it in `zeno/gates/archive/`
+4. Understand what led to current position via consolidated proposals
+5. Continue with next pending gate: `zeno gates start gate-XX`
 
 ---
 
@@ -265,72 +465,93 @@ Awaiting human review.
 |----------|-------------|----------|----------------------|
 | **Project Init** | `zeno init` | Analyze codebase, generate gates, create diagrams | Gate generation review |
 | **Gate Work** | `zeno gates start <id>` | Decompose requirements, update architecture, create proposals | Repository boundaries |
+| **Gate-Tied Proposals** | `zeno proposal list --gate <id>` | Generate gate-specific proposals, map requirements | Proposal approval |
+| **Solitary Proposals** | Manual creation or user request | Generate cross-cutting proposals (infrastructure, docs, maintenance) | Proposal approval |
 | **Implementation** | `zeno proposal validate <hash>` | Implement code, write tests, run checks | Proposal approval |
 | **Write-Time Analysis** | `zeno gates complete <id>` | Analyze code changes, store metrics, suggest regeneration | Analysis-based regeneration |
 | **Failure Handling** | Auto-replan with context | Parse errors, generate fixes, re-validate | - |
 | **Rescoping** | `zeno rescope` | Document changes, regenerate gates | - |
 | **Multi-Repo** | `zeno repos detect` | Calculate coupling, propose boundaries | Boundary approval |
 
-### Workflow 2: Working on a Gate
+### Workflow 2: Creating and Managing Proposals
+
+Proposals can be gate-tied or solitary (cross-cutting). Both follow the same approval and implementation workflow, but with different scoping:
+
+**Gate-Tied Proposals**:
+- Decomposed from gate PRD requirements
+- Located in `zeno/proposals/gate-XX/`
+- Mapped to specific requirements via hash
+- Dependencies tracked with earlier/later proposals
+
+**Solitary Proposals**:
+- Cross-cutting work (infrastructure, documentation, maintenance, refactoring, tooling)
+- Located in `zeno/proposals/solitary/YYYY-MM-DD-XX-name.md` (date-prefixed)
+- Requirements field is "n/a"
+- Can be initiated at any time, not constrained by gate sequence
+- Organized by category (Infrastructure, Documentation, Security, Maintenance, Refactoring, Tooling)
+
+**Workflow for Both Types**:
 
 ```bash
-# List available gates
-zeno gates list
+# 1. Create proposal(s) from gate PRD or solitary work item
+# For gate-tied: zeno proposal list --gate <id>
+# For solitary: Create in zeno/proposals/solitary/YYYY-MM-DD-XX-name.md
 
-# Select and start a gate
-zeno gates start <gate-id>
+# 2. Review proposal structure
+zeno proposal show <hash>
+# Verify: Hash, Status (pending), Summary, Tasks, Files Affected, Dependencies
 
-# System generates:
-# - Gate-specific requirements (from project reqs + gate objectives)
-# - Inherits applicable project-level requirements
+# 3. Implement (AI task)
+# - Write code
+# - Write tests
+# - Ensure 90%+ coverage
 
-### Workflow 3: Write-Time Analysis
+# 4. Validate proposal
+zeno proposal validate <hash>
+# Output:
+# Linting: PASSED
+# Type Check: PASSED
+# Tests: PASSED (24/24)
+# Coverage: 94.2% (threshold: 90%)
+# Security: 0 vulnerabilities
+# Dependencies: No conflicts
+# Status: Ready for approval
 
-Write-time analysis provides data-driven insights for greenfield projects by analyzing code changes when gates complete. This enables adaptive gate regeneration based on actual implementation metrics rather than theoretical decomposition.
+# 5. Human approval
+zeno proposal approve <hash>
+# Status: pending -> completed
+# System auto-commits with structured message
 
-```bash
-# Complete a gate with optional analysis
-zeno gates complete gate-01
-# Prompts: "Analyze code changes for this gate? (y/n)"
-# If yes: runs incremental analysis, shows metrics summary
-
-# Analysis output example:
-# Analysis complete (1250ms)
-# Files analyzed: 12
-# New metrics:
-#   - Coupling hotspots: 2
-#   - Average complexity: 4.2
-#   - Total LOC added: 847
-
-# Regenerate future gates based on analysis
-zeno gates regenerate --from-analysis
-# Shows suggested changes with confidence scores
-# Prompts: "Apply these gate regeneration suggestions? (y/n)"
+# 6. Archive (automatic on approval)
+# Gate-tied: Move to zeno/proposals/archive/gate-XX/#hash.md
+# Solitary: Move to zeno/proposals/archive/solitary/#hash.md
+#          Add entry to zeno/gates/archive/solitary.md with category and summary
 ```
 
-**When to Use Analysis**:
-- **After major architectural changes**: Detect coupling issues early
-- **Before starting complex gates**: Use metrics to adjust complexity estimates
-- **When implementation differs from plan**: Data-driven course correction
-- **For quality assurance**: Ensure code quality matches gate objectives
+**Solitary Consolidation**:
 
-**Interpreting Metrics**:
-- **High coupling (>3 hotspots)**: Consider refactoring or repository boundaries
-- **Complexity >8**: May need to split gate or add intermediate refactoring gate
-- **Low LOC growth**: Gates may be too granular, consider combining
-- **Circular dependencies**: Immediate architectural review required
+When solitary proposals complete, they're added to `zeno/gates/archive/solitary.md` with:
+- Category (Infrastructure, Documentation, Security, etc.)
+- Completion date
+- 2-3 sentence implementation summary
+- Hash reference for traceability
 
-**Decision Points**:
-- **Proceed with original plan**: When metrics align with expectations
-- **Apply regeneration**: When metrics reveal significant architectural issues
-- **Manual adjustment**: When analysis suggests changes but confidence is low
-- **Reject regeneration**: When human judgment overrides data insights
+This enables quick lookup by category, historical context for similar work, and understanding of accumulated improvements.
 
-**Analysis Informs Implementation**:
-- **Future gate complexity**: Adjust based on actual development velocity
-- **Repository boundaries**: Use coupling data for multi-repo decisions
-- **Testing strategy**: Higher complexity gates need more comprehensive testing
-- **Documentation needs**: Complex modules require more detailed docs
+### Workflow 3: Write-Time Analysis & Regeneration
+
+After completing gates, use write-time analysis to regenerate future gates based on actual metrics:
+
+```bash
+zeno gates complete gate-01
+# Prompts for optional analysis of code changes
+
+zeno gates regenerate
+# Uses analysis data (if available) to suggest gate adjustments
+# Falls back to theoretical decomposition if no analysis yet
+```
+
+**When to regenerate**: After each completed gate or when implementation diverges from plan. Uses coupling metrics, complexity analysis, and LOC growth to optimize gate sequencing. High coupling (>3 hotspots) or complexity >8 may require gate splitting or architectural review.
 
 ---
 
@@ -414,15 +635,12 @@ zeno registry rebuild               # Rebuild hash registry
 
 ## Best Practices
 
-**[Reference: Root AGENTS.md#best-practices]**
-
-Key practices for this project:
-- Use hash references internally, resolve to plain text for users
-- Check dependencies before implementation
-- Respect quality thresholds (90% coverage, 0 vulnerabilities, <0.01% lint errors)
-- Wait for human approval at key decision points
-- Reference architecture diagrams for context
-- Use structured commit messages
+See [root AGENTS.md](../AGENTS.md#best-practices) for comprehensive best practices. Key points for this project:
+- Hash references: internal tracking only; resolve to names for users
+- Always verify dependencies before implementation
+- Enforce quality thresholds (90% coverage, 0 vulns, <0.01% lint)
+- Wait for human approval at gates, boundaries, and proposals
+- Reference architecture diagrams for implementation context
 
 ---
 
@@ -433,7 +651,7 @@ Key practices for this project:
 | **Hash Not Found** | `zeno show <hash>` returns error | Run `zeno registry rebuild` |
 | **Dependency Conflict** | Proposal validation fails | Run `zeno proposal validate <hash>` to see conflicts |
 | **Quality Gate Failure** | Coverage <90%, security issues, lint errors | Add tests, fix security vulns, resolve lint issues |
-| **Gate Generation Issues** | Unexpected gate structure | Check `zeno/.zeno/config.json`, run `zeno gates regenerate --verbose` |
+| **Gate Generation Issues** | Unexpected gate structure | Check `zeno/.zeno/config.json`, complete a gate and run `zeno gates regenerate` |
 | **Multi-Repo Detection** | Incorrect boundaries, low confidence | Run `zeno repos adjust`, review coupling metrics |
 
 ---
@@ -508,12 +726,12 @@ zeno proposal show #a3f9c2d1
 # 6. Validate proposal
 zeno proposal validate #a3f9c2d1
 # Output:
-# ✓ Linting: PASSED
-# ✓ Type Check: PASSED
-# ✓ Tests: PASSED (24/24)
-# ✓ Coverage: 94.2% (threshold: 90%)
-# ✓ Security: 0 vulnerabilities
-# ✓ Dependencies: No conflicts
+# Linting: PASSED
+# Type Check: PASSED
+# Tests: PASSED (24/24)
+# Coverage: 94.2% (threshold: 90%)
+# Security: 0 vulnerabilities
+# Dependencies: No conflicts
 # Status: Ready for approval
 
 # 7. Human approval
@@ -537,89 +755,47 @@ zeno gates start gate-4
 
 ## AI Interaction Patterns
 
-### Pattern 1: Exploration
-```
-Human: "Show me the current gate status"
-AI: Runs `zeno gates list`, interprets output, explains progress
-```
+## AI Interaction Patterns
 
-### Pattern 2: Implementation
+### Gate-Tied Proposal Implementation
 ```
 Human: "Implement requirement #a3f9c2d1"
-AI: 
-1. Runs `zeno req show #a3f9c2d1`
-2. Reads acceptance criteria
-3. Generates code
-4. Writes tests (90%+ coverage)
-5. Runs `zeno proposal validate #a3f9c2d1`
-6. Reports results, waits for approval
+AI: (1) Read requirement (2) Generate proposal (3) Write code & tests (90%+ coverage) (4) Validate (5) Report
 ```
 
-### Pattern 3: Debugging
+### Solitary Proposal Creation & Approval
 ```
-Human: "Proposal #a3f9c2d1 failed validation"
-AI:
-1. Runs `zeno proposal show #a3f9c2d1`
-2. Reads error details
-3. Identifies root cause
-4. Proposes fix
-5. Regenerates proposal with context
-6. Re-validates
+Human: "Create proposal to upgrade ESLint"
+AI: (1) Create solitary proposal (2) Define tasks & files (3) Await approval
+Human: "Approve"
+AI: (1) Implement (2) Validate (3) Extract 2-3 sentence summary (4) Add to solitary.md registry
 ```
 
-### Pattern 4: Architecture Review
+### Architecture Review
 ```
-Human: "Explain the system architecture"
-AI:
-1. Reads `zeno/architecture/system-overview.md`
-2. Parses Mermaid diagram
-3. Explains layers and components
-4. References specific modules in src/
-5. Highlights key dependencies
+Human: "Explain system architecture"
+AI: (1) Read architecture diagram (2) Explain layers & components (3) Reference modules (4) Highlight dependencies
 ```
 
-### Pattern 5: Multi-Repo Planning
+### Multi-Repo Planning
 ```
-Human: "Should we split this into multiple repos?"
-AI:
-1. Runs `zeno analyze .`
-2. Reviews coupling metrics
-3. Runs `zeno repos detect`
-4. Presents boundary proposals with confidence scores
-5. Explains rationale
-6. Waits for human decision
+Human: "Should we split into multiple repos?"
+AI: (1) Analyze coupling (2) Detect boundaries (3) Present proposals with confidence scores (4) Wait for decision
 ```
 
 ---
 
 ## Summary
 
-Zeno's Planner provides a structured approach to project planning and execution with AI assistance:
+Zeno's Planner provides structured project planning with AI assistance:
+- **Gates** are concrete milestones moving toward the goal
+- **Hash references** reduce context size (internal use only)
+- **Quality gates** enforce 90% coverage, 0 vulns, <0.01% linting
+- **Human approval** at key decision points
+- **Architecture diagrams** provide visual system understanding
+- **Multi-repo support** with automated boundary detection
 
-1. **Gates** represent concrete project milestones that progressively move toward the goal
-2. **Hash-based references** reduce context size and enable cross-repo tracking (internal use only)
-3. **Quality gates** enforce 90% coverage, 0 security issues, <0.01% linting errors
-4. **Human approval** required at key decision points
-5. **Hybrid storage** uses SQLite for queries, files for human artifacts
-6. **Multi-repo support** with automated boundary detection
-7. **Replan engine** handles failures with context-aware regeneration
-8. **Architecture diagrams** provide visual system understanding
-
-### For AI Assistants
-- Use hash references internally for system commands; resolve to plain text names when communicating with users
-- Check dependencies before implementation
-- Respect quality thresholds
-- Wait for human approval
-- Provide context in replans
-- Reference architecture diagrams
-- Use structured commit messages
-
-### For Humans
-- Review generated gates for accuracy
-- Approve repository boundaries
-- Review and approve/reject proposals
-- Provide feedback on failures
-- Validate final gate completion
+For comprehensive guidance on tool usage, commands, and best practices, see [root AGENTS.md](../AGENTS.md).
 
 ---
 

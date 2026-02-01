@@ -404,12 +404,12 @@ zeno proposal show #a3f9c2d1
 # 6. Validate proposal
 zeno proposal validate #a3f9c2d1
 # Output:
-# ✓ Linting: PASSED
-# ✓ Type Check: PASSED
-# ✓ Tests: PASSED (24/24)
-# ✓ Coverage: 94.2% (threshold: 90%)
-# ✓ Security: 0 vulnerabilities
-# ✓ Dependencies: No conflicts
+# Linting: PASSED
+# Type Check: PASSED
+# Tests: PASSED (24/24)
+# Coverage: 94.2% (threshold: 90%)
+# Security: 0 vulnerabilities
+# Dependencies: No conflicts
 # Status: Ready for approval
 
 # 7. Human approval

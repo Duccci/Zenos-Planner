@@ -70,7 +70,7 @@ describe('Command Invoker', () => {
       await invokeCommand('gates_show', { gateId: 'gate-01' })
 
       expect(mockExecSync).toHaveBeenCalledWith(
-        'node bin/zeno.js gates show --gateId "gate-01"',
+        'node bin/zeno.js gates show --gate "gate-01"',
         expect.any(Object)
       )
     })

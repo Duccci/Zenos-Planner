@@ -5,18 +5,76 @@ agent: agent
 ---
 
 <!-- ZENO:START -->
+
 **Guardrails**
-- Do not write implementation code during gate generation. Only create gate PRDs and update project artifacts.
-- Gates represent concrete deliverables, not percentages or time estimates.
-- Refer to `zeno/AGENTS.md` for project conventions and `zeno/PROJECT_PRD.md` for end state.
-- Identify vague scope definitions and ask clarifying questions before generating gates.
-- Preserve completed gates during rebaseline; only regenerate pending/future gates.
-- Each gate must have measurable completion criteria and clear scope boundaries.
-- **Invoke status updates** when starting or completing gate operations.
-- **Requirements-first workflow**: Requirements are primarily defined at project inception (`zeno init`) before gate generation. Gates attribute existing requirements to gates. Requirements can be updated or added during rebaseline/rescope operations, but init is the primary source. Requirements are decomposed into tasks during proposal generation.
+
+- Create gate PRDs and update artifacts only; no implementation code
+- Gates are concrete deliverables, not percentages or time estimates
+- All gate objectives must have unchecked `[ ]` boxes; only completed gates have `[x]`
+- Requirements-first: defined at project inception; gates attribute existing requirements
+- Identify vague scopes and ask clarifying questions before proceeding
+- Review dependencies for context only; do not implement or pre-empt work that belongs to other proposals or later gates. Document incomplete dependencies and notify a human for clarification.
+
+**Functions**
+
+- `getTemplate('gate-prd-template')` - Load gate PRD structure
+- `getTemplatesByCategory(category)` - Get templates by type
+- `config_get()` - Get project configuration
+
+**Steps**
+Mark each step as in-progress, then completed immediately after finishing.
+
+1. **Determine mode** - New gates, rebaseline, or single gate update?
+2. **Gather context** - Read PROJECT_PRD.md and AGENTS.md; verify requirements exist
+3. **Analyze state** - For new: check codebase; for rebaseline: find anchor point
+4. **Define boundaries** - Decompose end state; 3-8 requirements per gate; clear dependencies. Treat dependencies as context only; do not implement or pre-empt later gates' work. If dependencies are incomplete, document them as blockers and notify a human for clarification.
+5. **Generate sequence** - Sequence, Name, Type, Dependencies, Objectives for each gate
+6. **Create PRD files** - Use template structure for `zeno/gates/gate-XX-name.md`
+7. **Handle rebaseline** - Create rescope gate if scope changed; archive deprecated gates
+8. **Update diagrams** - Update gate-roadmap.md; show parallel opportunities
+9. **Attribute requirements** - Map project requirements to gates; verify all attributed
+10. **Validate structure** - Verify hash, status, requirements, no circular dependencies
+11. **Output summary** - Show gate sequence, dependencies, end state
+
+**Status Reference**
+
+- Gate: pending, in_progress, completed, rejected
+- Requirement: pending, implemented, tested
+- Proposal: pending, in_progress, completed, rejected
+
+**Reference**
+
+- `zeno/PROJECT_PRD.md` - End state definition
+- `zeno/AGENTS.md` - Project conventions
+- `zeno/architecture/gate-roadmap.md` - Visualization
+- `zeno req list --project` - Verify requirements exist
+<!-- ZENO:END -->
+
+**Template Functions Available**
+
+Use these functions to retrieve templates and configuration during gate generation:
+
+- **getTemplate(name)**: Load a single template by name
+  - Usage: `getTemplate('gate-prd-template')` when generating gate PRDs
+  - Returns: Promise<string> containing template content
+
+- **getTemplatesByCategory(category)**: Get all templates of a specific type
+  - Usage: `getTemplatesByCategory('markdown')` to get all markdown templates
+  - Categories: 'markdown' | 'architecture'
+
+- **config_get()**: Get project configuration values
+  - Usage: Access quality thresholds and project settings during gate planning
+  - Returns: Promise<ZenoConfig> containing all configuration values
+
+For gate generation, you'll typically use:
+
+- `getTemplate('gate-prd-template')` - Load the gate PRD structure template
+- `config_get()` - Access quality thresholds for gate requirements
+- Reference this template's structure when creating `zeno/gates/gate-XX-name.md` files
 
 **Steps**
 Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
+
 - **Create TODO list with workflow steps** (listed below)
 - **Mark each workflow step as in-progress when you begin, and mark it completed IMMEDIATELY after finishing**
 - **Do not batch completions** - mark items completed as soon as they are done
@@ -68,6 +126,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 5. **Generate gate sequence**
    For each gate, determine:
+
    ```
    Sequence: [N of Total]
    Name: [Descriptive, action-oriented name]
@@ -83,49 +142,27 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
    - `rescope`: Documents scope change (auto-generated during rebaseline)
 
 6. **Create gate PRD files**
-   For each gate, create `zeno/gates/gate-XX-name.md` using the template structure from `templates/md-templates/gate-prd-template.md`:
+   For each gate, create `zeno/gates/gate-XX-name.md` using the template structure. **Invoke**: `getTemplate('gate-prd-template')` to load the gate PRD structure:
 
-   ```markdown
-   # Gate [XX]: [Gate Name]
+   The template includes these sections:
+   - # Gate [XX]: [Gate Name]
+   - **Status**, **Type**, **Created**, **Sequence**, **Hash**
+   - ## Overview
+   - ## Objectives (with unchecked [ ] checkboxes)
+   - ## Context
+   - ## Requirements (attribute existing requirements by hash)
+   - ## Technical Decisions
+   - ## Architecture Updates
+   - ## Dependencies
+   - ## Implementation Steps
+   - ## Gate Completion Criteria
 
-   **Status**: pending  
-   **Type**: [feature | quality | rescope]  
-   **Created**: [DATE]  
-   **Sequence**: [X of Y]  
-   **Hash**: #g[XX][abbrev]
-
-   ## Overview
-   [2-3 sentences: what this gate accomplishes]
-
-   ## Objectives
-   - [ ] [Measurable objective 1]
-   - [ ] [Measurable objective 2]
-
-   ## Context
-   [What was completed before, what this enables, scope boundaries]
-
-   ## Requirements
-   [Table of attributed requirements with hashes, names, types, priorities, status]
-
-   ## Technical Decisions
-   [Gate-specific choices]
-
-   ## Architecture Updates
-   [Components to create/modify]
-
-   ## Dependencies
-   [Depends on/blocks other gates]
-
-   ## Implementation Steps
-   [3-6 ordered steps]
-
-   ## Gate Completion Criteria
-   [Measurable completion criteria]
-   ```
+   Generate gates following this structure with proper formatting and all objectives unchecked.
 
 7. **Handle rebaseline-specific artifacts**
    If rebaselining:
    - Create a **rescope gate** to document the change:
+
      ```markdown
      # Gate [XX]: Rescope - [Reason]
 
@@ -134,20 +171,25 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
      **Created**: [DATE]
 
      ## Rescope Summary
+
      - **Previous End State**: [Old goal]
      - **New End State**: [Updated goal]
      - **Reason**: [Why the change]
      - **Impact**: [Gates affected]
 
      ## Preserved Gates
+
      [List gates that remain unchanged]
 
      ## Regenerated Gates
+
      [List gates that were regenerated]
 
      ## Deprecated Gates
+
      [List gates that were removed]
      ```
+
    - Archive deprecated gate files to `.local/deprecated-gates/`
    - Update `zeno/PROJECT_PRD.md` with new end state if changed
 
@@ -159,7 +201,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 9. **Attribute requirements to gates**
    **PRIMARY SOURCE**: Requirements are primarily defined at project inception (`zeno init`). This step attributes existing requirements to gates.
-   
+
    For each gate:
    - **Query existing project-level requirements** via `zeno req list --project`
    - **Map requirements to gates** based on:
@@ -176,14 +218,14 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
      - Document requirement changes in rescope gate
    - **Document in gate PRD**: List attributed requirements with their hashes
    - **Note**: Requirements are decomposed into individual tasks during proposal generation (`/zeno-proposal`), not during gate generation
-   
+
    **If requirements don't exist for new projects**: STOP gate generation and inform user that requirements should be defined first at project inception (`zeno init`).
 
 10. **Validate gate structure**
     - Each gate has: Hash, Status (`pending`), Objectives, Requirements table, Dependencies
     - **Each gate has at least one attributed requirement** (verify via `zeno req list --gate <id>`)
     - All attributed requirements exist in database (no orphaned references)
-    - Dependencies form a DAG (no circular references)
+    - Dependencies form a DAG (no circular references). Verify dependencies for correctness and context, but do not implement or modify dependent proposals' work. If dependencies point to future or external work, document them as blockers and notify a human for guidance.
     - Sequence numbers are contiguous
     - First gate has no dependencies (or only external)
     - Final gate achieves end state
@@ -191,6 +233,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 11. **Summary output**
     After generating gates, provide:
+
     ```
     Generated/Updated X gates:
 
@@ -218,29 +261,30 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 
 **Status Values Reference**
 
-| Entity | Status Values | Notes |
-|--------|---------------|-------|
-| Gate | pending, in_progress, completed, rejected | Set by `zeno gates start/complete` |
-| Requirement | pending, implemented, tested | Set by `zeno req status` |
-| Proposal | pending, in_progress, completed, rejected | Set by `zeno proposal start/approve/reject` |
+| Entity      | Status Values                             | Notes                                       |
+| ----------- | ----------------------------------------- | ------------------------------------------- |
+| Gate        | pending, in_progress, completed, rejected | Set by `zeno gates start/complete`          |
+| Requirement | pending, implemented, tested              | Set by `zeno req status`                    |
+| Proposal    | pending, in_progress, completed, rejected | Set by `zeno proposal start/approve/reject` |
 
 **Rebaseline Scenarios**
 
-| Scenario | Action |
-|----------|--------|
-| Scope expansion | Add new gates after existing sequence |
-| Scope reduction | Mark gates as `rejected` or remove, create rescope gate |
-| Pivot/redirect | Create rescope gate, regenerate from current position |
-| Mid-gate change | Complete or reject current gate, then rebaseline |
-| Dependency change | Update `depends_on` fields, verify DAG validity |
+| Scenario          | Action                                                  |
+| ----------------- | ------------------------------------------------------- |
+| Scope expansion   | Add new gates after existing sequence                   |
+| Scope reduction   | Mark gates as `rejected` or remove, create rescope gate |
+| Pivot/redirect    | Create rescope gate, regenerate from current position   |
+| Mid-gate change   | Complete or reject current gate, then rebaseline        |
+| Dependency change | Update `depends_on` fields, verify DAG validity         |
 
 **Requirements-First Workflow**
 
 Requirements are primarily defined at project inception (`zeno init`) before gates. Gates attribute existing requirements to gates. Requirements can be updated during rebaseline but init is the primary source. Requirements are decomposed into tasks during proposal generation.
 
 **Reference**
+
 - Use `zeno/PROJECT_PRD.md` for end state and project scope.
-- Use `templates/md-templates/gate-prd-template.md` for structural reference (exclude HTML comments from generated gates).
+- Use Template Function `getTemplate('gate-prd-template')` to load gate PRD structure.
 - Use `zeno/architecture/gate-roadmap.md` to visualize gate sequence.
 - Consult completed gates in `zeno/gates/` to maintain consistency.
 - Review `zeno/AGENTS.md` for project conventions.

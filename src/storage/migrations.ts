@@ -8,6 +8,7 @@
 import Database from 'better-sqlite3'
 import { readFile } from '../utils/file.js'
 import { DatabaseError } from '../utils/errors.js'
+import { findProjectRoot } from '../utils/config.js'
 import { join } from 'node:path'
 import { readdir } from 'node:fs/promises'
 
@@ -59,7 +60,11 @@ export function getAppliedMigrations(db: Database.Database): Migration[] {
  * @returns Array of migration file names sorted by ID
  */
 async function getMigrationFiles(projectRoot: string): Promise<string[]> {
-  const migrationsDir = join(projectRoot, 'src', 'storage', 'migrations')
+  // Resolve project root (use findProjectRoot when possible) so the migrations
+  // directory is located correctly even if the current working directory is
+  // not the repository root (e.g., background jobs or different spawn points).
+  const projectRootResolved = findProjectRoot(projectRoot) ?? projectRoot
+  const migrationsDir = join(projectRootResolved, 'src', 'storage', 'migrations')
 
   try {
     const files = await readdir(migrationsDir)

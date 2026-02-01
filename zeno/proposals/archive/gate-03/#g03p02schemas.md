@@ -87,7 +87,7 @@ Define Zod schemas for requirement operations:
 - `req_list`: input (optional gateId, optional type), output (Requirement array with metadata)
 - `req_show`: input (hash or id), output (RequirementDetails with parent, children, status)
 - `req_deps`: input (hash), output (DependencyGraph with requirements and gates)
-- `req_status`: input (hash, newStatus), output (status update confirmation)
+- `req_transfer`: input (hash, targetGateId), output (transfer confirmation)
 - `req_transfer`: input (hash, targetGateId), output (transfer confirmation)
 
 **Acceptance**:

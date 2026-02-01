@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { completeGate } from '../../src/core/completions.js';
 import { analyzeGateChanges } from '../../src/core/write-time-analyzer.js';
-import { regenerateGatesFromAnalysis } from '../../src/core/gate-generator.js';
+import { regenerateGatesWithAnalysis } from '../../src/core/gate-generator.js';
 import { getDatabase } from '../../src/storage/database.js';
 
 // Mock all external dependencies
@@ -35,7 +35,7 @@ vi.mock('../../src/core/gate-generator.js');
 describe('Gate Completion Analysis Integration', () => {
   let mockDb: any;
   let mockAnalyzeGateChanges: any;
-  let mockRegenerateGatesFromAnalysis: any;
+  let mockRegenerateGatesWithAnalysis: any;
 
   beforeEach(() => {
     // Setup mocks
@@ -53,11 +53,11 @@ describe('Gate Completion Analysis Integration', () => {
     };
 
     mockAnalyzeGateChanges = vi.fn();
-    mockRegenerateGatesFromAnalysis = vi.fn();
+    mockRegenerateGatesWithAnalysis = vi.fn();
 
     vi.mocked(getDatabase).mockReturnValue(mockDb);
     vi.mocked(analyzeGateChanges).mockImplementation(mockAnalyzeGateChanges);
-    vi.mocked(regenerateGatesFromAnalysis).mockImplementation(mockRegenerateGatesFromAnalysis);
+    vi.mocked(regenerateGatesWithAnalysis).mockImplementation(mockRegenerateGatesWithAnalysis);
   });
 
   afterEach(() => {
@@ -80,7 +80,7 @@ describe('Gate Completion Analysis Integration', () => {
       });
 
       // Mock regeneration suggestions
-      mockRegenerateGatesFromAnalysis.mockReturnValue({
+      mockRegenerateGatesWithAnalysis.mockReturnValue({
         originalGates: [
           { id: 'gate-02', name: 'API Layer', estimatedComplexity: 25 }
         ],
@@ -160,7 +160,7 @@ describe('Gate Completion Analysis Integration', () => {
 
   describe('Analysis-Driven Gate Regeneration', () => {
     it('should suggest gate modifications based on coupling hotspots', async () => {
-      mockRegenerateGatesFromAnalysis.mockReturnValue({
+      mockRegenerateGatesWithAnalysis.mockReturnValue({
         originalGates: [
           { id: 'gate-03', name: 'Business Logic', estimatedComplexity: 30 }
         ],
@@ -177,7 +177,7 @@ describe('Gate Completion Analysis Integration', () => {
         reasoning: 'Detected high coupling in auth.ts with 0.85 confidence'
       });
 
-      const suggestions = regenerateGatesFromAnalysis('gate-02');
+      const suggestions = regenerateGatesWithAnalysis('gate-02');
 
       expect(suggestions.changes).toHaveLength(1);
       expect(suggestions.changes[0].type).toBe('add');
@@ -186,7 +186,7 @@ describe('Gate Completion Analysis Integration', () => {
     });
 
     it('should suggest combining gates when complexity is low', async () => {
-      mockRegenerateGatesFromAnalysis.mockReturnValue({
+      mockRegenerateGatesWithAnalysis.mockReturnValue({
         originalGates: [
           { id: 'gate-03', name: 'Feature A', estimatedComplexity: 8 },
           { id: 'gate-04', name: 'Feature B', estimatedComplexity: 7 }
@@ -203,7 +203,7 @@ describe('Gate Completion Analysis Integration', () => {
         reasoning: 'Average gate complexity 7.5 is below efficiency threshold'
       });
 
-      const suggestions = regenerateGatesFromAnalysis('gate-02');
+      const suggestions = regenerateGatesWithAnalysis('gate-02');
 
       expect(suggestions.changes[0].type).toBe('modify');
       expect(suggestions.changes[0].reason).toContain('combining');
@@ -211,7 +211,7 @@ describe('Gate Completion Analysis Integration', () => {
     });
 
     it('should handle no changes needed scenario', async () => {
-      mockRegenerateGatesFromAnalysis.mockReturnValue({
+      mockRegenerateGatesWithAnalysis.mockReturnValue({
         originalGates: [
           { id: 'gate-03', name: 'Well-Structured Feature', estimatedComplexity: 22 }
         ],
@@ -222,7 +222,7 @@ describe('Gate Completion Analysis Integration', () => {
         reasoning: 'All metrics within acceptable ranges'
       });
 
-      const suggestions = regenerateGatesFromAnalysis('gate-02');
+      const suggestions = regenerateGatesWithAnalysis('gate-02');
 
       expect(suggestions.changes).toHaveLength(0);
       expect(suggestions.reasoning).toContain('acceptable ranges');
@@ -247,7 +247,7 @@ describe('Gate Completion Analysis Integration', () => {
       await completeGate('gate-01');
 
       // Gate 2: API Layer (with regeneration based on Gate 1 analysis)
-      mockRegenerateGatesFromAnalysis.mockReturnValue({
+      mockRegenerateGatesWithAnalysis.mockReturnValue({
         originalGates: [{ id: 'gate-02', name: 'API Layer', estimatedComplexity: 25 }],
         suggestedGates: [{ id: 'gate-02', name: 'API Layer', estimatedComplexity: 28 }],
         changes: [{
@@ -275,7 +275,7 @@ describe('Gate Completion Analysis Integration', () => {
 
       // Verify workflow completed successfully
       expect(mockAnalyzeGateChanges).toHaveBeenCalledTimes(2);
-      expect(mockRegenerateGatesFromAnalysis).toHaveBeenCalledTimes(2);
+      expect(mockRegenerateGatesWithAnalysis).toHaveBeenCalledTimes(2);
     });
   });
 });

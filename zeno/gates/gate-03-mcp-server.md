@@ -30,7 +30,7 @@ Transforms Zeno from a CLI-centric tool to an LLM-native system by implementing 
 
 ### MCP Tool Implementations
 - [ ] Expose gate management functions as MCP tools (`gates_start`, `gates_complete`, `gates_list`, `gates_show`)
-- [ ] Expose requirement management functions as MCP tools (`req_list`, `req_show`, `req_deps`, `req_status`, `req_transfer`)
+- [ ] Expose requirement management functions as MCP tools (`req_list`, `req_show`, `req_deps`, `req_transfer`)
 - [ ] Expose proposal functions as MCP tools (`proposal_list`, `proposal_show`, `proposal_validate`, `proposal_approve`, `proposal_reject`)
 - [ ] Expose repository functions as MCP tools (`repos_list`, `repos_deps`, `repos_detect`)
 - [ ] Expose analysis functions as MCP tools (`analyze`, `show_entity`)
@@ -102,8 +102,8 @@ This gate requires two solitary proposals to be completed before starting:
 |----------|--------|----------|
 | #g03p01registry | completed | 2026-01-31 |
 | #g03p02schemas | completed | 2026-01-31 |
-| #g03p03server | pending | - |
-| #g03p04tools | pending | - |
+| #g03p03server | completed | 2026-01-31 |
+| #g03p04tools | completed | - |
 | #g03p05vscode | pending | - |
 | #g03p06diagnostics | pending | - |
 | #g03p07testing | pending | - |
@@ -127,7 +127,7 @@ This gate enables the four prompt workflows defined in `.github/prompts/`:
 Each workflow is backed by MCP tools that handle actual state changes, with LLMs orchestrating the steps. This separates presentation logic (prompts) from execution logic (MCP tools), enabling prompt reuse across different LLM instances.
 
 **Specific Gate Dependencies:**
-- **Gate 4 (Requirements & Database Layer)**: LLMs invoke `req_list`, `req_show`, `req_status` via MCP tools
+- **Gate 4 (Requirements & Database Layer)**: LLMs invoke `req_list`, `req_show`, `req_deps`, `req_transfer` via MCP tools
 - **Gate 5 (Architecture & Diagram Generation)**: LLMs discover architecture functions through MCP tool picker
 - **Gate 7+ (Proposal Generation & Implementation)**: All proposal workflows use MCP tools as backend
 - **Gate 6 (Multi-Repo Detection)**: Repository functions available as typed tools
@@ -251,7 +251,7 @@ This gate addresses the following cross-cutting architectural requirements from 
   - Allows prompt updates without touching backend code
   - Each prompt can use different tool subsets and calling patterns without affecting implementation
 - **Workflow Examples**:
-  - `/zeno-apply`: Uses `proposal_show`, `req_status`, `proposal_validate` tools for state management
+  - `/zeno-apply`: Uses `proposal_show`, `proposal_validate` (requirement lifecycle is recorded via proposal approvals and gate archival) for state management
   - `/zeno-gate`: Uses `getTemplate`, `config_get`, requirement attribution tools for generation
   - `/zeno-proposal`: Uses `getTemplate`, `req_deps` tools for decomposition
   - `/zeno-archive`: Uses `gates_show`, `proposal_list`, git-integration tools for consolidation
@@ -275,7 +275,7 @@ This gate addresses the following cross-cutting architectural requirements from 
 │  ┌─────────────────────────────────────────────────────────────┐│
 │  │ Tool Definitions (with Zod schemas)                        ││
 │  │  ├─ gates_start, gates_complete, gates_list, gates_show   ││
-│  │  ├─ req_list, req_show, req_deps, req_status, req_transfer││
+│  │  ├─ req_list, req_show, req_deps, req_transfer││
 │  │  ├─ proposal_list, proposal_show, proposal_validate, ... ││
 │  │  ├─ repos_list, repos_deps, repos_detect                 ││
 │  │  └─ analyze, show_entity, status, init, rescope, ...     ││
@@ -349,7 +349,7 @@ User → LLM (with prompt guardrails) → MCP Tool Calls → State Changes → R
 1. **`/zeno-apply` - Proposal Implementation**
    - Reads proposal details via `proposal_show`, `req_show` tools
    - Manages task execution lifecycle with progress tracking
-   - Updates requirement status via `req_status` tool for each task
+   - Requirement lifecycle is recorded via proposal approvals and gate archival (no DB status)
    - Validates work via `proposal_validate` tool
    - Commits changes to git (using git integration MCP tools)
    - Archives completed proposal via archive workflow
@@ -380,7 +380,7 @@ User → LLM (with prompt guardrails) → MCP Tool Calls → State Changes → R
 
 | Workflow | Required MCP Tools | Template Functions |
 |----------|-------------------|------------------|
-| apply | proposal_show, req_status, proposal_validate, req_show | manage_todo_list (external) |
+| apply | proposal_show, proposal_validate, req_show | manage_todo_list (external - AVOID if triggers git operations) |
 | gate | req_list, config_get | getTemplate, getTemplatesByCategory |
 | proposal | gates_show, req_deps, proposal creation | getTemplate, getTemplatesByCategory |
 | archive | gates_show, proposal_list, git operations | config_get |
