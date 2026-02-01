@@ -263,6 +263,11 @@ export async function syncWithGit(options: {
   tagName?: string
   tagMessage?: string
   autoPush?: boolean
+  /**
+   * When true, push failures during lifecycle operations (e.g., archive) are
+   * treated as non-fatal and will not reject the overall sync operation.
+   */
+  ignorePushFailure?: boolean
   remote?: string
   dir?: string
 }): Promise<GitSyncResult> {
@@ -287,8 +292,29 @@ export async function syncWithGit(options: {
 
   let pushed = false
   if (options.autoPush) {
-    await pushCurrentBranch(options.remote ?? 'origin', dir)
-    pushed = true
+    try {
+      await pushCurrentBranch(options.remote ?? 'origin', dir)
+      pushed = true
+    } catch (error) {
+      // If caller explicitly requested that push failures be non-fatal,
+      // swallow the push error and continue. Otherwise, surface it.
+      if (options.ignorePushFailure) {
+        // Log the failure for diagnostics but do not fail the archive flow.
+        // Use console.warn to avoid introducing additional runtime deps.
+        // The caller (archive workflow) is expected to surface the warning to the user if needed.
+        // eslint-disable-next-line no-console
+        console.warn('Push failed but `ignorePushFailure` is true; continuing archive. Error:', error)
+        pushed = false
+      } else {
+        if (error instanceof GitError) throw error
+        throw new GitError(
+          'Failed to push current branch',
+          'GIT_PUSH_FAILED',
+          { dir, remote: options.remote ?? 'origin' },
+          error instanceof Error ? error : undefined
+        )
+      }
+    }
   }
 
   return { committed: true, commitHash, tagged, pushed }

@@ -12,6 +12,7 @@ import {
   commit,
   createTag,
   getTags,
+  pushCurrentBranch,
   syncWithGit,
 } from '../../src/utils/git.js'
 
@@ -319,6 +320,58 @@ describe('git utilities', () => {
       expect(result.committed).toBe(false)
       expect(result.tagged).toBe(false)
       expect(result.pushed).toBe(false)
+    })
+
+    it('continues when push fails and ignorePushFailure is true', async () => {
+      const git = simpleGit(TEST_DIR)
+      await git.init()
+      await git.addConfig('user.email', 'test@example.com')
+      await git.addConfig('user.name', 'Test User')
+
+      // Create a dirty working tree
+      await writeFile(join(TEST_DIR, 'file.txt'), 'content', 'utf-8')
+
+      // Simulate push failure
+      const spy = vi.spyOn(await import('../../src/utils/git.js'), 'pushCurrentBranch')
+      spy.mockRejectedValue(new Error('remote denied access'))
+
+      const result = await syncWithGit({
+        commitMessage: 'Archive commit',
+        autoPush: true,
+        ignorePushFailure: true,
+        dir: TEST_DIR,
+      })
+
+      expect(result.committed).toBe(true)
+      // push failed but was ignored
+      expect(result.pushed).toBe(false)
+
+      spy.mockRestore()
+    })
+
+    it('throws when push fails and ignorePushFailure is false', async () => {
+      const git = simpleGit(TEST_DIR)
+      await git.init()
+      await git.addConfig('user.email', 'test@example.com')
+      await git.addConfig('user.name', 'Test User')
+
+      // Create a dirty working tree
+      await writeFile(join(TEST_DIR, 'file.txt'), 'content', 'utf-8')
+
+      // Simulate push failure
+      const spy = vi.spyOn(await import('../../src/utils/git.js'), 'pushCurrentBranch')
+      spy.mockRejectedValue(new Error('remote denied access'))
+
+      await expect(async () =>
+        await syncWithGit({
+          commitMessage: 'Archive commit',
+          autoPush: true,
+          ignorePushFailure: false,
+          dir: TEST_DIR,
+        })
+      ).rejects.toThrow()
+
+      spy.mockRestore()
     })
   })
 })
