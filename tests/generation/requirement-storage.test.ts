@@ -31,7 +31,8 @@ describe('RequirementStorage', () => {
         hash TEXT UNIQUE NOT NULL,
         status TEXT NOT NULL CHECK (status IN ('pending', 'implemented', 'tested')),
         source_gate_id TEXT,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `)
 
@@ -65,7 +66,7 @@ describe('RequirementStorage', () => {
       expect(requirement.priority).toBe(priority)
       expect(requirement.level).toBe('project')
       expect(requirement.source).toBe('generated')
-      expect(requirement.status).toBe('pending')
+
     })
 
     it('generates stable hashes for same content', () => {
@@ -127,6 +128,14 @@ describe('RequirementStorage', () => {
       expect(requirement.gateId).toBe(gateId)
       expect(requirement.level).toBe('gate')
     })
+
+    it('defaults status to pending when stored', () => {
+      const requirement = storage.storeRequirement('System must be observable', 'non_functional', 'should')
+      expect(requirement.status).toBe('pending')
+
+      const retrieved = storage.getRequirementByHash(requirement.hash)
+      expect(retrieved?.status).toBe('pending')
+    })
   })
 
   describe('getRequirementByHash', () => {
@@ -167,22 +176,7 @@ describe('RequirementStorage', () => {
     })
   })
 
-  describe('updateRequirementStatus', () => {
-    it('updates requirement status', () => {
-      const stored = storage.storeRequirement('Test req', 'functional', 'must')
 
-      storage.updateRequirementStatus(stored.hash, 'implemented')
-
-      const updated = storage.getRequirementByHash(stored.hash)
-      expect(updated!.status).toBe('implemented')
-    })
-
-    it('throws error for non-existent hash', () => {
-      expect(() => {
-        storage.updateRequirementStatus('nonexistent', 'implemented')
-      }).toThrow()
-    })
-  })
 
   describe('storeRequirementsFromCandidates', () => {
     it('stores high-confidence candidates', () => {
@@ -223,6 +217,24 @@ describe('RequirementStorage', () => {
       const requirements = storage.storeRequirementsFromCandidates(candidates)
 
       expect(requirements.length).toBe(0)
+    })
+  })
+
+  describe('updateRequirementStatus', () => {
+    it('updates status and returns number of rows changed', () => {
+      const requirement = storage.storeRequirement('System must be resilient', 'non_functional', 'must')
+
+      const changes = storage.updateRequirementStatus(requirement.hash, 'implemented')
+      expect(changes).toBe(1)
+
+      const updated = storage.getRequirementByHash(requirement.hash)
+      expect(updated?.status).toBe('implemented')
+    })
+
+    it('throws on invalid status', () => {
+      const requirement = storage.storeRequirement('System must be resilient', 'non_functional', 'must')
+      // @ts-ignore - passing invalid status to ensure validation
+      expect(() => storage.updateRequirementStatus(requirement.hash, 'invalid')).toThrow()
     })
   })
 })

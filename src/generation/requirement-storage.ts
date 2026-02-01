@@ -34,10 +34,15 @@ interface RequirementRow {
   status: string
   source_gate_id: string | null
   created_at: string
+  updated_at?: string | null
 }
 
 /**
  * Requirement storage operations
+ *
+ * NOTE: Database schema migrations that remove the `status` column and perform
+ * cleanup (e.g., `hash_registry` reconciliation) are scheduled for execution
+ * during Gate 04 as the authoritative cleanup step for requirements ASoT.
  */
 export class RequirementStorage {
   private db: Database.Database
@@ -105,7 +110,7 @@ export class RequirementStorage {
         description.trim(),
         acceptanceCriteria?.trim() ?? null,
         hash,
-        'pending', // Default status
+        'pending',
         now
       )
 
@@ -176,14 +181,15 @@ export class RequirementStorage {
    */
   getRequirementByHash(hash: string): Requirement | null {
     try {
-      const stmt = this.db.prepare(`
+      const query = `
         SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
                level, source, description, acceptance_criteria, hash, status,
                source_gate_id, created_at
         FROM requirements
         WHERE hash = ?
-      `)
+      `
 
+      const stmt = this.db.prepare(query)
       const row = stmt.get(hash) as RequirementRow | undefined
       if (!row) return null
 
@@ -199,7 +205,7 @@ export class RequirementStorage {
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status as RequirementStatus,
+        status: row.status,
         sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }
@@ -220,7 +226,7 @@ export class RequirementStorage {
     try {
       let query = `
         SELECT r.id, r.gate_id, r.parent_id, r.project_requirement_id, r.type, r.priority,
-               r.level, r.source, r.description, r.acceptance_criteria, r.hash, r.status,
+               r.level, r.source, r.description, r.acceptance_criteria, r.hash,
                r.source_gate_id, r.created_at
         FROM requirements r
         WHERE r.level = 'project'
@@ -249,7 +255,7 @@ export class RequirementStorage {
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status as RequirementStatus,
+        status: row.status,
         sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }))
@@ -264,21 +270,33 @@ export class RequirementStorage {
   }
 
   /**
-   * Update requirement status
+   * Update a requirement's status (pending -> implemented -> tested)
    */
-  updateRequirementStatus(hash: string, status: RequirementStatus): void {
+  updateRequirementStatus(hash: string, status: RequirementStatus): number {
     try {
-      const stmt = this.db.prepare(`
-        UPDATE requirements
-        SET status = ?
-        WHERE hash = ?
-      `)
-
-      const result = stmt.run(status, hash)
-      if (result.changes === 0) {
-        throw new Error(`Requirement with hash ${hash} not found`)
+      const allowed = ['pending', 'implemented', 'tested']
+      if (!allowed.includes(status)) {
+        throw new DatabaseError(
+          `Invalid status: ${status}`,
+          'DB_INVALID_STATUS',
+          { status }
+        )
       }
+
+      const stmt = this.db.prepare(`UPDATE requirements SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE hash = ?`)
+      const result = stmt.run(status, hash)
+
+      if (result.changes === 0) {
+        throw new DatabaseError(
+          'Failed to update requirement status: no rows updated',
+          'DB_REQUIREMENT_UPDATE_FAILED',
+          { hash, status }
+        )
+      }
+
+      return result.changes
     } catch (error) {
+      if (error instanceof DatabaseError) throw error
       throw new DatabaseError(
         'Failed to update requirement status',
         'DB_REQUIREMENT_UPDATE_FAILED',
@@ -287,6 +305,8 @@ export class RequirementStorage {
       )
     }
   }
+
+
 
   /**
    * Delete requirement by hash
