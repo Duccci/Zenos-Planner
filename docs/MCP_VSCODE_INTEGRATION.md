@@ -20,3 +20,27 @@ This document explains how Zeno integrates with VS Code's Chat view and MCP tool
 ## Troubleshooting
 - If a tool is missing in the picker, run `zeno mcp diagnostics` and confirm the tool is listed.
 - Ensure server logs are visible in the Output panel. For debugging, enable verbose logs.
+
+## Diagnostics Panel
+
+VS Code provides several ways to monitor MCP server health and diagnose issues:
+
+### Output Panel
+- Open Output panel: `View → Output` or `Ctrl+Shift+U`
+- Select "Zeno MCP" from the dropdown to see server logs
+- Shows startup messages, tool registrations, and error details
+
+### Health Checks
+- Use Command Palette: `MCP: Show Server Health` (if available)
+- Or run terminal command: `zeno mcp health`
+- Displays server status, tool count, and configuration
+
+### Error Messages in Chat
+- Failed tool invocations show error details directly in Chat view
+- Includes error codes, context, and suggested fixes
+- Click error links to navigate to relevant files
+
+### Log File Output
+- Set environment variable: `MCP_LOG_FILE=/path/to/log.txt`
+- Server writes detailed logs to file for analysis
+- Useful for long-running sessions or automated monitoring

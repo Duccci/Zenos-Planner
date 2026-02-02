@@ -94,12 +94,14 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
     const rowPattern = /^\|\s*(#\w+)\s*\|\s*(blocks|requires)\s*\|\s*([^\|]+)\|/gim
     let m: RegExpExecArray | null
     while ((m = rowPattern.exec(depsSection)) !== null) {
-      const depHash = m[1].trim()
-      const depType = m[2].toLowerCase()
-      const depDesc = m[3].trim()
-      const entry = { hash: depHash, description: depDesc }
-      if (depType === 'blocks') dependencies.blocks.push(entry)
-      else if (depType === 'requires') dependencies.requires.push(entry)
+      const depHash = m[1]?.trim()
+      const depType = m[2]?.toLowerCase()
+      const depDesc = m[3]?.trim()
+      if (depHash && depType && depDesc) {
+        const entry = { hash: depHash, description: depDesc }
+        if (depType === 'blocks') dependencies.blocks.push(entry)
+        else if (depType === 'requires') dependencies.requires.push(entry)
+      }
     }
 
     // Fallback: if nothing matched, try a more permissive row extraction (handles edge cases)
@@ -129,8 +131,8 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
           const typeMatch = /(blocks|requires)/i.exec(line)
           const descMatch = /\|[^|]+\|[^|]+\|([^|]+)\|?/.exec(line)
           if (hashMatch && typeMatch) {
-            const entry = { hash: hashMatch[1].trim(), description: descMatch?.[1]?.trim() ?? '' }
-            const t = typeMatch[1].toLowerCase()
+            const entry = { hash: hashMatch[1]?.trim() ?? '', description: descMatch?.[1]?.trim() ?? '' }
+            const t = typeMatch[1]?.toLowerCase()
             if (t === 'blocks') dependencies.blocks.push(entry)
             else if (t === 'requires') dependencies.requires.push(entry)
           }

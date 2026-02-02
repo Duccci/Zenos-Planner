@@ -99,6 +99,7 @@ const REQUIRED_TABLES = [
   'gates',
   'repositories',
   'requirements',
+  'proposals',
 ]
 
 /**

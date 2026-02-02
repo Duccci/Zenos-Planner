@@ -205,7 +205,7 @@ export class RequirementStorage {
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status,
+        status: row.status as RequirementStatus,
         sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }
@@ -255,7 +255,7 @@ export class RequirementStorage {
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status,
+        status: row.status as RequirementStatus,
         sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }))

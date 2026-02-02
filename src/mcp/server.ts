@@ -52,15 +52,17 @@ async function main(): Promise<void> {
     await server.connect(transport)
 
     // Write PID so other processes can detect running MCP server
+    let removePid: (() => void) | undefined
     try {
-      const { writePid, removePid } = await import('./manager.js')
+      const { writePid, removePid: removePidFn } = await import('./manager.js')
+      removePid = removePidFn
       writePid()
 
       // Clean up pid on exit
       const cleanup = async () => {
         logger.info('Shutting down MCP server...')
         await server.close()
-        removePid()
+        removePid?.()
         process.exit(0)
       }
 
@@ -69,7 +71,7 @@ async function main(): Promise<void> {
       process.on('uncaughtException', async (err) => {
         logger.error('Uncaught exception in MCP server', err)
         await server.close()
-        removePid()
+        removePid?.()
         process.exit(1)
       })
     } catch (err) {
@@ -80,14 +82,27 @@ async function main(): Promise<void> {
     logger.info('Listening for MCP requests on stdio...')
 
     // Development mode: file watching for auto-restart
-    if (process.env.NODE_ENV === 'development') {
-      const watcher = watch(join(process.cwd(), 'src'), { recursive: true }, (eventType, filename) => {
+    const isDevMode = process.env['NODE_ENV'] === 'development' || process.argv.includes('--dev')
+    const watchPattern = process.env['FILE_WATCH_PATTERN'] || 'src/**/*.ts'
+    const watchDir = watchPattern.split('/')[0] || 'src' // Simple parsing, assume src/**
+
+    if (isDevMode) {
+      let restartTimeout: NodeJS.Timeout | null = null
+      watch(join(process.cwd(), watchDir), { recursive: true }, (_eventType, filename) => {
         if (filename && filename.endsWith('.ts')) {
-          logger.info(`Source file changed: ${filename}, restarting server...`)
-          process.exit(0)
+          if (restartTimeout) {
+            clearTimeout(restartTimeout)
+          }
+          restartTimeout = setTimeout(async () => {
+            logger.info(`Source file changed: ${filename}, restarting server...`)
+            // Graceful shutdown
+            await server.close()
+            removePid?.()
+            process.exit(0)
+          }, 500) // Debounce 500ms
         }
       })
-      logger.info('Development mode: watching src/**/*.ts for changes')
+      logger.info(`Development mode: watching ${watchPattern} for changes`)
     }
 
   } catch (error) {

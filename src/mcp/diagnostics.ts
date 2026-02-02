@@ -151,6 +151,17 @@ export class McpDiagnostics {
   }
 
   /**
+   * Get recent errors
+   */
+  getRecentErrors(): Array<{
+    timestamp: Date
+    function: string
+    error: string
+  }> {
+    return [...this.recentErrors]
+  }
+
+  /**
    * Generate complete diagnostic report
    */
   async generateReport(registry: FunctionRegistry): Promise<DiagnosticReport> {

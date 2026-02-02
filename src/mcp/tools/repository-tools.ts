@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ReposListOutputSchema, RepositoryDependencyGraphSchema, ReposDetectOutputSchema, ReposAdjustOutputSchema } from '../schemas/repository-schemas.js'

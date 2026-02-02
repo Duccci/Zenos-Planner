@@ -18,7 +18,7 @@ import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { syncWithGit } from '../utils/git.js'
 import { consolidateGateProposals, generateConsolidationMarkdown } from '../utils/gate-consolidation.js'
 import { readFile, writeFile, ensureDir } from '../utils/file.js'
-import { readdir, rename, unlink } from 'node:fs/promises'
+import { readdir, rename, unlink, rmdir } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
@@ -186,7 +186,7 @@ export async function approveProposal(hashInput: string): Promise<{
     })
   }
 
-  const tx = db.transaction((proposalId: string, requirementId: string | null) => {
+  const tx = db.transaction((proposalId: string) => {
     db.prepare(
       `UPDATE proposals
        SET status = 'completed',
@@ -197,14 +197,15 @@ export async function approveProposal(hashInput: string): Promise<{
 
 
   })
-  tx(proposal.id, proposal.requirement_id)
+  tx(proposal.id)
 
   // Move proposal file to completed with hash name
   let proposalContent = ''
   try {
     const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gateId)
     const completedDir = path.join(projectRoot, 'zeno', 'proposals', 'archive')
-    await ensureDir(completedDir)
+    const gateArchiveDir = path.join(completedDir, proposal.gateId)
+    await ensureDir(gateArchiveDir)
 
     // Find the proposal file in gate dir (assuming it's named with the hash or title)
     const files = await readdir(gateDir)
@@ -214,7 +215,7 @@ export async function approveProposal(hashInput: string): Promise<{
         const content = await readFile(filePath)
         if (content.includes(`**Hash**: #${proposalHash}`)) {
           proposalContent = content
-          const dest = path.join(completedDir, `${proposalHash}.md`)
+          const dest = path.join(gateArchiveDir, `${proposalHash}.md`)
           await rename(filePath, dest)
           break
         }
@@ -359,22 +360,24 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
 
     // Move proposal files from completed to archive
     const completedDir = path.join(proposalsDir, 'archive')
-    const proposalFiles = await readdir(completedDir)
-    for (const file of proposalFiles) {
-      if (file.endsWith('.md')) {
-        // Check if it belongs to this gate
-        const filePath = path.join(completedDir, file)
-        const content = await readFile(filePath)
-        const gateMatch = /\*\*Gate\*\*:\s*gate-(\d+)/.exec(content)
-        if (gateMatch && typeof gateMatch[1] === 'string') {
-          const num = gateMatch[1]
-          const fileGateId = 'gate-' + num.padStart(2, '0')
-          if (fileGateId === gateId) {
-            const dest = path.join(archiveDir, file)
-            await rename(filePath, dest)
-          }
+    const gateArchiveDir = path.join(archiveDir, gateId)
+    await ensureDir(gateArchiveDir)
+
+    const completedGateDir = path.join(completedDir, gateId)
+    try {
+      const proposalFiles = await readdir(completedGateDir)
+      for (const file of proposalFiles) {
+        if (file.endsWith('.md')) {
+          const src = path.join(completedGateDir, file)
+          const dest = path.join(gateArchiveDir, file)
+          await rename(src, dest)
         }
       }
+      // Remove the empty gate directory
+      await rmdir(completedGateDir)
+    } catch (error) {
+      // If directory doesn't exist or other error, log but don't fail
+      logger.warn(`Failed to move proposal files for gate ${gateId}: ${String(error)}`)
     }
 
     // Delete proposals from database after consolidation

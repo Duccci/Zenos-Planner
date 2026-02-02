@@ -54,6 +54,23 @@ CREATE TABLE IF NOT EXISTS requirements (
   FOREIGN KEY (parent_id) REFERENCES requirements(id)
 );
 
+-- Proposals table: Implementation proposals for gates
+-- Tracks proposals as they move through approval workflow
+-- Proposal content is stored as Markdown files; this table tracks metadata and status
+CREATE TABLE IF NOT EXISTS proposals (
+  id TEXT PRIMARY KEY,
+  gate_id TEXT,
+  requirement_id TEXT,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'in_progress', 'completed')),
+  hash TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  approved_at TIMESTAMP,
+  FOREIGN KEY (gate_id) REFERENCES gates(id),
+  FOREIGN KEY (requirement_id) REFERENCES requirements(id)
+);
+
 -- Index for requirement status (used by status queries and filters)
 CREATE INDEX IF NOT EXISTS idx_requirements_status ON requirements(status);
 
@@ -62,6 +79,11 @@ CREATE INDEX IF NOT EXISTS idx_requirements_status ON requirements(status);
 -- Repository queries
 CREATE INDEX IF NOT EXISTS idx_repositories_hash ON repositories(hash);
 CREATE INDEX IF NOT EXISTS idx_repositories_type ON repositories(type);
+
+-- Proposal queries
+CREATE INDEX IF NOT EXISTS idx_proposals_hash ON proposals(hash);
+CREATE INDEX IF NOT EXISTS idx_proposals_gate_id ON proposals(gate_id);
+CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
 
 -- Requirement queries (hash-based lookups and hierarchical traversal)
 CREATE INDEX IF NOT EXISTS idx_requirements_hash ON requirements(hash);

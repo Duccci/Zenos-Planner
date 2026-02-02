@@ -68,6 +68,22 @@ export function registerStatusCommand(program: Command): void {
 
         // TODO: Add proposal progress, requirement completion, quality metrics
 
+        // Try to get MCP server status
+        try {
+          const { diagnostics } = await import('../../mcp/diagnostics.js')
+          const { createFunctionRegistry } = await import('../../integration/function-implementations.js')
+
+          const registry = createFunctionRegistry()
+          const report = await diagnostics.generateReport(registry)
+
+          logger.info('MCP Server Status:')
+          logger.info(`  Status: ${report.health.status.toUpperCase()}`)
+          logger.info(`  Tools Registered: ${report.health.toolsRegistered}`)
+          logger.info(`  Config Loaded: ${report.config.configLoaded}`)
+        } catch (error) {
+          logger.warn('MCP server status not available (server not running or not configured)')
+        }
+
       } catch (error) {
         logger.error(`Failed to get status: ${String(error)}`)
       }

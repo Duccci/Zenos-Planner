@@ -62,7 +62,7 @@ export function templateHandlers(registry: FunctionRegistry) {
     async template_get(args: Record<string, unknown>): Promise<CallToolResult> {
       try {
         const validated = args || {}
-        if (!validated.name) {
+        if (!validated['name']) {
           return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
         }
         const result = await registry.invoke('template_get', validated)
@@ -79,7 +79,7 @@ export function templateHandlers(registry: FunctionRegistry) {
     async template_context(args: Record<string, unknown>): Promise<CallToolResult> {
       try {
         const validated = args || {}
-        if (!validated.name) {
+        if (!validated['name']) {
           return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
         }
         const result = await registry.invoke('template_context', validated)

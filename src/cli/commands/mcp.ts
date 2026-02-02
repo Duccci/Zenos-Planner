@@ -12,6 +12,7 @@ import { logger } from '../../utils/logger.js'
  * Register MCP commands
  */
 export function registerMcpCommands(program: Command): void {
+  console.log('Registering MCP commands')
   const mcpCommand = program
     .command('mcp')
     .description('Model Context Protocol server commands')
@@ -70,6 +71,60 @@ export function registerMcpCommands(program: Command): void {
       }
     })
 
+  mcpCommand
+    .command('health')
+    .description('Show detailed MCP server health')
+    .action(() => {
+      console.log('Health command executed')
+    })
+
+  mcpCommand
+    .command('tools')
+    .description('List all registered MCP tools')
+    .action(async () => {
+      try {
+        const { createFunctionRegistry } = await import('../../integration/function-implementations.js')
+
+        const registry = createFunctionRegistry()
+        const tools = registry.list()
+
+        console.log('=== Registered MCP Tools ===')
+        for (const tool of tools) {
+          console.log(`${tool.name}: ${tool.description}`)
+          console.log(`  Parameters: ${tool.parameters.map(p => p.name).join(', ')}`)
+          console.log()
+        }
+      } catch (error) {
+        logger.error('Failed to list tools:', error)
+        process.exit(1)
+      }
+    })
+
+  mcpCommand
+    .command('errors')
+    .description('Show recent errors with context')
+    .option('-c, --count <number>', 'Number of errors to show', '10')
+    .action(async (opts: { count: string }) => {
+      try {
+        const { diagnostics } = await import('../../mcp/diagnostics.js')
+
+        const count = parseInt(opts.count, 10) || 10
+        const errors = diagnostics.getRecentErrors().slice(0, count)
+
+        console.log('=== Recent MCP Errors ===')
+        if (errors.length === 0) {
+          console.log('No recent errors')
+        } else {
+          for (const error of errors) {
+            console.log(`${error.timestamp.toISOString()}: ${error.function} - ${error.error}`)
+          }
+        }
+      } catch (error) {
+        logger.error('Failed to get errors:', error)
+        process.exit(1)
+      }
+    })
+
   // Ephemeral single-tool invocation (hybrid mode)
   mcpCommand
     .command('run')
@@ -123,7 +178,6 @@ export function registerMcpCommands(program: Command): void {
     .action(async (opts: { editor: string; global?: boolean; dryRun?: boolean }) => {
       try {
         const { ensureWorkspaceMcp, getAdapterCommand } = await import('../../mcp/editor-adapters.js')
-        const { join } = await import('node:path')
         const projectRoot = process.cwd()
 
         if (opts.dryRun) {

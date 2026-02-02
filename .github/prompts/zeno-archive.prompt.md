@@ -16,20 +16,19 @@ agent: agent
 
 **Steps**
 1. **Identify artifact** - Gate ID or proposal hash
-2. **Validate ready** - Check status, acceptance criteria, requirements status
-3. **For gates**: Consolidate proposals; update status; create completion summary; move to archive; tag in git; commit
+2. **Validate ready** - Check status is `completed`, acceptance criteria, requirements status
+3. **For gates**: Consolidate proposals; create completion summary; move to archive; tag in git; commit
 4. **For proposals**: Verify completion; move to archive; update requirements status
 5. **Output summary** - Show archival results and git tag created
 
 **Steps for GATES**
-1. **Validate gate ready** - Status in_progress; all proposals archived; all requirements tested
+1. **Validate gate ready** - Status `completed`; all proposals archived; all requirements tested
 2. **Consolidate proposals** - Extract requirements fulfilled, lessons learned, next dependencies
-3. **Update gate status** - Change to completed; add completion date; mark objectives [x]
-4. **Create completion summary** - Document proposals completed, requirements fulfilled, quality metrics
-5. **Move to archive** - Move from `zeno/gates/` to `zeno/gates/archive/`
-6. **Create git tag** - Format: `gate-XX-name` with completion metadata (include completion date and short summary)
-7. **Update project state** - Set gate status completed; update current_gate_id
-8. **Commit changes** - Use `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
+3. **Create completion summary** - Document proposals completed, requirements fulfilled, quality metrics
+4. **Move to archive** - Move from `zeno/gates/` to `zeno/gates/archive/`
+5. **Create git tag** - Format: `gate-XX-name` with completion metadata (include completion date and short summary)
+6. **Update project state** - Update current_gate_id (status remains `completed`)
+7. **Commit changes** - Use `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
    - Construct commit message using `git.commitFormat` (e.g., `<type>(<scope>): <subject>\n\n<body>`) with:
      - **type**: `chore` (archive) or appropriate type
      - **scope**: `gate-XX` (include gate ID)
@@ -40,7 +39,7 @@ agent: agent
    - Push commit and tags to configured remote: `git push <git.remote> <current-branch>` and `git push <git.remote> --tags`
 
 **Steps for PROPOSALS**
-1. **Validate ready** - Status completed; acceptance criteria marked [x]
+1. **Validate ready** - Status `completed`; acceptance criteria marked [x]
 2. **Move to archive** - Move from `zeno/proposals/gate-XX/` to `zeno/proposals/archive/<hash>.md`
 3. **Update requirements** - Set requirement status to `tested`
 4. **Commit** - Structured commit message with proposal hash
@@ -48,7 +47,7 @@ agent: agent
 **Output Summary**
 ```
 Archived Gate XX: [Name]
-Status: in_progress → completed
+Status: completed (unchanged)
 Proposals: X consolidated
 Requirements: Y fulfilled
 Git tag: gate-XX-name
@@ -188,7 +187,6 @@ zeno/
    
    To archive the gate: `/zeno-archive gate-XX`
    This will:
-   - Set gate status: in_progress -> completed
    - Consolidate proposals
    - Create git tag for the gate release
    ```

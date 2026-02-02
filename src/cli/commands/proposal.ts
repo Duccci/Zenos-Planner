@@ -249,8 +249,8 @@ export function registerProposalCommands(program: Command): void {
           const tasksCompletedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
           const checkedBoxes = (content.match(/- \[[xX]\]/g) || []).length
           if (tasksCompletedMatch) {
-            const completed = parseInt(tasksCompletedMatch[1], 10)
-            const total = parseInt(tasksCompletedMatch[2], 10)
+            const completed = parseInt(tasksCompletedMatch[1] || '0', 10)
+            const total = parseInt(tasksCompletedMatch[2] || '0', 10)
             if (completed !== checkedBoxes) {
               warnings.push(`**Tasks Completed** shows ${completed}/${total} but ${checkedBoxes} acceptance items are checked.`)
             }
