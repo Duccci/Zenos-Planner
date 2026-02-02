@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "zenoPlanner": {
+      "command": "node",
+      "args": ["./bin/mcp-server.js"],
+      "env": {
+        "ZENO_PROJECT_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}

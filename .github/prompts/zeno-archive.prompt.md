@@ -37,7 +37,7 @@ agent: agent
      - **body**: 1-3 line summary of consolidated proposals and key metrics (coverage, tests, linting, type errors), plus any notable commits.
    - Stage all changes: `git add -A`
    - Create commit using the formatted message (including version prefix if applicable, e.g., `X.Y.Z chore(gate-XX): Archive gate: gate-XX-name`)
-   - Push commit and tags to configured remote: `git push <git.remote> <current-branch>` and `git push <git.remote> --tags`. Pushing is attempted automatically during the archive workflow (no additional interactive confirmation required). If the remote rejects the push due to permissions or connectivity, the archive will still complete locally and the push failure will be recorded in the summary (push failures are non-fatal).
+   - Push commit and tags to configured remote: `git push <git.remote> <current-branch>` and `git push <git.remote> --tags`
 
 **Steps for PROPOSALS**
 1. **Validate ready** - Status completed; acceptance criteria marked [x]

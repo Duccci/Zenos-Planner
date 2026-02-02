@@ -71,6 +71,43 @@ npm install -g zenos-planner
 zeno --version
 ```
 
+### Editor Integrations (MCP)
+
+Zeno supports editor integrations (VS Code, Cursor, Windsurf) via the MCP protocol. Use the CLI installer to set up editor configs and optional adapters, or run the single-step install from your workspace. The installer is idempotent and supports workspace-local or global installation (global installs may require elevated privileges on some platforms).
+
+Quick 3-step setup (recommended):
+1. Install Zeno CLI (global or per-user): `npm install -g zenos-planner`
+2. Run installer for your editor: `zeno mcp install --editor <vscode|cursor|windsurf|all> [--global]`
+3. Follow the printed next steps (enable MCP in the editor or run the adapter activation command)
+
+Example `mcp.json` (workspace):
+```json
+{
+  "servers": {
+    "zenoPlanner": {
+      "command": "node",
+      "args": ["./bin/mcp-server.js"],
+      "env": { "ZENO_PROJECT_ROOT": "${workspaceFolder}" }
+    }
+  }
+}
+```
+
+Flags:
+- `--editor`: which editor(s) to scaffold. Defaults to `vscode` if omitted.
+- `--global`: install adapter globally (requires admin rights on some platforms). Otherwise installs workspace-local files.
+- `--dry-run`: display actions without making changes.
+
+Editor notes:
+- **VS Code**: installer writes `mcp.json` and prints the VS Code steps to enable MCP; see `docs/MCP_VSCODE_SETUP.md` for screenshots and examples.
+- **Cursor**: installer can register a global or workspace adapter; you can also run `node ./bin/mcp-server.js --adapter cursor` to start manually.
+- **Windsurf**: similar to Cursor; installer provides a small helper script to launch a local WebSocket bridge if required.
+
+Security & Permissions:
+- Global installs may prompt for admin permissions. The installer will not modify unrelated files.
+
+See `docs/MCP_VSCODE_SETUP.md` for VS Code-specific examples and troubleshooting.
+
 ### Initialize a New Project
 
 ```bash

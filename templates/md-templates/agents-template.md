@@ -224,6 +224,16 @@ Awaiting human review.
 - Dependencies tracked to prevent conflicts
 - Files affected listed explicitly
 
+### Commits & Traceability
+
+To trace work for a proposal, use structured commits that reference the proposal hash and follow the project's `commitFormat` (found in `.zeno/config.json`):
+
+- Include the proposal hash (`#a3f9c2d1`) and gate id in commit subject or body so automation and auditors can link commits to artifacts.
+- Example command to find commits for a proposal:
+  - `git log --grep '#a3f9c2d1' --pretty=format:'%h %ad %an %s' --date=short`
+- Use the configured `commitFormat` to parse commit subjects for `type(scope): subject` patterns (e.g., `chore(proposal): archive solitary proposal - template loader infrastructure`).
+- Cross-reference with `zeno show <hash>` to resolve the artifact and confirm intent.
+
 ---
 
 ## Workflows

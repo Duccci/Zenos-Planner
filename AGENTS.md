@@ -120,6 +120,17 @@ project-root/
 | **Approval** | Wait for human sign-off at key gates | Auto-implement without review |
 | **Context** | Reference architecture diagrams | Implement blindly |
 | **Commits** | Use structured messages with proposal hashes | Generic commit messages |
+## Traceability via Git History
+
+Use Git history to trace work back to Zeno artifacts (requirements, proposals, gates) by leveraging the project's commit format and the artifact hash values.
+
+- Parse `commitFormat` in `.zeno/config.json` to extract commit type and scope (for example: `feat(gate): archive core-infrastructure gate ...`).
+- Require commit messages to include related Zeno hashes (`#<hash>`) in the subject or body so that commits can be automatically associated with requirements, proposals, or gates.
+- Useful commands for tracing work:
+  - `git log --grep '#<hash>' --pretty=format:'%h %ad %an %s%n%b' --date=short` — list commits referencing a hash.
+  - `git log --pretty=format:'%h %ad %an %s' --grep 'feat(' --date=short` — find commits by type/scope matching the configured commitFormat.
+- Cross-reference the resolved entity using `zeno show <hash>` to confirm the commit maps to the correct proposal/requirement/gate.
+- Best practice: when archiving or completing work, include both the proposal or requirement hash and the gate id in the commit message using the configured `commitFormat` so automation and audits can detect and tag the change.
 
 ## File Locations Quick Reference
 

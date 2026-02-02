@@ -112,4 +112,42 @@ export function registerMcpCommands(program: Command): void {
         process.exit(1)
       }
     })
+
+  // Install helper for editors: writes mcp.json workspace file or user-level file
+  mcpCommand
+    .command('install')
+    .description('Install MCP configuration and optional editor helpers')
+    .option('--editor <editor>', 'Editor to target (vscode|cursor|windsurf|all)', 'all')
+    .option('--global', 'Install at user global level instead of workspace')
+    .option('--dry-run', 'Do not modify files, only show actions')
+    .action(async (opts: { editor: string; global?: boolean; dryRun?: boolean }) => {
+      try {
+        const { ensureWorkspaceMcp, getAdapterCommand } = await import('../../mcp/editor-adapters.js')
+        const { join } = await import('node:path')
+        const projectRoot = process.cwd()
+
+        if (opts.dryRun) {
+          console.log('Dry run: actions that would be performed:')
+          console.log(`  - Ensure workspace .vscode/mcp.json exists`) 
+          console.log(`  - Adapter activation command for ${opts.editor}: ${getAdapterCommand(opts.editor as any, projectRoot)}`)
+          process.exit(0)
+        }
+
+        if (opts.global) {
+          console.log('Global installation requested. Please run platform-specific steps to write to your editor user settings.')
+          // Keep it intentionally minimal; full global install requires admin privileges and platform checks
+          process.exit(0)
+        }
+
+        const written = ensureWorkspaceMcp(projectRoot)
+        if (written) console.log('Wrote .vscode/mcp.json to workspace (recommended)')
+        else console.log('Workspace already contains .vscode/mcp.json; no changes made')
+
+        console.log(`Adapter activation command: ${getAdapterCommand(opts.editor as any, projectRoot)}`)
+        process.exit(0)
+      } catch (error) {
+        logger.error('Failed to run mcp install:', error)
+        process.exit(1)
+      }
+    })
 }

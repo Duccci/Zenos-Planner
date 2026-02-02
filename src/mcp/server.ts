@@ -10,6 +10,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
 import { logger } from '../utils/logger.js'
+import { watch } from 'node:fs'
+import { join } from 'node:path'
 
 /**
  * Create and configure the MCP server
@@ -76,6 +78,17 @@ async function main(): Promise<void> {
 
     logger.info('Zeno MCP server started successfully')
     logger.info('Listening for MCP requests on stdio...')
+
+    // Development mode: file watching for auto-restart
+    if (process.env.NODE_ENV === 'development') {
+      const watcher = watch(join(process.cwd(), 'src'), { recursive: true }, (eventType, filename) => {
+        if (filename && filename.endsWith('.ts')) {
+          logger.info(`Source file changed: ${filename}, restarting server...`)
+          process.exit(0)
+        }
+      })
+      logger.info('Development mode: watching src/**/*.ts for changes')
+    }
 
   } catch (error) {
     logger.error('Failed to start MCP server:', error)
