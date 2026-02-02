@@ -10,6 +10,25 @@ This document explains how Zeno integrates with VS Code's Chat view and MCP tool
 - Open the Chat view and choose the Zeno server from the tool picker. Examples:
   - `#proposal_list { "gate": "gate-03" }` — list proposals for a gate
   - `#proposal_show { "hash": "#g03p05vscode" }` — show proposal details
+  - `#git_trace { "artifactHash": "#g03p08gittrace" }` — trace git commits for an artifact
+
+## Available Tools
+
+### Core Tools
+- `proposal_list` - List proposals with status and filtering
+- `proposal_show` - Get detailed proposal information
+- `gates_show` - Display gate status and requirements
+- `req_list` - List requirements with dependencies
+
+### Git Tools
+- `git_trace` - Search git history for artifact references with confidence scoring
+  - Supports hash pattern matching using configured commitFormat
+  - Returns structured commit data with file changes and match confidence
+  - Useful for traceability and archival workflows
+
+### Template Tools
+- `template_list` - Show available templates by category
+- `template_get` - Retrieve template content for generation
 
 ## Command Palette
 - Useful commands: `MCP: List Servers`, `MCP: Reset Cached Tools`.

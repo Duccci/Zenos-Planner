@@ -43,14 +43,14 @@ describe('MCP Error Handler', () => {
     const toolRes = mcpErrorToToolResult(mcpErr)
 
     expect(toolRes.isError).toBe(true)
-    expect(toolRes.content[0].text).toContain(mcpErr.code)
-    expect(toolRes.content[0].text).toContain(mcpErr.message)
+    expect((toolRes.content[0] as any).text).toContain(mcpErr.code)
+    expect((toolRes.content[0] as any).text).toContain(mcpErr.message)
   })
 
   it('handleToolError includes function and arg keys in context', () => {
     const res = handleToolError(new Error('connection failed'), 'doThing', { foo: 'bar' })
     expect(res.isError).toBe(true)
-    expect(res.content[0].text).toContain('doThing')
-    expect(res.content[0].text).toContain('foo')
+    expect((res.content[0] as any).text).toContain('doThing')
+    expect((res.content[0] as any).text).toContain('foo')
   })
 })

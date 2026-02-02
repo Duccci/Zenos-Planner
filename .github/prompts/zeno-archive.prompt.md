@@ -38,6 +38,26 @@ agent: agent
    - Create commit using the formatted message (including version prefix if applicable, e.g., `X.Y.Z chore(gate-XX): Archive gate: gate-XX-name`)
    - Push commit and tags to configured remote: `git push <git.remote> <current-branch>` and `git push <git.remote> --tags`
 
+**Gather Git Provenance**
+- For each proposal hash, use `git_trace()` to find related commits
+- Include high-confidence matches (>0.8) in consolidation summary
+- Document commit SHAs and key changes for audit trail
+
+**Example Git Trace Usage:**
+```javascript
+// Trace commits for a completed proposal
+const trace = git_trace({
+  artifactHash: "#g03p08gittrace",
+  dateRange: { from: "2026-01-01" }
+})
+
+// Include in consolidation:
+if (trace.commits.length > 0) {
+  summary += `\nGit Commits: ${trace.commits.length} related commits found`
+  summary += `\nKey Changes: ${trace.commits[0].subject}`
+}
+```
+
 **Steps for PROPOSALS**
 1. **Validate ready** - Status `completed`; acceptance criteria marked [x]
 2. **Move to archive** - Move from `zeno/proposals/gate-XX/` to `zeno/proposals/archive/<hash>.md`

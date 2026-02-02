@@ -63,7 +63,6 @@ project-root/
 - Implement handler logic in `src/mcp/tools/*` and validate outputs with Zod schemas in `src/mcp/schemas/*`.
 - Register handler factories via `registerTools()` (already implemented) so they override function-based tools.
 - Add tests that mock the `FunctionRegistry` to assert handlers return validated `structuredContent`.
-- Keep CLI commands for backwards compatibility until the handler logic is fully implemented and covered by tests.
 
 ## Complete Command Reference
 

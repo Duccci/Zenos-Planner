@@ -59,7 +59,6 @@ Transforms Zeno from a CLI-centric tool to an LLM-native system by implementing 
 ### CLI and Function Registry
 - [ ] Implement centralized function registry exposing all Zeno operations as invocable functions
 - [ ] Update CLI commands to delegate to MCP-backed function registry (CLI becomes thin wrapper over MCP)
-- [ ] Ensure all existing CLI commands map to MCP tools with backward compatibility
 
 ### Testing & Quality
 - [ ] Write comprehensive tests for all MCP tool schemas and invocations
@@ -500,7 +499,6 @@ User → LLM (with prompt guardrails) → MCP Tool Calls → State Changes → R
 - [ ] Command Palette commands work (`MCP: List Servers`, `MCP: Reset Cached Tools`, etc.)
 - [ ] All MCP tools have comprehensive documentation for VS Code Chat view
 - [ ] Test coverage 90%+ for MCP server module
-- [ ] All existing CLI commands still function (backward compatibility verified)
 - [ ] VS Code Copilot integration tested and working
 - [ ] MCP server configuration compatible with VS Code v1.102+ requirements
 - [ ] AGENTS.md updated with MCP tool reference and VS Code usage examples
@@ -545,7 +543,6 @@ User → LLM (with prompt guardrails) → MCP Tool Calls → State Changes → R
 - VS Code Chat view discovers and lists all Zeno tools in tool picker
 - Tools can be automatically invoked in VS Code agent mode without user interaction
 - Tools can be explicitly referenced in chat via `#tool-name` syntax
-- CLI backward compatibility maintained (100% of existing commands work)
 - Error messages helpful and actionable (LLM can parse and understand, VS Code displays in Chat view)
 - Test coverage 90%+ for MCP module
 - Documentation clear and complete (VS Code integration setup takes <5 minutes)
@@ -567,8 +564,7 @@ This gate represents a fundamental shift in how Zeno is accessed. By making MCP 
 1. **Prioritize LLM-native execution** - AI agents work naturally with tools instead of parsing terminal output
 2. **Improve reliability** - Type-safe schemas catch errors early, structured responses enable proper error handling
 3. **Enable IDE integration** - VS Code discovers tools natively, Cursor (which is VS Code-based) gains native access, reducing context and improving UX
-4. **Maintain backward compatibility** - CLI still works, enabling human operators and CI/CD pipelines to continue using Zeno
-5. **Future-proof** - Subagent orchestration (Gate 13) leverages MCP tools for parallel execution
+4. **Future-proof** - Subagent orchestration (Gate 13) leverages MCP tools for parallel execution
 
 The MCP server becomes the operational backbone of Zeno's execution model, deeply integrated with VS Code's native MCP support.
 

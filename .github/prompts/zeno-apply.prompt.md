@@ -19,6 +19,8 @@ agent: agent
 - **NEVER perform git operations during apply phase** - commits occur ONLY at gate completion
 - **DO NOT use git add, git commit, or any git commands** during proposal implementation
 - **DO NOT use manage_todo_list tool** if it triggers git operations - use simple text tracking instead
+- **DO NOT rename proposal files to their hash values**
+- **DO NOT move proposal files to the archive directory**
 
 **Functions**
 

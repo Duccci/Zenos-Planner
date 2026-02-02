@@ -43,7 +43,7 @@ describe('Config Command', () => {
   it('prints specific key when --get matches', async () => {
     const { findProjectRoot, loadConfig } = await import('../../../src/utils/config.js')
     vi.mocked(findProjectRoot).mockReturnValueOnce('/project')
-    vi.mocked(loadConfig).mockResolvedValueOnce({ a: { b: 'value' } })
+    vi.mocked(loadConfig).mockResolvedValueOnce({ a: { b: 'value' } } as any)
 
     const program = new Command()
     program.exitOverride()
@@ -60,7 +60,7 @@ describe('Config Command', () => {
 
     const { findProjectRoot, loadConfig } = await import('../../../src/utils/config.js')
     vi.mocked(findProjectRoot).mockReturnValueOnce('/project')
-    vi.mocked(loadConfig).mockResolvedValueOnce({ x: 1 })
+    vi.mocked(loadConfig).mockResolvedValueOnce({ x: 1 } as any)
 
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
@@ -79,7 +79,7 @@ describe('Config Command', () => {
   it('exits when requested key not found', async () => {
     const { findProjectRoot, loadConfig } = await import('../../../src/utils/config.js')
     vi.mocked(findProjectRoot).mockReturnValueOnce('/project')
-    vi.mocked(loadConfig).mockResolvedValueOnce({})
+    vi.mocked(loadConfig).mockResolvedValueOnce({} as any)
 
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => { throw new Error('process.exit ' + code) }) as any)
 

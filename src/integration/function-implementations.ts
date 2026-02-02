@@ -15,6 +15,8 @@ import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 import { logger } from '../utils/logger.js'
 import { loadConfig } from '../utils/config.js'
+import { parseCommitsForHashes } from '../utils/git.js'
+import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
 
 /**
  * Create and return a fully initialized function registry
@@ -656,6 +658,69 @@ export function createFunctionRegistry(): FunctionRegistry {
     parameters: [],
     returnType: 'ZenoConfig',
     schema: z.object({})
+  })
+
+  // ============================================================================
+  // GIT TRACEABILITY
+  // ============================================================================
+
+  registry.register('git_trace', async (params) => {
+    const validated = GitTraceInputSchema.parse(params)
+    
+    // Call git parsing function
+    const commits = await parseCommitsForHashes(
+      validated.artifactHash,
+      {
+        dateRange: validated.dateRange,
+        branch: validated.branch,
+        limit: validated.limit
+      },
+      validated.dir
+    )
+
+    // Format output
+    const result: z.infer<typeof GitTraceOutputSchema> = {
+      commits,
+      totalCommits: commits.length,
+      searchParams: {
+        artifactHash: validated.artifactHash,
+        dateRange: validated.dateRange,
+        branch: validated.branch,
+        limit: validated.limit
+      }
+    }
+
+    return GitTraceOutputSchema.parse(result)
+  }, {
+    description: 'Trace git commits referencing a specific artifact hash with confidence scoring',
+    parameters: [
+      {
+        name: 'artifactHash',
+        type: 'string',
+        description: 'Artifact hash to trace in git history',
+        required: true
+      },
+      {
+        name: 'dateRange',
+        type: 'object',
+        description: 'Optional date range for filtering commits',
+        required: false
+      },
+      {
+        name: 'branch',
+        type: 'string',
+        description: 'Optional branch to search',
+        required: false
+      },
+      {
+        name: 'limit',
+        type: 'number',
+        description: 'Optional limit on number of commits to return',
+        required: false
+      }
+    ],
+    returnType: 'GitTraceOutput',
+    schema: GitTraceInputSchema
   })
 
   logger.debug(`Function registry initialized with ${registry.list().length} functions`)

@@ -44,7 +44,7 @@ beforeEach(async () => {
   vi.restoreAllMocks()
   // ensure mock DB state is cleared before each test
   const dbMock = await import('../../src/storage/database.js')
-  if (dbMock && dbMock.__setMockDbState) dbMock.__setMockDbState({})
+  if (dbMock && (dbMock as any).__setMockDbState) (dbMock as any).__setMockDbState({})
 })
 
 describe('completions: completeGate and approveProposal flows', () => {
@@ -57,13 +57,13 @@ describe('completions: completeGate and approveProposal flows', () => {
     // mock database module to throw from getDatabase
     const dbMock = await import('../../src/storage/database.js')
     // configure mock to throw on getDatabase
-    dbMock.__setMockDbState({ throwOnGet: true })
+    ;(dbMock as any).__setMockDbState({ throwOnGet: true })
 
     try {
       const mod = await import('../../src/core/completions.ts')
       await expect(mod.completeGate('gate-1')).rejects.toThrow('Failed to open database')
     } finally {
-      dbMock.__setMockDbState({})
+      ;(dbMock as any).__setMockDbState({})
     }
   })
 
@@ -74,13 +74,13 @@ describe('completions: completeGate and approveProposal flows', () => {
     // mock database module to return a getDatabase that provides undefined for gate lookup
     const dbMock = await import('../../src/storage/database.js')
     // configure mock to return undefined for gate lookup
-    dbMock.__setMockDbState({ getStub: { prepare: () => ({ get: () => undefined }) } })
+    ;(dbMock as any).__setMockDbState({ getStub: { prepare: () => ({ get: () => undefined }) } })
 
     try {
       const mod = await import('../../src/core/completions.ts')
       await expect(mod.completeGate('gate-01')).rejects.toThrow('Gate not found')
     } finally {
-      dbMock.__setMockDbState({})
+      ;(dbMock as any).__setMockDbState({})
     }
   })
 
@@ -108,7 +108,7 @@ describe('completions: completeGate and approveProposal flows', () => {
 
     const dbMock = await import('../../src/storage/database.js')
     // configure mock to return stub DB for this test
-    dbMock.__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
+    ;(dbMock as any).__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
 
     try {
       // mock analyzers and regenerators
@@ -166,7 +166,7 @@ describe('completions: completeGate and approveProposal flows', () => {
     
     } finally {
       const dbMock = await import('../../src/storage/database.js')
-      if (dbMock && dbMock.__setMockDbState) dbMock.__setMockDbState({})
+      if (dbMock && (dbMock as any).__setMockDbState) (dbMock as any).__setMockDbState({})
     }
   })
 
@@ -176,13 +176,13 @@ describe('completions: completeGate and approveProposal flows', () => {
 
     const stubPrepare = vi.fn().mockReturnValue({ get: vi.fn().mockReturnValue(undefined), run: vi.fn() })
     const dbMock = await import('../../src/storage/database.js')
-    dbMock.__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
+    ;(dbMock as any).__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
 
     try {
       const mod = await import('../../src/core/completions.ts')
       await expect(mod.approveProposal('#missing')).rejects.toThrow('Proposal not found')
     } finally {
-      dbMock.__setMockDbState({})
+      ;(dbMock as any).__setMockDbState({})
     }
   })
 
@@ -194,7 +194,7 @@ describe('completions: completeGate and approveProposal flows', () => {
     const proposalRow = { id: 'p1', gateId: 'gate-01', title: 'Add feature', status: 'pending', requirement_id: null }
     const stubPrepare = vi.fn().mockImplementation((q: string) => ({ get: vi.fn().mockReturnValue(proposalRow), run: vi.fn() }))
     const dbMock = await import('../../src/storage/database.js')
-    dbMock.__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
+    ;(dbMock as any).__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
 
     try {
       const fileMod = await import('../../src/utils/file.js')
@@ -230,7 +230,7 @@ describe('completions: completeGate and approveProposal flows', () => {
       expect(res.proposalHash).toBe('abc')
       expect(res.gateId).toBe('gate-01')
     } finally {
-      dbMock.__setMockDbState({})
+      ;(dbMock as any).__setMockDbState({})
     }
   })
 })

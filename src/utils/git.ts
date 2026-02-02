@@ -7,6 +7,7 @@
 
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
 import { GitError } from './errors.js'
+import { loadConfig } from './config.js'
 
 /** Git operation timeout in milliseconds */
 const GIT_TIMEOUT = 30000
@@ -318,5 +319,209 @@ export async function syncWithGit(options: {
   }
 
   return { committed: true, commitHash, tagged, pushed }
+}
+
+/**
+ * Commit record for git traceability
+ */
+export interface CommitRecord {
+  commitSha: string
+  author: string
+  date: string
+  subject: string
+  body?: string
+  filesChanged: string[]
+  matchedHashes: string[]
+  inferredArtifacts: string[]
+  confidenceScore: number
+  notes?: string
+}
+
+/**
+ * Options for parsing commits
+ */
+export interface ParseCommitsOptions {
+  dateRange?: { from?: string; to?: string }
+  branch?: string
+  limit?: number
+}
+
+/**
+ * Parse git log output to extract commits referencing a specific artifact hash
+ * @param artifactHash - The hash to search for in commit messages
+ * @param options - Search options
+ * @param dir - Repository directory
+ * @returns Array of commit records with traceability info
+ */
+export async function parseCommitsForHashes(
+  artifactHash: string,
+  options: ParseCommitsOptions = {},
+  dir: string = process.cwd()
+): Promise<CommitRecord[]> {
+  try {
+    const git = getGit(dir)
+    let commitFormat = 'feat(%s): %m' // default
+    try {
+      const config = await loadConfig(dir)
+      commitFormat = config.git?.commitFormat || commitFormat
+    } catch {
+      // Use default if config not found
+    }
+
+    // Build git log command with filters
+    const logOptions: string[] = [
+      'log',
+      '--pretty=format:%H|%an|%ae|%ai|%s|%b',
+      '--no-merges' // Skip merge commits for cleaner history
+    ]
+
+    if (options.dateRange?.from) {
+      logOptions.push(`--since=${options.dateRange.from}`)
+    }
+    if (options.dateRange?.to) {
+      logOptions.push(`--until=${options.dateRange.to}`)
+    }
+    if (options.branch) {
+      logOptions.push(options.branch)
+    }
+    if (options.limit) {
+      logOptions.push(`-n ${options.limit}`)
+    }
+
+    // Get raw log output
+    const logOutput = await git.raw(logOptions)
+
+    if (!logOutput) {
+      return []
+    }
+
+    const commits: CommitRecord[] = []
+    const lines = logOutput.trim().split('\n')
+
+    for (const line of lines) {
+      const parts = line.split('|')
+      if (parts.length < 5) continue
+
+      const [commitSha, authorName, authorEmail, date, subject, ...bodyParts] = parts
+      const body = bodyParts.join('|').trim()
+      const fullMessage = `${subject}${body ? `\n\n${body}` : ''}`
+
+      // Apply heuristics to find hash references
+      const { matchedHashes, confidenceScore, notes } = applyHashMatchingHeuristics(
+        fullMessage,
+        artifactHash,
+        commitFormat
+      )
+
+      if (matchedHashes.length > 0) {
+        // Get files changed in this commit
+        const filesChanged = await getFilesChangedInCommit(commitSha, dir)
+
+        // Infer artifacts from matched hashes (simplified - just use the hashes)
+        const inferredArtifacts = matchedHashes
+
+        commits.push({
+          commitSha,
+          author: `${authorName} <${authorEmail}>`,
+          date,
+          subject,
+          body: body || undefined,
+          filesChanged,
+          matchedHashes,
+          inferredArtifacts,
+          confidenceScore,
+          notes
+        })
+      }
+    }
+
+    return commits
+  } catch (error) {
+    throw new GitError(
+      'Failed to parse commits for hashes',
+      'GIT_PARSE_FAILED',
+      { artifactHash, options, dir },
+      error instanceof Error ? error : undefined
+    )
+  }
+}
+
+/**
+ * Apply heuristics to match hashes in commit messages
+ * @param message - Commit message
+ * @param targetHash - Hash to search for
+ * @param commitFormat - Expected commit format from config
+ * @returns Matching results with confidence
+ */
+export function applyHashMatchingHeuristics(
+  message: string,
+  targetHash: string,
+  commitFormat: string
+): { matchedHashes: string[]; confidenceScore: number; notes?: string } {
+  const matchedHashes: string[] = []
+  let confidenceScore = 0
+  let notes = ''
+
+  const cleanHash = targetHash.replace(/^#/, '')
+
+  // Direct hash match (highest confidence)
+  if (message.includes(targetHash)) {
+    matchedHashes.push(targetHash)
+    confidenceScore = 1.0
+    notes = 'Direct hash match in commit message'
+    return { matchedHashes, confidenceScore, notes }
+  }
+
+  // Pattern-based matching using commitFormat
+  // Extract scope from commitFormat (e.g., 'feat(%s): %m' -> '%s' is scope)
+  const scopeMatch = commitFormat.match(/%\w+/g)
+  if (scopeMatch) {
+    for (const pattern of scopeMatch) {
+      if (pattern === '%s' && message.includes(targetHash)) {
+        // Scope contains hash
+        matchedHashes.push(targetHash)
+        confidenceScore = 0.8
+        notes = 'Hash found in commit scope'
+        break
+      }
+    }
+  }
+
+  // Look for similar patterns (e.g., #g03p08 vs g03p08)
+  if (message.includes(cleanHash)) {
+    if (matchedHashes.length === 0) {
+      matchedHashes.push(targetHash)
+      confidenceScore = 0.7
+      notes = 'Hash match without # prefix'
+    }
+  }
+
+  // Fuzzy matching for partial hashes or variations
+  const cleanMessage = message.replace(/#/g, '')
+  if (cleanMessage.includes(cleanHash.slice(0, -1)) || cleanMessage.includes(cleanHash.slice(1))) {
+    if (matchedHashes.length === 0) {
+      matchedHashes.push(targetHash)
+      confidenceScore = 0.6
+      notes = 'Fuzzy hash match'
+    }
+  }
+
+  return { matchedHashes, confidenceScore, notes: notes || undefined }
+}
+
+/**
+ * Get files changed in a specific commit
+ * @param commitSha - Commit hash
+ * @param dir - Repository directory
+ * @returns Array of changed file paths
+ */
+async function getFilesChangedInCommit(commitSha: string, dir: string): Promise<string[]> {
+  try {
+    const git = getGit(dir)
+    const result = await git.raw(['show', '--name-only', '--pretty=format:', commitSha])
+    return result.trim().split('\n').filter(line => line.length > 0)
+  } catch {
+    return []
+  }
 }
 

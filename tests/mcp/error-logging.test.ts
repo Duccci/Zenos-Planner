@@ -29,7 +29,7 @@ describe('MCP Error Logging', () => {
   })
 
   it('logs tool invocations in debug mode', async () => {
-    mockRegistry.invoke.mockResolvedValue({
+    ;(mockRegistry.invoke as any).mockResolvedValue({
       success: true,
       data: { result: 'success' },
     })
@@ -42,7 +42,7 @@ describe('MCP Error Logging', () => {
   })
 
   it('logs tool execution failures', async () => {
-    mockRegistry.invoke.mockResolvedValue({
+    ;(mockRegistry.invoke as any).mockResolvedValue({
       success: false,
       error: {
         message: 'Validation failed',
@@ -67,7 +67,7 @@ describe('MCP Error Logging', () => {
     const testError = new Error('Database connection failed')
     testError.stack = 'Error: Database connection failed\n    at testFunction'
 
-    mockRegistry.invoke.mockRejectedValue(testError)
+    ;(mockRegistry.invoke as any).mockRejectedValue(testError)
 
     const handler = createToolHandler(mockRegistry, 'test_tool')
     await handler({ param1: 'value1' })
@@ -88,7 +88,7 @@ describe('MCP Error Logging', () => {
   it('records errors in diagnostics', async () => {
     const { diagnostics } = await import('../../src/mcp/diagnostics.js')
 
-    mockRegistry.invoke.mockRejectedValue(new Error('Test error'))
+    ;(mockRegistry.invoke as any).mockRejectedValue(new Error('Test error'))
 
     const handler = createToolHandler(mockRegistry, 'test_tool')
     await handler({ param1: 'value1' })

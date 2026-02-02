@@ -10,7 +10,6 @@ describe('MCP Gates tools (integration)', () => {
     expect(result.isError).toBeUndefined()
     const structured = result.structuredContent as any
     expect(structured).toBeDefined()
-    // Support both shaped output { gates: [...] } or plain array from legacy functions
     const gatesArray = Array.isArray(structured) ? structured : (structured.gates ?? [])
     expect(Array.isArray(gatesArray)).toBe(true)
   })

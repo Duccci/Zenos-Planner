@@ -19,7 +19,6 @@ This document outlines the comprehensive testing strategy for Zeno's Model Conte
 - **Server Integration** (`server-integration.test.ts`): Full MCP server lifecycle
 - **Prompt Workflows** (`prompt-workflows.test.ts`): End-to-end workflow orchestration
 - **Performance** (`performance.test.ts`): Response time validation against budgets
-- **Backward Compatibility** (`backward-compat.test.ts`): CLI command preservation
 
 #### 3. End-to-End Tests (`tests/integration/`)
 - **Workflow Integration** (`gate-completion-analysis.test.ts`): Complete gate lifecycle

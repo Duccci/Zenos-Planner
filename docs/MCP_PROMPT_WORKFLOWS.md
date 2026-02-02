@@ -44,7 +44,62 @@ gates_complete(gate-id) -> Archive & Commit
 
 ## /zeno-archive
 - Purpose: Archive completed artifacts and update consolidation.
-- Tools: `gates_show`, `proposal_list`, `repository_commit` (if available)
-- Pattern: Validate completion -> move files to archive -> tag and update registry
+- Tools: `gates_show`, `proposal_list`, `repository_commit` (if available), `git_trace`
+- Pattern: Validate completion -> trace git history -> move files to archive -> tag and update registry
+
+```
+User Prompt
+    |
+    v
+gates_show(gate-id) -> Gate Status
+    |
+    v
+proposal_list(gate: gate-id) -> Completed Proposals
+    |
+    v
+git_trace(artifactHash) -> Git Provenance
+    |
+    v
+Archive Files -> Update Registry
+    |
+    v
+repository_commit(message) -> Git Tag & Push
+```
+
+### Git Traceability Tool
+
+The `git_trace` tool provides git history analysis for artifact traceability:
+
+**Input Parameters:**
+- `artifactHash`: Hash to search for (e.g., "#g03p08gittrace")
+- `dateRange`: Optional date filter {from: "2026-01-01", to: "2026-02-01"}
+- `branch`: Optional branch filter
+- `limit`: Optional result limit
+
+**Output:**
+- `commits[]`: Array of matching commits with confidence scores
+- `totalCommits`: Total commits searched
+- `searchParams`: Echo of search parameters
+
+**Usage Examples:**
+```javascript
+// Trace a proposal hash
+git_trace({
+  artifactHash: "#g03p08gittrace",
+  dateRange: { from: "2026-01-01" }
+})
+
+// CLI usage
+zeno trace #g03p08gittrace --from 2026-01-01 --json
+```
+
+**Commit Format Integration:**
+The tool respects the `commitFormat` from `.zeno/config.json` for pattern matching. Default format: `feat(%s): %m`
+
+**Confidence Scoring:**
+- 1.0: Direct hash match in message
+- 0.8: Hash in commit scope (using commitFormat)
+- 0.7: Hash without # prefix
+- 0.6: Fuzzy match (partial similarity)
 
 Each workflow should be exercised during integration tests and documented with example MCP calls and expected outputs.
