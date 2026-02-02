@@ -106,7 +106,7 @@ This gate requires two solitary proposals to be completed before starting:
 | #g03p04tools | completed | 2026-02-01 |
 | #g03p05vscode | completed | 2026-02-01 |
 | #g03p06diagnostics | completed | 2026-02-01 |
-| #g03p07testing | pending | - |
+| #g03p07testing | completed | 2026-02-02 |
 
 ### What This Gate Enables
 
