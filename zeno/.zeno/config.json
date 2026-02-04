@@ -1,5 +1,6 @@
 {
   "projectName": "Zenos-Planner",
+  "version": "0.2.0",
   "qualityThresholds": {
     "codeCoverage": 90,
     "securityVulnerabilities": 0,
@@ -13,12 +14,7 @@
     "autoTag": true,
     "autoPush": true,
     "remote": "origin",
-    "commitFormat": "<type>(<scope>): <subject>\n\n<summary>",
-    "commitExamples": [
-      "feat(gate): archive core-infrastructure gate with 3 proposals\n\n• Integrated authentication layer\n• Configured infrastructure gates\n• Deployed to production environment",
-      "chore(proposal): archive database-setup proposal with migration scripts\n\n• Created migration scripts\n• Set up database schemas\n• Documented setup procedures",
-      "chore(proposal): archive solitary proposal - template loader infrastructure\n\n• Implemented template loader system\n• Added configuration management"
-    ]
+    "commitFormat": "<type>(<scope>): <subject>\n\n<summary>"
   },
   "versioning": {
     "enabled": true,
@@ -27,4 +23,3 @@
     "lifecycleBump": "major"
   }
 }
-

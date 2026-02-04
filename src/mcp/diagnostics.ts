@@ -42,6 +42,9 @@ export interface ConfigStatus {
   configLoaded: boolean
   databasePath?: string
   hasGit: boolean
+  mcpConfigExists: boolean
+  mcpExecutableExists: boolean
+  vscodeVersion?: string
 }
 
 /**
@@ -135,20 +138,46 @@ export class McpDiagnostics {
   async getConfigStatus(): Promise<ConfigStatus> {
     try {
       await loadConfig()
-      return {
-        projectRoot: process.cwd(),
-        configLoaded: true,
-        databasePath: getDatabasePath(),
-        hasGit: true // Assume git is available for now
-      }
-    } catch (error) {
-      return {
-        projectRoot: process.cwd(),
-        configLoaded: false,
-        hasGit: false
-      }
+    const configStatus: ConfigStatus = {
+      projectRoot: process.cwd(),
+      configLoaded: true,
+      databasePath: getDatabasePath(),
+      hasGit: true, // Assume git is available for now
+      mcpConfigExists: false,
+      mcpExecutableExists: false
+    }
+
+    // Check for VSCode MCP configuration
+    try {
+      const fs = await import('node:fs')
+      const path = await import('node:path')
+      const mcpConfigPath = path.join(process.cwd(), '.vscode', 'mcp.json')
+      configStatus.mcpConfigExists = fs.existsSync(mcpConfigPath)
+    } catch (err) {
+      // Ignore
+    }
+
+    // Check for MCP executable
+    try {
+      const fs = await import('node:fs')
+      const path = await import('node:path')
+      const execPath = path.join(process.cwd(), 'bin', 'mcp-server.js')
+      configStatus.mcpExecutableExists = fs.existsSync(execPath)
+    } catch (err) {
+      // Ignore
+    }
+
+    return configStatus
+  } catch (error) {
+    return {
+      projectRoot: process.cwd(),
+      configLoaded: false,
+      hasGit: false,
+      mcpConfigExists: false,
+      mcpExecutableExists: false
     }
   }
+}
 
   /**
    * Get recent errors
@@ -203,7 +232,24 @@ export class McpDiagnostics {
       lines.push(`  Database: ${report.config.databasePath}`)
     }
     lines.push(`  Git Available: ${report.config.hasGit}`)
+    lines.push(`  VSCode MCP Config: ${report.config.mcpConfigExists ? 'Found (.vscode/mcp.json)' : 'Missing (.vscode/mcp.json)'} `)
+    lines.push(`  MCP Executable: ${report.config.mcpExecutableExists ? 'Found (bin/mcp-server.js)' : 'Missing (bin/mcp-server.js)'} `)
     lines.push('')
+
+    // VSCode Troubleshooting
+    if (!report.config.mcpConfigExists || !report.config.mcpExecutableExists) {
+      lines.push('VSCode MCP Troubleshooting:')
+      if (!report.config.mcpConfigExists) {
+        lines.push('  - Run: zeno mcp install')
+        lines.push('  - Creates .vscode/mcp.json configuration')
+      }
+      if (!report.config.mcpExecutableExists) {
+        lines.push('  - Run: npm run build')
+        lines.push('  - Compiles TypeScript to bin/mcp-server.js')
+      }
+      lines.push('  - Restart VSCode MCP server from command palette')
+      lines.push('')
+    }
 
     // Tools
     lines.push('Registered Tools:')

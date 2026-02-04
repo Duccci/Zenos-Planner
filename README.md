@@ -75,7 +75,12 @@ zeno --version
 
 Zeno supports editor integrations (VS Code, Cursor, Windsurf) via the MCP protocol. Use the CLI installer to set up editor configs and optional adapters, or run the single-step install from your workspace. The installer is idempotent and supports workspace-local or global installation (global installs may require elevated privileges on some platforms).
 
-Quick 3-step setup (recommended):
+**One-click VSCode setup (recommended):**
+1. Install Zeno CLI: `npm install -g zenos-planner`
+2. Run: `zeno mcp install --editor vscode`
+3. Click the generated `vscode:mcp/install` link to install automatically
+
+**Manual setup:**
 1. Install Zeno CLI (global or per-user): `npm install -g zenos-planner`
 2. Run installer for your editor: `zeno mcp install --editor <vscode|cursor|windsurf|all> [--global]`
 3. Follow the printed next steps (enable MCP in the editor or run the adapter activation command)
@@ -84,10 +89,14 @@ Example `mcp.json` (workspace):
 ```json
 {
   "servers": {
-    "zenoPlanner": {
+    "zeno-planner": {
+      "type": "stdio",
       "command": "node",
       "args": ["./bin/mcp-server.js"],
-      "env": { "ZENO_PROJECT_ROOT": "${workspaceFolder}" }
+      "description": "Zeno Planner MCP server for AI-powered project management",
+      "env": {
+        "ZENO_WORKSPACE": "${workspaceFolder}"
+      }
     }
   }
 }
@@ -425,7 +434,6 @@ zeno repos deps              # Show dependency graph
 ```bash
 zeno show <hash>             # Show any entity by hash
 zeno status                  # Show project status
-zeno dashboard               # Interactive TUI dashboard
 ```
 
 ## Architecture Diagrams
@@ -503,7 +511,6 @@ MIT License - see [LICENSE](LICENSE) for details.
 - Human approval workflow
 - Git integration
 - Rescope engine
-- TUI dashboard
 
 ### Future (v2.0+)
 - [ ] Multi-LLM orchestration

@@ -1,28 +1,46 @@
-# MCP Server Setup for VS Code
+# MCP VS Code Setup Guide
 
-This guide shows how to configure VS Code to discover and use the Zeno MCP server.
+This guide explains how to set up the Zeno Planner MCP server in VS Code.
 
-## Quick Start
-1. Add `mcp.json` to your workspace (create `.vscode/mcp.json`) and copy the contents of `mcp.json.template`.
-2. Ensure `ZENO_PROJECT_ROOT` resolves to your workspace root (the template uses `${workspaceFolder}`).
-3. Start the MCP server (workspace-local):
-   - From terminal: `node ./bin/mcp-server.js`
-   - Or via CLI: `zeno mcp server`
-4. Open the VS Code Chat view and verify Zeno tools appear in the tool picker.
+## Installation
 
-## Where to put `mcp.json`
-- Workspace: `.vscode/mcp.json` (recommended for project-specific settings)
-- User: `%APPDATA%\Code\User\mcp.json` (Windows) or `$HOME/.config/Code/User/mcp.json` (Linux/macOS)
+1. Install the MCP server using the installer:
+   ```bash
+   zeno mcp install
+   ```
 
-## Verification
-- When server is running, `zeno mcp diagnostics` returns a readable report of registered tools.
-- Use `zeno mcp run -t proposal_list` to validate a sample tool invocation locally.
+2. The installer will create a `.vscode/mcp.json` file in your workspace.
+
+3. Restart VS Code to enable the MCP server.
+
+## Configuration
+
+The `.vscode/mcp.json` file contains:
+```json
+{
+  "servers": {
+    "zeno-planner": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./bin/mcp-server.js"],
+      "description": "Zeno Planner MCP server for AI-powered project management",
+      "env": {
+        "ZENO_WORKSPACE": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+## Usage
+
+Once configured, Zeno tools will be available in the VS Code Chat view tool picker.
 
 ## Troubleshooting
-- If tools don't appear: ensure VS Code version >= 1.102 with MCP support and that `mcp.json` is valid JSON.
-- On Windows, ensure Node is in PATH and `ZENO_PROJECT_ROOT` points to the workspace root.
-- Use `zeno mcp diagnostics` and check the Output panel for MCP logs.
 
-## Notes
-- The template uses stdio transport (recommended for local workflows).
-- For editors that don't support workspace-level `mcp.json`, see adapter docs for Cursor/Windsurf in `docs/`.
+If tools don't appear, check:
+- VS Code version is 1.102+
+- The `.vscode/mcp.json` file exists
+- The MCP server is running without errors
+
+For more details, see the main README.md.

@@ -414,8 +414,9 @@ export function registerGatesCommands(program: Command): void {
       `).get() as { id: string; name: string; completed_at: string } | undefined
       
       // Get existing project
-      const existingProject = db.prepare('SELECT id FROM projects LIMIT 1').get() as { id: string } | undefined
-      projectId = existingProject?.id
+      // const existingProject = db.prepare('SELECT id FROM projects LIMIT 1').get() as { id: string } | undefined
+      // projectId = existingProject?.id
+      projectId = 'default-project' // Always use default project
       
       // If not found in database, check archive folder and sync all archived gates
       if (!recentGate) {
@@ -485,18 +486,37 @@ export function registerGatesCommands(program: Command): void {
                   // Handle multi-line gate definitions by removing line breaks and extra spaces
                   const normalized = roadmapContent.replace(/\n\s+/g, ' ')
                   
-                  // Match pattern: G<num>[Gate <num><br/>Name<br/>...] where name ends at ] or <br/>
-                  const gatePattern = /G(\d+)\[Gate \d+<br\/>([^\]<]+)/g
+                  // Match pattern: G<num>[Gate <num><br/>Name...] where name ends at ]
+                  const gatePattern = /G([0-9_]+)\[Gate [0-9._]+<br\/>([^]]+)/g
                   let regexMatch
-                  const seenGates = new Set([1, 2]) // Already have gates 1-2
+                  const foundGates: { num: string; name: string }[] = []
                   
                   while ((regexMatch = gatePattern.exec(normalized)) !== null) {
-                    const seq = parseInt(regexMatch[1] ?? '0', 10)
-                    const name = (regexMatch[2] ?? '').trim()
+                    const gateNum = regexMatch[1] ?? ''
+                    let name = (regexMatch[2] ?? '').trim()
                     
-                    if (!seenGates.has(seq) && name.length > 0) {
-                      dynamicGates.push({ seq, name })
-                      seenGates.add(seq)
+                    // Clean up the name: remove <br/> tags and status text
+                    name = name.replace(/<br\/>/g, ' ').replace(/\s+/g, ' ').trim()
+                    if (name.includes(' Pending')) name = name.replace(' Pending', '')
+                    if (name.includes(' Completed')) name = name.replace(' Completed', '')
+                    
+                    if (name.length > 0) {
+                      foundGates.push({ num: gateNum, name })
+                    }
+                  }
+                  
+                  // Sort by gate number and assign sequential seq starting from 3
+                  foundGates.sort((a, b) => {
+                    const aNum = a.num.includes('_') ? parseFloat(a.num.replace('_', '.')) : parseInt(a.num, 10)
+                    const bNum = b.num.includes('_') ? parseFloat(b.num.replace('_', '.')) : parseInt(b.num, 10)
+                    return aNum - bNum
+                  })
+                  
+                  let seq = 3
+                  for (const gate of foundGates) {
+                    dynamicGates.push({ seq, name: gate.name })
+                    seq++
+                  }
                     }
                   }
                 } catch (error) {
@@ -507,16 +527,18 @@ export function registerGatesCommands(program: Command): void {
               // Fall back to hardcoded gates if parsing failed
               if (dynamicGates.length === 0) {
                 dynamicGates = [
-                  { seq: 3, name: 'Requirements & Database Layer' },
-                  { seq: 4, name: 'Architecture & Mermaid Generation' },
-                  { seq: 5, name: 'Multi-Repo & Subproject Detection' },
-                  { seq: 6, name: 'Proposal Generation & Management' },
-                  { seq: 7, name: 'Automated Validation & Quality Gates' },
-                  { seq: 8, name: 'Human Approval & Rejection Workflow' },
-                  { seq: 9, name: 'Git Integration & Commit Automation' },
-                  { seq: 10, name: 'Rescope & Replan Engine' },
-                  { seq: 11, name: 'Dashboard & Visualization' },
-                  { seq: 12, name: 'Documentation & Polish' }
+                  { seq: 3, name: 'MCP Server & LLM Tool Integration' },
+                  { seq: 4, name: 'Requirements & Database Layer' },
+                  { seq: 5, name: 'Architecture & Mermaid Generation' },
+                  { seq: 6, name: 'Multi-Repo & Subproject Detection' },
+                  { seq: 7, name: 'Proposal Generation & Management' },
+                  { seq: 8, name: 'Automated Validation & Quality Gates' },
+                  { seq: 9, name: 'Human Approval & Rejection Workflow' },
+                  { seq: 10, name: 'Git Integration & Commit Automation' },
+                  { seq: 11, name: 'Rescope & Replan Engine' },
+                  { seq: 12, name: 'Dashboard & Visualization' },
+                  { seq: 13, name: 'Subagent Orchestration & Parallel Execution' },
+                  { seq: 14, name: 'Documentation & Polish' }
                 ]
               }
               

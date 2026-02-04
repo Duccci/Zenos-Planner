@@ -402,7 +402,7 @@ export async function parseCommitsForHashes(
       const parts = line.split('|')
       if (parts.length < 5) continue
 
-      const [commitSha, authorName, authorEmail, date, subject, ...bodyParts] = parts
+      const [commitSha, authorName, authorEmail, date, subject, ...bodyParts] = parts as [string, string, string, string, string, ...string[]]
       const body = bodyParts.join('|').trim()
       const fullMessage = `${subject}${body ? `\n\n${body}` : ''}`
 

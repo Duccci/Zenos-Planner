@@ -51,6 +51,7 @@ export const ZenoConfigSchema = z.object({
       autoTag: z.boolean().default(true),
       autoPush: z.boolean().default(false),
       remote: z.string().default('origin'),
+      commitFormat: z.string().default('feat(%s): %m'),
     })
     .optional(),
 
@@ -191,6 +192,7 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
       autoTag: true,
       autoPush: false,
       remote: 'origin',
+      commitFormat: 'feat(%s): %m',
     },
     versioning: {
       enabled: true,

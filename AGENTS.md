@@ -70,7 +70,6 @@ project-root/
 |----------|---------|-------------|
 | **Project** | `zeno init` | Initialize new project |
 | | `zeno status` | Show project overview |
-| | `zeno dashboard` | Launch TUI dashboard (Gate 11+) |
 | | `zeno rescope` | Rescope project mid-development |
 | **Gates** | `zeno gates list` | List all gates |
 | | `zeno gates show <id>` | Show gate details |

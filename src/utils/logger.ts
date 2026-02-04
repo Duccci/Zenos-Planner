@@ -50,7 +50,7 @@ export const logger = {
     if (!shouldLog('debug')) return
     const timestamp = chalk.gray(`[${formatTimestamp()}]`)
     const prefix = chalk.gray('[DEBUG]')
-    console.log(timestamp, prefix, chalk.gray(message), ...args)
+    console.error(timestamp, prefix, chalk.gray(message), ...args)
   },
 
   /**
@@ -59,7 +59,7 @@ export const logger = {
   info(message: string, ...args: unknown[]): void {
     if (!shouldLog('info')) return
     const prefix = chalk.blue('[INFO]')
-    console.log(prefix, message, ...args)
+    console.error(prefix, message, ...args)
   },
 
   /**
@@ -87,9 +87,9 @@ export const logger = {
 export function logSection(title: string): void {
   if (!shouldLog('info')) return
   const line = chalk.dim('-'.repeat(50))
-  console.log(line)
-  console.log(chalk.bold.cyan(title))
-  console.log(line)
+  console.error(line)
+  console.error(chalk.bold.cyan(title))
+  console.error(line)
 }
 
 /**
@@ -114,8 +114,8 @@ export function logTable(
   const headerLine = headers.map((h, i) => h.padEnd(colWidths[i] ?? 0)).join('  ')
   const separator = colWidths.map((w) => '-'.repeat(w)).join('  ')
 
-  console.log(indent + chalk.bold(headerLine))
-  console.log(indent + chalk.dim(separator))
+  console.error(indent + chalk.bold(headerLine))
+  console.error(indent + chalk.dim(separator))
 
   // Format rows
   for (const row of rows) {
@@ -128,7 +128,7 @@ export function logTable(
         return cellValue.padEnd(width !== undefined ? width : 0)
       })
       .join('  ')
-    console.log(indent + formattedRow)
+    console.error(indent + formattedRow)
   }
 }
 

@@ -2,9 +2,12 @@ import { describe, it, expect } from 'vitest'
 
 describe('MCP Gates tools (integration)', () => {
   it('gates_list returns structured gates', async () => {
-    const { runToolOnce } = await import('../../../src/mcp/run.js')
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
+    const registry = createFunctionRegistry()
+    const handler = createToolHandler(registry, 'gates_list')
 
-    const result = await runToolOnce('gates_list', {})
+    const result = await handler({})
 
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
@@ -15,9 +18,12 @@ describe('MCP Gates tools (integration)', () => {
   })
 
   it('gates_start with invalid input returns error', async () => {
-    const { runToolOnce } = await import('../../../src/mcp/run.js')
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
+    const registry = createFunctionRegistry()
+    const handler = createToolHandler(registry, 'gates_start')
 
-    const result = await runToolOnce('gates_start', { gateId: 'does-not-exist' })
+    const result = await handler({ gateId: 'does-not-exist' })
 
     expect(result).toBeDefined()
     expect(result.isError).toBe(true)

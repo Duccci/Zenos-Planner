@@ -29,9 +29,9 @@ describe('logger', () => {
       logger.error('error msg')
 
       // Debug should not be called (below info level)
-      expect(console.log).toHaveBeenCalledTimes(1) // Only info
+      expect(console.log).toHaveBeenCalledTimes(0) // info now uses error
       expect(console.warn).toHaveBeenCalledTimes(1)
-      expect(console.error).toHaveBeenCalledTimes(1)
+      expect(console.error).toHaveBeenCalledTimes(2) // info + error
     })
 
     it('shows all levels when ZENO_LOG_LEVEL=debug', () => {
@@ -42,9 +42,9 @@ describe('logger', () => {
       logger.warn('warn msg')
       logger.error('error msg')
 
-      expect(console.log).toHaveBeenCalledTimes(2) // debug + info
+      expect(console.log).toHaveBeenCalledTimes(0) // debug and info use error
       expect(console.warn).toHaveBeenCalledTimes(1)
-      expect(console.error).toHaveBeenCalledTimes(1)
+      expect(console.error).toHaveBeenCalledTimes(3) // debug + info + error
     })
 
     it('only shows error when ZENO_LOG_LEVEL=error', () => {
@@ -80,8 +80,8 @@ describe('logger', () => {
 
       logger.debug('test message')
 
-      expect(console.log).toHaveBeenCalled()
-      const callArgs = vi.mocked(console.log).mock.calls[0]
+      expect(console.error).toHaveBeenCalled()
+      const callArgs = vi.mocked(console.error).mock.calls[0]
       expect(callArgs?.[0]).toMatch(/\[\d{4}-\d{2}-\d{2}T/)
     })
   })
@@ -92,7 +92,7 @@ describe('logger', () => {
 
       logger.info('info message')
 
-      expect(console.log).toHaveBeenCalled()
+      expect(console.error).toHaveBeenCalled()
     })
   })
 
@@ -120,6 +120,7 @@ describe('logger', () => {
 describe('logSection', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     delete process.env['ZENO_LOG_LEVEL']
   })
 
@@ -130,7 +131,7 @@ describe('logSection', () => {
   it('outputs section with title', () => {
     logSection('Test Section')
 
-    expect(console.log).toHaveBeenCalledTimes(3) // line, title, line
+    expect(console.error).toHaveBeenCalledTimes(3) // line, title, line
   })
 
   it('respects log level', () => {
@@ -138,7 +139,7 @@ describe('logSection', () => {
 
     logSection('Test Section')
 
-    expect(console.log).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
   })
 
   it('respects warn log level (hides section)', () => {
@@ -146,13 +147,14 @@ describe('logSection', () => {
 
     logSection('Test Section')
 
-    expect(console.log).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
   })
 })
 
 describe('logTable', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     delete process.env['ZENO_LOG_LEVEL']
   })
 
@@ -166,19 +168,19 @@ describe('logTable', () => {
       ['baz', 'qux'],
     ])
 
-    expect(console.log).toHaveBeenCalledTimes(4) // header, separator, 2 rows
+    expect(console.error).toHaveBeenCalledTimes(4) // header, separator, 2 rows
   })
 
   it('handles empty rows', () => {
     logTable(['Header'], [])
 
-    expect(console.log).toHaveBeenCalledTimes(2) // header + separator
+    expect(console.error).toHaveBeenCalledTimes(2) // header + separator
   })
 
   it('respects indent option', () => {
     logTable(['H'], [['v']], { indent: 4 })
 
-    const calls = vi.mocked(console.log).mock.calls
+    const calls = vi.mocked(console.error).mock.calls
     expect(calls[0]?.[0]).toMatch(/^\s{4}/)
   })
 
@@ -187,7 +189,7 @@ describe('logTable', () => {
 
     logTable(['Header'], [['value']])
 
-    expect(console.log).not.toHaveBeenCalled()
+    expect(console.error).not.toHaveBeenCalled()
   })
 
   it('handles rows with missing cells', () => {
@@ -196,20 +198,20 @@ describe('logTable', () => {
       ['x', 'y', 'z'],
     ])
 
-    expect(console.log).toHaveBeenCalledTimes(4) // header, separator, 2 rows
+    expect(console.error).toHaveBeenCalledTimes(4) // header, separator, 2 rows
   })
 
   it('handles undefined cells in rows', () => {
     const rows: string[][] = [['val', undefined as unknown as string]]
     logTable(['H1', 'H2'], rows)
 
-    expect(console.log).toHaveBeenCalledTimes(3)
+    expect(console.error).toHaveBeenCalledTimes(3)
   })
 
   it('uses default indent of 0 when not specified', () => {
     logTable(['H'], [['v']])
 
-    const calls = vi.mocked(console.log).mock.calls
+    const calls = vi.mocked(console.error).mock.calls
     // First char should not be a space
     expect(calls[0]?.[0]).not.toMatch(/^\s/)
   })

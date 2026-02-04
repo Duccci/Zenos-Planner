@@ -16,27 +16,25 @@ describe('CLI: mcp run', () => {
   })
 
   it('should run config_get and output config', async () => {
-    // Use the runToolOnce helper directly to avoid commander parsing issues
-    const { runToolOnce } = await import('../../src/mcp/run.js')
-
-    const result = await runToolOnce('config_get', {})
+    // Use the function registry directly to invoke the tool
+    const result = await registry.invoke('config_get', {})
 
     expect(result).toBeDefined()
-    expect(result.isError).toBeUndefined()
-    expect(result.structuredContent).toBeDefined()
-    expect(Object.keys(result.structuredContent ?? {}).length).toBeGreaterThan(0)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data).toBeDefined()
+      expect(typeof result.data).toBe('object')
+    }
   })
 
   it('should fail for unknown tool', async () => {
-    const { runToolOnce } = await import('../../src/mcp/run.js')
-
-    const result = await runToolOnce('does_not_exist', {})
+    const result = await registry.invoke('does_not_exist', {})
 
     expect(result).toBeDefined()
-    expect(result.isError).toBe(true)
-
-    // Ensure error message was returned in content
-    const text = result.content && result.content[0] ? String(result.content[0].text) : ''
-    expect(text.toLowerCase()).toContain('error')
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error).toBeDefined()
+      expect(result.error.code).toBe('FUNCTION_NOT_FOUND')
+    }
   })
 })

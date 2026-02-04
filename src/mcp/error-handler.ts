@@ -64,7 +64,7 @@ function mapErrorToCode(error: unknown): McpErrorCode {
 /**
  * Generate actionable suggestions based on error type
  */
-function generateSuggestions(errorCode: McpErrorCode): string[] {
+function generateSuggestions(errorCode: McpErrorCode, context?: Record<string, unknown>): string[] {
   const suggestions: string[] = []
 
   switch (errorCode) {
@@ -72,37 +72,52 @@ function generateSuggestions(errorCode: McpErrorCode): string[] {
       suggestions.push('Check if the requested resource exists')
       suggestions.push('Verify the ID or name is correct')
       suggestions.push('List available resources first')
+      suggestions.push('In VSCode: Check MCP Resources panel for available documents')
       break
 
     case McpErrorCode.VALIDATION_FAILED:
       suggestions.push('Check the input parameters against the expected schema')
       suggestions.push('Ensure all required fields are provided')
       suggestions.push('Verify parameter types match the documentation')
+      suggestions.push('In VSCode: Use MCP tool help or check tool descriptions')
       break
 
     case McpErrorCode.PERMISSION_DENIED:
       suggestions.push('Ensure you have the necessary permissions')
       suggestions.push('Check if the project is properly initialized')
       suggestions.push('Verify your access to the workspace')
+      suggestions.push('In VSCode: Ensure MCP server is properly configured in settings')
       break
 
     case McpErrorCode.INTERNAL_ERROR:
       suggestions.push('This is an unexpected error - please report it')
       suggestions.push('Try the operation again')
       suggestions.push('Check the server logs for more details')
+      suggestions.push('In VSCode: Check MCP output panel for server logs')
       break
 
     case McpErrorCode.NETWORK_ERROR:
       suggestions.push('Check your network connection')
       suggestions.push('Verify the service is running')
       suggestions.push('Try again in a few moments')
+      suggestions.push('In VSCode: Restart MCP server from command palette')
       break
 
     case McpErrorCode.TIMEOUT:
       suggestions.push('The operation took too long to complete')
       suggestions.push('Try breaking it into smaller operations')
       suggestions.push('Check system resources')
+      suggestions.push('In VSCode: Increase timeout settings if available')
       break
+  }
+
+  // Add VSCode-specific connection troubleshooting if this seems like a connection issue
+  if (context?.['function'] === 'connection' || errorCode === McpErrorCode.NETWORK_ERROR) {
+    suggestions.push('VSCode Troubleshooting:')
+    suggestions.push('  1. Check .vscode/mcp.json exists and points to correct executable')
+    suggestions.push('  2. Verify bin/mcp-server.js is executable (run: npm run build)')
+    suggestions.push('  3. Restart VSCode MCP server from command palette')
+    suggestions.push('  4. Check VSCode MCP output panel for startup errors')
   }
 
   return suggestions
@@ -117,7 +132,7 @@ export function createMcpError(
 ): McpError {
   const errorCode = mapErrorToCode(error)
   const message = error instanceof Error ? error.message : 'Unknown error occurred'
-  const suggestions = generateSuggestions(errorCode)
+  const suggestions = generateSuggestions(errorCode, context)
 
   const mcpError: McpError = {
     code: errorCode,

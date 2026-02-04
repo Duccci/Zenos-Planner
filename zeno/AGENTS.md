@@ -570,7 +570,6 @@ All Zeno operations are invoked by AI agents during workflow execution. These ar
 ```bash
 zeno init                           # Initialize new project
 zeno status                         # Show project overview
-zeno dashboard                      # Launch TUI dashboard (Gate 11+)
 zeno rescope                        # Rescope project mid-development
 ```
 

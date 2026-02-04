@@ -15,6 +15,27 @@ export function getAdapterCommand(editor: 'vscode' | 'cursor' | 'windsurf', proj
   return `${base} --adapter ${editor}`
 }
 
+/**
+ * Generate VSCode MCP installation URL for one-click setup
+ */
+export function getVSCodeInstallUrl(): string {
+  const config = {
+    servers: {
+      'zeno-planner': {
+        type: 'stdio',
+        command: 'node',
+        args: ['./bin/mcp-server.js'],
+        description: "Zeno Planner MCP server for AI-powered project management",
+        env: {
+          ZENO_WORKSPACE: '${workspaceFolder}'
+        }
+      }
+    }
+  }
+  const encodedConfig = encodeURIComponent(JSON.stringify(config))
+  return `vscode:mcp/install?${encodedConfig}`
+}
+
 export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
   const vscodeDir = join(projectRoot, '.vscode')
   const target = join(vscodeDir, 'mcp.json')
@@ -22,7 +43,19 @@ export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
 
   try {
     // Minimal config: point to the local wrapper
-    const content = JSON.stringify({ servers: { zenoPlanner: { command: 'node', args: ['./bin/mcp-server.js'], env: { ZENO_PROJECT_ROOT: '${workspaceFolder}' } } } }, null, 2)
+    const content = JSON.stringify({
+      servers: {
+        'zeno-planner': {
+          type: 'stdio',
+          command: 'node',
+          args: ['./bin/mcp-server.js'],
+          description: "Zeno Planner MCP server for AI-powered project management",
+          env: {
+            ZENO_WORKSPACE: '${workspaceFolder}'
+          }
+        }
+      }
+    }, null, 2)
     // Ensure .vscode directory exists (best-effort)
     try { writeFileSync(target, content, { encoding: 'utf-8' }) } catch (err) { /* ignore, caller will handle */ }
     logger.info(`Wrote workspace mcp.json to ${target}`)

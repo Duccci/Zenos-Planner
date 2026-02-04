@@ -4,19 +4,18 @@ import { join } from 'node:path'
 import { createMcpServer } from '../../src/mcp/server.js'
 
 describe('VS Code integration artifacts', () => {
-  it('mcp.json.template exists and contains zenoPlanner', () => {
+  it('mcp.json.template exists and contains zeno-planner', () => {
     const path = join(process.cwd(), 'mcp.json.template')
     const content = JSON.parse(readFileSync(path, 'utf-8'))
     expect(content.servers).toBeDefined()
-    expect(content.servers.zenoPlanner).toBeDefined()
-    expect(content.servers.zenoPlanner.args).toContain('./bin/mcp-server.js')
+    expect(content.servers['zeno-planner']).toBeDefined()
+    expect(content.servers['zeno-planner'].args).toContain('./bin/mcp-server.js')
   })
 
   it('MCP VS Code docs exist', () => {
     const path = join(process.cwd(), 'docs', 'MCP_VSCODE_SETUP.md')
     const content = readFileSync(path, 'utf-8')
     expect(content).toContain('mcp.json')
-    expect(content).toContain('ZENO_PROJECT_ROOT')
   })
 
   it('MCP server creates successfully with tools registered', async () => {

@@ -16,24 +16,29 @@ import { join } from 'node:path'
 /**
  * Create and configure the MCP server
  */
-export async function createMcpServer(): Promise<McpServer> {
+export async function createMcpServer(workspacePath?: string): Promise<McpServer> {
   const server = new McpServer(
     {
       name: 'zeno-planner',
       version: '0.2.0'
     },
     {
-      instructions: 'You are Zeno\'s Planner, an AI-powered project management system. Use the available tools to manage projects, gates, requirements, and proposals. Always follow the structured workflow: identify proposals, check dependencies, start proposals, implement tasks, update requirements, validate, and request completion.'
+      instructions: 'You are Zeno\'s Planner, an AI-powered project management system. Use the available tools to manage projects, gates, requirements, and proposals across multiple Zeno projects in your workspace. Always specify the project path when working with project-specific tools. Follow the structured workflow: identify proposals, check dependencies, start proposals, implement tasks, update requirements, validate, and request completion.'
     }
   )
 
-  // Create function registry
+  // Create function registry with workspace support
   const registry = createFunctionRegistry()
 
   // Register tools centrally (augmented with tool metadata when available)
   const { registerTools } = await import('./tools/index.js')
   const registered = registerTools(server, registry)
   logger.info(`Registered ${registered.length} MCP tools via centralized registry`)
+
+  // Register resources for project artifacts
+  const { registerResources } = await import('./resources/index.js')
+  const resourceCount = await registerResources(server, workspacePath)
+  logger.info(`Registered ${resourceCount} MCP resources`)
 
 
   return server
@@ -42,11 +47,15 @@ export async function createMcpServer(): Promise<McpServer> {
 /**
  * Main entry point for the MCP server
  */
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   try {
+    // Parse command line arguments
+    const workspacePath = process.env['ZENO_WORKSPACE'] || process.cwd()
+    
     logger.info('Starting Zeno MCP server...')
+    logger.info(`Workspace: ${workspacePath}`)
 
-    const server = await createMcpServer()
+    const server = await createMcpServer(workspacePath)
     const transport = new StdioServerTransport()
 
     await server.connect(transport)
