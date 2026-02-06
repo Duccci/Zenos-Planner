@@ -93,10 +93,7 @@ Example `mcp.json` (workspace):
       "type": "stdio",
       "command": "node",
       "args": ["./bin/mcp-server.js"],
-      "description": "Zeno Planner MCP server for AI-powered project management",
-      "env": {
-        "ZENO_WORKSPACE": "${workspaceFolder}"
-      }
+      "description": "Zeno Planner MCP server for AI-powered project management"
     }
   }
 }

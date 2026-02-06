@@ -1,0 +1,69 @@
+import { type GateConsolidation } from '../utils/gate-consolidation.js'
+
+/**
+ * Archive Consolidation Helpers
+ */
+
+export function consolidationToMarkdown(consolidation: GateConsolidation): string {
+  let md = '\n## Requirements Fulfilled\n\n'
+  if (consolidation.requirementsFulfilled.length > 0) {
+    md += '| Requirement | Proposal |\n|-------------|----------|\n'
+    for (const req of consolidation.requirementsFulfilled) {
+      md += `| ${req.hash} | ${req.proposalHash} |\n`
+    }
+  } else {
+    md += 'No requirements fulfilled.\n'
+  }
+
+  md += '\n## Lessons Learned\n\n'
+  if (consolidation.lessonsLearned.length > 0) {
+    for (const lesson of consolidation.lessonsLearned) {
+      md += `- ${lesson}\n`
+    }
+  } else {
+    md += 'No lessons learned documented.\n'
+  }
+
+  md += '\n## Next Dependencies\n\n'
+  if (consolidation.nextDependencies.length > 0) {
+    md += '| Dependency | Description | Proposal |\n|------------|-------------|----------|\n'
+    for (const dep of consolidation.nextDependencies) {
+      md += `| ${dep.hash} | ${dep.description} | ${dep.proposalHash} |\n`
+    }
+  } else {
+    md += 'No next dependencies identified.\n'
+  }
+
+  md += '\n## High-Level Delta\n\n'
+  md += `${consolidation.highLevelDelta.summary}\n\n`
+
+  if (consolidation.highLevelDelta.artifactsCreated.length > 0) {
+    md += '### Artifacts Created\n\n'
+    for (const artifact of consolidation.highLevelDelta.artifactsCreated) {
+      md += `- ${artifact}\n`
+    }
+    md += '\n'
+  }
+
+  md += '### Quality Metrics\n\n'
+  md += `- **Coverage**: ${consolidation.highLevelDelta.qualityMetrics.totalCoverage}\n`
+  md += `- **Files Modified**: ${consolidation.highLevelDelta.qualityMetrics.totalFiles}\n`
+  md += `- **Tasks Completed**: ${consolidation.highLevelDelta.qualityMetrics.totalTasks}\n`
+
+  return md
+}
+
+export function prepareArchiveContent(
+  originalContent: string,
+  consolidation: GateConsolidation,
+  completionNotes?: string,
+  timestamp?: string
+): string {
+  const ts = timestamp ?? new Date().toISOString()
+  let updatedContent = originalContent
+  updatedContent += '\n\n## Archive Summary\n\n'
+  updatedContent += `**Archived**: ${ts}\n`
+  updatedContent += `**Completion Notes**: ${completionNotes || 'None'}\n\n`
+  updatedContent += consolidationToMarkdown(consolidation)
+  return updatedContent
+}

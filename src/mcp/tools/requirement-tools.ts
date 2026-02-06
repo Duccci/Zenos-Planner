@@ -30,67 +30,18 @@ export const requirementToolDefinitions = [
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ReqListOutputSchema, RequirementDetailSchema, DependencyGraphSchema, ReqTransferOutputSchema } from '../schemas/requirement-schemas.js'
-
-function parseJsonSafe(input: unknown) {
-  try { return typeof input === 'string' ? JSON.parse(input) : input } catch { return null }
-}
+import { createSchemaValidatingHandler } from './handler-factory.js'
 
 export function requirementHandlers(registry: FunctionRegistry) {
+  const reqListHandler = createSchemaValidatingHandler(registry, 'req_list', ReqListOutputSchema)
+  const reqShowHandler = createSchemaValidatingHandler(registry, 'req_show', RequirementDetailSchema)
+  const reqDepsHandler = createSchemaValidatingHandler(registry, 'req_deps', DependencyGraphSchema)
+  const reqTransferHandler = createSchemaValidatingHandler(registry, 'req_transfer', ReqTransferOutputSchema)
+
   return {
-    async req_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('req_list', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ReqListOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async req_show(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('req_show', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = RequirementDetailSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async req_deps(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('req_deps', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = DependencyGraphSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async req_transfer(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('req_transfer', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ReqTransferOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: JSON.stringify(data, null, 2) } ], structuredContent: data }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    }
+    req_list: reqListHandler,
+    req_show: reqShowHandler,
+    req_deps: reqDepsHandler,
+    req_transfer: reqTransferHandler
   }
 }

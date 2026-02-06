@@ -93,24 +93,22 @@ export async function main(): Promise<void> {
     // Development mode: file watching for auto-restart
     const isDevMode = process.env['NODE_ENV'] === 'development' || process.argv.includes('--dev')
     const watchPattern = process.env['FILE_WATCH_PATTERN'] || 'src/**/*.ts'
-    const watchDir = watchPattern.split('/')[0] || 'src' // Simple parsing, assume src/**
 
     if (isDevMode) {
-      let restartTimeout: NodeJS.Timeout | null = null
-      watch(join(process.cwd(), watchDir), { recursive: true }, (_eventType, filename) => {
-        if (filename && filename.endsWith('.ts')) {
-          if (restartTimeout) {
-            clearTimeout(restartTimeout)
-          }
-          restartTimeout = setTimeout(async () => {
-            logger.info(`Source file changed: ${filename}, restarting server...`)
-            // Graceful shutdown
-            await server.close()
-            removePid?.()
-            process.exit(0)
-          }, 500) // Debounce 500ms
+      const { enableDevMode } = await import('./dev-mode.js')
+      const watcher = enableDevMode({
+        watchPattern,
+        debounceMs: 500,
+        onRestart: async (filename) => {
+          logger.info(`Source file changed: ${filename}, restarting server...`)
+          await server.close()
+          removePid?.()
+          process.exit(0)
         }
       })
+
+      // On server shutdown, ensure watcher closed
+      process.on('exit', () => watcher.close())
       logger.info(`Development mode: watching ${watchPattern} for changes`)
     }
 

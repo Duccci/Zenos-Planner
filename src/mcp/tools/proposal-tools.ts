@@ -42,95 +42,15 @@ export const proposalToolDefinitions = [
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ProposalListOutputSchema, ProposalDetailSchema, ProposalValidateOutputSchema, ProposalApproveOutputSchema, ProposalRejectOutputSchema, ProposalStartOutputSchema } from '../schemas/proposal-schemas.js'
-
-function parseJsonSafe(input: unknown) {
-  try { return typeof input === 'string' ? JSON.parse(input) : input } catch { return null }
-}
+import { createSchemaValidatingHandler } from './handler-factory.js'
 
 export function proposalHandlers(registry: FunctionRegistry) {
   return {
-    async proposal_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_list', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalListOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async proposal_show(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_show', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalDetailSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async proposal_validate(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_validate', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalValidateOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: String(data.output ?? data) } ], structuredContent: { output: String(data.output ?? data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async proposal_approve(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_approve', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalApproveOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: JSON.stringify(data, null, 2) } ], structuredContent: data }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async proposal_reject(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_reject', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalRejectOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: JSON.stringify(data, null, 2) } ], structuredContent: data }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    },
-
-    async proposal_start(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('proposal_start', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) {
-          const ok = ProposalStartOutputSchema.safeParse(parsed)
-          if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
-        }
-        return { content: [ { type: 'text', text: JSON.stringify(data, null, 2) } ], structuredContent: data }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    }
+    proposal_list: createSchemaValidatingHandler(registry, 'proposal_list', ProposalListOutputSchema),
+    proposal_show: createSchemaValidatingHandler(registry, 'proposal_show', ProposalDetailSchema),
+    proposal_validate: createSchemaValidatingHandler(registry, 'proposal_validate', ProposalValidateOutputSchema),
+    proposal_approve: createSchemaValidatingHandler(registry, 'proposal_approve', ProposalApproveOutputSchema),
+    proposal_reject: createSchemaValidatingHandler(registry, 'proposal_reject', ProposalRejectOutputSchema),
+    proposal_start: createSchemaValidatingHandler(registry, 'proposal_start', ProposalStartOutputSchema)
   }
 }

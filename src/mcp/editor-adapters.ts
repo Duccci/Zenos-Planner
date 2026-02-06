@@ -25,10 +25,7 @@ export function getVSCodeInstallUrl(): string {
         type: 'stdio',
         command: 'node',
         args: ['./bin/mcp-server.js'],
-        description: "Zeno Planner MCP server for AI-powered project management",
-        env: {
-          ZENO_WORKSPACE: '${workspaceFolder}'
-        }
+        description: "Zeno Planner MCP server for AI-powered project management"
       }
     }
   }
@@ -49,10 +46,7 @@ export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
           type: 'stdio',
           command: 'node',
           args: ['./bin/mcp-server.js'],
-          description: "Zeno Planner MCP server for AI-powered project management",
-          env: {
-            ZENO_WORKSPACE: '${workspaceFolder}'
-          }
+          description: "Zeno Planner MCP server for AI-powered project management"
         }
       }
     }, null, 2)

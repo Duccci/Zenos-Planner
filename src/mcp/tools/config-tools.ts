@@ -1,5 +1,3 @@
-import { z } from 'zod'
-
 export const configToolDefinitions = [
   {
     name: 'config_get',
@@ -11,22 +9,13 @@ export const configToolDefinitions = [
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-
-function parseJsonSafe(input: unknown) {
-  try { return typeof input === 'string' ? JSON.parse(input) : input } catch { return null }
-}
+import { createSchemaValidatingHandler } from './handler-factory.js'
+import { z } from 'zod'
 
 export function configHandlers(registry: FunctionRegistry) {
   return {
-    async config_get(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('config_get', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
-        if (parsed) return { content: [ { type: 'text', text: JSON.stringify(parsed, null, 2) } ], structuredContent: parsed }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
-      }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
-    }
+    // Use the schema-validating factory with a permissive schema (z.any()) so
+    // parsed JSON output becomes the structured content when possible.
+    config_get: createSchemaValidatingHandler(registry, 'config_get', z.any())
   }
 }

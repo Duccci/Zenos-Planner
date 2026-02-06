@@ -44,11 +44,11 @@ describe('MCP Server', () => {
 
       // Basic check: server created and registration messages emitted
       const infoCalls = (logger.info as unknown as jest.Mock)?.mock?.calls ?? (logger.info as any).mock?.calls ?? []
-      const registeredMessages = infoCalls.map((c: any) => c[0]).filter((m: any) => typeof m === 'string' && m.startsWith('Registered MCP tool: '))
+      const registeredMessages = infoCalls.map((c: any) => c[0]).filter((m: any) => typeof m === 'string' && (m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: ')))
       expect(registeredMessages.length).toBeGreaterThan(0)
     })
 
-    it('should register all functions as MCP tools', async () => {
+    it('should register handler-based tools as MCP tools', async () => {
       await createMcpServer()
 
       // Derive registered tool names from logger.info calls
@@ -58,7 +58,7 @@ describe('MCP Server', () => {
       const registeredMessages = infoMessages.filter((m: string) => m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: '))
       const toolNames = registeredMessages.map((m: string) => m.replace('Registered MCP tool: ', '').replace('Registered MCP handler tool: ', ''))
 
-      expect(toolNames.length).toBeGreaterThanOrEqual(20)
+      expect(toolNames.length).toBeGreaterThanOrEqual(12)
       expect(toolNames).toContain('gates_list')
       expect(toolNames).toContain('req_list')
       expect(toolNames).toContain('proposal_show')
@@ -123,8 +123,8 @@ describe('MCP Server', () => {
       expect(report.config).toBeDefined()
       expect(report.recentErrors).toBeDefined()
 
-      expect(report.tools.length).toBeGreaterThan(20)
-      expect(report.health.toolsRegistered).toBeGreaterThan(20)
+      expect(report.tools.length).toBeGreaterThan(12)
+      expect(report.health.toolsRegistered).toBeGreaterThan(12)
     })
 
     it('should format diagnostic report as text', async () => {

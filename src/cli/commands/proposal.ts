@@ -87,18 +87,26 @@ function getProposalDetails(hash: string): ProposalRecord | null {
  */
 async function readProposalFile(projectRoot: string, proposal: ProposalRecord): Promise<string | null> {
   try {
-    const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gate_id)
+    const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gate_id || 'solitary')
+    logger.debug(`Searching for proposal files in: ${gateDir}`)
     const files = await readdir(gateDir)
+    logger.debug(`Found ${files.length} files in ${gateDir}`)
     
     for (const file of files) {
       if (file.endsWith('.md')) {
         const filePath = path.join(gateDir, file)
         const content = await readFile(filePath)
-        if (content.includes(`#${proposal.hash}`)) {
+        // Robust hash matching: allow optional leading '#' and word boundary to avoid false matches
+        const hashRegex = new RegExp(`#?${proposal.hash}\\b`, 'i')
+        if (hashRegex.test(content) || content.includes(proposal.hash)) {
+          logger.debug(`Found proposal match in file: ${filePath}`)
           return content
+        } else {
+          logger.debug(`No hash match in file: ${filePath}`)
         }
       }
     }
+    logger.debug(`Proposal not found in ${gateDir} after checking ${files.length} files`)
   } catch (error) {
     logger.debug(`Could not read proposal file: ${String(error)}`)
   }
@@ -131,9 +139,10 @@ export function registerProposalCommands(program: Command): void {
 
       logger.info(`\nProposals (${proposals.length}):\n`)
       for (const proposal of proposals) {
-        const badge = proposal.status === 'completed' ? '✓' : proposal.status === 'rejected' ? '✗' : '•'
+        const badge = proposal.status === 'completed' ? 'COMPLETED' : proposal.status === 'rejected' ? 'REJECTED' : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
-        logger.info(`  Gate: ${proposal.gate_id}, Created: ${proposal.created_at}`)
+        const gateLabel = proposal.gate_id === null || proposal.gate_id === '' ? 'solitary' : proposal.gate_id
+        logger.info(`  Gate: ${gateLabel}, Created: ${proposal.created_at}`)
       }
     })
 
@@ -150,7 +159,7 @@ export function registerProposalCommands(program: Command): void {
 
       logger.info(`\n# Proposal: ${proposal.title}`)
       logger.info(`**Hash**: #${proposal.hash}`)
-      logger.info(`**Gate**: ${proposal.gate_id}`)
+      logger.info(`**Gate**: ${proposal.gate_id ?? 'solitary'}`)
       logger.info(`**Status**: ${proposal.status}`)
       logger.info(`**Created**: ${proposal.created_at}`)
       if (proposal.approved_at) {
@@ -167,6 +176,64 @@ export function registerProposalCommands(program: Command): void {
           logger.info('\n--- Content ---')
           logger.info(content)
         }
+      }
+    })
+
+  // Create a new proposal
+  proposalCmd
+    .command('create <title>')
+    .description('Create a new proposal markdown file and register it')
+    .option('--gate <gate-id>', 'Attach proposal to a specific gate (optional)')
+    .option('--requirement <requirement-id>', 'Attach proposal to a requirement (optional)')
+    .action(async (title: string, options: { gate?: string; requirement?: string } = {}) => {
+      const projectRoot = findProjectRoot(process.cwd())
+      if (!projectRoot) {
+        logger.error('Not a Zeno project')
+        return
+      }
+
+      const { readFile: readTemplate, writeFile } = await import('../../utils/file.js')
+      const { createHash, randomUUID } = await import('node:crypto')
+
+      // Generate hash: SHA-256, first 16 hex chars
+      const hash = createHash('sha256').update(`${title}-${Date.now()}`).digest('hex').slice(0, 16)
+
+      // Destination folder: zeno/proposals/<gate-id|solitary>
+      const gateId = options.gate ?? null
+      const dir = gateId ? path.join(projectRoot, 'zeno', 'proposals', gateId) : path.join(projectRoot, 'zeno', 'proposals', 'solitary')
+
+      // Slug for file name
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40)
+      const date = new Date().toISOString().slice(0, 10)
+      const fileName = `${date}-${slug}.md`
+      const filePath = path.join(dir, fileName)
+
+      // Load template and replace placeholders
+      const templatePath = path.join(projectRoot, 'templates', 'md-templates', 'proposal-template.md')
+      let content = await readTemplate(templatePath)
+      content = content.replace('[Proposal Title]', title)
+      content = content.replace('[Generated SHA-256 first 16 chars]', hash)
+      content = content.replace('[Gate ID]', gateId ? gateId : 'solitary')
+      content = content.replace('[Gate Name]', gateId ? gateId : 'Solitary Proposal')
+      content = content.replace('[DATE]', new Date().toISOString())
+
+      // Write file and register in DB
+      try {
+        await writeFile(filePath, content)
+      } catch (error) {
+        logger.error(`Failed to write proposal file: ${String(error)}`)
+        return
+      }
+
+      // Insert into database
+      const db = getDatabase(projectRoot)
+      const id = randomUUID()
+      try {
+        db.prepare('INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)').run(id, gateId ?? null, title, 'pending', hash)
+        logger.info(`Proposal created: #${hash} -> ${filePath}`)
+      } catch (error) {
+        logger.error(`Failed to register proposal in database: ${String(error)}`)
+        return
       }
     })
 
@@ -247,12 +314,14 @@ export function registerProposalCommands(program: Command): void {
           }
 
           const tasksCompletedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
-          const checkedBoxes = (content.match(/- \[[xX]\]/g) || []).length
+          // Count checked boxes only within the Completion Summary section to avoid matching checklist items elsewhere
+          const completionSection = content.split('## Completion Summary')[1] ?? ''
+          const checkedBoxes = (completionSection.match(/- \[[xX]\]/g) || []).length
           if (tasksCompletedMatch) {
             const completed = parseInt(tasksCompletedMatch[1] || '0', 10)
             const total = parseInt(tasksCompletedMatch[2] || '0', 10)
             if (completed !== checkedBoxes) {
-              warnings.push(`**Tasks Completed** shows ${completed}/${total} but ${checkedBoxes} acceptance items are checked.`)
+              warnings.push(`**Tasks Completed** shows ${completed}/${total} but ${checkedBoxes} acceptance items are checked within the Completion Summary.`)
             }
           } else if (hasCompletion) {
             warnings.push('`## Completion Summary` exists but does not contain a `**Tasks Completed**: X/Y` line.')
@@ -273,19 +342,19 @@ export function registerProposalCommands(program: Command): void {
               logger.warn(` - ${w}`)
             }
             logger.info('\nNote: Run `zeno proposal validate --strict <hash>` (or `--strict` via function invocation) to treat these warnings as errors.')
-            logger.info('✓ Checks passed with warnings: address the warnings in the proposal file before approval.')
+            logger.info('Checks passed with warnings: address the warnings in the proposal file before approval.')
             return
           }
         }
 
-        logger.info('✓ All checks passed! Ready for approval.')
+        logger.info('All checks passed! Ready for approval.')
       } catch (error) {
         logger.warn(`Unexpected error while inspecting proposal file: ${String(error)}`)
         if (strict) {
           logger.error('Validation failed due to unexpected error while inspecting proposal file.')
           throw new Error('Proposal validation failed (strict mode)')
         }
-        logger.info('✓ Checks passed with warnings: unable to fully validate proposal file.')
+        logger.info('Checks passed with warnings: unable to fully validate proposal file.')
       }
     })
 

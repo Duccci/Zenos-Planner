@@ -82,11 +82,141 @@ The tool bridges the gap between high-level project vision and detailed implemen
 - **Impact**: Complex architectural diagrams (system-overview, data-flow, component diagrams, deployment models, network diagrams) will be generated as DOT files, rendered to SVG artifacts using Graphviz, and embedded as images in markdown. Simpler diagrams (gate-roadmap, lifecycle, basic context diagrams) remain as Mermaid for text-based maintainability.
 - **Trade-offs**: Gained superior rendering quality and complexity handling; lost text-based editability for complex diagrams. Added Graphviz system dependency. Prerendered SVG requires regeneration when source changes, but automation handles this. SVG files are embedded images and not directly editable in markdown, but source DOT files remain version-controlled.
 
-### 12. Subagent Orchestration via Cursor Workflows
-- **Choice**: Zeno orchestrates work by creating subagents using Cursor's workflow capabilities, enabling parallel task execution and specialized agent delegation
-- **Alternatives Considered**: Single-agent execution only, manual subagent creation, external orchestration tools
-- **Rationale**: Large gates and complex requirements benefit from parallel execution across specialized subagents. Cursor workflows provide native integration for spawning focused agents that handle specific tasks (e.g., one agent for tests, another for implementation, another for documentation). This enables true parallelization of gate work while maintaining coordination through Zeno's state tracking. Subagents report back to the orchestrating agent through Zeno status updates and proposal validation.
-- **Trade-offs**: Gained parallel execution and specialization; added complexity in coordination and state synchronization between orchestrator and subagents.
+### 12. Subagent Orchestration via Cursor Workflows with Four-Stage Delegation
+
+**Choice**: Zeno orchestrates work through four-stage agent delegation with specialized agents in both planning and implementation:
+1. **Planning Agents** (specialized decomposition): Expert Tier and PhD Tier agents selected from `agents/expert-agents/` submodule based on gate type and required expertise
+2. **Local Agent** (interactive orchestration): Coordinates specialized planning agents, finalizes dispatch plan, allocates worktrees
+3. **Background Agents** (parallel implementation): Domain-specialized agents from `agents/expert-agents/` and `agents/pipeline-agents/` develop on isolated git worktrees
+4. **Cloud Agent** (code review): Create PR, add review comments, validate quality gates
+
+**Delegation Flow**:
+```
+Planning Agents (Specialized Gate Analysis)
+    ↓ Hand off planning insights (MCP: agent_delegate)
+Local Agent (Orchestration & Coordination)
+    ↓ Dispatch plan with agent assignments & worktree paths
+Background Agents (Implementation on Worktrees, Domain-Specialized)
+    ↓ /delegate to cloud agent for review
+Cloud Agent (Code Review & PR Management)
+    ↓ Human approval
+Merge Orchestration & Worktree Cleanup
+```
+
+**How It Works**:
+- **Planning Phase (Specialized)**:
+  - Expert Tier agents read gate PRD and requirements, decompose into proposals
+  - PhD Tier agents (from `agents/expert-agents/`) analyze system impact, cross-gate dependencies, architectural constraints
+  - Domain-specialist agents selected from `agents/expert-agents/{category}/` based on gate focus area
+  - Planning agents update requirement status and report back to Local Agent with insights
+- **Orchestration Phase**: Local agent synthesizes planning insights, identifies parallelizable work, creates final dispatch plan with agent assignments
+- **Implementation Phase**: Specialized background agents selected from `agents/expert-agents/` and `agents/pipeline-agents/06-09-implementation/` based on proposal domain
+- **Review Phase**: Cloud agent reviews, validates quality gates, auto-approves on pass or requests fixes
+- **Merge Phase**: Orchestrator coordinates merges with conflict detection/resolution; auto-cleanup deletes worktrees
+
+**Agent Specialization Tiers** (see `agents/TIER-CLASSIFICATION.md` for complete agent list):
+- **Focused Tier** (~500 tokens): Limited scope, specific validators for bounded tasks (testing, coverage analysis, linting checks) — **Implementation Phase**
+- **Expert Tier** (~1500 tokens): Domain depth, cross-module coordination, specialized knowledge areas (from `agents/expert-agents/` submodule categories) — **Planning & Implementation Phases**
+- **PhD Tier** (~3000 tokens): Novel problems, architectural decisions, complex integrations, system-wide analysis (from `agents/expert-agents/` highest-tier experts) — **Planning Phase**
+
+**Planning Phase Agent Selection**:
+- Agent assignments determined dynamically from `agents/agent-manifest.json` by querying for:
+  - Tier: Expert or PhD (based on gate complexity)
+  - Category: Match gate focus area (e.g., `development-architecture`, `data-intelligence`, `security-compliance`)
+  - Role: `auditor` (architect-reviewer patterns) or `executor` (design/decomposition)
+- Lead agents selected via Agent Selector (from `pipeline-agents/00-orchestration/agent-selector.md`)
+- Supporting agents selected from Expert Tier matching gate category
+- All agent selections recorded in `.zeno/config.json` planning.agents array with manifest references
+
+**Gate-to-Agent Mapping Example** (Validation Gate - Quality Focused):
+- Planning: Expert Tier agent from `agents/expert-agents/quality-assurance/` or similar
+- Implementation: Focused Tier agents for testing, coverage analysis, compliance checking
+- Worktrees: 1 per validation batch (quality checks run on all proposals via MCP: `proposal_validate`)
+- Parallelization: All quality checks run in parallel
+
+**Gate-to-Agent Mapping Example** (Complex API/Integration Gate):
+- Planning: PhD Tier agent from `agents/expert-agents/api-standards/` or `communication-protocols/`, Expert Tier system architect
+- Implementation: Expert Tier agents from backend/architecture categories, Focused Tier test validators
+- Worktrees: 3-4 per proposal (one per independent component)
+- Parallelization: Core logic, integration, tests developed in parallel with dependency-based sequencing
+
+**MCP Tools Available**:
+- **Planning Phase**: No MCP tools required (specialized planning agents work synchronously, report decomposition insights)
+- `proposal_start`: Create worktree for proposal (MCP: `proposal_start`)
+- `proposal_approve`: Approve + merge worktree (MCP: `proposal_approve`)
+- `agent_delegate`: Hand-off to another agent with context (planning agents → local agent, background agents → cloud agent) (MCP: `agent_delegate`)
+- `worktree_list`: List active worktrees (MCP: `worktree_list`)
+- `worktree_prune`: Remove expired worktrees (MCP: `worktree_prune`)
+- `worktree_remove`: Manually delete worktree (MCP: `worktree_remove`)
+- `worktree_merge`: Merge branch with conflict handling (MCP: `worktree_merge`)
+
+**Alternative**: Single-agent execution only, local-only planning (no specialized planning agents), manual subagent creation, external orchestration tools  
+**Rationale**: Specialized agents reduce context size and improve quality at both planning and implementation levels. Planning phase specialization ensures architectural soundness, requirement decomposition accuracy, and optimal parallelization identification (agents selected dynamically from `agents/` submodule based on task requirements). Implementation specialization improves code quality through domain focus. Cursor workflows provide native integration for spawning agents. VS Code delegation preserves conversation history across hand-offs, enabling seamless context transfer. Git worktrees eliminate branch switching overhead, reduce merge conflicts, and enable true parallel work. Orchestrator coordinates merges, preventing serialization points.  
+**Trade-offs**: Gained 40-60% time reduction on gate completion through parallelization, improved architectural and code quality through dual-phase specialization, reduced context bloat, and better requirement accuracy; added complexity in planning phase coordination and multi-tier agent management. Mitigation: planning agents work synchronously and report to Local Agent (no async complexity), specialized agents selected dynamically from `agents/` submodule capabilities.
+
+### 13. Git Worktrees for Isolated Parallel Agent Development
+
+**Choice**: Use `git worktree` to create isolated working directories for independent proposals and gates, eliminating branch switching overhead and enabling 4+ agents to work simultaneously without interference.
+
+**How It Works**:
+- Each proposal/gate gets dedicated worktree with independent branch: `feature/{gate_id}-{proposal_hash}`
+- Worktrees stored in `.local/worktrees/{proposal-hash}/` (transient, not version-controlled)
+- Orchestrator creates worktrees on-demand and manages merge ordering to prevent conflicts
+- Agents develop code, write tests, validate in isolated worktree without affecting peers
+- When ready: Agent invokes `zeno proposal validate` in worktree context
+- On approval: Orchestrator merges worktree branch to main and auto-cleanup
+
+**Storage Structure**:
+```
+.local/
+  worktrees/
+    {proposal-hash-1}/
+      .git → symlink to main repo .git database
+      src/
+      tests/
+      (isolated full working directory)
+    {proposal-hash-2}/
+      .git → symlink to main repo .git database
+      (another independent working directory)
+```
+
+**Lifecycle**:
+1. **Create** (`zeno proposal start <hash>`, MCP: `proposal_start`): Create worktree, return path to agent
+2. **Develop** (Agent): Work in isolated directory, no branch switching
+3. **Validate** (Agent): Run `zeno proposal validate` in worktree; returns quality check results
+4. **Approve** (Human): Review consolidated PRs from all proposals
+5. **Merge** (Orchestrator, MCP: `worktree_merge`): `zeno proposal approve` triggers merge, orchestrator handles rebase/conflict resolution
+6. **Cleanup** (Auto, MCP: `worktree_prune`, `worktree_remove`): Delete worktree after merge; if approval rejected, mark worktree for cleanup but preserve for rework
+
+**Conflict Detection and Prevention**:
+- Orchestrator pre-analyzes proposal dependency graph to identify which proposals modify same files
+- Conflict detection: If parallel proposals affect same files, serialize (enforce sequential merge order)
+- Conflict resolution: Smart rebase strategy for dependent proposals; human intervention if complex merges
+- Worktree pruning: `zeno worktree prune` removes orphaned worktrees; periodic auto-pruning prevents disk bloat
+
+**MCP Tools Implemented**:
+- `worktree_list`: List active/orphaned worktrees with disk usage tracking
+- `worktree_prune`: Remove expired or orphaned worktrees with optional dry-run
+- `worktree_remove`: Manually delete specific worktree with force option
+- `worktree_merge`: Merge worktree branch to main with conflict detection
+- `proposal_start` (enhanced): Create worktree on proposal start
+- `proposal_approve` (enhanced): Merge worktree branch on approval
+
+**Integration Points**:
+- Gate 5 (Multi-Repo): Worktrees support multi-repo scenarios (one worktree per repo + proposal)
+- Gate 9 (Git Integration): Worktree creation/deletion, merge automation, conflict detection
+- Gate 12 (Subagent Orchestration): Allocate worktrees per independent proposal/gate; orchestrator manages lifecycle
+- Gate 10 (Rescope): Isolated rescope planning in dedicated worktree without disrupting ongoing work
+
+**Impact**:
+- Reduces gate completion time by 40-60% through parallelization (agents no longer wait for peer merges)
+- Eliminates branch switching overhead (~5-10s per switch per agent) 
+- Prevents serialization points: all independent proposals work in parallel
+- Improves code quality: each agent has full isolated build/test environment
+
+**Alternatives Considered**: Single shared worktree with branch switching, separate clones (disk intensive), monolithic agent execution (sequential only)  
+**Rationale**: Git worktrees provide isolated filesystem state while maintaining single `.git` database, enabling minimal disk overhead. Each proposal/gate gets dedicated worktree with its own branch. Orchestrator creates/manages worktrees and coordinates merge ordering to prevent conflicts. Auto-cleanup prevents orphaned worktrees.  
+**Trade-offs**: Gained true parallelization and isolated development; added disk space overhead (partial clones per worktree), added complexity to orchestrator merge coordination, requires robust cleanup strategy. Mitigation: auto-cleanup on approval, periodic pruning, disk space monitoring, `zeno worktree` commands for manual management.
 
 ## Architecture Principles
 1. **Lightweight**: No heavy frameworks, minimal dependencies. Keep the tool fast and portable.
@@ -96,6 +226,7 @@ The tool bridges the gap between high-level project vision and detailed implemen
 5. **Minimalist Storage**: Database only for requirements and repositories (queryable hierarchy + multi-repo support). Project metadata in `project-overview.json`, proposals as Markdown files, state history in Git. No scope creep—database tracks what matters.
 6. **AI-Contextual**: Generate AGENTS.md to guide AI assistants on artifact interpretation and project conventions.
 7. **Hash-Based References**: Reduce LLM context size by 50%+ through content-addressable storage.
+8. **Parallel-First**: Use git worktrees to enable 4+ independent agents to work simultaneously on non-dependent proposals and gates. Orchestrator manages merge ordering and conflict resolution.
 
 ### LLM-Driven Execution Model
 
@@ -137,13 +268,16 @@ Zeno is designed for AI agents to invoke all operations during workflow executio
 - Coordinate subagent execution by delegating specific requirements or proposals to specialized agents
 - Monitor subagent progress through Zeno status queries and consolidate results
 
-**Subagent Orchestration:**
-- Orchestrating agent creates subagents via Cursor workflow capabilities for parallel execution
-- Subagents receive focused tasks (specific requirements, proposals, or gate components)
-- Subagents invoke Zeno functions independently to update status and validate work
-- Orchestrating agent coordinates by querying Zeno state and consolidating subagent outputs
+**Subagent Orchestration with Git Worktrees:**
+- Orchestrating agent analyzes proposal dependency graph to identify parallel work items
+- Creates isolated git worktree for each independent proposal/gate (stored in `.local/worktrees/{hash}/`)
+- Dispatches subagents with worktree path; each agent works in isolation without branch switching
+- Subagents invoke Zeno functions independently to update status and validate work within their worktree
+- Orchestrating agent coordinates merge ordering: non-dependent proposals merge in parallel, dependent proposals wait then rebase
+- Conflict detection prevents parallel work on same files; orchestrator serializes conflicting proposals
 - Subagents report completion through proposal validation and requirement status updates
 - Human approval gates remain centralized - orchestrating agent requests approval after consolidating subagent work
+- Worktrees auto-cleanup after merge; periodic pruning removes orphaned worktrees
 
 ### Hash-Based Dependency Tracking Example
 
@@ -246,7 +380,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **c8** - Code coverage reporting
 - **eslint** - Linting engine
 - **prettier** - Code formatting
-- **graphviz** - DOT diagram rendering to PNG/SVG for complex architecture models
+- **graphviz** - DOT diagram rendering to PNG/SVG for complex architecture models\n- **git** - Worktree management for isolated parallel development
 
 ### Internal Dependencies
 - **zeno-engine** - Core gate generation algorithm for iterative decomposition
@@ -263,8 +397,9 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **validation-engine** - Automated quality checks (coverage, security, linting)
 - **replan-engine** - Rescope and gate regeneration logic
 - **hash-registry** - Content-addressable storage system
-- **git-integration** - Git hooks and commit automation
-- **subagent-orchestrator** - Subagent creation and coordination via Cursor workflows for parallel task execution
+- **git-integration** - Git hooks, commit automation, and worktree management
+- **worktree-orchestrator** - Git worktree lifecycle (create, merge, cleanup) and conflict detection
+- **subagent-orchestrator** - Subagent creation and coordination via Cursor workflows with worktree-based parallelization
 
 ### Infrastructure Requirements
 - **SQLite 3.x** - Requirements database (no server required)
@@ -300,6 +435,8 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - I want to update entity statuses (gates, requirements, proposals) as I progress through implementation so that project state remains accurate
 - I want to create subagents using Cursor workflows so that I can parallelize work across multiple independent requirements or complex gate components
 - I want to coordinate subagent execution through Zeno state tracking so that parallel work remains synchronized and conflicts are avoided
+- **I want isolated git worktrees for each independent proposal so that I can work without branch switching delays and merge conflicts**
+- **I want the orchestrator to manage merge ordering and conflict detection so that I can focus on implementation while safety is automated**
 
 **As a project stakeholder**
 - I want visual architecture diagrams so that I can understand system design
@@ -459,10 +596,63 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Build auto-commit on proposal approval
 - [ ] Implement gate release tagging
 - [ ] Create branch management for proposals
+- [ ] **Add git worktree management utilities** (`createWorktree`, `removeWorktree`, `listWorktrees`, `pruneExpiredWorktrees`)
+- [ ] **Update `zeno proposal start <hash>` to create isolated worktree and return path to agent** (MCP: `proposal_start`) 
+- [ ] **Update `zeno proposal approve <hash>` to merge worktree branch and cleanup** (MCP: `proposal_approve`) 
+- [ ] **Implement `zeno worktree` commands** (MCP tools implemented):
+  - [ ] `worktree list` (MCP: `worktree_list`)
+  - [ ] `worktree prune` (MCP: `worktree_prune`)
+  - [ ] `worktree remove` (MCP: `worktree_remove`)
+  - [ ] `worktree merge` (MCP: `worktree_merge`)
+- [ ] **Configure worktree expiration and auto-cleanup policy** (`.zeno/config.json`)
+- [ ] **Implement merge sequencing logic** (coordinate dependent proposal merges, handle rebases)
+- [ ] **Add conflict detection** (analyze dependency graph, prevent parallel work on same files)
 - [ ] Add rollback mechanism for rejected proposals
 - [ ] Implement commit validation (check pending approvals)
 - [ ] Build git status integration with Zeno status
-- [ ] Write tests for git operations
+- [ ] **Update pre-commit hooks to work in worktree context**
+- [ ] Write tests for git operations (including worktree creation/cleanup/merge sequencing)
+
+### Phase 1: Worktree Foundation (Week 1-2, Parallel with Gate 9)
+- [ ] Implement worktree creation/deletion utilities
+- [ ] Add `/delegate` command to CLI for agent hand-offs
+- [ ] Setup session management (preserve conversation history)
+- [ ] Define hand-off protocol between local → background → cloud agents
+- [ ] Test local agent → background agent delegation
+- [ ] Configure `.zeno/config.json` for worktree settings (storage, max concurrent, expiration)
+
+### Phase 2: Background Agent Onboarding (Week 3-4, Parallel with Gates 3-5)
+- [ ] Onboard database-optimizer agent with worktree support
+- [ ] Onboard typescript-pro agent for parallel implementation
+- [ ] Onboard architect-reviewer agent for architecture reviews
+- [ ] Test 2-3 parallel proposals in isolated worktrees
+- [ ] Validate worktree isolation (no conflicts between agents)
+- [ ] Implement agent specialization tiers (Focused/Expert/PhD)
+
+### Phase 3: Cloud Agent Code Review (Week 5-6, Parallel with Gates 6-8)
+- [ ] Configure GitHub Copilot Coding Agent for PR review
+- [ ] Implement PR creation from worktree branches
+- [ ] Add quality gate validation (coverage, security, linting)
+- [ ] Setup auto-approval when all gates pass
+- [ ] Create PR review templates and comment patterns
+- [ ] Setup fallback to manual review for complex changes
+
+### Phase 4: Merge Orchestration (Week 7-8, Parallel with Gate 9 completion)
+- [ ] Implement merge sequencing algorithm (detect dependencies, merge order)
+- [ ] Add conflict detection (analyze dependency graph, identify conflicting files)
+- [ ] Implement smart rebase for dependent proposals
+- [ ] Automate worktree cleanup after successful merge
+- [ ] Test end-to-end workflow (3+ agents, parallel proposals, merge coordination)
+- [ ] Document approval workflow for human review
+
+### Phase 5: Monitoring & Optimization (Week 9-10, Parallel with Gates 10-11)
+- [ ] Setup agent dashboard showing worktree status
+- [ ] Add logging/audit trails for delegation flow
+- [ ] Implement backpressure (limit concurrent worktrees based on disk space)
+- [ ] Optimize context passing between agents (reduce hand-off overhead)
+- [ ] Document best practices and troubleshooting
+- [ ] Measure parallelization benefits (time savings analysis)
+
 
 ### Gate 10: Rescope & Replan Engine
 - [ ] Implement rescope detection (end state change)
@@ -489,13 +679,18 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 ### Gate 12: Subagent Orchestration & Parallel Execution
 - [ ] Implement subagent creation via Cursor workflows
 - [ ] Build subagent task delegation system (requirements, proposals, gate components)
+- [ ] **Build dependency graph analyzer to identify parallel work** (which proposals can execute simultaneously)
+- [ ] **Create per-subagent worktree allocation strategy** (worktree per independent proposal/gate)
+- [ ] **Implement orchestrator worktree coordination** (create worktrees, dispatch agents, track worktree status)
 - [ ] Create subagent status tracking and progress monitoring
 - [ ] Implement coordination of parallel subagent execution
-- [ ] Build conflict detection for concurrent modifications
+- [ ] **Build merge ordering logic** (merge non-dependent proposals in parallel, rebase dependent proposals)
+- [ ] Build conflict detection for concurrent modifications (prevent parallel work on same files)
 - [ ] Create subagent result consolidation and integration
 - [ ] Implement subagent error handling and retry logic
+- [ ] **Build worktree cleanup coordination** (signal cleanup after approval, handle rejected proposals)
 - [ ] Build orchestrator state synchronization with Zeno state
-- [ ] Write tests for subagent coordination
+- [ ] Write tests for subagent coordination (including multi-worktree scenarios)
 
 ### Gate 13: Documentation & Polish
 - [ ] Write comprehensive README with examples
@@ -567,6 +762,24 @@ _Gates are ordered sequentially. Each gate represents an actionable milestone th
    - Probability: Medium
    - Mitigation: Human approval required for all gates, implement confidence scoring for auto-detected boundaries, provide validation against end state
    - Fallback: Allow manual gate editing and regeneration, provide gate templates for common patterns
+
+4. **Git worktree conflicts and orphaned worktrees**
+   - Impact: Medium
+   - Probability: Medium
+   - Mitigation: Pre-check for file conflicts before parallelization, implement automatic cleanup on approval, periodic pruning of orphaned worktrees, disk space monitoring
+   - Fallback: Manual worktree cleanup commands (`zeno worktree prune`), serialize conflicting proposals, alert orchestrator on cleanup failures
+
+5. **Merge conflicts in parallel proposal execution**
+   - Impact: Medium
+   - Probability: Medium
+   - Mitigation: Conflict detection prevents parallel work on same files, smart rebase strategy for dependent proposals, human intervention for complex merges
+   - Fallback: Serialize conflicting proposals, provide merge conflict resolution UI, maintain manual merge capability
+
+6. **Worktree disk space overhead**
+   - Impact: Low
+   - Probability: High (on resource-constrained machines)
+   - Mitigation: Use git's linked worktrees (not separate clones), set max concurrent worktrees limit, implement cleanup policy based on disk usage
+   - Fallback: Disable worktree parallelization, fall back to sequential branch switching
 
 ### Process Risks
 1. **Scope creep**

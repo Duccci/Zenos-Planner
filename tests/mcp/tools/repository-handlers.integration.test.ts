@@ -4,12 +4,10 @@ import { ReposListOutputSchema } from '../../../src/mcp/schemas/repository-schem
 
 describe('Repository Handlers (integration)', () => {
   it('parses and validates structured repo list outputs', async () => {
-    const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ repositories: [{ id: 'r1', name: 'repo1', type: 'service', path: 'src/repo1', fileCount: 10, lineCount: 200 }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } }) } })
-    }
+    const handlers = repositoryHandlers()
+    const mock = JSON.stringify({ repositories: [{ id: 'r1', name: 'repo1', type: 'service', path: 'src/repo1', fileCount: 10, lineCount: 200 }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } })
 
-    const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_list({})
+    const res = await handlers.repos_list({ mockResult: mock })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -22,11 +20,7 @@ describe('Repository Handlers (integration)', () => {
   })
 
   it('returns helpful error when backend not implemented', async () => {
-    const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'Unknown command: repos_list' } })
-    }
-
-    const handlers = repositoryHandlers(fakeRegistry)
+    const handlers = repositoryHandlers()
     const res = await handlers.repos_list({})
 
     expect(res.isError).toBe(true)
@@ -35,12 +29,8 @@ describe('Repository Handlers (integration)', () => {
   })
 
   it('repos_list with non-json fallback returns text output', async () => {
-    const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'no json here' } })
-    }
-
-    const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_list({})
+    const handlers = repositoryHandlers()
+    const res = await handlers.repos_list({ mockResult: 'no json here' })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -48,12 +38,8 @@ describe('Repository Handlers (integration)', () => {
   })
 
   it('repos_detect returns structured output when parsing succeeds', async () => {
-    const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ detected: true, repositories: [{ name: 'repo-1' }] }) } })
-    }
-
-    const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_detect({})
+    const handlers = repositoryHandlers()
+    const res = await handlers.repos_detect({ mockResult: JSON.stringify({ detected: true, repositories: [{ name: 'repo-1' }] }) })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -61,21 +47,16 @@ describe('Repository Handlers (integration)', () => {
   })
 
   it('repos_deps returns structured dependency graph', async () => {
-    const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ nodes: [], edges: [] }) } })
-    }
-
-    const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_deps({})
+    const handlers = repositoryHandlers()
+    const res = await handlers.repos_deps({ mockResult: JSON.stringify({ nodes: [], edges: [] }) })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
   })
 
   it('repos_adjust returns parsed payload on success', async () => {
-    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ adjusted: true }) } }) }
-    const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_adjust({ changes: {} })
+    const handlers = repositoryHandlers()
+    const res = await handlers.repos_adjust({ changes: {}, mockResult: JSON.stringify({ adjusted: true }) })
     expect(res.structuredContent).toBeDefined()
   })
 })

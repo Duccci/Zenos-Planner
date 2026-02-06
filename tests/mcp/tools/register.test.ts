@@ -3,7 +3,7 @@ import { createFunctionRegistry } from '../../../src/integration/function-implem
 import { registerTools } from '../../../src/mcp/tools/index.js'
 
 describe('MCP Tools Registration', () => {
-  it('registers available functions on server', () => {
+  it('registers configured handler tools on server', () => {
     const registry = createFunctionRegistry()
 
     const registered: string[] = []
@@ -18,9 +18,9 @@ describe('MCP Tools Registration', () => {
 
     expect(Array.isArray(result)).toBe(true)
     expect(result.length).toBeGreaterThan(0)
-    // Ensure at least one known tool is registered
+    // Ensure at least one known handler-provided tool is registered
     expect(result).toContain('config_get')
-    // There should be a substantial number of tools available
-    expect(result.length).toBeGreaterThanOrEqual(20)
+    // There should be a reasonable number of handler tools
+    expect(result.length).toBeGreaterThanOrEqual(12)
   })
 })

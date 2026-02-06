@@ -28,6 +28,8 @@ vi.mock('node:fs/promises', () => ({
 
 vi.mock('../../../src/utils/file.js', () => ({
   readFile: vi.fn(),
+  writeFile: vi.fn(),
+  ensureDir: vi.fn(),
 }))
 
 describe('Proposal validate command', () => {
@@ -95,5 +97,30 @@ describe('Proposal validate command', () => {
 
     expect(threw).toBe(true)
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Validation failed'))
+  })
+
+  it('should create a proposal file and register in DB', async () => {
+    const { getDatabase } = await import('../../../src/storage/database.js')
+    const { readFile, writeFile } = await import('../../../src/utils/file.js')
+    const mockDb = { prepare: vi.fn().mockReturnValue({ run: vi.fn() }) }
+
+    vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
+    vi.mocked(readFile).mockResolvedValue('# Proposal: [Proposal Title]\n**Hash**: #[Generated SHA-256 first 16 chars]\n**Gate**: solitary - Solitary Proposal\n**Status**: pending')
+
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+
+    // Create a solitary proposal (no --gate passed)
+    await program.parseAsync(['node', 'test', 'proposal', 'create', 'Add hash utility module'])
+
+    expect(readFile).toHaveBeenCalled()
+    expect(writeFile).toHaveBeenCalled()
+    expect(mockDb.prepare).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO proposals'))
+
+    // Now create with a gate
+    await program.parseAsync(['node', 'test', 'proposal', 'create', 'Add hash utility module', '--gate', 'gate-01'])
+    expect(readFile).toHaveBeenCalledTimes(2)
+    expect(writeFile).toHaveBeenCalledTimes(2)
   })
 })

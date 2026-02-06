@@ -20,11 +20,9 @@ export function generateAgentsMD(
 
 Quick reference for AI coding assistants on how to work with ${projectConfig.projectName} projects.
 
-## Project Overview
+## Project Goals
 
-- **Name**: ${projectConfig.projectName}
-- **Version**: ${projectConfig.version}
-- **Description**: [Add project description here]
+**Single Source of Truth**: Project scope, goals, and technical decisions are defined in \`#file:PROJECT_PRD.md\`. AGENTS.md is a guidance document for agents and does not replace the authoritative PRD.
 
 ## Technology Stack
 
@@ -104,8 +102,8 @@ Filters templates by category. Use this to find all templates of a specific type
 
 ---
 
-**Document Version**: ${projectConfig.version}  
-**Last Updated**: ${String(new Date().toISOString().split('T')[0])}  
+- **Version**: ${projectConfig.version}
+**Last Updated**: ${String(new Date().toISOString().split('T')[0])}
 **Status**: Active
 
 **${projectConfig.projectName}** | [Project tagline]

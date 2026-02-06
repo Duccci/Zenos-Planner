@@ -416,7 +416,8 @@ export function registerGatesCommands(program: Command): void {
       // Get existing project
       // const existingProject = db.prepare('SELECT id FROM projects LIMIT 1').get() as { id: string } | undefined
       // projectId = existingProject?.id
-      projectId = 'default-project' // Always use default project
+      // If a project exists in DB we would set projectId above. Leave undefined to allow
+      // sync from archive when DB is empty.
       
       // If not found in database, check archive folder and sync all archived gates
       if (!recentGate) {
@@ -472,7 +473,7 @@ export function registerGatesCommands(program: Command): void {
                 }
               }
               
-              logger.info(`✓ Synced ${syncedCount} archived gates to database`)
+              logger.info(`Synced ${syncedCount} archived gates to database`)
               
               // Parse gate roadmap to get dynamic gate list
               logger.info('Generating missing gates...')
@@ -517,8 +518,6 @@ export function registerGatesCommands(program: Command): void {
                     dynamicGates.push({ seq, name: gate.name })
                     seq++
                   }
-                    }
-                  }
                 } catch (error) {
                   logger.warn('Could not parse gate roadmap, falling back to defaults')
                 }
@@ -559,7 +558,7 @@ export function registerGatesCommands(program: Command): void {
                 )
               }
               
-              logger.info(`✓ Generated ${dynamicGates.length} missing gates (gates 3-${2 + dynamicGates.length})`)
+              logger.info(`Generated ${dynamicGates.length} missing gates (gates 3-${2 + dynamicGates.length})`)
               recentGate = { id: 'gate-02', name: 'zeno engine', completed_at: new Date().toISOString() }
             }
           }
@@ -606,7 +605,7 @@ export function registerGatesCommands(program: Command): void {
         })
         
         if (apply) {
-          logger.info('✓ Gates regenerated successfully')
+          logger.info('Gates regenerated successfully')
           logger.info('Updated gate sequence stored in database')
           logger.info('Run "zeno gates list" to view updated gates')
         } else {

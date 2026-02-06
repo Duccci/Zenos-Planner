@@ -37,7 +37,7 @@ project-root/
    - Command reference
    - Project-specific conventions
 
-2. **Reference `zeno/PROJECT_PRD.md`** - Single source of truth for:
+2. **Reference `#file:PROJECT_PRD.md`** - Single source of truth for:
    - Project scope and goals
    - Technical decisions with rationale
    - User stories
@@ -89,24 +89,57 @@ project-root/
 | | `zeno repos adjust` | Manually adjust boundaries |
 | **Proposals** | `zeno proposal list [--gate <id>]` | List proposals |
 | | `zeno proposal show <hash>` | Show proposal details |
+| | `zeno proposal start <hash>` | Start proposal (creates worktree) |
 | | `zeno proposal validate <hash>` | Run automated checks |
-| | `zeno proposal approve <hash>` | Approve proposal (human) |
+| | `zeno proposal approve <hash>` | Approve proposal (merges worktree) |
 | | `zeno proposal reject <hash>` | Reject proposal (human) |
-| **Analysis** | `zeno analyze [path]` | Deep codebase analysis |
+| **Worktrees** | `zeno worktree list` | List active/orphaned worktrees |
+| | `zeno worktree prune` | Remove expired worktrees |
+| | `zeno worktree remove <hash>` | Manually delete worktree |
+| | `zeno worktree merge <hash>` | Merge branch with conflict handling |
+| **Delegation** | `/delegate <model>` | Hand-off to another agent |
 | | `zeno metrics [path]` | Show code metrics |
 | **Registry** | `zeno show <hash>` | Resolve hash to entity |
 | | `zeno registry rebuild` | Rebuild hash registry |
 
 ## Typical Workflow
 
-1. **Check status**: `zeno gates list` to see current gate
-2. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
-3. **Review requirements**: `zeno req list --gate "<id>"`
-4. **View proposals**: `zeno proposal show "<hash>"`
-5. **Validate**: `zeno proposal validate "<hash>"`
-6. **Wait for approval**: Human runs `zeno proposal approve "<hash>"`
-7. **Implement**: Execute approved proposal
-8. **Repeat**: Continue with next requirement
+### Planning Phase (with Specialized Agents)
+1. **Gate Analysis**: New gate created; determine gate type (API, Database, Frontend, Infrastructure, etc.)
+2. **Manifest Lookup**: Query `agents/agent-manifest.json` for planning agents:
+   - Use gate type to select from Planning Agent Selection Matrix (see `zeno/AGENTS.md`)
+   - Example: For API Integration gate, query `{tier: ["expert","phd"], category: "communication-protocols|api-standards"}`
+   - Apply Zod filters in agent-manifest.json for tier, category, and role matching
+3. **Candidate Ranking**: Invoke `pipeline-agents/00-orchestration/agent-selector.md` to score and rank:
+   - Composite score = (grade_points × 0.4) + (domain_match × 0.3) + (role_fit × 0.2) + (recent_usage × 0.1)
+   - Select lead agent (highest score per tier), support agents (next tiers by score)
+4. **Planning Agent Assignment**: Record in `.zeno/config.json` planning.agents with manifest references
+5. **Architectural Analysis**: PhD Tier agents validate approach, identify cross-gate constraints
+   - Read gate PRD, requirements, affected domains
+   - Check gate dependencies via `zeno req deps <hash>`
+6. **Decomposition**: Expert Tier agents create proposal breakdown with domain-specific insights
+   - Draft requirements, technical decisions, acceptance criteria
+   - Identify risks, dependencies, sequential constraints
+7. **Hand-off to Local Agent**: Planning agents delegate detailed decomposition insights to local agent
+   - Record planning phase analysis in proposal summaries
+   - Provide implementation agent selection hints based on decomposition insights
+
+### Orchestration Phase
+8. **Check status**: `zeno gates list` to see current gate
+9. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
+10. **Review requirements**: `zeno req list --gate "<id>"`
+11. **Review planning insights**: Check planning phase analysis in proposal summaries
+12. **View proposals**: `zeno proposal show "<hash>"`
+13. **Validate**: `zeno proposal validate "<hash>"`
+
+### Execution Phase
+14. **Wait for approval**: Human reviews planning insights and proposals, runs `zeno proposal approve "<hash>"`
+15. **Background agent implementation**: Expert/Focused Tier agents from `agents/` submodule develop on isolated worktrees in parallel
+16. **Cloud agent review**: Code review, PR creation, quality validation
+17. **Human approval**: Review consolidated PRs from all background agents
+18. **Repeat**: Continue with next gates or requirements
+
+**Key Improvement**: Planning phase specialization from `agents/agent-manifest.json` submodule ensures architectural soundness and requirement accuracy before implementation begins—reducing rework and improving code quality downstream. Agent selections determined dynamically from manifest queries (tier/category/role filters), not hardcoded. Uses `agent-selector.md` for intelligent ranking and scoring.
 
 ## Best Practices
 

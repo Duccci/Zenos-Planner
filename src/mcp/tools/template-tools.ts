@@ -23,73 +23,72 @@ export const templateToolDefinitions = [
   }
 ]
 
+import { createBasicHandler } from './handler-factory.js'
+
 export function templateHandlers(registry: FunctionRegistry) {
+  const templateListHandler = createBasicHandler(registry, 'template_list')
+  const templateGetHandler = createBasicHandler(registry, 'template_get')
+  const templateContextHandler = createBasicHandler(registry, 'template_context')
+
   return {
-    async template_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      try {
-        // Prefer JSON output for reliable parsing
-        const invokeArgs = { ...(args || {}), format: 'json' }
-        const result = await registry.invoke('template_list', invokeArgs)
-        if (!result.success) {
-          return {
-            content: [ { type: 'text', text: JSON.stringify(result.error, null, 2) } ],
-            isError: true
-          }
-        }
+    template_list: async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      // Prefer JSON output for reliable parsing
+      const invokeArgs = { ...(args || {}), format: 'json' }
+      const res = await templateListHandler(invokeArgs)
+      if (res.isError) return res
 
-        const cmd = result.data as any
-        // cmd.output expected to be JSON when format=json
-        let templates = []
+      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
+      let templates: Array<Record<string, unknown>> = []
+
+      if (typeof rawOutput === 'string') {
         try {
-          templates = JSON.parse(String(cmd.output || '[]'))
-        } catch (e) {
-          // Fallback: treat output as plain text
-          templates = [{ name: 'unknown', description: String(cmd.output || '') }]
+          const parsed = JSON.parse(rawOutput)
+          if (Array.isArray(parsed)) templates = parsed
+          else if (parsed && Array.isArray((parsed as any).templates)) templates = (parsed as any).templates
+        } catch {
+          templates = [{ name: 'unknown', description: String(rawOutput) }]
         }
+      } else if (Array.isArray(rawOutput)) {
+        templates = rawOutput as any
+      } else if (res.structuredContent && Array.isArray((res.structuredContent as any).templates)) {
+        templates = (res.structuredContent as any).templates
+      }
 
-        return {
-          content: [ { type: 'text', text: JSON.stringify({ templates }, null, 2) } ],
-          structuredContent: { templates }
-        }
-      } catch (error) {
-        return {
-          content: [ { type: 'text', text: JSON.stringify({ error: String(error) }, null, 2) } ],
-          isError: true
-        }
+      return {
+        content: [ { type: 'text', text: JSON.stringify({ templates }, null, 2) } ],
+        structuredContent: { templates }
       }
     },
 
-    async template_get(args: Record<string, unknown>): Promise<CallToolResult> {
-      try {
-        const validated = args || {}
-        if (!validated['name']) {
-          return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
-        }
-        const result = await registry.invoke('template_get', validated)
-        if (!result.success) {
-          return { content: [ { type: 'text', text: JSON.stringify(result.error, null, 2) } ], isError: true }
-        }
-        const cmd = result.data as any
-        return { content: [ { type: 'text', text: String(cmd.output || '') } ], structuredContent: { content: String(cmd.output || '') } }
-      } catch (error) {
-        return { content: [ { type: 'text', text: JSON.stringify({ error: String(error) }, null, 2) } ], isError: true }
+    template_get: async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      const validated = args || {}
+      if (!validated['name']) {
+        return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
+      }
+
+      const res = await templateGetHandler(validated)
+      if (res.isError) return res
+
+      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
+      return {
+        content: [ { type: 'text', text: String(rawOutput) } ],
+        structuredContent: { content: String(rawOutput) }
       }
     },
 
-    async template_context(args: Record<string, unknown>): Promise<CallToolResult> {
-      try {
-        const validated = args || {}
-        if (!validated['name']) {
-          return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
-        }
-        const result = await registry.invoke('template_context', validated)
-        if (!result.success) {
-          return { content: [ { type: 'text', text: JSON.stringify(result.error, null, 2) } ], isError: true }
-        }
-        const cmd = result.data as any
-        return { content: [ { type: 'text', text: String(cmd.output || '') } ], structuredContent: { context: String(cmd.output || '') } }
-      } catch (error) {
-        return { content: [ { type: 'text', text: JSON.stringify({ error: String(error) }, null, 2) } ], isError: true }
+    template_context: async (args: Record<string, unknown>): Promise<CallToolResult> => {
+      const validated = args || {}
+      if (!validated['name']) {
+        return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
+      }
+
+      const res = await templateContextHandler(validated)
+      if (res.isError) return res
+
+      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
+      return {
+        content: [ { type: 'text', text: String(rawOutput) } ],
+        structuredContent: { context: String(rawOutput) }
       }
     }
   }

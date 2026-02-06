@@ -196,9 +196,9 @@ Test MCP server startup, tool registration, request handling, and error response
 - `tests/mcp/server.test.ts` - Unit tests for server, tools, and diagnostics
 
 **Quality Metrics**:  
-- MCP tests: `tests/mcp/server.test.ts` - 10/10 passing ✅  
-- Coverage: Server and error handler tested; target coverage ≥90% (meets project standards) ✅  
-- Lint / Type Checks: No type or lint errors in modified files ✅
+- MCP tests: `tests/mcp/server.test.ts` - 10/10 passing  
+- Coverage: Server and error handler tested; target coverage ≥90% (meets project standards)  
+- Lint / Type Checks: No type or lint errors in modified files
 
 **Commits**:  
 - Implemented MCP server and tests across multiple commits (see git history)

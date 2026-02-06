@@ -10,6 +10,8 @@ import { gateHandlers } from './gate-tools.js'
 import { requirementHandlers } from './requirement-tools.js'
 import { proposalHandlers } from './proposal-tools.js'
 import { configHandlers } from './config-tools.js'
+import { archiveToolDefinitions, archiveHandlers } from './archive-tools.js'
+import { workflowToolDefinitions, workflowHandlers } from './workflow-tools.js'
 import { createToolHandler } from '../tool-handlers.js'
 import { logger } from '../../utils/logger.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -22,7 +24,9 @@ const allToolDefs = [
   ...repositoryToolDefinitions,
   ...analysisToolDefinitions,
   ...templateToolDefinitions,
-  ...configToolDefinitions
+  ...configToolDefinitions,
+  ...archiveToolDefinitions,
+  ...workflowToolDefinitions
 ]
 
 /**
@@ -37,7 +41,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry) {
   const registered: string[] = []
 
   // Register handler-based tools first to allow them to override CLI-backed functions
-  const handlerFactories = [templateHandlers, repositoryHandlers, analysisHandlers, gateHandlers, requirementHandlers, proposalHandlers, configHandlers]
+  const handlerFactories = [templateHandlers, repositoryHandlers, analysisHandlers, gateHandlers, requirementHandlers, proposalHandlers, configHandlers, archiveHandlers, workflowHandlers]
   for (const factory of handlerFactories) {
     const handlers = factory(registry as FunctionRegistry)
     for (const [name, handler] of Object.entries(handlers)) {
@@ -58,34 +62,10 @@ export function registerTools(server: McpServer, registry: FunctionRegistry) {
     }
   }
 
-  // Register remaining function-based tools, skipping any that handlers already registered
-  const allFunctions = registry.list()
-  for (const func of allFunctions) {
-    if (registered.includes(func.name)) {
-      logger.info(`Skipping function registration for ${func.name}; handler already registered`)
-      continue
-    }
-
-    const override = allToolDefs.find(t => t.name === func.name)
-
-    const title = override?.title ?? func.name
-    const description = override?.description ?? func.description
-    const inputSchema = override?.inputSchema ?? (func.schema as any) ?? z.any()
-
-    server.registerTool(
-      func.name,
-      {
-        title,
-        description,
-        inputSchema: inputSchema as any,
-        outputSchema: z.any()
-      },
-      createToolHandler(registry, func.name)
-    )
-
-    logger.info(`Registered MCP tool: ${func.name}`)
-    registered.push(func.name)
-  }
+  // Backwards compatibility removed: function-based tool registration is disabled.
+  // Only handler-based tools are registered. This simplifies registration and
+  // ensures handlers are the single source of truth for MCP tool behavior.
+  logger.info('Function-based tool registration disabled; only handler-based tools will be registered')
 
   return registered
 }

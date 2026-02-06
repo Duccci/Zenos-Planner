@@ -16,13 +16,9 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 ---
 
-## Project Overview
+## Project Goals
 
-**Name**: {{PROJECT_NAME}}  
-**Type**: {{PROJECT_TYPE}}  
-**Technology Stack**: {{TECH_STACK}}  
-**Architecture**: {{ARCHITECTURE_STYLE}}  
-**End State**: {{END_STATE}}
+**Single Source of Truth**: The project's scope and goals are defined in `#file:PROJECT_PRD.md`. The AGENTS.md file generated from this template should not be used as the canonical project definition—read `PROJECT_PRD.md` for project-level decisions and acceptance criteria.
 
 ---
 
@@ -30,7 +26,7 @@ Detailed instructions for AI coding assistants on how to read and interpret arti
 
 | What I Need | Where to Look |
 |------------|---------------|
-| Project scope and goals | `.zeno/docs/PROJECT_PRD.md` |
+| Project scope and goals | `#file:PROJECT_PRD.md` |
 | System architecture | `.zeno/docs/architecture/*.md` |
 | Current gate status | `zeno gates list` |
 | Gate details | `.zeno/gates/gate-XX-name.md` |

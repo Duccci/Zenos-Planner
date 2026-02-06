@@ -49,11 +49,11 @@ Test all Zod schemas with valid and invalid inputs:
 
 For each schema:
 ```
-✓ Valid input parses successfully
-✓ Invalid input rejected with helpful error
-✓ Enum values validated
-✓ Optional fields work
-✓ Required fields enforced
+- Valid input parses successfully
+- Invalid input rejected with helpful error
+- Enum values validated
+- Optional fields work
+- Required fields enforced
 ```
 
 **Acceptance**:
@@ -78,11 +78,11 @@ Test each tool handler independently:
 
 For each tool:
 ```
-✓ Valid input succeeds and returns expected output
-✓ Invalid input fails with helpful error
-✓ Missing resources fail with NOT_FOUND
-✓ Output matches schema
-✓ Error messages are actionable
+- Valid input succeeds and returns expected output
+- Invalid input fails with helpful error
+- Missing resources fail with NOT_FOUND
+- Output matches schema
+- Error messages are actionable
 ```
 
 Group tests by tool category (gates, requirements, proposals, etc.).
@@ -110,12 +110,12 @@ Test MCP server as a whole:
 
 Test scenarios:
 ```
-✓ Server starts with stdio transport
-✓ All tools registered on startup
-✓ Tool invocation succeeds with valid input
-✓ Invalid input produces proper error response
-✓ Tool list includes all tools with descriptions
-✓ Server handles concurrent requests
+- Server starts with stdio transport
+- All tools registered on startup
+- Tool invocation succeeds with valid input
+- Invalid input produces proper error response
+- Tool list includes all tools with descriptions
+- Server handles concurrent requests
 ```
 
 **Acceptance**:
@@ -137,35 +137,35 @@ Test all four prompt workflows end-to-end:
 
 **Workflow 1: `/zeno-apply` - Proposal Implementation**
 ```
-✓ Load proposal via proposal_show tool
-✓ Read proposal tasks and dependencies
-✓ Record requirement lifecycle via proposal approvals and gate archival (no DB status)
-✓ Track progress with manage_todo_list tool
-✓ Invoke proposal_approve to finalize
+- Load proposal via proposal_show tool
+- Read proposal tasks and dependencies
+- Record requirement lifecycle via proposal approvals and gate archival (no DB status)
+- Track progress with manage_todo_list tool
+- Invoke proposal_approve to finalize
 ```
 
 **Workflow 2: `/zeno-gate` - Gate Generation**
 ```
-✓ Start gate via gates_start tool
-✓ Load templates with template_get function
-✓ Read gate PRD requirements
-✓ Invoke gates_regenerate for validation
+- Start gate via gates_start tool
+- Load templates with template_get function
+- Read gate PRD requirements
+- Invoke gates_regenerate for validation
 ```
 
 **Workflow 3: `/zeno-proposal` - Proposal Document Generation**
 ```
-✓ Read gate PRD via gates_show tool
-✓ Access templates with getTemplate function
-✓ Establish dependencies with req_deps tool
-✓ Generate markdown files in correct location
+- Read gate PRD via gates_show tool
+- Access templates with getTemplate function
+- Establish dependencies with req_deps tool
+- Generate markdown files in correct location
 ```
 
 **Workflow 4: `/zeno-archive` - Artifact Archival**
 ```
-✓ Validate completion status via gates_show tool
-✓ List proposals with proposal_list tool
-✓ Move artifacts to archive location
-✓ Create git tags and commit
+- Validate completion status via gates_show tool
+- List proposals with proposal_list tool
+- Move artifacts to archive location
+- Create git tags and commit
 ```
 
 Each workflow test:
@@ -226,12 +226,12 @@ Ensure CLI still works with registry delegation:
 
 Test:
 ```
-✓ zeno gates list works
-✓ zeno gates show <id> works
-✓ zeno gates start <id> works
-✓ zeno gates complete <id> works
-✓ zeno req list works
-✓ zeno proposal list works
+- zeno gates list works
+- zeno gates show <id> works
+- zeno gates start <id> works
+- zeno gates complete <id> works
+- zeno req list works
+- zeno proposal list works
 ... (all CLI commands)
 ```
 

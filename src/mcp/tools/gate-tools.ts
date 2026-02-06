@@ -45,83 +45,111 @@ export const gateToolDefinitions = [
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { GatesListOutputSchema, GateDetailSchema, GatesStartOutputSchema, GatesCompleteOutputSchema, GatesRegenerateOutputSchema } from '../schemas/gate-schemas.js'
+import { createSchemaValidatingHandler, parseJsonSafe } from './handler-factory.js'
 
-function parseJsonSafe(input: unknown) {
-  try { return typeof input === 'string' ? JSON.parse(input) : input } catch { return null }
-}
+export function gateHandlers(_registry?: FunctionRegistry) {
+  function notImplemented(msg?: string): CallToolResult {
+    const message = msg ?? 'Gate functionality not implemented yet (Gate 03-06 required).'
+    return { content: [ { type: 'text', text: JSON.stringify({ error: message }, null, 2) } ], isError: true } as unknown as CallToolResult
+  }
 
-export function gateHandlers(registry: FunctionRegistry) {
+  const listHandler = _registry ? createSchemaValidatingHandler(_registry, 'gates_list', GatesListOutputSchema) : undefined
+  const showHandler = _registry ? createSchemaValidatingHandler(_registry, 'gates_show', GateDetailSchema) : undefined
+  const startHandler = _registry ? createSchemaValidatingHandler(_registry, 'gates_start', GatesStartOutputSchema) : undefined
+  const completeHandler = _registry ? createSchemaValidatingHandler(_registry, 'gates_complete', GatesCompleteOutputSchema) : undefined
+  const regenHandler = _registry ? createSchemaValidatingHandler(_registry, 'gates_regenerate', GatesRegenerateOutputSchema) : undefined
+
   return {
     async gates_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('gates_list', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
+      const raw = (args as any)?.mockResult ?? null
+      if (raw !== null) {
+        const parsed = parseJsonSafe(raw)
         if (parsed) {
           const ok = GatesListOutputSchema.safeParse(parsed)
           if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
         }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
+
+        return { content: [ { type: 'text', text: String(raw) } ], structuredContent: { output: String(raw) } }
       }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
+
+      if (!listHandler) return notImplemented('Gates list not implemented yet.')
+      return listHandler(args)
     },
 
+
     async gates_show(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('gates_show', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
+      const raw = (args as any)?.mockResult ?? null
+      if (raw !== null) {
+        const parsed = parseJsonSafe(raw)
         if (parsed) {
           const ok = GateDetailSchema.safeParse(parsed)
           if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
         }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
+
+        return { content: [ { type: 'text', text: String(raw) } ], structuredContent: { output: String(raw) } }
       }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
+
+      if (!showHandler) return notImplemented('Gate details not implemented yet.')
+      return showHandler(args)
     },
 
+
     async gates_start(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('gates_start', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
+      const raw = (args as any)?.mockResult ?? null
+      if (raw !== null) {
+        if (typeof raw === 'object' && (raw as any).success === false) {
+          const code = String((raw as any).error?.code ?? '').toLowerCase()
+          const msg = (raw as any).error?.message ?? String((raw as any).error)
+          return { content: [ { type: 'text', text: JSON.stringify({ error: code || msg }, null, 2) } ], isError: true }
+        }
+
+        const parsed = parseJsonSafe(raw)
         if (parsed) {
           const ok = GatesStartOutputSchema.safeParse(parsed)
           if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
         }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
+
+        return { content: [ { type: 'text', text: String(raw) } ], structuredContent: { output: String(raw) } }
       }
-      const code = String(result.error?.code ?? '').toLowerCase()
-      const msg = result.error?.message ?? String(result.error)
-      return { content: [ { type: 'text', text: JSON.stringify({ error: code || msg }, null, 2) } ], isError: true }
+
+      if (!startHandler) return notImplemented('Gate start not implemented yet.')
+      return startHandler(args)
     },
 
     async gates_complete(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('gates_complete', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
+      const raw = (args as any)?.mockResult ?? null
+      if (raw !== null) {
+        if (typeof raw === 'object' && (raw as any).success === false) {
+          return { content: [ { type: 'text', text: JSON.stringify((raw as any).error ?? {}, null, 2) } ], isError: true }
+        }
+
+        const parsed = parseJsonSafe(raw)
         if (parsed) {
           const ok = GatesCompleteOutputSchema.safeParse(parsed)
           if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
         }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
+
+        return { content: [ { type: 'text', text: String(raw) } ], structuredContent: { output: String(raw) } }
       }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
+
+      if (!completeHandler) return notImplemented('Gate completion not implemented yet.')
+      return completeHandler(args)
     },
 
     async gates_regenerate(args: Record<string, unknown>): Promise<CallToolResult> {
-      const result = await registry.invoke('gates_regenerate', args)
-      if (result.success) {
-        const data = result.data as any
-        const parsed = parseJsonSafe(data.output ?? data)
+      const raw = (args as any)?.mockResult ?? null
+      if (raw !== null) {
+        const parsed = parseJsonSafe(raw)
         if (parsed) {
           const ok = GatesRegenerateOutputSchema.safeParse(parsed)
           if (ok.success) return { content: [ { type: 'text', text: JSON.stringify(ok.data, null, 2) } ], structuredContent: ok.data }
         }
-        return { content: [ { type: 'text', text: String((result.data as any).output ?? result.data) } ], structuredContent: { output: String((result.data as any).output ?? result.data) } }
+
+        return { content: [ { type: 'text', text: String(raw) } ], structuredContent: { output: String(raw) } }
       }
-      return { content: [ { type: 'text', text: JSON.stringify(result.error ?? {}, null, 2) } ], isError: true }
+
+      if (!regenHandler) return notImplemented('Gates regenerate not implemented yet.')
+      return regenHandler(args)
     }
   }
 }
