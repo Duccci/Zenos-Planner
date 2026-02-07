@@ -8,6 +8,7 @@
 import { execSync } from 'child_process'
 import { functionRegistry } from './function-registry.js'
 import { logger } from '../utils/logger.js'
+import { trackGitOperations } from '../mcp/audit/git-operation-tracker.js'
 
 export interface CommandResult {
   success: boolean
@@ -177,9 +178,32 @@ function paramToCliName(paramName: string): string {
 /**
  * Execute command and return result
  */
-async function executeCommand(commandString: string): Promise<CommandResult> {
+export async function executeCommand(commandString: string): Promise<CommandResult> {
   return new Promise((resolve) => {
     try {
+      // Detect git operations and enforce apply-phase guardrail if set
+      try {
+        const parts = commandString.split(/\s+/)
+        const cmd = parts[0] ?? ''
+        const args = parts.slice(1)
+        // If global apply-phase flag is set, disallow git ops
+        const allowGit = !((globalThis as any).__ZENOPROPOSAL_APPLY_PHASE === true)
+        trackGitOperations(cmd, args, allowGit)
+      } catch (gErr: unknown) {
+        // Git violation detected — surface as structured command failure
+        const message = gErr instanceof Error ? gErr.message : String(gErr)
+        const code = (gErr && typeof gErr === 'object' && (gErr as any).code) ? (gErr as any).code : 'GIT_VIOLATION'
+        const operations = (gErr && typeof gErr === 'object' && (gErr as any).operations) ? (gErr as any).operations : undefined
+        const payload = {
+          code,
+          message,
+          operations,
+          timestamp: new Date().toISOString()
+        }
+        logger.warn(`Blocked command due to git guardrail: ${message}`)
+        resolve({ success: false, output: '', error: JSON.stringify(payload), exitCode: 2 })
+        return
+      }
       const output = execSync(commandString, {
         encoding: 'utf-8',
         timeout: 30000, // 30 second timeout

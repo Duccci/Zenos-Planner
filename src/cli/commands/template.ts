@@ -9,38 +9,31 @@
  */
 
 import type { Command } from 'commander'
-import {
-  loadTemplate,
-  getTemplateMetadata,
-  TEMPLATES
-} from '../../generation/template-registry.js'
+import { createDiscoveryService } from '../../generation/artifact-discovery-service.js'
 
 /**
  * Resolve template name by accepting both full name and short name
  * Handles both 'gate-prd-template' and 'gate-prd' formats
  */
-function resolveTemplateName(name: string): string | undefined {
-  // Try exact match first
-  const exact = TEMPLATES.find(t => t.name === name)
-  if (exact) return exact.name
+const discovery = createDiscoveryService(process.cwd())
 
-  // Try adding -template suffix if not present
+async function resolveTemplateName(name: string): Promise<string | undefined> {
+  const templates = await discovery.getTemplates()
+  const exact = templates.find(t => t.name === name)
+  if (exact) return exact.name
   if (!name.endsWith('-template')) {
-    const withSuffix = TEMPLATES.find(t => t.name === `${name}-template`)
+    const withSuffix = templates.find(t => t.name === `${name}-template`)
     if (withSuffix) return withSuffix.name
   }
-
-  // Try matching short names
-  const byShortName = TEMPLATES.find(t => t.shortName === name)
+  const byShortName = templates.find(t => t.shortName === name)
   if (byShortName) return byShortName.name
-
   return undefined
 }
 
 /**
  * Format templates list as ASCII table
  */
-function formatTemplateTable(templates: typeof TEMPLATES): string {
+function formatTemplateTable(templates: Array<{ name: string; category: string; description: string }>): string {
   const nameWidth = Math.max(...templates.map(t => t.name.length), 'Name'.length)
   const categoryWidth = Math.max(...templates.map(t => t.category.length), 'Category'.length)
 
@@ -50,7 +43,7 @@ function formatTemplateTable(templates: typeof TEMPLATES): string {
   let output = separator + '\n' + header + '\n' + separator + '\n'
 
   for (const template of templates) {
-    const desc = template.description.substring(0, 40)
+    const desc = (template.description || '').substring(0, 40)
     output += `| ${template.name.padEnd(nameWidth)} | ${template.category.padEnd(categoryWidth)} | ${desc.padEnd(40)} |\n`
   }
 
@@ -83,7 +76,7 @@ export function registerTemplateCommand(program: Command): void {
     .description('List all available templates with descriptions')
     .option('--format <format>', 'Output format: table, json, list', 'table')
     .action(
-      (options: { format?: string }): void => {
+      async (options: { format?: string }): Promise<void> => {
         try {
           const format = options.format || 'table'
 
@@ -93,9 +86,11 @@ export function registerTemplateCommand(program: Command): void {
             process.exit(1)
           }
 
+          const templates = await discovery.getTemplates()
+
           if (format === 'json') {
             // JSON format - array of template objects
-            const output = TEMPLATES.map(t => ({
+            const output = templates.map(t => ({
               name: t.name,
               category: t.category,
               description: t.description,
@@ -104,12 +99,12 @@ export function registerTemplateCommand(program: Command): void {
             console.log(JSON.stringify(output, null, 2))
           } else if (format === 'list') {
             // List format - one template per line
-            for (const template of TEMPLATES) {
+            for (const template of templates) {
               console.log(template.name)
             }
           } else {
             // Table format - default, human readable
-            console.log('\n' + formatTemplateTable(TEMPLATES) + '\n')
+            console.log('\n' + formatTemplateTable(templates as any) + '\n')
           }
         } catch (error) {
           console.error('Error listing templates:', error)
@@ -126,23 +121,28 @@ export function registerTemplateCommand(program: Command): void {
     .action(
       async (name: string, options: { raw?: boolean }): Promise<void> => {
         try {
-          const resolvedName = resolveTemplateName(name)
+          const resolvedName = await resolveTemplateName(name)
 
           if (!resolvedName) {
-            const available = TEMPLATES.map(t => t.name).join(', ')
+            const templates = await discovery.getTemplates()
+            const available = templates.map(t => t.name).join(', ')
             console.error(
               `Template '${name}' not found. Available templates: ${available}`
             )
             process.exit(1)
           }
 
-          const content = await loadTemplate(resolvedName)
+          const artifact = await discovery.getArtifact('template', resolvedName)
+          const content = artifact && (artifact as any).content
+
+          if (!content) {
+            console.error(`Template content not available: ${resolvedName}`)
+            process.exit(1)
+          }
 
           if (options.raw) {
-            // Raw output - just the content
             console.log(content)
           } else {
-            // Default output with header
             console.log(`# Template: ${resolvedName}`)
             console.log('='.repeat(60))
             console.log(content)
@@ -166,18 +166,20 @@ export function registerTemplateCommand(program: Command): void {
         options: { metadata?: boolean; compact?: boolean }
       ): Promise<void> => {
         try {
-          const resolvedName = resolveTemplateName(name)
+          const resolvedName = await resolveTemplateName(name)
 
           if (!resolvedName) {
-            const available = TEMPLATES.map(t => t.name).join(', ')
+            const templates = await discovery.getTemplates()
+            const available = templates.map(t => t.name).join(', ')
             console.error(
               `Template '${name}' not found. Available templates: ${available}`
             )
             process.exit(1)
           }
 
-          const content = await loadTemplate(resolvedName)
-          const metadata = getTemplateMetadata(resolvedName)
+          const artifact = await discovery.getArtifact('template', resolvedName)
+          const content = artifact && (artifact as any).content
+          const metadata = artifact ? ({ name: (artifact as any).name, category: (artifact as any).category, description: (artifact as any).description }) : null
 
           if (!metadata) {
             console.error(`Template metadata not found: ${resolvedName}`)

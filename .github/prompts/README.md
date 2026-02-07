@@ -23,13 +23,6 @@ YAML frontmatter + Markdown instructions, compatible with VS Code and Ollama.
 
 ## Reference
 
-- `AGENTS.md` (root) - Tool usage
-- `zeno/AGENTS.md` - Project conventions
-- `zeno/PROJECT_PRD.md` - Requirements
-
-## Reference
-
-For detailed Zeno's Planner documentation, see:
-- `AGENTS.md` (root) - Quick reference guide
-- `zeno/AGENTS.md` - Detailed project-specific guide
+- `AGENTS.md` (root) - Tool usage and quick reference
+- `zeno/AGENTS.md` - Project-specific conventions
 - `zeno/PROJECT_PRD.md` - Project requirements and scope

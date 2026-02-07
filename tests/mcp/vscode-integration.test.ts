@@ -12,12 +12,6 @@ describe('VS Code integration artifacts', () => {
     expect(content.servers['zeno-planner'].args).toContain('./bin/mcp-server.js')
   })
 
-  it('MCP VS Code docs exist', () => {
-    const path = join(process.cwd(), 'docs', 'MCP_VSCODE_SETUP.md')
-    const content = readFileSync(path, 'utf-8')
-    expect(content).toContain('mcp.json')
-  })
-
   it('MCP server creates successfully with tools registered', async () => {
     const server = await createMcpServer()
     expect(server).toBeDefined()

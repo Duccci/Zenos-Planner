@@ -11,8 +11,8 @@ agent: agent
 - Only create markdown in `zeno/proposals/gate-XX/`; no code, files, or commands
 - Keep proposals as single coherent work units with status `pending`
 - Decompose Gate PRD steps into tasks; describe changes without implementing
-- NO: implementation code, terminal commands, file modifications, new requirements
-- YES: markdown files, task decomposition, acceptance criteria
+- NO: implementation code, inline code snippets, terminal commands, file modifications, new requirements
+- YES: markdown files, task decomposition, acceptance criteria, function/type names (no code blocks)
 - Review dependencies for context only; do not implement or pre-empt work that belongs to other proposals or later gates. Document incomplete dependencies as blockers in the proposal and notify a human for guidance.
 
 **Functions**
@@ -36,11 +36,18 @@ Mark each step as in-progress, then completed immediately after finishing.
 2. **Start gate** - If gate-tied and pending: `zeno gates start <gate-id>`
 3. **Read source** - Extract objectives, requirements, steps, decisions
 4. **Review existing** - Check `zeno/proposals/gate-XX/` or `solitary/` for duplicates
-5. **Decompose** - Map gate steps to proposals; one per cohesive unit; tests with code
+5. **Decompose** - Map gate steps to proposals; one per cohesive unit
+   - **Gate-tied**: Omit test tasks from implementation proposals; create a dedicated test proposal as the final proposal in the gate
+   - **Solitary**: Include test tasks inline; solitary proposals are self-contained
+   - Every `File(s)` entry must be an explicit path (no globs, no directories)
+   - Each task should touch 1-3 files; if more are needed, split into additional tasks
 6. **Generate files** - Create `zeno/proposals/gate-XX/01-name.md` or `solitary/YYYY-MM-DD-01-name.md`
 7. **Establish dependencies** - First proposal: no deps; subsequent: reference earlier ones. Treat listed dependencies as context only; do not implement or act on them during proposal creation. If a dependency is incomplete, note it as a blocker in the proposal and notify a human for clarification.
 8. **Validate structure** - Hash, Type, Status pending, Summary, Tasks, Files Affected
-9. **Cross-reference architecture** - Verify file paths match `system-overview.md`
+   - Verify all `File(s)` and `Files Affected` entries are explicit file paths (no `*.ts`, no `src/dir/`)
+   - Verify gate-tied proposals omit test tasks (tests belong in the gate's final test proposal)
+   - Verify solitary proposals include test tasks inline
+9. **Cross-reference architecture** - Verify file paths match `system-overview.md` (gate-level planning step only; the apply agent does not re-read architecture docs)
 10. **Output summary** - List all proposals with hashes, requires/blocks relationships
 
     ...

@@ -16,6 +16,11 @@ Created shared template loading infrastructure enabling LLMs to dynamically acce
 
 Implemented three CLI commands for template access: `zeno template list` (with table/json/list formats), `zeno template get` (with raw flag and flexible name resolution), and `zeno template context` (with metadata and compact flags for LLM context injection). Built on template-registry infrastructure to provide users and LLMs programmatic access to all available templates. Includes flexible template name resolution supporting both full names and shorthand notation. All commands include comprehensive error handling and validation. 11/11 tests passing.
 
+### Unified Artifact Discovery Service (#s20260206disco)
+**Completed**: 2026-02-06
+
+High-level implementation: Implemented unified artifact discovery service replacing hardcoded template registry with dynamic filesystem scanning. Created single interface for discovering templates, agents, gates, and proposals with no external dependencies. All existing CLI and MCP functionality seamlessly integrated with new discovery system. 21 new tests added, all passing with 100% coverage for new code.
+
 ### MCP Implementation Cleanup & Refactoring (#s20260201mcp)
 **Completed**: 2026-02-06
 

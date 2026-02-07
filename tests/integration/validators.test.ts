@@ -158,6 +158,26 @@ describe('Scope Validator', () => {
 
     expect(result.allowed).toBe(true)
   })
+
+  it('should reject wildcard patterns in Files Affected', () => {
+    const result = validateScope({
+      filesAffected: ['src/mcp/tools/*.ts'],
+      filesModified: ['src/mcp/tools/gate-tools.ts'],
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.errors?.[0]).toContain('Wildcard not allowed')
+  })
+
+  it('should reject directory-only references in Files Affected', () => {
+    const result = validateScope({
+      filesAffected: ['src/mcp/tools/'],
+      filesModified: ['src/mcp/tools/gate-tools.ts'],
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.errors?.[0]).toContain('Directory reference not allowed')
+  })
 })
 
 describe('Quality Validator', () => {

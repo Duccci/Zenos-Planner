@@ -83,19 +83,50 @@ export const FilePathSchema = z.string().min(1).max(500)
 export type FilePath = z.infer<typeof FilePathSchema>
 
 // ============================================================================
+// TIMESTAMPS - ISO string validation
+// ============================================================================
+
+/** ISO 8601 timestamp string */
+export const TimestampSchema = z.string().datetime({ offset: true })
+export type Timestamp = z.infer<typeof TimestampSchema>
+
+/** Optional timestamp (for fields that may be null) */
+export const OptionalTimestampSchema = TimestampSchema.nullable().optional()
+export type OptionalTimestamp = z.infer<typeof OptionalTimestampSchema>
+
+// ============================================================================
 // ERROR HANDLING - Structured error responses
 // ============================================================================
 
-/** Error codes for structured error responses */
+/**
+ * Error codes for structured error responses across all MCP tools.
+ *
+ * - `COMMAND_FAILED` — A CLI or shell command returned a non-zero exit code
+ * - `NOT_FOUND` — Requested entity (gate, proposal, requirement) does not exist
+ * - `INVALID_INPUT` — Input parameters failed validation
+ * - `INVALID_STATUS_TRANSITION` — Attempted an illegal status change (e.g. pending→completed)
+ * - `ALREADY_EXISTS` — Entity with the same identifier already exists
+ * - `PERMISSION_DENIED` — Caller lacks permission for the operation
+ * - `UNAUTHORIZED` — Authentication required or credentials invalid
+ * - `CONFLICT` — Operation conflicts with current state (e.g. concurrent edits)
+ * - `INTERNAL_ERROR` — Unexpected internal failure
+ * - `VALIDATION_ERROR` — Business-rule validation failed
+ * - `DEPENDENCY_BLOCKED` — Operation blocked by an unresolved dependency
+ * - `GIT_VIOLATION` — Git operations attempted during a restricted phase (apply)
+ */
 export const ErrorCodeEnum = z.enum([
+  'COMMAND_FAILED',
   'NOT_FOUND',
   'INVALID_INPUT',
   'INVALID_STATUS_TRANSITION',
+  'ALREADY_EXISTS',
   'PERMISSION_DENIED',
+  'UNAUTHORIZED',
   'CONFLICT',
   'INTERNAL_ERROR',
   'VALIDATION_ERROR',
-  'DEPENDENCY_BLOCKED'
+  'DEPENDENCY_BLOCKED',
+  'GIT_VIOLATION'
 ])
 export type ErrorCode = z.infer<typeof ErrorCodeEnum>
 
@@ -114,9 +145,18 @@ export type ErrorContext = z.infer<typeof ErrorContextSchema>
 export const ErrorResponseSchema = z.object({
   code: ErrorCodeEnum,
   message: z.string(),
-  context: ErrorContextSchema.optional()
+  context: ErrorContextSchema.optional(),
+  timestamp: TimestampSchema.optional()
 })
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
+
+/**
+ * Discriminated union representing either a successful result or a structured error.
+ * Use as the return type for any MCP tool handler or function-registry invocation.
+ */
+export type ToolResponse<T> =
+  | { success: true; data: T }
+  | { success: false; error: ErrorResponse }
 
 // ============================================================================
 // PAGINATION - List operation support
@@ -137,18 +177,6 @@ export const PaginationMetadataSchema = z.object({
   hasMore: z.boolean()
 })
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>
-
-// ============================================================================
-// TIMESTAMPS - ISO string validation
-// ============================================================================
-
-/** ISO 8601 timestamp string */
-export const TimestampSchema = z.string().datetime({ offset: true })
-export type Timestamp = z.infer<typeof TimestampSchema>
-
-/** Optional timestamp (for fields that may be null) */
-export const OptionalTimestampSchema = TimestampSchema.nullable().optional()
-export type OptionalTimestamp = z.infer<typeof OptionalTimestampSchema>
 
 // ============================================================================
 // TEMPLATE SCHEMAS

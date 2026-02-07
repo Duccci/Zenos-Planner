@@ -20,7 +20,6 @@ describe('Proposal Template', () => {
       created: '2023-01-01',
       summary: 'Test summary',
       context: {
-        requirementsContext: 'Context',
         whyChange: 'Why',
         dependencies: [{
           hash: 'dep1',

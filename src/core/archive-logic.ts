@@ -15,9 +15,9 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { loadConfig } from '../utils/config.js'
 import { getZenoDir } from '../utils/config.js'
-import { consolidateGateProposals, type GateConsolidation } from '../utils/gate-consolidation.js'
+import { consolidateGateProposals } from '../utils/gate-consolidation.js'
 import { validateGateReady, validateProposalReady } from './archive-validation.js'
-import { consolidationToMarkdown, prepareArchiveContent } from './archive-consolidation.js'
+import { prepareArchiveContent } from './archive-consolidation.js'
 import { getCurrentTimestamp, calculateNextGateId, createTagName, performGitCommitAndPush } from './archive-execution.js'
 import { logger } from '../utils/logger.js'
 import {
@@ -27,6 +27,42 @@ import {
 } from '../mcp/schemas/archive-schemas.js'
 
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
+
+/**
+ * Extract a short (2-3 sentence) summary from proposal markdown content
+ */
+function extractSummary(content: string): string | null {
+  if (!content) return null
+  // Try to find '## Summary' or '## Summary' header, else take first paragraph
+  const summaryMatch = content.match(/##+\s*Summary\s*\n([\s\S]*?)(?:\n##|\n#|$)/i)
+  const raw = summaryMatch ? (summaryMatch[1] ?? '').trim() : null
+  const paragraph = raw || content.split('\n\n')[0]
+  if (!paragraph) return null
+  // Return first 2 sentences
+  const sentences = paragraph.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/)
+  return sentences.slice(0, 2).join(' ').trim()
+}
+
+/**
+ * Update or create the solitary consolidation file under zeno/gates/archive/solitary.md
+ */
+async function updateSolitaryConsolidation(hash: string, title: string, summary: string, completedAt: string) {
+  const zenoDir = getZenoDir()
+  const archiveDir = join(zenoDir, 'gates', 'archive')
+  const filePath = join(archiveDir, 'solitary.md')
+  await mkdir(archiveDir, { recursive: true })
+  let existing = ''
+  try {
+    existing = await readFile(filePath, 'utf-8')
+  } catch {
+    existing = `# Solitary Proposal Archive\n\n` // create base
+  }
+
+  const entry = [`### ${title} (${hash})`, `**Completed**: ${completedAt}`, '', summary, '', '---', ''].join('\n')
+
+  const updated = `${existing.trim()}\n\n${entry}`
+  await writeFile(filePath, updated)
+}
 
 
 // ============================================================================
@@ -159,6 +195,16 @@ export async function archiveProposal(hash: string, completionNotes?: string): P
 
   // Step 4: Write to archive
   await writeFile(archivePath, updatedContent)
+
+  // If solitary proposal, update consolidation index for solitary archives
+  if (type !== 'gate-tied') {
+    try {
+      const summary = extractSummary(content) || (completionNotes ?? '')
+      await updateSolitaryConsolidation(hash, title, summary, timestamp)
+    } catch (err) {
+      logger.warn(`Failed to update solitary consolidation for ${hash}: ${err}`)
+    }
+  }
 
   // Step 5: Git operations
   const commitMessage = `chore(${type === 'gate-tied' ? gateId : 'solitary'}): Archive proposal: ${title} (${hash})

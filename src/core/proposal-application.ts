@@ -57,11 +57,7 @@ export async function updateProposalProgress(input: ProposalUpdateProgressInput)
     // Update task status
     content = updateTaskStatus(content, taskIndex, completed, notes)
 
-    // Update completion summary
-    const completionSummary = calculateCompletionSummary(content)
-    content = updateCompletionSummary(content, completionSummary)
-
-    // Write back to file
+    // Write back to file (completion summary written once at end, not per task)
     await writeFile(proposalPath, content)
 
     return {

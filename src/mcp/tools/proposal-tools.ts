@@ -66,7 +66,7 @@ export const legacyProposalToolDefinitions = [
   {
     name: 'proposal_approve',
     title: 'Proposal Approve',
-    description: 'Approve a proposal',
+    description: 'Approve a proposal. This operation must not invoke git commands — applies changes to proposal state only. Git commits occur at gate completion.',
     inputSchema: ProposalApproveInputSchema
   },
   {
@@ -78,7 +78,7 @@ export const legacyProposalToolDefinitions = [
   {
     name: 'proposal_start',
     title: 'Proposal Start',
-    description: 'Start working on an approved proposal',
+    description: 'Start working on an approved proposal. This operation must not invoke git commands — applies changes to proposal state only.',
     inputSchema: ProposalStartInputSchema
   }
 ]
@@ -240,10 +240,20 @@ export function proposalHandlers(registry: FunctionRegistry) {
           }
 
           // Proceed with the action
-          invokeResult = await registry.invoke(
-            validated.action === 'approve' ? 'proposal_approve' : 'proposal_start',
-            validated.payload
-          )
+          // Set apply-phase guard so that any shell commands invoking git are blocked
+          try {
+            ;(globalThis as any).__ZENOPROPOSAL_APPLY_PHASE = true
+            invokeResult = await registry.invoke(
+              validated.action === 'approve' ? 'proposal_approve' : 'proposal_start',
+              validated.payload
+            )
+          } finally {
+            try {
+              delete (globalThis as any).__ZENOPROPOSAL_APPLY_PHASE
+            } catch {
+              ;(globalThis as any).__ZENOPROPOSAL_APPLY_PHASE = false
+            }
+          }
 
           // Include validation warnings in result if present
           const output = {

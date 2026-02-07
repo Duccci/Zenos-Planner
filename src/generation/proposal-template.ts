@@ -31,7 +31,6 @@ export interface ProposalData {
   created: string;
   summary: string;
   context: {
-    requirementsContext: string;
     whyChange: string;
     dependencies: {
       hash: string;
@@ -66,7 +65,6 @@ export function renderProposalTemplate(template: string, data: ProposalData): st
   rendered = rendered.replace(/pending \| in_progress \| completed \| rejected/g, data.status);
   rendered = rendered.replace(/\[DATE\]/g, data.created);
   rendered = rendered.replace(/\[2-3 sentence description...\]/g, data.summary);
-  rendered = rendered.replace(/\[2-3 sentences explaining...\]/g, data.context.requirementsContext);
   rendered = rendered.replace(/\[1-2 sentences explaining...\]/g, data.context.whyChange);
 
   // Dependencies table

@@ -13,9 +13,9 @@ export function registerTemplateOps(registry: FunctionRegistry): void {
   registry.register('template_list', async () => {
     const result = await invokeCommand('template_list')
     if (!result.success) {
-      throw new Error(result.error)
+      return { success: false, error: { code: 'COMMAND_FAILED', message: String(result.error), context: {}, timestamp: new Date().toISOString() } }
     }
-    return result
+    return { success: true, data: result.output }
   }, {
     description: 'List all available templates',
     parameters: [],
@@ -27,9 +27,9 @@ export function registerTemplateOps(registry: FunctionRegistry): void {
     const validated = z.object({ name: z.string() }).parse(params)
     const result = await invokeCommand('template_get', validated)
     if (!result.success) {
-      throw new Error(result.error)
+      return { success: false, error: { code: 'COMMAND_FAILED', message: String(result.error), context: {}, timestamp: new Date().toISOString() } }
     }
-    return result
+    return { success: true, data: result.output }
   }, {
     description: 'Get template content by name',
     parameters: [
@@ -50,9 +50,9 @@ export function registerTemplateOps(registry: FunctionRegistry): void {
     const validated = z.object({ name: z.string() }).parse(params)
     const result = await invokeCommand('template_context', validated)
     if (!result.success) {
-      throw new Error(result.error)
+      return { success: false, error: { code: 'COMMAND_FAILED', message: String(result.error), context: {}, timestamp: new Date().toISOString() } }
     }
-    return result
+    return { success: true, data: result.output }
   }, {
     description: 'Get template with contextual metadata for LLM usage',
     parameters: [

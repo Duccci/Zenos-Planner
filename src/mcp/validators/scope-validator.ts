@@ -21,6 +21,26 @@ export interface ValidationResult {
 }
 
 /**
+ * Detect wildcard or directory-only entries in Files Affected.
+ * Proposals must list explicit file paths, not globs or directories.
+ */
+function validateExplicitPaths(filesAffected: string[]): string[] {
+  const errors: string[] = []
+  for (const entry of filesAffected) {
+    if (entry.includes('*')) {
+      errors.push(
+        `Wildcard not allowed in Files Affected: "${entry}". List each file explicitly.`
+      )
+    } else if (entry.endsWith('/') || (!entry.includes('.') && !entry.includes('/'))) {
+      errors.push(
+        `Directory reference not allowed in Files Affected: "${entry}". Use explicit file paths.`
+      )
+    }
+  }
+  return errors
+}
+
+/**
  * Validate that file modifications are within declared scope.
  * Prevents unrelated refactoring and scope creep.
  */
@@ -28,6 +48,9 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
   const errors: string[] = []
   const warnings: string[] = []
   const allowTestFiles = context.allowTestFiles ?? true
+
+  // Reject wildcard/directory entries in Files Affected
+  errors.push(...validateExplicitPaths(context.filesAffected))
 
   // Normalize paths for comparison
   const normalizedAffected = context.filesAffected.map((f) => f.replace(/\\/g, '/').toLowerCase())

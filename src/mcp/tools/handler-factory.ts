@@ -101,15 +101,31 @@ export function createSchemaValidatingHandler(
         }
       }
 
-      const errorText = JSON.stringify(result.error ?? { message: 'Unknown error' }, null, 2)
+      // Non-success result: return structured error envelope per unified schema
+      const err = result.error ?? { message: 'Unknown error', code: 'INTERNAL_ERROR' }
+      const errorPayload = {
+        code: (err as any).code ?? 'INTERNAL_ERROR',
+        message: (err as any).message ?? String(err),
+        context: (err as any).context ?? undefined,
+        timestamp: (err as any).timestamp ?? new Date().toISOString(),
+        operations: (err as any).operations ?? undefined
+      }
       return {
-        content: [{ type: 'text', text: errorText }],
+        content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+        structuredContent: { error: errorPayload },
         isError: true
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      const payload = {
+        code: 'INTERNAL_ERROR',
+        message: `Handler error: ${errorMessage}`,
+        timestamp: new Date().toISOString(),
+        context: { functionName }
+      }
       return {
-        content: [{ type: 'text', text: `Handler error: ${errorMessage}` }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        structuredContent: { error: payload },
         isError: true
       }
     }
@@ -145,15 +161,31 @@ export function createBasicHandler(
         }
       }
 
-      const errorText = JSON.stringify(result.error ?? { message: 'Unknown error' }, null, 2)
+      const err = result.error ?? { message: 'Unknown error', code: 'INTERNAL_ERROR' }
+      const errorPayload = {
+        code: (err as any).code ?? 'INTERNAL_ERROR',
+        message: (err as any).message ?? String(err),
+        context: (err as any).context ?? undefined,
+        timestamp: (err as any).timestamp ?? new Date().toISOString(),
+        operations: (err as any).operations ?? undefined
+      }
+
       return {
-        content: [{ type: 'text', text: errorText }],
+        content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+        structuredContent: { error: errorPayload },
         isError: true
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      const payload = {
+        code: 'INTERNAL_ERROR',
+        message: `Handler error: ${errorMessage}`,
+        timestamp: new Date().toISOString(),
+        context: { functionName }
+      }
       return {
-        content: [{ type: 'text', text: `Handler error: ${errorMessage}` }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        structuredContent: { error: payload },
         isError: true
       }
     }

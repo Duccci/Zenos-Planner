@@ -24,6 +24,9 @@ export const templateToolDefinitions = [
 ]
 
 import { createBasicHandler } from './handler-factory.js'
+import { createDiscoveryService } from '../../generation/artifact-discovery-service.js'
+
+const discovery = createDiscoveryService(process.cwd())
 
 export function templateHandlers(registry: FunctionRegistry) {
   const templateListHandler = createBasicHandler(registry, 'template_list')
@@ -32,31 +35,16 @@ export function templateHandlers(registry: FunctionRegistry) {
 
   return {
     template_list: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-      // Prefer JSON output for reliable parsing
-      const invokeArgs = { ...(args || {}), format: 'json' }
-      const res = await templateListHandler(invokeArgs)
-      if (res.isError) return res
-
-      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
-      let templates: Array<Record<string, unknown>> = []
-
-      if (typeof rawOutput === 'string') {
-        try {
-          const parsed = JSON.parse(rawOutput)
-          if (Array.isArray(parsed)) templates = parsed
-          else if (parsed && Array.isArray((parsed as any).templates)) templates = (parsed as any).templates
-        } catch {
-          templates = [{ name: 'unknown', description: String(rawOutput) }]
+      try {
+        const templates = await discovery.getTemplates()
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ templates }, null, 2) }],
+          structuredContent: { templates }
         }
-      } else if (Array.isArray(rawOutput)) {
-        templates = rawOutput as any
-      } else if (res.structuredContent && Array.isArray((res.structuredContent as any).templates)) {
-        templates = (res.structuredContent as any).templates
-      }
-
-      return {
-        content: [ { type: 'text', text: JSON.stringify({ templates }, null, 2) } ],
-        structuredContent: { templates }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
+        return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: { error: payload }, isError: true }
       }
     },
 
@@ -66,13 +54,19 @@ export function templateHandlers(registry: FunctionRegistry) {
         return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
       }
 
-      const res = await templateGetHandler(validated)
-      if (res.isError) return res
-
-      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
-      return {
-        content: [ { type: 'text', text: String(rawOutput) } ],
-        structuredContent: { content: String(rawOutput) }
+      try {
+        const name = String(validated['name'])
+        const artifact = await discovery.getArtifact('template', name)
+        if (!artifact) {
+          const payload = { code: 'NOT_FOUND', message: `Template not found: ${name}`, timestamp: new Date().toISOString() }
+          return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: { error: payload }, isError: true }
+        }
+        const content = (artifact as any).content ?? ''
+        return { content: [{ type: 'text', text: String(content) }], structuredContent: { content: String(content) } }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
+        return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: { error: payload }, isError: true }
       }
     },
 
@@ -82,13 +76,20 @@ export function templateHandlers(registry: FunctionRegistry) {
         return { content: [ { type: 'text', text: 'Error: template name is required' } ], isError: true }
       }
 
-      const res = await templateContextHandler(validated)
-      if (res.isError) return res
-
-      const rawOutput = (res.structuredContent && (res.structuredContent as any).output) ?? ''
-      return {
-        content: [ { type: 'text', text: String(rawOutput) } ],
-        structuredContent: { context: String(rawOutput) }
+      try {
+        const name = String(validated['name'])
+        const artifact = await discovery.getArtifact('template', name)
+        if (!artifact) {
+          const payload = { code: 'NOT_FOUND', message: `Template not found: ${name}`, timestamp: new Date().toISOString() }
+          return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: { error: payload }, isError: true }
+        }
+        const content = (artifact as any).content ?? ''
+        const context = `Name: ${name}\nCategory: ${ (artifact as any).category || 'unknown' }\n\n${content}`
+        return { content: [{ type: 'text', text: String(context) }], structuredContent: { context: String(context) } }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
+        return { content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }], structuredContent: { error: payload }, isError: true }
       }
     }
   }

@@ -16,10 +16,6 @@
 
 ## Context
 
-### Requirements Context
-
-This proposal implements tasks derived from requirements. Requirements are primarily defined during `zeno init` at project inception and attributed to gates during gate generation. Requirements may be updated or added during rebaseline/rescope operations, but init is the primary source. This proposal breaks down the referenced requirement(s) into individual implementation tasks.
-
 ### Why This Change
 
 [1-2 sentences explaining the problem or need this addresses. Reference the gate objective or requirement.]
@@ -42,7 +38,8 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 **Rules**:
 - Omit rows for dependency types that do not apply
 - Never use placeholder values like "None" or "N/A" as hash references
-- If no dependencies exist, replace the table with: *No dependencies - self-contained proposal.*
+- If no dependencies exist, replace the entire Dependencies section (header through table) with: `*No dependencies.*`
+- The Description column must be self-contained — the apply agent reads only this table, not the dependency files
 
 ---
 
@@ -50,12 +47,23 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
+**File Scoping Rules**:
+- Every `File(s)` entry MUST be an explicit file path (e.g., `src/core/archive-logic.ts`)
+- NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
+- NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
+- If a refactoring touches many files, list each one explicitly — this is the cost signal that justifies splitting the proposal
+- Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
+
+**Test Scoping Rules**:
+- **Gate-tied proposals**: Omit test tasks. A dedicated test proposal will be created as the final proposal in the gate to meet quality thresholds.
+- **Solitary proposals**: MUST include test tasks inline. Solitary proposals are self-contained and have no gate-level test proposal.
+
 ### Task 1: [Task Title]
 
 **File(s)**: `[path/to/file.ts]`  
 **Action**: create | modify | delete | refactor
 
-[2-4 line description of what to implement. Include specific function names, interfaces, or patterns to follow.]
+[2-4 line description of what to implement. Name specific functions, interfaces, or patterns to follow. Do NOT embed code snippets — the apply agent reads the actual source files.]
 
 **Acceptance**:
 - [ ] [Specific, verifiable condition]
@@ -68,7 +76,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 **File(s)**: `[path/to/file.ts]`  
 **Action**: create | modify | delete | refactor
 
-[2-4 line description.]
+[2-4 line description. No code snippets — name types and functions, the apply agent reads actual source.]
 
 **Acceptance**:
 - [ ] [Condition]
@@ -76,12 +84,12 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ---
 
-### Task 3: [Task Title]
+### Task 3: [Task Title] (Solitary proposals only)
 
 **File(s)**: `[path/to/file.test.ts]`  
 **Action**: create | modify
 
-[Test task - every proposal should include test coverage.]
+[Test task - required for solitary proposals. Gate-tied proposals defer testing to a dedicated test proposal.]
 
 **Acceptance**:
 - [ ] Tests cover happy path
@@ -92,10 +100,15 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ## Files Affected
 
+**Rules**:
+- Every entry MUST be a fully-qualified file path — no directories, no globs, no wildcards
+- This table is the authoritative scope boundary; the scope validator rejects modifications to unlisted files
+- Each file path must match exactly one file in the repository
+
 | File | Action | Description |
 |------|--------|-------------|
 | `src/[path]/[file].ts` | create/modify | [Brief change description] |
-| `tests/[path]/[file].test.ts` | create/modify | [Test description] |
+| `tests/[path]/[file].test.ts` | create/modify | [Test description — include for solitary proposals only; gate-tied proposals defer tests] |
 
 ---
 

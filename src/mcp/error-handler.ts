@@ -3,111 +3,143 @@
  *
  * Converts errors to structured MCP error responses with consistent formatting
  * and actionable error messages for LLM consumption.
+ *
+ * Uses the unified ErrorCode enum from common-schemas.ts for all error codes.
  */
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { logger } from '../utils/logger.js'
+import type { ErrorCode } from './schemas/common-schemas.js'
 
 /**
- * Error codes for different types of failures
+ * @deprecated Use `ErrorCode` from `common-schemas.ts` instead.
+ * Kept for backward compatibility during migration.
  */
 export enum McpErrorCode {
-  VALIDATION_FAILED = 'VALIDATION_FAILED',
+  VALIDATION_FAILED = 'VALIDATION_ERROR',
   NOT_FOUND = 'NOT_FOUND',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  TIMEOUT = 'TIMEOUT'
+  NETWORK_ERROR = 'INTERNAL_ERROR',
+  TIMEOUT = 'COMMAND_FAILED'
 }
 
 /**
  * Structured error response for MCP
  */
 export interface McpError {
-  code: McpErrorCode
+  code: ErrorCode | McpErrorCode
   message: string
   context?: Record<string, unknown>
   suggestions?: string[]
+  timestamp?: string
 }
 
 /**
- * Map common error types to MCP error codes
+ * Map common error types to unified error codes
  */
-function mapErrorToCode(error: unknown): McpErrorCode {
+function mapErrorToCode(error: unknown): ErrorCode | McpErrorCode {
   if (error instanceof Error) {
+    // Check for explicit code on the error object
+    const explicitCode = (error as any).code
+    if (typeof explicitCode === 'string') {
+      // Map known explicit codes to unified codes
+      const codeMap: Record<string, ErrorCode> = {
+        GIT_VIOLATION: 'GIT_VIOLATION',
+        FUNCTION_NOT_FOUND: 'NOT_FOUND',
+        INVALID_PARAMETERS: 'INVALID_INPUT',
+        INVOCATION_ERROR: 'INTERNAL_ERROR'
+      }
+      if (codeMap[explicitCode]) return codeMap[explicitCode]!
+    }
+
     const message = error.message.toLowerCase()
 
     if (message.includes('not found') || message.includes('does not exist')) {
-      return McpErrorCode.NOT_FOUND
+      return 'NOT_FOUND'
     }
 
     if (message.includes('permission') || message.includes('access denied')) {
-      return McpErrorCode.PERMISSION_DENIED
+      return 'PERMISSION_DENIED'
     }
 
     if (message.includes('validation') || message.includes('invalid')) {
-      return McpErrorCode.VALIDATION_FAILED
+      return 'VALIDATION_ERROR'
+    }
+
+    if (message.includes('already exists') || message.includes('duplicate')) {
+      return 'ALREADY_EXISTS'
     }
 
     if (message.includes('timeout') || message.includes('timed out')) {
-      return McpErrorCode.TIMEOUT
+      return 'COMMAND_FAILED'
     }
 
-    if (message.includes('network') || message.includes('connection')) {
-      return McpErrorCode.NETWORK_ERROR
+    if (message.includes('conflict')) {
+      return 'CONFLICT'
     }
   }
 
-  return McpErrorCode.INTERNAL_ERROR
+  return 'INTERNAL_ERROR'
 }
 
 /**
  * Generate actionable suggestions based on error type
  */
-function generateSuggestions(errorCode: McpErrorCode, context?: Record<string, unknown>): string[] {
+function generateSuggestions(errorCode: ErrorCode | McpErrorCode | string, context?: Record<string, unknown>): string[] {
   const suggestions: string[] = []
+  const code = String(errorCode)
 
-  switch (errorCode) {
-    case McpErrorCode.NOT_FOUND:
+  switch (code) {
+    case 'NOT_FOUND':
       suggestions.push('Check if the requested resource exists')
       suggestions.push('Verify the ID or name is correct')
       suggestions.push('List available resources first')
-      suggestions.push('In VSCode: Check MCP Resources panel for available documents')
       break
 
-    case McpErrorCode.VALIDATION_FAILED:
+    case 'VALIDATION_ERROR':
+    case 'INVALID_INPUT':
       suggestions.push('Check the input parameters against the expected schema')
       suggestions.push('Ensure all required fields are provided')
       suggestions.push('Verify parameter types match the documentation')
-      suggestions.push('In VSCode: Use MCP tool help or check tool descriptions')
       break
 
-    case McpErrorCode.PERMISSION_DENIED:
+    case 'PERMISSION_DENIED':
+    case 'UNAUTHORIZED':
       suggestions.push('Ensure you have the necessary permissions')
       suggestions.push('Check if the project is properly initialized')
-      suggestions.push('Verify your access to the workspace')
-      suggestions.push('In VSCode: Ensure MCP server is properly configured in settings')
       break
 
-    case McpErrorCode.INTERNAL_ERROR:
-      suggestions.push('This is an unexpected error - please report it')
+    case 'INTERNAL_ERROR':
+      suggestions.push('This is an unexpected error — please report it')
       suggestions.push('Try the operation again')
       suggestions.push('Check the server logs for more details')
-      suggestions.push('In VSCode: Check MCP output panel for server logs')
       break
 
-    case McpErrorCode.NETWORK_ERROR:
-      suggestions.push('Check your network connection')
-      suggestions.push('Verify the service is running')
-      suggestions.push('Try again in a few moments')
-      suggestions.push('In VSCode: Restart MCP server from command palette')
+    case 'COMMAND_FAILED':
+      suggestions.push('The command returned a non-zero exit code')
+      suggestions.push('Check command arguments and environment')
       break
 
-    case McpErrorCode.TIMEOUT:
-      suggestions.push('The operation took too long to complete')
-      suggestions.push('Try breaking it into smaller operations')
-      suggestions.push('Check system resources')
-      suggestions.push('In VSCode: Increase timeout settings if available')
+    case 'GIT_VIOLATION':
+      suggestions.push('Git operations are forbidden during apply phase')
+      suggestions.push('Remove git commands from the operation')
+      suggestions.push('Git commits occur only at gate completion')
+      break
+
+    case 'ALREADY_EXISTS':
+      suggestions.push('An entity with this identifier already exists')
+      suggestions.push('Use a different identifier or update the existing entity')
+      break
+
+    case 'CONFLICT':
+      suggestions.push('The operation conflicts with current state')
+      suggestions.push('Refresh your view of the resource and retry')
+      break
+
+    case 'DEPENDENCY_BLOCKED':
+      suggestions.push('A dependency must be resolved before this operation')
+      suggestions.push('Check dependency chain with `zeno req deps <hash>`')
       break
   }
 
@@ -138,7 +170,8 @@ export function createMcpError(
     code: errorCode,
     message,
     context,
-    suggestions
+    suggestions,
+    timestamp: new Date().toISOString()
   }
 
   // Log the error with full context
@@ -167,7 +200,8 @@ export function mcpErrorToToolResult(error: McpError): CallToolResult {
           error: error.message,
           code: error.code,
           context: error.context,
-          suggestions: error.suggestions
+          suggestions: error.suggestions,
+          timestamp: error.timestamp
         }, null, 2)
       }
     ],

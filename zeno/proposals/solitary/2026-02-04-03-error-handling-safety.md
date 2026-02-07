@@ -74,7 +74,7 @@ Identify which CLI functions invoke git during apply phase:
 ### Task 2: Implement Git Operation Tracking
 Add tracking to detect and prevent git operations during apply phase:
 
-- [ ] Create `src/mcp/audit/git-operation-tracker.ts`
+- [x] Create `src/mcp/audit/git-operation-tracker.ts`
   - Wraps command invocation
   - Detects git operations (git add, commit, tag, push)
   - Records when operations occur
@@ -197,6 +197,11 @@ Implement full 4-step archival process for solitary proposals:
   - Call `extractSummary()` if solitary
   - Call `updateSolitaryConsolidation()` after file move
   - Return result including consolidation update status
+ - [x] Update `archiveProposal()` function:
+   - Call `isProposalSolitary()` after reading content
+   - Call `extractSummary()` if solitary
+   - Call `updateSolitaryConsolidation()` after file move
+   - Return result including consolidation update status
 
 **Acceptance Criteria**:
 - Step 1: Extract summary from proposal
@@ -307,7 +312,19 @@ Create comprehensive safety documentation:
 
 ---
 
-**Effort Estimate**: 4-5 hours  
 **Priority**: CRITICAL (safety enforcement, guardrail protection)  
 **Blocking**: Production-ready workflows (depends on this)  
 **Blocked by**: None (can follow refactoring or run in parallel)
+
+## Completion Summary (partial)
+
+- **Tasks Completed**: 2/8 (implemented helpers and tracker)
+- **Files Modified/Created**: 2
+  - `src/mcp/audit/git-operation-tracker.ts` (new)
+  - `src/core/archive-logic.ts` (solitary consolidation helpers + integration)
+
+### Notes
+
+- Implemented a focused subset of the proposal: added a lightweight git-operation tracker and solitary archival helpers integrated into `archiveProposal()`.
+- Remaining work: full unified error migration, CLI audit, tests, and docs per proposal tasks.
+

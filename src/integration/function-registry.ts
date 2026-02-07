@@ -146,6 +146,10 @@ export class FunctionRegistry {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const errorStack = error instanceof Error ? error.stack : undefined
 
+      // Prefer any explicit error code attached to the error object
+      const code = (error && typeof error === 'object' && (error as any).code) ? (error as any).code : 'INVOCATION_ERROR'
+      const operations = (error && typeof error === 'object' && (error as any).operations) ? (error as any).operations : undefined
+
       logger.error(`Function invocation failed: ${name} - ${errorMessage}`)
       if (errorStack) {
         logger.debug(errorStack)
@@ -154,12 +158,14 @@ export class FunctionRegistry {
       return {
         success: false,
         error: {
-          code: 'INVOCATION_ERROR',
+          code,
           message: `Error executing function '${name}': ${errorMessage}`,
           context: {
             functionName: name,
             errorType: error instanceof Error ? error.constructor.name : typeof error
-          }
+          },
+          timestamp: new Date().toISOString(),
+          operations
         }
       }
     }

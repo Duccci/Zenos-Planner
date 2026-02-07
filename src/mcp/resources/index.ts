@@ -60,12 +60,8 @@ const RESOURCE_TYPES = {
     pattern: '**/proposals/**/*.md',
     mimeType: 'text/markdown',
     description: 'Project Proposal'
-  },
-  architecture: {
-    pattern: '**/architecture/*.md',
-    mimeType: 'text/markdown',
-    description: 'Architecture Diagram/Document'
   }
+  // Architecture docs removed - apply agents should not read them to reduce context burden
 } as const
 
 /**

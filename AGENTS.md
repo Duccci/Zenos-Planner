@@ -2,6 +2,146 @@
 
 Quick reference for AI coding assistants on how to work with Zeno's Planner projects.
 
+## Terminology
+
+### Core Concepts
+
+**Gate**
+A concrete, measurable milestone representing an actual deliverable that moves the project toward completion. Gates are generated iteratively through decomposition (inspired by Zeno's dichotomy paradox), not based on percentages or predetermined timelines. Each gate has:
+- A unique sequential number (1, 2, 3, ...)
+- An objective (what is delivered)
+- Requirements (specific capabilities to implement)
+- Proposals (implementation approaches)
+- Status (pending → in_progress → completed or rejected)
+
+Gates are the primary unit of progress tracking. When you start a gate, you generate gate-specific requirements and proposals for implementation.
+
+**Proposal**
+A detailed implementation plan for a set of requirements within a gate. Each proposal includes:
+- Title and description
+- Requirements it addresses
+- Acceptance criteria
+- Implementation notes (pseudo-code, API specifications, etc.)
+- Status (pending → in_progress → completed or rejected)
+- Hash reference (#a3f9c2d1) for content-addressable tracking
+
+Proposals are stored as Markdown files in `zeno/proposals/gate-XX/` during development. When approved and merged, they're archived to `zeno/proposals/archive/<hash>.md` with content-addressable hashing. Proposals may be rejected by humans with feedback; rejection triggers replan with error context.
+
+**Requirement**
+A specific, measurable capability or constraint that must be satisfied. Requirements have:
+- Type: functional (feature), non_functional (performance, scalability), or constraint (security, compliance)
+- Priority: must, should, could, won't
+- Level: project-level (cross-cutting, generation at init) or gate-level (specific to a gate, generated at gate start)
+- Acceptance criteria (testable conditions for completion)
+- Status: pending → implemented → tested
+- Hash reference for tracking
+
+Requirements are stored in the SQLite database (`zeno/.zeno/requirements.db`) for queryability and dependency tracking. Gate-level requirements inherit from or decompose project-level requirements.
+
+**Gate-Specific Requirement Generation**
+When `zeno gates start <gate-id>` is called:
+1. Project-level requirements (broad constraints, cross-cutting concerns) are inherited by the gate
+2. Gate-specific requirements are generated (actionable items for this gate)
+3. Gate requirements may refine, extend, or decompose project-level requirements
+4. All requirements are stored with parent references for traceability
+
+Example:
+- Project requirement: "Must support offline mode" (generated at init)
+- Gate 3 (API Layer) inherits this and generates: "API must cache responses locally", "Sync must handle network reconnection"
+
+**Architecture Diagram**
+Visual representation of system design generated based on project needs. Zeno selects diagram types intelligently:
+
+*Always Generated (all projects):*
+- System Overview: Component relationships and module structure
+- Data Flow: End-to-end data processing paths
+- Gate Roadmap: Gate structure and parallel relationships
+- Gate Lifecycle: State machine for gate workflow
+- Context Diagram: System boundary and external dependencies
+
+*Generated When Detected:*
+- Sequence Diagram: Temporal interactions for complex workflows
+- Component Diagram: Detailed module structure for complex components
+- Package Diagram: Code organization and module dependencies
+- Deployment Diagram: Runtime infrastructure (deployment gates only)
+- Network Diagram: Network topology and communication patterns
+
+Diagrams are stored as:
+- Mermaid (text-based, simple diagrams ≤5 elements): `zeno/architecture/*.md`
+- DOT/SVG (prerendered, complex diagrams >5 elements): `zeno/architecture/diagrams/*.svg` with source in `.dot` files
+
+**Solitary** (Not a standard Zeno term; likely referring to solo/single-developer workflow)
+Zeno is designed for solo developers or individual AI agents working sequentially. For multi-developer or multi-agent teams:
+- Use git worktrees to isolate parallel work
+- Dependency detection prevents file conflicts
+- Orchestrator coordinates merge ordering
+- Human approval gates provide synchronization points
+
+If you're working "solitary" (solo development), you'll still use gates and proposals, but won't need worktree coordination—just sequential approval and implementation.
+
+**Rescope**
+A mid-project change to goals, constraints, or end state. Rescoping triggers:
+1. End state analysis (what changed)
+2. Future gate regeneration from current position
+3. New "rescope gate" documenting the change
+4. Re-evaluation of current gate in progress (may need rework)
+
+Use `zeno rescope` command to regenerate the project roadmap based on new constraints.
+
+**Hash** (#prefix)
+Content-addressable reference (SHA-256 first 16 characters) used to reference entities without repeating full paths:
+- `#a3f9c2d1` → gate, requirement, proposal, artifact, or repository
+- Enables 50%+ context reduction for LLM navigation
+- Immutable: same content always generates same hash
+- Queryable: `zeno show #a3f9c2d1` resolves to full entity
+
+**Dependency**
+A relationship between any two Zeno entities (gates, requirements, proposals, repositories):
+- Type: requires (must be done first), blocks (prevents progress), relates_to (informational)
+- Tracked automatically via hash references
+- Enables conflict detection: proposals affecting same files are serialized
+- Cross-repository: tracks which modules depend on which services
+
+Query dependencies: `zeno req deps #hash` shows dependency graph for a requirement.
+
+**Multi-Repo**
+Project spanning multiple independent repositories (services, libraries, tools). Zeno detects boundaries automatically:
+- Coupling metrics (afferent/efferent coupling)
+- Domain boundaries (bounded contexts)
+- Module size (LOC, complexity)
+- Confidence scoring (0.0-1.0)
+
+Use `zeno repos list` to see detected repositories and `zeno repos deps` for cross-repo dependency visualization.
+
+**Git Worktree**
+Isolated working directory for a proposal, stored at `.local/worktrees/{proposal-hash}/` (not version-controlled). Enables:
+- 4+ agents/proposals to work in parallel without branch switching
+- Isolated testing for each proposal
+- Conflict-free merges (orchestrator sequences merges when needed)
+- Automatic cleanup after approval
+
+When you `zeno proposal start <hash>`, a worktree is created and path returned. You develop in that isolated directory without affecting other agents.
+
+**Proposal Approval Workflow**
+1. Proposal generated (pending)
+2. `zeno proposal validate <hash>` runs automated checks (coverage, security, linting, tests)
+3. If checks pass: waits for human approval
+4. If checks fail: proposal rejected with error details, replan triggered
+5. Human approves: `zeno proposal approve <hash>` merges worktree branch and cleanup
+6. Human rejects: `zeno proposal reject <hash>` marks rejected, preserves for rework
+
+Rejected proposals preserve context for retry; no data loss.
+
+**Quality Gates** (Non-Configurable in MVP)
+Automated checks that must pass before proposal approval:
+- Code Coverage: ≥90% of business logic (fail if <90%)
+- Security Vulnerabilities: 0 known CVEs (fail if any found)
+- Linting Error Rate: <0.01% (fail if higher)
+- TypeScript Strict Mode: 0 type errors (required check)
+- All Tests Passing: Required (fail if any test fails)
+
+These are enforced automatically; cannot be overridden in MVP.
+
 ## Cross-File Navigation
 
 | Document | Purpose | Location |
@@ -124,22 +264,27 @@ project-root/
    - Record planning phase analysis in proposal summaries
    - Provide implementation agent selection hints based on decomposition insights
 
-### Orchestration Phase
+### Review Phase
 8. **Check status**: `zeno gates list` to see current gate
 9. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
 10. **Review requirements**: `zeno req list --gate "<id>"`
 11. **Review planning insights**: Check planning phase analysis in proposal summaries
 12. **View proposals**: `zeno proposal show "<hash>"`
-13. **Validate**: `zeno proposal validate "<hash>"`
+13. **Approve proposals**: User reviews and approves proposals before implementation begins (assumption: approval means user agrees with implementation strategy)
 
 ### Execution Phase
-14. **Wait for approval**: Human reviews planning insights and proposals, runs `zeno proposal approve "<hash>"`
-15. **Background agent implementation**: Expert/Focused Tier agents from `agents/` submodule develop on isolated worktrees in parallel
-16. **Cloud agent review**: Code review, PR creation, quality validation
-17. **Human approval**: Review consolidated PRs from all background agents
-18. **Repeat**: Continue with next gates or requirements
+14. **Implement proposals**: Apply phase implements all approved proposals (`/zeno-apply <hash>` for each, or batch)
+    - Implementation happens directly without intermediate approval workflow
+    - Zeno validates implementation matches proposal specifications
+    - All changes remain in active proposal files until gate completion
+15. **Gate Completion**: When all proposals implemented, run `zeno gates complete <gate-id>` to:
+    - Commit all implementation work
+    - Archive all proposals automatically
+    - Create git tag for the gate release
+    - Set requirements to `tested` status
+16. **Repeat**: Continue with next gates
 
-**Key Improvement**: Planning phase specialization from `agents/agent-manifest.json` submodule ensures architectural soundness and requirement accuracy before implementation begins—reducing rework and improving code quality downstream. Agent selections determined dynamically from manifest queries (tier/category/role filters), not hardcoded. Uses `agent-selector.md` for intelligent ranking and scoring.
+**Key Improvement**: Streamlined workflow assumes user approval during proposal review phase. Archival happens only at gate completion, reducing friction between proposal and implementation. Zeno's role is to ensure implementation adheres to proposal specifications, not to manage intermediate archival steps.
 
 ## Best Practices
 

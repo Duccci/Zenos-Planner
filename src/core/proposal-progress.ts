@@ -53,10 +53,9 @@ export function updateCompletionSummary(content: string, summary: any): string {
   const summaryText = `## Completion Summary
 
 **Tasks Completed**: ${summary.tasksCompleted}/${summary.tasksTotal}
-**Files Modified**: ${summary.filesModified}
-**Test Coverage**: ${summary.testCoverage || 'N/A'}%
-**Quality Metrics**:
-- Coverage: ${summary.qualityMetrics?.coverage || 0}%
+**Files Modified/Created**: ${summary.filesModified || 'N/A'}
+### Quality Metrics
+- Coverage: ${summary.qualityMetrics?.coverage || 'N/A'}%
 - Security Issues: ${summary.qualityMetrics?.security || 0}
 - Lint Errors: ${summary.qualityMetrics?.lintErrors || 0}
 - Type Errors: ${summary.qualityMetrics?.typeErrors || 0}`
