@@ -164,9 +164,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Replace template placeholders
       const createdDate = new Date().toISOString().split('T')[0]
       proposalContent = proposalContent
-        .replace(/\[Proposal Title\]/g, validated.title)
+        .replace(/\[Proposal Title\]/g, validated.title ?? '')
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
-        .replace(/\[DATE\]/g, createdDate)
+        .replace(/\[DATE\]/g, createdDate ?? '')
 
       // Update summary section
       proposalContent = proposalContent.replace(
@@ -341,7 +341,6 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     }
 
     // Parse JSON fields
-    const filesAffected = proposal.files_affected ? JSON.parse(proposal.files_affected) : []
     const dependencies = proposal.dependencies ? JSON.parse(proposal.dependencies) : []
 
     // Dependency validation

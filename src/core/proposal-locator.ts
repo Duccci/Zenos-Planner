@@ -1,7 +1,6 @@
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { getZenoDir } from '../utils/config.js'
 
 /**
  * Find proposal file by hash under zeno/proposals (gate dirs or solitary)

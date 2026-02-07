@@ -6,8 +6,7 @@
  * decomposing into proposals with tasks, and calculating dependencies.
  */
 
-import { readFile, writeFile, ensureDir } from '../utils/file.js'
-import { shortHash } from '../utils/hash.js'
+import { readFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
 import path from 'path'

@@ -23,18 +23,13 @@ export const templateToolDefinitions = [
   }
 ]
 
-import { createBasicHandler } from './handler-factory.js'
 import { createDiscoveryService } from '../../generation/artifact-discovery-service.js'
 
 const discovery = createDiscoveryService(process.cwd())
 
-export function templateHandlers(registry: FunctionRegistry) {
-  const templateListHandler = createBasicHandler(registry, 'template_list')
-  const templateGetHandler = createBasicHandler(registry, 'template_get')
-  const templateContextHandler = createBasicHandler(registry, 'template_context')
-
+export function templateHandlers(_registry: FunctionRegistry) {
   return {
-    template_list: async (args: Record<string, unknown>): Promise<CallToolResult> => {
+    template_list: async (_args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
         const templates = await discovery.getTemplates()
         return {

@@ -30,12 +30,12 @@ export async function discoverGates(projectRoot: string): Promise<Gate[]> {
       const firstHeading = content.split(/\r?\n/).find(l => /^#\s+/.test(l))
       const desc = content.split(/\r?\n\r?\n/)[1]
       if (m) {
-        const seq = parseInt(m[1], 10)
-        const id = `gate-${m[1]}`
+        const seq = parseInt(m[1]!, 10)
+        const id = `gate-${m[1]!}`
         gates.push({
           id,
           sequence: seq,
-          name: (firstHeading ? firstHeading.replace(/^#\s+/, '').trim() : m[2].replace(/-/g, ' ')),
+          name: (firstHeading ? firstHeading.replace(/^#\s+/, '').trim() : m[2]!.replace(/-/g, ' ')),
           description: desc ? desc.trim().split('\n')[0] : undefined,
           status: 'pending'
         })

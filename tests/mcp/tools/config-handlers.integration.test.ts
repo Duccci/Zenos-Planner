@@ -13,7 +13,7 @@ describe('Config Handlers (integration)', () => {
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
     expect(res.structuredContent).toBeDefined()
-    expect(res.structuredContent.quality?.coverageThreshold).toBe(90)
+    expect(res.structuredContent.qualityThresholds?.codeCoverage).toBe(90)
   })
 
   it('returns an error when backend fails', async () => {

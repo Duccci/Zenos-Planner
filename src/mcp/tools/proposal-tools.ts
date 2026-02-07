@@ -2,7 +2,6 @@ import { ProposalListInputSchema, ProposalShowInputSchema, ProposalValidateInput
 import { ProposalCreateInputSchema } from '../schemas/proposal-create-schemas.js'
 import { ProposalActionInputSchema } from '../schemas/proposal-action-schemas.js'
 import { validateApplyPhase, type ApplyPhaseValidationContext } from '../validators/apply-phase-validator.js'
-import { validateScope, type ScopeValidationContext } from '../validators/scope-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
 
 /**
@@ -126,7 +125,7 @@ export function proposalHandlers(registry: FunctionRegistry) {
         return { allowed: false, errors: allErrors }
       }
 
-      const proposal = proposalResult.data
+      const proposal: any = proposalResult.data
       const filesAffected = proposal.filesAffected || []
 
       // Get project configuration
@@ -134,7 +133,7 @@ export function proposalHandlers(registry: FunctionRegistry) {
       if (!configResult.success) {
         allWarnings.push(`Failed to retrieve config, using defaults: ${configResult.error.message}`)
       }
-      const config = configResult.success ? configResult.data : {
+      const config: any = configResult.success ? configResult.data : {
         qualityThresholds: {
           codeCoverage: 90,
           typeCheckingErrors: 0,
@@ -205,6 +204,7 @@ export function proposalHandlers(registry: FunctionRegistry) {
       const validated = ProposalActionInputSchema.parse(args)
 
       let invokeResult: any
+      let validationForResult: any = undefined
 
       switch (validated.action) {
         case 'list':
@@ -226,15 +226,14 @@ export function proposalHandlers(registry: FunctionRegistry) {
 
           // If validation fails with errors, return validation results
           if (!validationResults.allowed) {
-            const output = {
+            const errorOutput = {
               action: validated.action,
-              result: null,
+              error: 'Validation failed',
               validation: validationResults
             }
-            const validatedOutput = ProposalActionOutputSchema.parse(output)
             return {
-              content: [{ type: 'text', text: JSON.stringify(validatedOutput, null, 2) }],
-              structuredContent: validatedOutput,
+              content: [{ type: 'text', text: JSON.stringify(errorOutput, null, 2) }],
+              structuredContent: errorOutput,
               isError: true
             } as CallToolResult
           }
@@ -256,11 +255,7 @@ export function proposalHandlers(registry: FunctionRegistry) {
           }
 
           // Include validation warnings in result if present
-          const output = {
-            action: validated.action,
-            result: invokeResult.data,
-            validation: validationResults.warnings && validationResults.warnings.length > 0 ? validationResults : undefined
-          }
+          validationForResult = validationResults.warnings && validationResults.warnings.length > 0 ? validationResults : undefined
           break
         }
         case 'reject':
@@ -279,7 +274,7 @@ export function proposalHandlers(registry: FunctionRegistry) {
       const output = {
         action: validated.action,
         result: invokeResult.data,
-        validation: undefined // Only set for validated actions
+        validation: validationForResult // Only set for validated actions
       }
 
       // Validate output

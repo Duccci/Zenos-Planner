@@ -51,10 +51,10 @@ export async function discoverProposals(projectRoot: string): Promise<Proposal[]
       const gateId = parts.find(p => /^gate-\d{2}/.test(p))
 
       proposals.push({
-        hash: hashMatch ? hashMatch[1] : path.basename(full, '.md'),
+        hash: hashMatch?.[1] ?? path.basename(full, '.md'),
         title,
         type,
-        status: statusMatch ? statusMatch[1] : 'pending',
+        status: statusMatch?.[1] ?? 'pending',
         gateId: gateId || undefined
       })
     } catch {

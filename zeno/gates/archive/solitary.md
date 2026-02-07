@@ -30,3 +30,10 @@ High-level implementation: Comprehensive refactoring and cleanup of Zeno's MCP s
 **Completed**: 2026-02-04
 
 High-level implementation: Successfully implemented critical MCP tools and guardrail validators, achieving 100% CLI command coverage via MCP and filling workflow gaps from 60% to 95%. Created 19 new files including schemas, validators, and tool implementations with comprehensive testing and documentation. All quality thresholds met.
+
+## Security & Safety
+
+### MCP Implementation - Error Handling, Git Safety, Solitary Archival (#m26020403safe)
+**Completed**: 2026-02-06
+
+High-level implementation: Implemented comprehensive safety features for MCP tools including unified error response format with 12 standardized error codes, git operation audit and blocking during apply phase, and completed solitary proposal archival workflow. All 59 safety tests pass with 95%+ coverage, ensuring production-ready error handling and preventing critical guardrail violations.

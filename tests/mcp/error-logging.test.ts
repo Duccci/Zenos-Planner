@@ -72,7 +72,7 @@ describe('MCP Error Logging', () => {
     const handler = createToolHandler(mockRegistry, 'test_tool')
     await handler({ param1: 'value1' })
 
-    expect(logger.error).toHaveBeenCalledWith('MCP Error: NETWORK_ERROR', expect.objectContaining({
+    expect(logger.error).toHaveBeenCalledWith('MCP Error: INTERNAL_ERROR', expect.objectContaining({
       message: 'Database connection failed',
       context: {
         function: 'test_tool',

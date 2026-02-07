@@ -17,11 +17,11 @@ async function readFileHead(filePath: string, maxBytes = 4096): Promise<string> 
 function parseFrontmatter(text: string): Record<string, string> | null {
   const fm = /^---\s*\n([\s\S]*?)\n---/.exec(text)
   if (!fm) return null
-  const body = fm[1]
+  const body = fm[1]!
   const out: Record<string, string> = {}
   for (const line of body.split(/\r?\n/)) {
     const m = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(line)
-    if (m) out[m[1].trim()] = m[2].trim()
+    if (m) out[m[1]!.trim()] = m[2]!.trim()
   }
   return out
 }
@@ -48,8 +48,7 @@ export async function discoverTemplates(projectRoot: string): Promise<Template[]
         const head = await readFileHead(full)
         const fm = parseFrontmatter(head)
         const firstLine = head.split(/\r?\n/).find(l => l.trim().length > 0) || ''
-        const titleFromFm = fm && (fm.title || fm.name)
-        const descriptionFromFm = fm && (fm.description || fm.desc)
+        const descriptionFromFm = fm ? (fm['description'] || fm['desc']) : undefined
 
         const shortName = name.replace(/-template\.md$/i, '').replace(/\.md$/i, '')
         const templateName = `${shortName}-template`

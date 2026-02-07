@@ -63,7 +63,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     const match = regex.exec(validated.gateId)
     const normalizedId = match?.[1] ? `gate-${parseInt(match[1], 10).toString().padStart(2, '0')}` : validated.gateId
 
-    let gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(normalizedId)
+    let gate: any = db.prepare('SELECT * FROM gates WHERE id = ?').get(normalizedId)
     if (!gate) {
       gate = db.prepare('SELECT * FROM gates WHERE name LIKE ?').get(`%${validated.gateId}%`)
     }
@@ -72,8 +72,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       throw new Error(`Gate not found: ${validated.gateId}`)
     }
 
-    const reqCount = db.prepare('SELECT COUNT(*) as count FROM requirements WHERE gate_id = ?').get(gate.id)
-    const proposalCount = db.prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?').get(gate.id)
+    const reqCount: any = db.prepare('SELECT COUNT(*) as count FROM requirements WHERE gate_id = ?').get(gate.id)
+    const proposalCount: any = db.prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?').get(gate.id)
 
     const dependencies = db.prepare(`
       SELECT g.id, g.name, g.status
@@ -215,15 +215,17 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const templatePath = join(process.cwd(), 'templates', 'md-templates', 'gate-prd-template.md')
       let gateContent = await readFile(templatePath, 'utf-8')
+      gateContent = String(gateContent)
 
       // Replace template placeholders
       const gateNumber = validated.gateId.match(/\d+/)?.[0] || '00'
+      const today = new Date().toISOString().split('T')[0] || ''
       gateContent = gateContent
         .replace(/\[XX\]/g, gateNumber)
-        .replace(/\[Gate Name\]/g, validated.name)
-        .replace(/\[feature \| quality \| rescope\]/g, validated.type)
-        .replace(/\[YYYY-MM-DD\]/g, new Date().toISOString().split('T')[0])
-        .replace(/\[hash\]/g, `temp-${validated.gateId}`)
+        .replace(/\[Gate Name\]/g, validated.name ?? '')
+        .replace(/\[feature \| quality \| rescope\]/g, validated.type ?? '')
+        .replace(/\[YYYY-MM-DD\]/g, today)
+        .replace(/\[hash\]/g, `temp-${validated.gateId ?? ''}`)
 
       // Add objectives
       const objectivesList = validated.objectives

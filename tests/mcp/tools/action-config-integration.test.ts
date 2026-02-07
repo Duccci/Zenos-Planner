@@ -78,7 +78,15 @@ describe('Action Tool Config Integration', () => {
           }
         }
         if (name === 'proposal_start') {
-          return { success: true, data: { status: 'in_progress' } }
+          return { 
+            success: true, 
+            data: { 
+              hash: '#test',
+              previousStatus: 'pending',
+              newStatus: 'in_progress',
+              startedAt: '2026-02-06T00:00:00Z'
+            } 
+          }
         }
         return { success: true, data: {} }
       })
@@ -172,6 +180,7 @@ describe('Action Tool Config Integration', () => {
 
       // Should fail due to quality validation (mock quality metrics have issues)
       expect(result.isError).toBe(true)
+      expect(result.structuredContent.error).toBe('Validation failed')
       expect(result.structuredContent.validation).toBeDefined()
       expect(result.structuredContent.validation.allowed).toBe(false)
     })
@@ -200,7 +209,15 @@ describe('Action Tool Config Integration', () => {
           }
         }
         if (name === 'proposal_start') {
-          return { success: true, data: { status: 'in_progress' } }
+          return { 
+            success: true, 
+            data: { 
+              hash: '#test',
+              previousStatus: 'pending',
+              newStatus: 'in_progress',
+              startedAt: '2026-02-06T00:00:00Z'
+            } 
+          }
         }
         return { success: true, data: {} }
       })
@@ -237,7 +254,15 @@ describe('Action Tool Config Integration', () => {
           }
         }
         if (name === 'proposal_start') {
-          return { success: true, data: { status: 'in_progress' } }
+          return { 
+            success: true, 
+            data: { 
+              hash: '#test',
+              previousStatus: 'pending',
+              newStatus: 'in_progress',
+              startedAt: '2026-02-06T00:00:00Z'
+            } 
+          }
         }
         return { success: true, data: {} }
       })

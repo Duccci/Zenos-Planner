@@ -39,6 +39,8 @@ export interface FunctionErrorResponse {
   code: string
   message: string
   context?: Record<string, unknown>
+  timestamp?: string
+  operations?: unknown
 }
 
 /**

@@ -55,7 +55,17 @@ describe('Proposal Action Dispatcher', () => {
       { hash: '#p2', title: 'Proposal 2', status: 'in_progress' },
     ]
 
-    registry.setMockResult('proposal_list', mockProposals)
+    const mockListResult = {
+      proposals: mockProposals,
+      pagination: {
+        total: 2,
+        skip: 0,
+        take: 50,
+        hasMore: false
+      }
+    }
+
+    registry.setMockResult('proposal_list', mockListResult)
 
     const result = await handlers.proposal_action({
       action: 'list',
@@ -65,7 +75,7 @@ describe('Proposal Action Dispatcher', () => {
     expect(result.content).toBeDefined()
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.action).toBe('list')
-    expect(parsed.result).toEqual(mockProposals)
+    expect(parsed.result.proposals).toEqual(mockProposals)
   })
 
   it('should dispatch show action correctly', async () => {

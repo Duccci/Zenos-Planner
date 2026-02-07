@@ -10,8 +10,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
 import { logger } from '../utils/logger.js'
-import { watch } from 'node:fs'
-import { join } from 'node:path'
 
 /**
  * Create and configure the MCP server

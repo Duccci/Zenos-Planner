@@ -28,7 +28,6 @@ export const requirementToolDefinitions = [
 ]
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
-import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ReqListOutputSchema, RequirementDetailSchema, DependencyGraphSchema, ReqTransferOutputSchema } from '../schemas/requirement-schemas.js'
 import { createSchemaValidatingHandler } from './handler-factory.js'
 

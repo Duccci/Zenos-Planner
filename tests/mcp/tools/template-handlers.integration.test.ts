@@ -5,19 +5,19 @@ describe('Template Handlers (unit)', () => {
   it('template_get returns content on success', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'template-body' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_get({ name: 'xyz' })
+    const res = await handlers.template_get({ name: 'gate-prd-template' })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(String(res.structuredContent?.content || '')).toContain('template-body')
+    expect(String(res.structuredContent?.content || '')).toContain('# Gate [XX]: [Gate Name]')
   })
 
   it('template_context returns content on success', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'context-body' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_context({ name: 'xyz' })
+    const res = await handlers.template_context({ name: 'gate-prd-template' })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(String(res.structuredContent?.context || '')).toContain('context-body')
+    expect(String(res.structuredContent?.context || '')).toContain('Name: gate-prd-template')
   })
 
   it('template_list handles non-json output gracefully', async () => {
