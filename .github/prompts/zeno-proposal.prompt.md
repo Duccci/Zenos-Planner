@@ -19,7 +19,15 @@ agent: agent
 
 - `getTemplate('proposal-template')` - Load proposal structure template
 - `getTemplatesByCategory(category)` - Get all templates by type
-- `config_get()` - Get quality thresholds
+- `config_get()` - Get quality thresholds (returns codeCoverage, typeErrors, lintErrors, securityIssues)
+
+**MCP Tools Available**
+
+- `proposal_action` - Unified proposal lifecycle tool
+  - Actions: list, show, create, validate, approve, reject, start
+  - Example (create): `{ "action": "create", "payload": { "title": "Add authentication", "summary": "...", "gateId": "gate-03", "tasks": [...], "filesAffected": [...] } }`
+  - Example (list): `{ "action": "list", "payload": { "gateId": "gate-03", "status": "pending" } }`
+- Validators run automatically on create/approve actions (scope checks, dependency validation, quality thresholds)
 
 **Steps**
 Mark each step as in-progress, then completed immediately after finishing.

@@ -1,48 +1,36 @@
 # Proposal: Unified Artifact Discovery Service
 
-**Hash**: #s20260206disco
+**Hash**: #s20260206disco  
+**Status**: pending  
+**Created**: 2026-02-06
 
-**Type**: solitary
-
-**Status**: pending
-
-<!-- Status lifecycle:
-  - pending: Proposal created, ready for review
-  - in_progress: Work started via `zeno proposal start #s20260206disco`
-  - completed: All tasks implemented and tested
-  - rejected: Proposal rejected during review
--->
+---
 
 ## Summary
 
 Replace hardcoded template registry with unified discovery service that scans local directories (templates/, agents/, zeno/gates/, zeno/proposals/) and provides a single query interface. No URL resolution, no caching, no remote fetching—git handles external updates via submodules and pulls. Enables dynamic template addition, simplifies agent discovery, and consolidates scattered gate/proposal lookups.
 
+---
+
 ## Context
 
-**Current State**:
-- Templates: Hardcoded `TEMPLATES` array in `template-registry.ts` (14 items)
-- Agents: Manifest exists at `agents/agent-manifest.json`, submodule at `agents/`
-- Gates: Scattered discovery logic in `gates.ts` and `project-overview.json`
-- Proposals: Scattered discovery logic in `proposal.ts` and filesystem scans
-- To add template/agent: Modify code, update registry, deploy
-- No unified discovery interface
+### Requirements Context
 
-**Desired State**:
-- Templates auto-discovered from `templates/` directory at runtime
-- Agents discovered from `agents/agent-manifest.json` + `agents/expert-agents/` + `agents/pipeline-agents/`
-- Gates discovered from `zeno/gates/` directory with metadata aggregation
-- Proposals discovered from `zeno/proposals/` directory with metadata aggregation
-- Single `DiscoveryService` interface for all artifact types
-- No code changes needed to support new templates, agents, gates, or proposals
-- All external updates handled by git (submodule updates, pulls, pushes)
+This proposal is self-contained and addresses infrastructure concerns (artifact discovery) that benefit the entire project. While created as a solitary proposal, it establishes a foundation that gates and future proposals can depend on for unified artifact access patterns.
 
-**Motivation**:
-1. **No Code Changes for New Artifacts** — Add template file → auto-discovered at runtime
-2. **Unified Interface** — Templates, agents, gates, proposals all follow same discovery pattern
-3. **Simplified Data Access** — Replace scattered JSON lookups with single query service
-4. **Git Handles External Updates** — Submodules, pulls, and pushes keep environments fresh
-5. **Minimal Implementation** — Simple directory scanning, no URL resolution or caching
-6. **Fast Delivery** — 1-2 days, no external dependencies, low risk
+### Why This Change
+
+Currently, templates require code modification and deployment to add new ones (hardcoded `TEMPLATES` array in `template-registry.ts`). Gate and proposal discovery logic is scattered across multiple command handlers with no unified interface. This forces duplicate directory scanning and inconsistent metadata extraction. A single discovery service eliminates these inefficiencies and enables runtime artifact extensibility.
+
+### Dependencies
+
+*No dependencies - self-contained proposal.*
+
+This proposal:
+- ✓ Requires no other proposals to be completed first
+- ✓ No external blockers
+- ✓ Can be implemented and tested independently
+- ✓ Benefits all future work requiring artifact queries
 
 ## Tasks
 
@@ -370,58 +358,20 @@ Replace hardcoded template registry with unified discovery service that scans lo
 
 ## Files Affected
 
-### New Files
-- `src/generation/template-discovery.ts` (100 LOC)
-- `src/generation/agent-discovery.ts` (75 LOC)
-- `src/generation/gates-discovery.ts` (100 LOC)
-- `src/generation/proposals-discovery.ts` (100 LOC)
-- `src/generation/artifact-discovery-service.ts` (100 LOC)
-- `tests/generation/artifact-discovery.test.ts` (200 LOC)
+| File | Action | Description |
+|------|--------|-------------|
+| `src/generation/template-discovery.ts` | create | Scanner for templates/ directory, discovers markdown files with metadata extraction |
+| `src/generation/agent-discovery.ts` | create | Scanner for agents/agent-manifest.json and agent directories |
+| `src/generation/gates-discovery.ts` | create | Scanner for zeno/gates/ directory, aggregates gate metadata |
+| `src/generation/proposals-discovery.ts` | create | Scanner for zeno/proposals/ directory (gate-specific and solitary) |
+| `src/generation/artifact-discovery-service.ts` | create | Unified DiscoveryService interface and factory function |
+| `src/mcp/tools/artifact-tools.ts` | modify | Update handlers to use DiscoveryService instead of hardcoded registry |
+| `src/cli/commands/template.ts` | modify | Refactor to use discovery service for template list/get/context commands |
+| `src/generation/index.ts` | modify | Remove template-registry export |
+| `src/generation/template-registry.ts` | delete | Hardcoded registry no longer needed |
+| `tests/generation/artifact-discovery.test.ts` | create | Unit and integration tests for all discovery scanners |
+| `tests/generation/artifact-discovery-service.test.ts` | create | Tests for unified DiscoveryService interface |
 
-### Modified Files
-- `src/mcp/tools/artifact-tools.ts` (or template-tools.ts) — Update handlers (75 LOC)
-- `src/cli/commands/template.ts` — Use discovery service (50 LOC)
-- `src/generation/index.ts` — Remove registry export
-- `src/cli/commands/gates.ts` (optional) — Verify no changes needed
-- `src/cli/commands/proposal.ts` (optional) — Verify no changes needed
-
-### Deleted Files
-- `src/generation/template-registry.ts` (200 LOC)
-
-## Dependencies
-
-### Implicit (blocked by)
-- None — This proposal has no external dependencies
-
-### Explicit (blocks)
-- Any future work that needs artifact discovery (e.g., agent template system can be separate proposal using this service as foundation)
-
-## Acceptance Criteria
-
-**Functional**:
-- [ ] Templates discovered at runtime from `templates/` directory
-- [ ] Agents discovered from `agents/agent-manifest.json`
-- [ ] Gates discovered from `zeno/gates/` directory
-- [ ] Proposals discovered from `zeno/proposals/` directory
-- [ ] Unified service interface works for all artifact types
-- [ ] No hardcoded registry in codebase
-
-**Quality**:
-- [ ] Code coverage ≥85% for new discovery code
-- [ ] All tests pass (`npm test`)
-- [ ] No TypeScript errors (strict mode)
-- [ ] Existing MCP/CLI tests still pass
-- [ ] No breaking changes to public APIs
-
-**Performance**:
-- [ ] Discovery completes within 100ms for typical project
-- [ ] In-request caching prevents duplicate scans
-- [ ] No persistent caching (filesystem always fresh)
-
-**Documentation**:
-- [ ] JSDoc on all public functions
-- [ ] Clear parameter and return types
-- [ ] Examples in inline comments
 
 ## Implementation Notes
 
@@ -461,8 +411,18 @@ Replace hardcoded template registry with unified discovery service that scans lo
 
 ---
 
-## Conclusion
+## Rollback
 
-This proposal delivers a focused, high-value artifact discovery service without scope creep. By eliminating URL resolution, caching, and remote fetching—all handled by git—we reduce complexity by 67% while solving 3 problems: dynamic template discovery, unified agent access, and simplified gate/proposal queries. Git submodules and standard pulls keep all environments fresh automatically.
+**If rejected or failed**: No rollback needed - proposal creates isolated new modules (`artifact-discovery.ts` files, tests). If rejected, simply don't merge the PR; no side effects or breaking changes to existing systems. Hardcoded `template-registry.ts` remains in place until explicitly removed in Task 8.
 
-Recommend approval for immediate implementation.
+---
+
+**Document Version**: 1.0.0  
+**Last Updated**: 2026-02-06  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+
+### Change Log
+
+| Version | Date | Summary |
+|---------|------|---------|
+| 1.0.0 | 2026-02-06 | Initial proposal: unified artifact discovery service |

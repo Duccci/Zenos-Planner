@@ -161,4 +161,158 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     returnType: 'void',
     schema: z.object({})
   })
+
+  // Gate creation
+  registry.register(
+    'gate_create',
+    async (params) => {
+      const { GateCreateInputSchema } = await import('../mcp/schemas/gate-create-schemas.js')
+      const validated = GateCreateInputSchema.parse(params)
+
+      // Validation errors and warnings
+      const errors: string[] = []
+      const warnings: string[] = []
+
+      // Check for duplicate ID
+      const db = (await import('../storage/database.js')).getDatabase()
+      const existing = db.prepare('SELECT id FROM gates WHERE id = ?').get(validated.gateId)
+      if (existing) {
+        errors.push(`Gate ID ${validated.gateId} already exists`)
+      }
+
+      // Validate type
+      const validTypes = ['feature', 'quality', 'rescope']
+      if (!validTypes.includes(validated.type)) {
+        errors.push(`Invalid gate type: ${validated.type}. Must be one of: ${validTypes.join(', ')}`)
+      }
+
+      // Check dependencies exist
+      for (const depId of validated.dependencies) {
+        const dep = db.prepare('SELECT id FROM gates WHERE id = ?').get(depId)
+        if (!dep) {
+          warnings.push(`Dependency gate not found: ${depId}`)
+        }
+      }
+
+      // If validation failed, return early
+      if (errors.length > 0) {
+        return {
+          gateId: validated.gateId,
+          filePath: '',
+          validation: {
+            passed: false,
+            errors,
+            warnings,
+          },
+          roadmapUpdated: false,
+          createdAt: new Date().toISOString(),
+        }
+      }
+
+      // Generate gate file content from template
+      const { readFile } = await import('fs/promises')
+      const { join } = await import('path')
+
+      const templatePath = join(process.cwd(), 'templates', 'md-templates', 'gate-prd-template.md')
+      let gateContent = await readFile(templatePath, 'utf-8')
+
+      // Replace template placeholders
+      const gateNumber = validated.gateId.match(/\d+/)?.[0] || '00'
+      gateContent = gateContent
+        .replace(/\[XX\]/g, gateNumber)
+        .replace(/\[Gate Name\]/g, validated.name)
+        .replace(/\[feature \| quality \| rescope\]/g, validated.type)
+        .replace(/\[YYYY-MM-DD\]/g, new Date().toISOString().split('T')[0])
+        .replace(/\[hash\]/g, `temp-${validated.gateId}`)
+
+      // Add objectives
+      const objectivesList = validated.objectives
+        .map((obj) => `- [ ] ${obj}`)
+        .join('\n')
+      gateContent = gateContent.replace(
+        /- \[ \] \[Objective with measurable outcome\]\n- \[ \] \[Objective with measurable outcome\]\n- \[ \] \[Objective with measurable outcome\]/,
+        objectivesList
+      )
+
+      // Write gate file
+      const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
+      const filePath = join(process.cwd(), 'zeno', 'gates', fileName)
+
+      const { writeFile } = await import('fs/promises')
+      await writeFile(filePath, gateContent, 'utf-8')
+
+      // TODO: Update gate-roadmap.md (deferred to full implementation)
+      const roadmapUpdated = false
+
+      return {
+        gateId: validated.gateId,
+        filePath,
+        validation: {
+          passed: true,
+          errors: [],
+          warnings,
+        },
+        roadmapUpdated,
+        createdAt: new Date().toISOString(),
+      }
+    },
+    {
+      description:
+        'Create a new gate PRD file. Validates gate structure, writes to zeno/gates/, and optionally updates gate-roadmap.md',
+      parameters: [
+        {
+          name: 'gateId',
+          type: 'string',
+          description: 'Gate ID (e.g., "gate-03")',
+          required: true,
+        },
+        {
+          name: 'name',
+          type: 'string',
+          description: 'Human-readable gate name',
+          required: true,
+        },
+        {
+          name: 'type',
+          type: 'string',
+          description: 'Gate type: feature, quality, or rescope',
+          required: true,
+        },
+        {
+          name: 'sequence',
+          type: 'number',
+          description: 'Gate sequence number',
+          required: true,
+        },
+        {
+          name: 'dependencies',
+          type: 'array',
+          description: 'Array of gate IDs that must complete first',
+          required: false,
+        },
+        {
+          name: 'objectives',
+          type: 'array',
+          description: 'Array of gate objectives (goals to achieve)',
+          required: true,
+        },
+        {
+          name: 'description',
+          type: 'string',
+          description: 'Optional gate description',
+          required: false,
+        },
+      ],
+      returnType: 'GateCreateOutput',
+      schema: z.object({
+        gateId: z.string(),
+        name: z.string(),
+        type: z.string(),
+        sequence: z.number(),
+        dependencies: z.array(z.string()).optional(),
+        objectives: z.array(z.string()),
+        description: z.string().optional(),
+      }),
+    }
+  )
 }

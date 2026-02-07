@@ -25,8 +25,15 @@ agent: agent
 **Functions**
 
 - `getTemplate(name)` - Load template by name
-- `config_get()` - Get project configuration
+- `config_get()` - Get project configuration (returns qualityThresholds, git settings, version)
 - `manage_todo_list()` - Track task progress (mark in-progress, then completed) - AVOID if it triggers git operations
+
+**MCP Tools Available**
+
+- `proposal_action` - Unified proposal lifecycle tool with actions: list, show, create, validate, approve, reject, start
+  - Example: `{ "action": "validate", "payload": { "hash": "abc12345" } }`
+- `gates_action` - Unified gate lifecycle tool with actions: list, show, create, start, complete, regenerate
+- Validators automatically run during proposal_action (approve/start) and gates_action (complete)
 
 **Steps**
 Track progress by outputting step completion messages. **DO NOT use manage_todo_list if it triggers git operations.**

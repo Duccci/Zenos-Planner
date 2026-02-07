@@ -19,7 +19,15 @@ agent: agent
 
 - `getTemplate('gate-prd-template')` - Load gate PRD structure
 - `getTemplatesByCategory(category)` - Get templates by type
-- `config_get()` - Get project configuration
+- `config_get()` - Get project configuration (returns qualityThresholds, git settings, version)
+
+**MCP Tools Available**
+
+- `gates_action` - Unified gate lifecycle tool
+  - Actions: list, show, create, start, complete, regenerate
+  - Example (create): `{ "action": "create", "payload": { "gateId": "gate-05", "name": "API Integration", "type": "feature", "sequence": 5, "objectives": [...] } }`
+  - Example (start): `{ "action": "start", "payload": { "gateId": "gate-03" } }`
+- Validators run automatically on create/complete actions (dependency checks, circular dependency detection)
 
 **Steps**
 Mark each step as in-progress, then completed immediately after finishing.

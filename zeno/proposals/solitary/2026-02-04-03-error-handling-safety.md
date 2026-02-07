@@ -42,7 +42,7 @@ Current MCP implementation has 3 cross-cutting issues:
 - Related to: #m26020401refa, #m26020402tool (shared infrastructure)
 
 ### Explicit (blocks)
-- **#s20260206templ** (Template URL Resolver) — URL resolver requires unified error response format, error codes (TEMPLATE_FETCH_ERROR, INVALID_SCHEME, etc.), and audit logging defined by this proposal
+- **#s20260206disco** (Artifact Discovery Service) — Discovery service benefits from unified error response format and audit logging defined by this proposal
 - Safe production use of apply workflow
 - Proper solitary proposal archival implementation
 
