@@ -222,10 +222,7 @@ export async function getTags(dir: string = process.cwd()): Promise<string[]> {
  * @param remote - Remote name (default: "origin")
  * @param dir - Repository directory (default: process.cwd())
  */
-export async function pushCurrentBranch(
-  remote = 'origin',
-  dir = process.cwd()
-): Promise<void> {
+export async function pushCurrentBranch(remote = 'origin', dir = process.cwd()): Promise<void> {
   try {
     const git = getGit(dir)
     const status = await git.status()
@@ -303,8 +300,11 @@ export async function syncWithGit(options: {
         // Log the failure for diagnostics but do not fail the archive flow.
         // Use console.warn to avoid introducing additional runtime deps.
         // The caller (archive workflow) is expected to surface the warning to the user if needed.
-        // eslint-disable-next-line no-console
-        console.warn('Push failed but `ignorePushFailure` is true; continuing archive. Error:', error)
+
+        console.warn(
+          'Push failed but `ignorePushFailure` is true; continuing archive. Error:',
+          error
+        )
         pushed = false
       } else {
         if (error instanceof GitError) throw error
@@ -363,7 +363,7 @@ export async function parseCommitsForHashes(
     let commitFormat = 'feat(%s): %m' // default
     try {
       const config = await loadConfig(dir)
-      commitFormat = config.git?.commitFormat || commitFormat
+      commitFormat = config.git?.commitFormat ?? commitFormat
     } catch {
       // Use default if config not found
     }
@@ -372,7 +372,7 @@ export async function parseCommitsForHashes(
     const logOptions: string[] = [
       'log',
       '--pretty=format:%H|%an|%ae|%ai|%s|%b',
-      '--no-merges' // Skip merge commits for cleaner history
+      '--no-merges', // Skip merge commits for cleaner history
     ]
 
     if (options.dateRange?.from) {
@@ -385,7 +385,7 @@ export async function parseCommitsForHashes(
       logOptions.push(options.branch)
     }
     if (options.limit) {
-      logOptions.push(`-n ${options.limit}`)
+      logOptions.push(`-n ${String(options.limit)}`)
     }
 
     // Get raw log output
@@ -402,7 +402,14 @@ export async function parseCommitsForHashes(
       const parts = line.split('|')
       if (parts.length < 5) continue
 
-      const [commitSha, authorName, authorEmail, date, subject, ...bodyParts] = parts as [string, string, string, string, string, ...string[]]
+      const [commitSha, authorName, authorEmail, date, subject, ...bodyParts] = parts as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        ...string[],
+      ]
       const body = bodyParts.join('|').trim()
       const fullMessage = `${subject}${body ? `\n\n${body}` : ''}`
 
@@ -430,7 +437,7 @@ export async function parseCommitsForHashes(
           matchedHashes,
           inferredArtifacts,
           confidenceScore,
-          notes
+          notes,
         })
       }
     }
@@ -519,9 +526,11 @@ async function getFilesChangedInCommit(commitSha: string, dir: string): Promise<
   try {
     const git = getGit(dir)
     const result = await git.raw(['show', '--name-only', '--pretty=format:', commitSha])
-    return result.trim().split('\n').filter(line => line.length > 0)
+    return result
+      .trim()
+      .split('\n')
+      .filter((line) => line.length > 0)
   } catch {
     return []
   }
 }
-

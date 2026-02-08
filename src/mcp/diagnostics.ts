@@ -54,11 +54,11 @@ export interface DiagnosticReport {
   health: ServerHealth
   tools: ToolInfo[]
   config: ConfigStatus
-  recentErrors: Array<{
+  recentErrors: {
     timestamp: Date
     function: string
     error: string
-  }>
+  }[]
 }
 
 /**
@@ -66,11 +66,11 @@ export interface DiagnosticReport {
  */
 export class McpDiagnostics {
   private startTime: Date
-  private recentErrors: Array<{
+  private recentErrors: {
     timestamp: Date
     function: string
     error: string
-  }> = []
+  }[] = []
   private maxErrors = 10
 
   constructor() {
@@ -84,7 +84,7 @@ export class McpDiagnostics {
     this.recentErrors.unshift({
       timestamp: new Date(),
       function: functionName,
-      error
+      error,
     })
 
     // Keep only the most recent errors
@@ -116,7 +116,7 @@ export class McpDiagnostics {
       status,
       uptime,
       toolsRegistered,
-      lastError: this.recentErrors[0]
+      lastError: this.recentErrors[0],
     }
   }
 
@@ -124,11 +124,11 @@ export class McpDiagnostics {
    * Get tool information
    */
   getToolInfo(registry: FunctionRegistry): ToolInfo[] {
-    return registry.list().map(func => ({
+    return registry.list().map((func) => ({
       name: func.name,
       description: func.description,
-      parameters: func.parameters.map(p => p.name),
-      hasSchema: true // All registered functions have schemas
+      parameters: func.parameters.map((p) => p.name),
+      hasSchema: true, // All registered functions have schemas
     }))
   }
 
@@ -138,55 +138,55 @@ export class McpDiagnostics {
   async getConfigStatus(): Promise<ConfigStatus> {
     try {
       await loadConfig()
-    const configStatus: ConfigStatus = {
-      projectRoot: process.cwd(),
-      configLoaded: true,
-      databasePath: getDatabasePath(),
-      hasGit: true, // Assume git is available for now
-      mcpConfigExists: false,
-      mcpExecutableExists: false
-    }
+      const configStatus: ConfigStatus = {
+        projectRoot: process.cwd(),
+        configLoaded: true,
+        databasePath: getDatabasePath(),
+        hasGit: true, // Assume git is available for now
+        mcpConfigExists: false,
+        mcpExecutableExists: false,
+      }
 
-    // Check for VSCode MCP configuration
-    try {
-      const fs = await import('node:fs')
-      const path = await import('node:path')
-      const mcpConfigPath = path.join(process.cwd(), '.vscode', 'mcp.json')
-      configStatus.mcpConfigExists = fs.existsSync(mcpConfigPath)
-    } catch (err) {
-      // Ignore
-    }
+      // Check for VSCode MCP configuration
+      try {
+        const fs = await import('node:fs')
+        const path = await import('node:path')
+        const mcpConfigPath = path.join(process.cwd(), '.vscode', 'mcp.json')
+        configStatus.mcpConfigExists = fs.existsSync(mcpConfigPath)
+      } catch {
+        // Ignore
+      }
 
-    // Check for MCP executable
-    try {
-      const fs = await import('node:fs')
-      const path = await import('node:path')
-      const execPath = path.join(process.cwd(), 'bin', 'mcp-server.js')
-      configStatus.mcpExecutableExists = fs.existsSync(execPath)
-    } catch (err) {
-      // Ignore
-    }
+      // Check for MCP executable
+      try {
+        const fs = await import('node:fs')
+        const path = await import('node:path')
+        const execPath = path.join(process.cwd(), 'bin', 'mcp-server.js')
+        configStatus.mcpExecutableExists = fs.existsSync(execPath)
+      } catch {
+        // Ignore
+      }
 
-    return configStatus
-  } catch (error) {
-    return {
-      projectRoot: process.cwd(),
-      configLoaded: false,
-      hasGit: false,
-      mcpConfigExists: false,
-      mcpExecutableExists: false
+      return configStatus
+    } catch {
+      return {
+        projectRoot: process.cwd(),
+        configLoaded: false,
+        hasGit: false,
+        mcpConfigExists: false,
+        mcpExecutableExists: false,
+      }
     }
   }
-}
 
   /**
    * Get recent errors
    */
-  getRecentErrors(): Array<{
+  getRecentErrors(): {
     timestamp: Date
     function: string
     error: string
-  }> {
+  }[] {
     return [...this.recentErrors]
   }
 
@@ -200,7 +200,7 @@ export class McpDiagnostics {
       health: this.getHealth(toolsRegistered),
       tools: this.getToolInfo(registry),
       config: await this.getConfigStatus(),
-      recentErrors: this.recentErrors
+      recentErrors: this.recentErrors,
     }
   }
 
@@ -217,23 +217,29 @@ export class McpDiagnostics {
     // Health
     lines.push('Health Status:')
     lines.push(`  Status: ${report.health.status.toUpperCase()}`)
-    lines.push(`  Uptime: ${Math.round(report.health.uptime / 1000)}s`)
-    lines.push(`  Tools Registered: ${report.health.toolsRegistered}`)
+    lines.push(`  Uptime: ${String(Math.round(report.health.uptime / 1000))}s`)
+    lines.push(`  Tools Registered: ${String(report.health.toolsRegistered)}`)
     if (report.health.lastError) {
-      lines.push(`  Last Error: ${report.health.lastError.error} (${report.health.lastError.function})`)
+      lines.push(
+        `  Last Error: ${report.health.lastError.error} (${report.health.lastError.function ?? 'unknown'})`
+      )
     }
     lines.push('')
 
     // Configuration
     lines.push('Configuration:')
     lines.push(`  Project Root: ${report.config.projectRoot}`)
-    lines.push(`  Config Loaded: ${report.config.configLoaded}`)
+    lines.push(`  Config Loaded: ${report.config.configLoaded ? 'Yes' : 'No'}`)
     if (report.config.databasePath) {
       lines.push(`  Database: ${report.config.databasePath}`)
     }
-    lines.push(`  Git Available: ${report.config.hasGit}`)
-    lines.push(`  VSCode MCP Config: ${report.config.mcpConfigExists ? 'Found (.vscode/mcp.json)' : 'Missing (.vscode/mcp.json)'} `)
-    lines.push(`  MCP Executable: ${report.config.mcpExecutableExists ? 'Found (bin/mcp-server.js)' : 'Missing (bin/mcp-server.js)'} `)
+    lines.push(`  Git Available: ${report.config.hasGit ? 'Yes' : 'No'}`)
+    lines.push(
+      `  VSCode MCP Config: ${report.config.mcpConfigExists ? 'Found (.vscode/mcp.json)' : 'Missing (.vscode/mcp.json)'} `
+    )
+    lines.push(
+      `  MCP Executable: ${report.config.mcpExecutableExists ? 'Found (bin/mcp-server.js)' : 'Missing (bin/mcp-server.js)'} `
+    )
     lines.push('')
 
     // VSCode Troubleshooting

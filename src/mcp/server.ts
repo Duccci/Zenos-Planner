@@ -18,10 +18,11 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
   const server = new McpServer(
     {
       name: 'zeno-planner',
-      version: '0.2.0'
+      version: '0.2.0',
     },
     {
-      instructions: 'You are Zeno\'s Planner, an AI-powered project management system. Use the available tools to manage projects, gates, requirements, and proposals across multiple Zeno projects in your workspace. Always specify the project path when working with project-specific tools. Follow the structured workflow: identify proposals, check dependencies, start proposals, implement tasks, update requirements, validate, and request completion.'
+      instructions:
+        "You are Zeno's Planner, an AI-powered project management system. Use the available tools to manage projects, gates, requirements, and proposals across multiple Zeno projects in your workspace. Always specify the project path when working with project-specific tools. Follow the structured workflow: identify proposals, check dependencies, start proposals, implement tasks, update requirements, validate, and request completion.",
     }
   )
 
@@ -31,13 +32,14 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
   // Register tools centrally (augmented with tool metadata when available)
   const { registerTools } = await import('./tools/index.js')
   const registered = registerTools(server, registry)
-  logger.info(`Registered ${registered.length} MCP tools via centralized registry`)
+  logger.info(`Registered ${String(registered.length)} MCP tools via centralized registry`)
 
   // Register resources for project artifacts
   const { registerResources } = await import('./resources/index.js')
   const resourceCount = await registerResources(server, workspacePath)
-  logger.info(`Registered ${resourceCount} MCP resources`)
-
+  const resourceCountNumber =
+    typeof resourceCount === 'number' ? resourceCount : resourceCount.count
+  logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)
 
   return server
 }
@@ -48,8 +50,8 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
 export async function main(): Promise<void> {
   try {
     // Parse command line arguments
-    const workspacePath = process.env['ZENO_WORKSPACE'] || process.cwd()
-    
+    const workspacePath = process.env['ZENO_WORKSPACE'] ?? process.cwd()
+
     logger.info('Starting Zeno MCP server...')
     logger.info(`Workspace: ${workspacePath}`)
 
@@ -66,20 +68,24 @@ export async function main(): Promise<void> {
       writePid()
 
       // Clean up pid on exit
-      const cleanup = async () => {
+      const cleanup = (): void => {
         logger.info('Shutting down MCP server...')
-        await server.close()
-        removePid?.()
-        process.exit(0)
+        void (async () => {
+          await server.close()
+          removePid?.()
+          process.exit(0)
+        })()
       }
 
       process.on('SIGINT', cleanup)
       process.on('SIGTERM', cleanup)
-      process.on('uncaughtException', async (err) => {
+      process.on('uncaughtException', (err) => {
         logger.error('Uncaught exception in MCP server', err)
-        await server.close()
-        removePid?.()
-        process.exit(1)
+        void (async () => {
+          await server.close()
+          removePid?.()
+          process.exit(1)
+        })()
       })
     } catch (err) {
       logger.warn('PID file management not available', err)
@@ -90,7 +96,7 @@ export async function main(): Promise<void> {
 
     // Development mode: file watching for auto-restart
     const isDevMode = process.env['NODE_ENV'] === 'development' || process.argv.includes('--dev')
-    const watchPattern = process.env['FILE_WATCH_PATTERN'] || 'src/**/*.ts'
+    const watchPattern = process.env['FILE_WATCH_PATTERN'] ?? 'src/**/*.ts'
 
     if (isDevMode) {
       const { enableDevMode } = await import('./dev-mode.js')
@@ -102,14 +108,15 @@ export async function main(): Promise<void> {
           await server.close()
           removePid?.()
           process.exit(0)
-        }
+        },
       })
 
       // On server shutdown, ensure watcher closed
-      process.on('exit', () => watcher.close())
+      process.on('exit', () => {
+        watcher.close()
+      })
       logger.info(`Development mode: watching ${watchPattern} for changes`)
     }
-
   } catch (error) {
     logger.error('Failed to start MCP server:', error)
     process.exit(1)
@@ -117,6 +124,6 @@ export async function main(): Promise<void> {
 }
 
 // Start the server if this file is run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main()
+if (import.meta.url === `file://${process.argv[1] ?? ''}`) {
+  void main()
 }

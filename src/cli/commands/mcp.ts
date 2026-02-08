@@ -12,9 +12,7 @@ import { logger } from '../../utils/logger.js'
  */
 export function registerMcpCommands(program: Command): void {
   console.log('Registering MCP commands')
-  const mcpCommand = program
-    .command('mcp')
-    .description('Model Context Protocol server commands')
+  const mcpCommand = program.command('mcp').description('Model Context Protocol server commands')
 
   mcpCommand
     .command('diagnostics')
@@ -22,7 +20,8 @@ export function registerMcpCommands(program: Command): void {
     .action(async () => {
       try {
         const { diagnostics } = await import('../../mcp/diagnostics.js')
-        const { createFunctionRegistry } = await import('../../integration/function-implementations.js')
+        const { createFunctionRegistry } =
+          await import('../../integration/function-implementations.js')
 
         const registry = createFunctionRegistry()
         const formatted = await diagnostics.formatReport(registry)
@@ -39,7 +38,8 @@ export function registerMcpCommands(program: Command): void {
     .description('List all registered MCP tools')
     .action(async () => {
       try {
-        const { createFunctionRegistry } = await import('../../integration/function-implementations.js')
+        const { createFunctionRegistry } =
+          await import('../../integration/function-implementations.js')
 
         const registry = createFunctionRegistry()
         const tools = registry.list()
@@ -47,7 +47,7 @@ export function registerMcpCommands(program: Command): void {
         console.log('=== Registered MCP Tools ===')
         for (const tool of tools) {
           console.log(`${tool.name}: ${tool.description}`)
-          console.log(`  Parameters: ${tool.parameters.map(p => p.name).join(', ')}`)
+          console.log(`  Parameters: ${tool.parameters.map((p) => p.name).join(', ')}`)
           console.log()
         }
       } catch (error) {
@@ -90,18 +90,28 @@ export function registerMcpCommands(program: Command): void {
     .option('--dry-run', 'Do not modify files, only show actions')
     .action(async (opts: { editor: string; global?: boolean; dryRun?: boolean }) => {
       try {
-        const { ensureWorkspaceMcp, getAdapterCommand } = await import('../../mcp/editor-adapters.js')
+        const { ensureWorkspaceMcp, getAdapterCommand } =
+          await import('../../mcp/editor-adapters.js')
         const projectRoot = process.cwd()
+
+        const selectedEditor =
+          opts.editor === 'vscode' || opts.editor === 'cursor' || opts.editor === 'windsurf'
+            ? opts.editor
+            : 'vscode'
 
         if (opts.dryRun) {
           console.log('Dry run: actions that would be performed:')
-          console.log(`  - Ensure workspace .vscode/mcp.json exists`) 
-          console.log(`  - Adapter activation command for ${opts.editor}: ${getAdapterCommand(opts.editor as any, projectRoot)}`)
+          console.log(`  - Ensure workspace .vscode/mcp.json exists`)
+          console.log(
+            `  - Adapter activation command for ${opts.editor}: ${getAdapterCommand(selectedEditor, projectRoot)}`
+          )
           process.exit(0)
         }
 
         if (opts.global) {
-          console.log('Global installation requested. Please run platform-specific steps to write to your editor user settings.')
+          console.log(
+            'Global installation requested. Please run platform-specific steps to write to your editor user settings.'
+          )
           // Keep it intentionally minimal; full global install requires admin privileges and platform checks
           process.exit(0)
         }
@@ -117,7 +127,7 @@ export function registerMcpCommands(program: Command): void {
           console.log('Click the link above to install MCP server automatically')
         }
 
-        console.log(`Adapter activation command: ${getAdapterCommand(opts.editor as any, projectRoot)}`)
+        console.log(`Adapter activation command: ${getAdapterCommand(selectedEditor, projectRoot)}`)
         process.exit(0)
       } catch (error) {
         logger.error('Failed to run mcp install:', error)

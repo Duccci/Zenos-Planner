@@ -6,7 +6,7 @@ export interface Gate {
   sequence: number
   name: string
   description?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'rejected' | string
+  status?: 'pending' | 'in_progress' | 'completed' | 'rejected'
 }
 
 export async function discoverGates(projectRoot: string): Promise<Gate[]> {
@@ -27,17 +27,20 @@ export async function discoverGates(projectRoot: string): Promise<Gate[]> {
     const full = path.join(gatesDir, name)
     try {
       const content = await fs.readFile(full, 'utf-8')
-      const firstHeading = content.split(/\r?\n/).find(l => /^#\s+/.test(l))
+      const firstHeading = content.split(/\r?\n/).find((l) => /^#\s+/.test(l))
       const desc = content.split(/\r?\n\r?\n/)[1]
       if (m) {
-        const seq = parseInt(m[1]!, 10)
-        const id = `gate-${m[1]!}`
+        const [, seqStr = '', titlePart = ''] = m
+        const seq = parseInt(seqStr, 10)
+        const id = `gate-${seqStr}`
         gates.push({
           id,
           sequence: seq,
-          name: (firstHeading ? firstHeading.replace(/^#\s+/, '').trim() : m[2]!.replace(/-/g, ' ')),
+          name: firstHeading
+            ? firstHeading.replace(/^#\s+/, '').trim()
+            : titlePart.replace(/-/g, ' '),
           description: desc ? desc.trim().split('\n')[0] : undefined,
-          status: 'pending'
+          status: 'pending',
         })
       }
     } catch {

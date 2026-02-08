@@ -1,6 +1,8 @@
 /**
  * Integration tests for unified action dispatchers
  * Tests proposal_action and gates_action discriminated union tools
+ * 
+ * TODO: These tests use MockFunctionRegistry for mocking registry.invoke calls
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -26,9 +28,6 @@ class MockFunctionRegistry implements Partial<FunctionRegistry> {
 
   // Other methods not needed for testing
   register() {}
-  invoke() {
-    return Promise.resolve({ success: true, data: {} })
-  }
   list() {
     return []
   }
@@ -50,9 +49,10 @@ describe('Proposal Action Dispatcher', () => {
   })
 
   it('should dispatch list action correctly', async () => {
+    const now = new Date().toISOString()
     const mockProposals = [
-      { hash: '#p1', title: 'Proposal 1', status: 'pending' },
-      { hash: '#p2', title: 'Proposal 2', status: 'in_progress' },
+      { hash: 'prop0001', title: 'Proposal 1', status: 'pending', gateId: 'gate-03', tasksCompleted: 0, totalTasks: 1, created: now },
+      { hash: 'prop0002', title: 'Proposal 2', status: 'in_progress', gateId: 'gate-03', tasksCompleted: 1, totalTasks: 2, created: now },
     ]
 
     const mockListResult = {
@@ -79,34 +79,39 @@ describe('Proposal Action Dispatcher', () => {
   })
 
   it('should dispatch show action correctly', async () => {
+    const now = new Date().toISOString()
     const mockDetail = {
-      hash: '#abc123',
+      hash: 'prop0001',
       title: 'Test Proposal',
+      description: 'Test description',
       status: 'pending',
+      gateId: 'gate-03',
       tasks: [],
-      filesAffected: [],
+      created: now,
     }
 
     registry.setMockResult('proposal_show', mockDetail)
 
     const result = await handlers.proposal_action({
       action: 'show',
-      payload: { hash: '#abc123' },
+      payload: { hash: 'prop0001' },
     })
 
     expect(result.content).toBeDefined()
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.action).toBe('show')
-    expect(parsed.result.hash).toBe('#abc123')
+    expect(parsed.result.hash).toBe('prop0001')
   })
 
   it('should dispatch create action correctly', async () => {
+    const now = new Date().toISOString()
     const mockCreateResult = {
-      hash: '#new123',
+      hash: 'prop0002',
       filePath: 'zeno/proposals/solitary/2026-02-06-01-test.md',
-      validation: { passed: true, errors: [], warnings: [] },
-      status: 'pending' as const,
-      createdAt: '2026-02-06T00:00:00Z',
+      validation: { passed: true, errors:[], warnings: [] },
+      status: 'pending',
+      createdAt: now,
+      solitary: true
     }
 
     registry.setMockResult('proposal_create', mockCreateResult)
@@ -124,22 +129,22 @@ describe('Proposal Action Dispatcher', () => {
     expect(result.content).toBeDefined()
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.action).toBe('create')
-    expect(parsed.result.hash).toBe('#new123')
+    expect(parsed.result.hash).toBe('prop0002')
   })
 
   it('should dispatch validate action correctly', async () => {
     const mockValidation = {
-      hash: '#abc123',
+      hash: 'prxy0001',
       passed: true,
-      errors: undefined,
-      warnings: ['Some warning'],
+      issues: [],
+      summary: 'All checks passed'
     }
 
     registry.setMockResult('proposal_validate', mockValidation)
 
     const result = await handlers.proposal_action({
       action: 'validate',
-      payload: { hash: '#abc123', strict: false },
+      payload: { hash: 'prxy0001', strict: false },
     })
 
     expect(result.content).toBeDefined()
@@ -149,17 +154,33 @@ describe('Proposal Action Dispatcher', () => {
   })
 
   it('should dispatch approve action correctly', async () => {
-    const mockApproval = {
-      hash: '#abc123',
-      status: 'approved',
-      validation: { passed: true, warnings: [] },
-    }
-
-    registry.setMockResult('proposal_approve', mockApproval)
+    const now = new Date().toISOString()
+    registry.setMockResult('proposal_show', {
+      hash: 'prxy0001',
+      title: 'Test',
+      description: 'Test',
+      status: 'pending',
+      gateId: 'gate-01',
+      tasks: [],
+      created: now
+    })
+    registry.setMockResult('config_get', {
+      projectName: 'test',
+      version: '0.1.0',
+      qualityThresholds: { codeCoverage: 90, typeCheckingErrors: 0, lintingErrorRate: 0.01, securityVulnerabilities: 0 },
+      hashAlgorithm: 'sha256',
+      hashLength: 16
+    })
+    registry.setMockResult('proposal_approve', {
+      hash: 'prxy0001',
+      previousStatus: 'pending',
+      newStatus: 'completed',
+      approvedAt: now
+    })
 
     const result = await handlers.proposal_action({
       action: 'approve',
-      payload: { hash: '#abc123' },
+      payload: { hash: 'prxy0001' },
     })
 
     expect(result.content).toBeDefined()
@@ -168,24 +189,57 @@ describe('Proposal Action Dispatcher', () => {
   })
 
   it('should dispatch reject action correctly', async () => {
-    registry.setMockResult('proposal_reject', { hash: '#abc123', status: 'rejected' })
+    const now = new Date().toISOString()
+    registry.setMockResult('proposal_reject', {
+      hash: 'prxy0001',
+      previousStatus: 'pending',
+      newStatus: 'rejected',
+      rejectedAt: now,
+      reason: 'Requires changes'
+    })
 
     const result = await handlers.proposal_action({
       action: 'reject',
-      payload: { hash: '#abc123' },
+      payload: { hash: 'prxy0001', rejectionReason: 'Requires changes' },
     })
 
     expect(result.content).toBeDefined()
     const parsed = JSON.parse(result.content[0].text)
+    if (!parsed.action) {
+      console.log('Reject error response:', JSON.stringify(parsed, null, 2))
+    }
     expect(parsed.action).toBe('reject')
+    expect(parsed.result.reason).toBe('Requires changes')
   })
 
   it('should dispatch start action correctly', async () => {
-    registry.setMockResult('proposal_start', { hash: '#abc123', status: 'in_progress' })
+    const now = new Date().toISOString()
+    registry.setMockResult('proposal_show', {
+      hash: 'prxy0001',
+      title: 'Test',
+      description: 'Test',
+      status: 'pending',
+      gateId: 'gate-01',
+      tasks: [],
+      created: now
+    })
+    registry.setMockResult('config_get', {
+      projectName: 'test',
+      version: '0.1.0',
+      qualityThresholds: { codeCoverage: 90, typeCheckingErrors: 0, lintingErrorRate: 0.01, securityVulnerabilities: 0 },
+      hashAlgorithm: 'sha256',
+      hashLength: 16
+    })
+    registry.setMockResult('proposal_start', {
+      hash: 'prxy0001',
+      previousStatus: 'pending',
+      newStatus: 'in_progress',
+      startedAt: now
+    })
 
     const result = await handlers.proposal_action({
       action: 'start',
-      payload: { hash: '#abc123' },
+      payload: { hash: 'prxy0001' },
     })
 
     expect(result.content).toBeDefined()
@@ -225,12 +279,23 @@ describe('Gates Action Dispatcher', () => {
   })
 
   it('should dispatch list action correctly', async () => {
+    const now = new Date().toISOString()
     const mockGates = [
-      { id: 'gate-01', title: 'Gate 1', status: 'completed' },
-      { id: 'gate-02', title: 'Gate 2', status: 'in_progress' },
+      { id: 'gate-01', name: 'Gate 1', description: 'First gate', sequence: 1, status: 'completed', type: 'feature', created: now, proposalCount: 2, completedProposalCount: 2, requirementCount: 5, testedRequirementCount: 5 },
+      { id: 'gate-02', name: 'Gate 2', description: 'Second gate', sequence: 2, status: 'in_progress', type: 'infrastructure', created: now, proposalCount: 1, completedProposalCount: 0, requirementCount: 3, testedRequirementCount: 1 },
     ]
 
-    registry.setMockResult('gates_list', mockGates)
+    const mockListResult = {
+      gates: mockGates,
+      pagination: {
+        total: 2,
+        skip: 0,
+        take: 50,
+        hasMore: false
+      }
+    }
+
+    registry.setMockResult('gates_list', mockListResult)
 
     const result = await handlers.gates_action({
       action: 'list',
@@ -240,16 +305,22 @@ describe('Gates Action Dispatcher', () => {
     expect(result.content).toBeDefined()
     const parsed = JSON.parse(result.content[0].text)
     expect(parsed.action).toBe('list')
-    expect(parsed.result).toEqual(mockGates)
+    expect(parsed.result.gates).toEqual(mockGates)
   })
 
   it('should dispatch show action correctly', async () => {
+    const now = new Date().toISOString()
     const mockGateDetail = {
       id: 'gate-03',
-      title: 'Gate 3',
+      name: 'Gate 3',
+      description: 'Third gate',
+      sequence: 3,
       status: 'pending',
-      proposals: [],
+      type: 'feature',
+      objectives: [],
       requirements: [],
+      proposals: [],
+      created: now,
     }
 
     registry.setMockResult('gates_show', mockGateDetail)
@@ -266,21 +337,37 @@ describe('Gates Action Dispatcher', () => {
   })
 
   it('should dispatch create action correctly', async () => {
-    const mockCreateResult = {
+    const now = new Date().toISOString()
+    registry.setMockResult('config_get', {
+      projectName: 'test',
+      version: '0.1.0',
+      qualityThresholds: { codeCoverage: 90, typeCheckingErrors: 0, lintingErrorRate: 0.01, securityVulnerabilities: 0 },
+      hashAlgorithm: 'sha256',
+      hashLength: 16
+    })
+    // Mock gates_list for dependency validation
+    registry.setMockResult('gates_list', [])
+    registry.setMockResult('gate_create', {
       gateId: 'gate-04',
-      filePath: 'zeno/gates/gate-04-prd.md',
-      validation: { passed: true, errors: [], warnings: [] },
-      createdAt: '2026-02-06T00:00:00Z',
-    }
-
-    registry.setMockResult('gate_create', mockCreateResult)
+      filePath: 'zeno/gates/gate-04-infrastructure.md',
+      validation: {
+        passed: true,
+        errors: [],
+        warnings: []
+      },
+      roadmapUpdated: true,
+      createdAt: now
+    })
 
     const result = await handlers.gates_action({
       action: 'create',
       payload: {
-        title: 'New Gate',
-        description: 'Gate description',
-        requirements: ['Requirement 1'],
+        gateId: 'gate-04',
+        name: 'Infrastructure Setup',
+        type: 'feature',
+        sequence: 4,
+        dependencies: [],
+        objectives: ['Set up CI/CD', 'Configure deployment']
       },
     })
 
@@ -291,13 +378,13 @@ describe('Gates Action Dispatcher', () => {
   })
 
   it('should dispatch start action correctly', async () => {
-    const mockStartResult = {
+    const now = new Date().toISOString()
+    registry.setMockResult('gates_start', {
       gateId: 'gate-03',
-      status: 'in_progress',
-      startedAt: '2026-02-06T00:00:00Z',
-    }
-
-    registry.setMockResult('gates_start', mockStartResult)
+      previousStatus: 'pending',
+      newStatus: 'in_progress',
+      startedAt: now
+    })
 
     const result = await handlers.gates_action({
       action: 'start',
@@ -310,14 +397,24 @@ describe('Gates Action Dispatcher', () => {
   })
 
   it('should dispatch complete action correctly', async () => {
-    const mockCompleteResult = {
+    const now = new Date().toISOString()
+    registry.setMockResult('config_get', {
+      projectName: 'test',
+      version: '0.1.0',
+      qualityThresholds: { codeCoverage: 90, typeCheckingErrors: 0, lintingErrorRate: 0.01, securityVulnerabilities: 0 },
+      hashAlgorithm: 'sha256',
+      hashLength: 16
+    })
+    registry.setMockResult('gates_complete', {
       gateId: 'gate-02',
-      status: 'completed',
-      completedAt: '2026-02-06T00:00:00Z',
-      gitTag: 'gate-02-v1.0.0',
-    }
-
-    registry.setMockResult('gates_complete', mockCompleteResult)
+      previousStatus: 'in_progress',
+      newStatus: 'completed',
+      completedAt: now,
+      summary: {
+        proposalsCompleted: 5,
+        requirementsTested: 10
+      }
+    })
 
     const result = await handlers.gates_action({
       action: 'complete',
@@ -330,12 +427,16 @@ describe('Gates Action Dispatcher', () => {
   })
 
   it('should dispatch regenerate action correctly', async () => {
-    const mockRegenResult = {
-      regenerated: 3,
-      gatesUpdated: ['gate-04', 'gate-05', 'gate-06'],
-    }
-
-    registry.setMockResult('gates_regenerate', mockRegenResult)
+    registry.setMockResult('gates_regenerate', {
+      mode: 'check',
+      status: 'changes_suggested',
+      changes: {
+        gatesAffected: ['gate-04', 'gate-05', 'gate-06'],
+        proposalsGenerated: 3,
+        requirementsAttributed: 12,
+        summary: 'Suggested 3 new gates for backlog items'
+      }
+    })
 
     const result = await handlers.gates_action({
       action: 'regenerate',
@@ -375,10 +476,20 @@ describe('Action Dispatcher Type Safety', () => {
     const handlers = proposalHandlers(registry as any)
 
     // Valid payloads should work
-    registry.setMockResult('proposal_show', { hash: '#abc' })
+    const now = new Date().toISOString()
+    registry.setMockResult('proposal_show', {
+      hash: 'prxy0001',
+      title: 'Test Proposal',
+      description: 'Test description',
+      status: 'pending',
+      gateId: 'gate-03',
+      tasks: [],
+      created: now,
+      filesAffected: []
+    })
     const validResult = await handlers.proposal_action({
       action: 'show',
-      payload: { hash: '#abc123' },
+      payload: { hash: 'prxy0001' },
     })
     expect(validResult.isError).toBeFalsy()
 
@@ -395,7 +506,19 @@ describe('Action Dispatcher Type Safety', () => {
     const handlers = gateHandlers(registry as any)
 
     // Valid payloads should work
-    registry.setMockResult('gates_show', { id: 'gate-01' })
+    const now = new Date().toISOString()
+    registry.setMockResult('gates_show', {
+      id: 'gate-01',
+      name: 'Gate 1',
+      description: 'Test gate',
+      sequence: 1,
+      status: 'pending',
+      type: 'feature',
+      objectives: [],
+      requirements: [],
+      proposals: [],
+      created: now
+    })
     const validResult = await handlers.gates_action({
       action: 'show',
       payload: { gateId: 'gate-01' },
@@ -409,8 +532,28 @@ describe('Action Dispatcher Output Schema Validation', () => {
     const registry = new MockFunctionRegistry()
     const handlers = proposalHandlers(registry as any)
 
-    // Set valid mock result
-    registry.setMockResult('proposal_list', [{ hash: '#p1', title: 'Test' }])
+    // Set valid mock result in the expected structure
+    const now = new Date().toISOString()
+    const mockListResult = {
+      proposals: [
+        {
+          hash: 'p0000001',
+          title: 'Test',
+          status: 'pending',
+          gateId: 'gate-03',
+          tasksCompleted: 0,
+          totalTasks: 5,
+          created: now
+        }
+      ],
+      pagination: {
+        total: 1,
+        skip: 0,
+        take: 50,
+        hasMore: false
+      }
+    }
+    registry.setMockResult('proposal_list', mockListResult)
 
     const result = await handlers.proposal_action({
       action: 'list',
@@ -430,7 +573,31 @@ describe('Action Dispatcher Output Schema Validation', () => {
     const registry = new MockFunctionRegistry()
     const handlers = gateHandlers(registry as any)
 
-    registry.setMockResult('gates_list', [{ id: 'gate-01', title: 'Test' }])
+    const now = new Date().toISOString()
+    const mockListResult = {
+      gates: [
+        {
+          id: 'gate-01',
+          name: 'Test',
+          description: 'Test gate',
+          sequence: 1,
+          status: 'pending',
+          type: 'feature',
+          created: now,
+          proposalCount: 0,
+          completedProposalCount: 0,
+          requirementCount: 0,
+          testedRequirementCount: 0
+        }
+      ],
+      pagination: {
+        total: 1,
+        skip: 0,
+        take: 50,
+        hasMore: false
+      }
+    }
+    registry.setMockResult('gates_list', mockListResult)
 
     const result = await handlers.gates_action({
       action: 'list',

@@ -47,8 +47,8 @@ export function consolidationToMarkdown(consolidation: GateConsolidation): strin
 
   md += '### Quality Metrics\n\n'
   md += `- **Coverage**: ${consolidation.highLevelDelta.qualityMetrics.totalCoverage}\n`
-  md += `- **Files Modified**: ${consolidation.highLevelDelta.qualityMetrics.totalFiles}\n`
-  md += `- **Tasks Completed**: ${consolidation.highLevelDelta.qualityMetrics.totalTasks}\n`
+  md += `- **Files Modified**: ${String(consolidation.highLevelDelta.qualityMetrics.totalFiles)}\n`
+  md += `- **Tasks Completed**: ${String(consolidation.highLevelDelta.qualityMetrics.totalTasks)}\n`
 
   return md
 }
@@ -63,7 +63,7 @@ export function prepareArchiveContent(
   let updatedContent = originalContent
   updatedContent += '\n\n## Archive Summary\n\n'
   updatedContent += `**Archived**: ${ts}\n`
-  updatedContent += `**Completion Notes**: ${completionNotes || 'None'}\n\n`
+  updatedContent += `**Completion Notes**: ${completionNotes ?? 'None'}\n\n`
   updatedContent += consolidationToMarkdown(consolidation)
   return updatedContent
 }

@@ -7,7 +7,7 @@
 
 import { extractRequirementCandidates, validateCandidates } from './requirement-patterns.js'
 import { RequirementStorage } from './requirement-storage.js'
-import { Requirement, GenerationResult } from './types.js'
+import { Requirement, GenerationResult, RequirementCandidate } from './types.js'
 
 /**
  * Main requirement generator class
@@ -24,7 +24,7 @@ export class RequirementGenerator {
    * @param description - Natural language description of the desired end state
    * @returns Promise resolving to generated requirements
    */
-  generateFromEndState(description: string): Requirement[] {
+  generateFromEndState = (description: string): Requirement[] => {
     const startTime = Date.now()
 
     try {
@@ -43,12 +43,21 @@ export class RequirementGenerator {
 
       // Log generation statistics
       const processingTime = Date.now() - startTime
-      console.log(`Generated ${String(requirements.length)} requirements from ${String(description.length)} characters in ${String(processingTime)}ms`)
+      console.log(
+        'Generated ' +
+          String(requirements.length) +
+          ' requirements from ' +
+          String(description.length) +
+          ' characters in ' +
+          String(processingTime) +
+          'ms'
+      )
 
       return requirements
-    } catch (error) {
-      console.error('Failed to generate requirements from end state:', error)
-      throw error
+    } catch (err: unknown) {
+      const e: Error = err instanceof Error ? err : new Error(String(err))
+      console.error('Failed to generate requirements from end state:', e)
+      throw e
     }
   }
 
@@ -57,7 +66,7 @@ export class RequirementGenerator {
    * @param description - Natural language description of the desired end state
    * @returns Detailed generation result
    */
-  generateWithDetails(description: string): GenerationResult {
+  generateWithDetails = (description: string): GenerationResult => {
     const startTime = Date.now()
 
     try {
@@ -68,8 +77,8 @@ export class RequirementGenerator {
       const validatedCandidates = validateCandidates(rawCandidates)
 
       // Separate high-confidence candidates for storage
-      const highConfidenceCandidates = validatedCandidates.filter(c => c.confidence >= 0.6)
-      const lowConfidenceCandidates = validatedCandidates.filter(c => c.confidence < 0.6)
+      const highConfidenceCandidates = validatedCandidates.filter((c) => c.confidence >= 0.6)
+      const lowConfidenceCandidates = validatedCandidates.filter((c) => c.confidence < 0.6)
 
       // Store high-confidence requirements
       const requirements = this.storage.storeRequirementsFromCandidates(
@@ -91,12 +100,13 @@ export class RequirementGenerator {
           processingTimeMs: processingTime,
         },
       }
-    } catch (error) {
+    } catch (err: unknown) {
+      const e: Error = err instanceof Error ? err : new Error(String(err))
       const processingTime = Date.now() - startTime
       return {
         requirements: [],
         candidates: [],
-        errors: [error instanceof Error ? error.message : String(error)],
+        errors: [e.message],
         metadata: {
           sourceTextLength: description.length,
           patternsMatched: 0,
@@ -110,15 +120,194 @@ export class RequirementGenerator {
   /**
    * Get all existing project requirements
    */
-  getProjectRequirements(): Requirement[] {
+  getProjectRequirements = (): Requirement[] => {
     return this.storage.getProjectRequirements()
   }
 
   /**
-   * Update a requirement's status via storage layer
+   * Extract requirement candidates from arbitrary text using pattern library
    */
-  updateRequirementStatus(hash: string, status: 'pending' | 'implemented' | 'tested'): void {
-    this.storage.updateRequirementStatus(hash, status)
+  static extractRequirementsFromText(text: string): RequirementCandidate[] {
+    // delegate to pattern extractor
+    return extractRequirementCandidates(text)
   }
 
+  /**
+   * Approve / flag / reject candidates based on confidence thresholds
+   */
+  static approveRequirements(candidates: RequirementCandidate[]): {
+    approved: RequirementCandidate[]
+    review: RequirementCandidate[]
+    rejected: RequirementCandidate[]
+  } {
+    const approved: RequirementCandidate[] = []
+    const review: RequirementCandidate[] = []
+    const rejected: RequirementCandidate[] = []
+
+    for (const c of candidates) {
+      if (c.confidence > 0.8) approved.push(c)
+      else if (c.confidence >= 0.5) review.push(c)
+      else rejected.push(c)
+    }
+
+    return { approved, review, rejected }
+  }
+
+  /**
+   * Generate gate-specific requirements by reading gate PRD objectives
+   */
+  generateRequirementsForGate = async (gateId: string): Promise<Requirement[]> => {
+    // Find gate PRD file under zeno/gates starting with gateId
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const gatesDir = path.join(process.cwd(), 'zeno', 'gates')
+
+    const files = await fs.readdir(gatesDir)
+    const gateFile = files.find((f) => f.startsWith(gateId))
+    if (!gateFile) throw new Error(`Gate PRD not found for ${gateId}`)
+
+    const content = await fs.readFile(path.join(gatesDir, gateFile), 'utf8')
+
+    // Extract objectives section (simple heading parser)
+    const objectives = extractObjectivesFromPRD(content)
+
+    const allStored: Requirement[] = []
+
+    for (const obj of objectives) {
+      const candidates = RequirementGenerator.extractRequirementsFromText(obj)
+      const { approved, review } = RequirementGenerator.approveRequirements(candidates)
+
+      // Link approved candidates to project requirements where possible
+      const projectRequirements = this.storage.getProjectRequirements()
+
+      for (const cand of approved) {
+        let projectRequirementId: string | undefined = undefined
+        let storeDescription = cand.description
+
+        // simple matching: find project requirement with common word overlap
+        for (const p of projectRequirements) {
+          const overlap = commonWordOverlap(p.description, cand.description)
+          if (overlap >= 0.5) {
+            projectRequirementId = p.id
+            // if near-exact match, append gate suffix to force creation of gate-level requirement
+            if (overlap >= 0.8) {
+              storeDescription = `${cand.description} (gate ${gateId})`
+            }
+            break
+          }
+        }
+
+        const stored = this.storage.storeRequirement(
+          storeDescription,
+          cand.type,
+          cand.priority,
+          'gate',
+          'generated',
+          gateId,
+          undefined,
+          undefined,
+          projectRequirementId
+        )
+
+        allStored.push(stored)
+      }
+
+      // For medium-confidence candidates, create review entries (do not auto-store)
+      // Keep review candidates available for manual inspection; do not iterate to avoid unused variable lint.
+      void review
+    }
+
+    return allStored
+  }
+
+  /**
+   * Recursively decompose a requirement into child requirements
+   */
+  decomposeRequirement = async (
+    parent: Requirement,
+    maxDepth = 3,
+    parentConfidence = 1.0
+  ): Promise<Requirement[]> => {
+    const created: Requirement[] = []
+
+    // Base case
+    if (maxDepth <= 0) return created
+
+    // Extract candidates from parent description
+    const candidates = extractRequirementCandidates(parent.description)
+
+    // For each candidate, compute child confidence and store as child requirement
+    for (const c of candidates) {
+      const childConfidence = Math.max(0, parentConfidence * 0.9)
+
+      // Optionally filter very low confidence
+      if (childConfidence < 0.1) continue
+
+      const child = this.storage.storeRequirement(
+        c.description,
+        c.type,
+        c.priority,
+        'gate',
+        'generated',
+        parent.gateId ?? undefined,
+        undefined,
+        parent.id,
+        parent.projectRequirementId ?? undefined
+      )
+
+      created.push(child)
+
+      // Recurse deeper
+      if (maxDepth - 1 > 0) {
+        const grandchildren = await this.decomposeRequirement(child, maxDepth - 1, childConfidence)
+        created.push(...grandchildren)
+      }
+    }
+
+    return created
+  }
+
+  /**
+   * Proxy to storage.updateRequirementStatus
+   */
+  updateRequirementStatus = (
+    hash: string,
+    status: 'pending' | 'implemented' | 'tested'
+  ): number => {
+    return this.storage.updateRequirementStatus(hash, status)
+  }
+}
+
+/** Helper: overlap score of common words between descriptions */
+function commonWordOverlap(a: string, b: string): number {
+  const setA = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
+  const setB = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
+  if (setA.size === 0 || setB.size === 0) return 0
+  let inter = 0
+  for (const w of setA) if (setB.has(w)) inter++
+  return inter / Math.max(setA.size, setB.size)
+}
+
+/** Helper: Extract objectives section from a gate PRD markdown */
+function extractObjectivesFromPRD(text: string): string[] {
+  const lines = text.split(/\r?\n/)
+  const objectives: string[] = []
+  let inSection = false
+  for (const line of lines) {
+    if (/^#{2,}\s+Objectives/i.test(line)) {
+      inSection = true
+      continue
+    }
+    if (inSection) {
+      if (/^#{1,3}\s+/.test(line) && !/^#{2,}\s+Objectives/i.test(line)) break
+      const item = line.trim()
+      // capture list items and plain paragraphs
+      if (/^[-*+]\s+/.test(item) || item.length > 0) {
+        // remove leading list markers
+        objectives.push(item.replace(/^[-*+]\s+/, '').trim())
+      }
+    }
+  }
+  // Filter empty and return
+  return objectives.filter((o) => o.length > 0)
 }

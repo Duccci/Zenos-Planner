@@ -1,8 +1,8 @@
 {
   "projectName": "Zeno's Planner",
-  "projectVersion": "0.2.0",
+  "projectVersion": "0.3.0",
   "currentGate": null,
-  "totalGatesPlanned": 12,
+  "totalGatesPlanned": 14,
   "endState": "Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human 'vibe coding' by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.",
   "startState": null,
   "completedGates": [
@@ -19,24 +19,38 @@
       "hash": "#g02zenoeng",
       "completedAt": "2026-01-30",
       "status": "completed"
+    },
+    {
+      "sequence": 3,
+      "name": "MCP Server & LLM Tool Integration",
+      "hash": "#g03mcpserver",
+      "completedAt": "2026-02-04",
+      "status": "completed"
+    },
+    {
+      "sequence": 4,
+      "name": "Requirements & Database Layer",
+      "hash": "#g04reqdb01",
+      "completedAt": "2026-02-07",
+      "status": "completed"
     }
   ],
   "currentGateInfo": {
-    "sequence": 3,
-    "name": "Requirements & Database Layer",
-    "hash": "#g03reqdb",
+    "sequence": 5,
+    "name": "Architecture & Diagram Generation",
+    "hash": "#g05archdiag",
     "status": "pending",
     "estimatedComplexity": "high"
   },
   "upcomingGates": [
     {
-      "sequence": 4,
-      "name": "Architecture & Mermaid Generation",
+      "sequence": 6,
+      "name": "Multi-Repo & Subproject Detection",
       "estimatedComplexity": "high"
     },
     {
-      "sequence": 5,
-      "name": "Multi-Repo & Subproject Detection",
+      "sequence": 7,
+      "name": "Proposal Generation & Management",
       "estimatedComplexity": "high"
     }
   ],
@@ -52,4 +66,3 @@
     }
   }
 }
-

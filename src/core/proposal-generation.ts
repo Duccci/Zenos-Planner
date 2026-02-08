@@ -21,32 +21,42 @@ export interface ProposalGenerateOutput {
   success: boolean
   gateId: string
   proposalsGenerated: number
-  proposals: Array<{
+  proposals: {
     hash: string
     filename: string
     path: string
     type: 'gate-tied' | 'solitary'
     status: string
     summary: string
-  }>
-  dependencies?: Array<{
+  }[]
+  dependencies?: {
     from: string
     to: string
     type: string
-  }>
+  }[]
   message: string
 }
 
 /**
  * Generate proposal documents from a gate PRD
  */
-export async function generateProposals(input: ProposalGenerateInput): Promise<ProposalGenerateOutput> {
+export async function generateProposals(
+  input: ProposalGenerateInput
+): Promise<ProposalGenerateOutput> {
   try {
     const projectRoot = process.cwd()
     const { gateId, templateName = 'proposal-template', outputDir } = input
 
     // Read gate PRD
-    const gatePrdPath = path.join(projectRoot, 'zeno', 'gates', `gate-${gateId.split('-')[1]}-${gateId.split('-').slice(2).join('-')}.md`)
+    const [, gnum = '', ...rest] = gateId.split('-')
+    const gateNumberStr: string = gnum
+    const gateSlugStr: string = rest.join('-')
+    const gatePrdPath = path.join(
+      projectRoot,
+      'zeno',
+      'gates',
+      `gate-${gateNumberStr}-${gateSlugStr}.md`
+    )
     const gateContent = await readFile(gatePrdPath)
 
     // Parse gate objectives and requirements
@@ -58,7 +68,13 @@ export async function generateProposals(input: ProposalGenerateInput): Promise<P
     const templateContent = await readFile(templatePath)
 
     // Generate proposals by decomposing objectives into tasks
-    const proposals = await decomposeToProposals(gateId, objectives, requirements, templateContent, outputDir || `zeno/proposals/gate-${gateId.split('-')[1]}`)
+    const proposals = await decomposeToProposals(
+      gateId,
+      objectives,
+      requirements,
+      templateContent,
+      outputDir ?? `zeno/proposals/gate-${gateNumberStr}`
+    )
 
     // Calculate dependencies
     const dependencies = calculateProposalDependencies(proposals)
@@ -69,15 +85,17 @@ export async function generateProposals(input: ProposalGenerateInput): Promise<P
       proposalsGenerated: proposals.length,
       proposals,
       dependencies,
-      message: `Generated ${proposals.length} proposals for gate ${gateId}`
+      message: `Generated ${String(proposals.length)} proposals for gate ${gateId}`,
     }
   } catch (error) {
     logger.error('Failed to generate proposals', { error, input })
-    throw new ZenoError(`Proposal generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'PROPOSAL_GENERATION_FAILED')
+    throw new ZenoError(
+      `Proposal generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      'PROPOSAL_GENERATION_FAILED'
+    )
   }
 }
 
 // Helper functions moved to `proposal-parser.ts` and `proposal-writer.ts`
 import { extractObjectives, extractRequirements } from './proposal-parser.js'
 import { decomposeToProposals, calculateProposalDependencies } from './proposal-writer.js'
-

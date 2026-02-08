@@ -40,8 +40,9 @@ function listProposalsFromDb(gateFilter?: string, statusFilter?: string): Propos
   }
 
   const db = getDatabase(projectRoot)
-  
-  let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals'
+
+  let query =
+    'SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals'
   const params: (string | null)[] = []
 
   if (gateFilter || statusFilter) {
@@ -76,7 +77,9 @@ function getProposalDetails(hash: string): ProposalRecord | null {
   const normalizedHash = normalizeHash(hash)
 
   const proposal = db
-    .prepare('SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals WHERE hash = ?')
+    .prepare(
+      'SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals WHERE hash = ?'
+    )
     .get(normalizedHash) as ProposalRecord | undefined
 
   return proposal ?? null
@@ -85,13 +88,16 @@ function getProposalDetails(hash: string): ProposalRecord | null {
 /**
  * Read proposal file content
  */
-async function readProposalFile(projectRoot: string, proposal: ProposalRecord): Promise<string | null> {
+async function readProposalFile(
+  projectRoot: string,
+  proposal: ProposalRecord
+): Promise<string | null> {
   try {
     const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gate_id || 'solitary')
     logger.debug(`Searching for proposal files in: ${gateDir}`)
     const files = await readdir(gateDir)
-    logger.debug(`Found ${files.length} files in ${gateDir}`)
-    
+    logger.debug(`Found ${String(files.length)} files in ${gateDir}`)
+
     for (const file of files) {
       if (file.endsWith('.md')) {
         const filePath = path.join(gateDir, file)
@@ -106,11 +112,11 @@ async function readProposalFile(projectRoot: string, proposal: ProposalRecord): 
         }
       }
     }
-    logger.debug(`Proposal not found in ${gateDir} after checking ${files.length} files`)
+    logger.debug(`Proposal not found in ${gateDir} after checking ${String(files.length)} files`)
   } catch (error) {
     logger.debug(`Could not read proposal file: ${String(error)}`)
   }
-  
+
   return null
 }
 
@@ -131,17 +137,22 @@ export function registerProposalCommands(program: Command): void {
     .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected)')
     .action((options: { gate?: string; status?: string }) => {
       const proposals = listProposalsFromDb(options.gate, options.status)
-      
+
       if (proposals.length === 0) {
         logger.info('No proposals found')
         return
       }
 
-      logger.info(`\nProposals (${proposals.length}):\n`)
+      logger.info(`\nProposals (${String(proposals.length)}):\n`)
       for (const proposal of proposals) {
-        const badge = proposal.status === 'completed' ? 'COMPLETED' : proposal.status === 'rejected' ? 'REJECTED' : 'PENDING'
+        const badge =
+          proposal.status === 'completed'
+            ? 'COMPLETED'
+            : proposal.status === 'rejected'
+              ? 'REJECTED'
+              : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
-        const gateLabel = proposal.gate_id === null || proposal.gate_id === '' ? 'solitary' : proposal.gate_id
+        const gateLabel = proposal.gate_id
         logger.info(`  Gate: ${gateLabel}, Created: ${proposal.created_at}`)
       }
     })
@@ -150,8 +161,8 @@ export function registerProposalCommands(program: Command): void {
     .command('show <hash>')
     .description('Show proposal details')
     .action(async (hash: string) => {
-      const proposal = await getProposalDetails(hash)
-      
+      const proposal = getProposalDetails(hash)
+
       if (!proposal) {
         logger.error(`Proposal not found: ${hash}`)
         return
@@ -159,7 +170,8 @@ export function registerProposalCommands(program: Command): void {
 
       logger.info(`\n# Proposal: ${proposal.title}`)
       logger.info(`**Hash**: #${proposal.hash}`)
-      logger.info(`**Gate**: ${proposal.gate_id ?? 'solitary'}`)
+      const gateLabel = proposal.gate_id
+      logger.info(`**Gate**: ${gateLabel}`)
       logger.info(`**Status**: ${proposal.status}`)
       logger.info(`**Created**: ${proposal.created_at}`)
       if (proposal.approved_at) {
@@ -196,25 +208,39 @@ export function registerProposalCommands(program: Command): void {
       const { createHash, randomUUID } = await import('node:crypto')
 
       // Generate hash: SHA-256, first 16 hex chars
-      const hash = createHash('sha256').update(`${title}-${Date.now()}`).digest('hex').slice(0, 16)
+      const hash = createHash('sha256')
+        .update(`${title}-${String(Date.now())}`)
+        .digest('hex')
+        .slice(0, 16)
 
       // Destination folder: zeno/proposals/<gate-id|solitary>
       const gateId = options.gate ?? null
-      const dir = gateId ? path.join(projectRoot, 'zeno', 'proposals', gateId) : path.join(projectRoot, 'zeno', 'proposals', 'solitary')
+      const dir = gateId
+        ? path.join(projectRoot, 'zeno', 'proposals', gateId)
+        : path.join(projectRoot, 'zeno', 'proposals', 'solitary')
 
       // Slug for file name
-      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 40)
+      const slug = title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .slice(0, 40)
       const date = new Date().toISOString().slice(0, 10)
       const fileName = `${date}-${slug}.md`
       const filePath = path.join(dir, fileName)
 
       // Load template and replace placeholders
-      const templatePath = path.join(projectRoot, 'templates', 'md-templates', 'proposal-template.md')
+      const templatePath = path.join(
+        projectRoot,
+        'templates',
+        'md-templates',
+        'proposal-template.md'
+      )
       let content = await readTemplate(templatePath)
       content = content.replace('[Proposal Title]', title)
       content = content.replace('[Generated SHA-256 first 16 chars]', hash)
-      content = content.replace('[Gate ID]', gateId ? gateId : 'solitary')
-      content = content.replace('[Gate Name]', gateId ? gateId : 'Solitary Proposal')
+      content = content.replace('[Gate ID]', gateId ?? 'solitary')
+      content = content.replace('[Gate Name]', gateId ?? 'Solitary Proposal')
       content = content.replace('[DATE]', new Date().toISOString())
 
       // Write file and register in DB
@@ -229,7 +255,9 @@ export function registerProposalCommands(program: Command): void {
       const db = getDatabase(projectRoot)
       const id = randomUUID()
       try {
-        db.prepare('INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)').run(id, gateId ?? null, title, 'pending', hash)
+        db.prepare(
+          'INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        ).run(id, gateId ?? null, title, 'pending', hash)
         logger.info(`Proposal created: #${hash} -> ${filePath}`)
       } catch (error) {
         logger.error(`Failed to register proposal in database: ${String(error)}`)
@@ -264,7 +292,9 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
-      db.prepare('UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('in_progress', proposal.id)
+      db.prepare(
+        'UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run('in_progress', proposal.id)
       logger.info(`Proposal started: #${normalizedHash}`)
     })
 
@@ -281,7 +311,7 @@ export function registerProposalCommands(program: Command): void {
 
       const db = getDatabase(projectRoot)
       const normalizedHash = normalizeHash(hash)
-      const strict = Boolean(options?.strict)
+      const strict = Boolean(options.strict)
 
       const proposal = db
         .prepare('SELECT id, title FROM proposals WHERE hash = ?')
@@ -304,9 +334,12 @@ export function registerProposalCommands(program: Command): void {
       // Lightweight proposal file checks (warnings become errors in --strict mode)
       const warnings: string[] = []
       try {
-        const content = await readProposalFile(projectRoot, { id: proposal.id, gate_id: '', title: proposal.title, status: '', hash: normalizedHash, created_at: '', } as any)
+        const fullProposal = getProposalDetails(hash)
+        const content = fullProposal ? await readProposalFile(projectRoot, fullProposal) : null
         if (!content) {
-          warnings.push('Could not read proposal file or proposal markdown is missing. Ensure the proposal includes an up-to-date `## Completion Summary` before approval.')
+          warnings.push(
+            'Could not read proposal file or proposal markdown is missing. Ensure the proposal includes an up-to-date `## Completion Summary` before approval.'
+          )
         } else {
           const hasCompletion = content.includes('## Completion Summary')
           if (!hasCompletion) {
@@ -316,21 +349,27 @@ export function registerProposalCommands(program: Command): void {
           const tasksCompletedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
           // Count checked boxes only within the Completion Summary section to avoid matching checklist items elsewhere
           const completionSection = content.split('## Completion Summary')[1] ?? ''
-          const checkedBoxes = (completionSection.match(/- \[[xX]\]/g) || []).length
+          const checkedBoxes = (completionSection.match(/- \[[xX]\]/g) ?? []).length
           if (tasksCompletedMatch) {
-            const completed = parseInt(tasksCompletedMatch[1] || '0', 10)
-            const total = parseInt(tasksCompletedMatch[2] || '0', 10)
+            const completed = parseInt(tasksCompletedMatch[1] ?? '0', 10)
+            const total = parseInt(tasksCompletedMatch[2] ?? '0', 10)
             if (completed !== checkedBoxes) {
-              warnings.push(`**Tasks Completed** shows ${completed}/${total} but ${checkedBoxes} acceptance items are checked within the Completion Summary.`)
+              warnings.push(
+                `**Tasks Completed** shows ${String(completed)}/${String(total)} but ${String(checkedBoxes)} acceptance items are checked within the Completion Summary.`
+              )
             }
           } else if (hasCompletion) {
-            warnings.push('`## Completion Summary` exists but does not contain a `**Tasks Completed**: X/Y` line.')
+            warnings.push(
+              '`## Completion Summary` exists but does not contain a `**Tasks Completed**: X/Y` line.'
+            )
           }
         }
 
         if (warnings.length > 0) {
           if (strict) {
-            logger.error('\nValidation failed: the proposal has issues that must be resolved before approval:')
+            logger.error(
+              '\nValidation failed: the proposal has issues that must be resolved before approval:'
+            )
             for (const w of warnings) {
               logger.error(` - ${w}`)
             }
@@ -341,8 +380,12 @@ export function registerProposalCommands(program: Command): void {
             for (const w of warnings) {
               logger.warn(` - ${w}`)
             }
-            logger.info('\nNote: Run `zeno proposal validate --strict <hash>` (or `--strict` via function invocation) to treat these warnings as errors.')
-            logger.info('Checks passed with warnings: address the warnings in the proposal file before approval.')
+            logger.info(
+              '\nNote: Run `zeno proposal validate --strict <hash>` (or `--strict` via function invocation) to treat these warnings as errors.'
+            )
+            logger.info(
+              'Checks passed with warnings: address the warnings in the proposal file before approval.'
+            )
             return
           }
         }
@@ -360,7 +403,9 @@ export function registerProposalCommands(program: Command): void {
 
   proposalCmd
     .command('approve <hash>')
-    .description('Approve proposal (status: in_progress -> completed). Git commits occur at gate completion.')
+    .description(
+      'Approve proposal (status: in_progress -> completed). Git commits occur at gate completion.'
+    )
     .action(async (hash: string) => {
       const result = await approveProposal(hash)
       logger.info(`Proposal completed: #${result.proposalHash}`)
@@ -395,7 +440,9 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
-      db.prepare('UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run('rejected', proposal.id)
+      db.prepare(
+        'UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      ).run('rejected', proposal.id)
       logger.info(`Proposal rejected: #${normalizedHash}`)
     })
 }

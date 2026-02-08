@@ -32,6 +32,8 @@ export type RequirementSource = 'generated' | 'inherited' | 'transferred'
 
 /**
  * Core requirement interface
+ * Includes status field for lifecycle tracking (pending → implemented → tested).
+ * Implementation progress tracked through Git commits and proposal completion.
  */
 export interface Requirement {
   /** Unique identifier */
@@ -56,10 +58,10 @@ export interface Requirement {
   acceptanceCriteria?: string
   /** Content-addressed hash for uniqueness */
   hash: string
-  /** Current status */
-  status: RequirementStatus
   /** Gate where this requirement originated (for transferred requirements) */
   sourceGateId?: string
+  /** Requirement status in lifecycle: pending → implemented → tested */
+  status: RequirementStatus
   /** Creation timestamp */
   createdAt: Date
 }

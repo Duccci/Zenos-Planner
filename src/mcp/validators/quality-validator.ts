@@ -45,21 +45,16 @@ export interface ValidationResult {
 export function validateQuality(context: QualityValidationContext): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
-  const { metrics, config, strict = false } = context
+  const { metrics, strict = false } = context
 
-  // Provide sensible defaults if config is missing or incomplete
-  const thresholds = config.qualityThresholds || {
-    codeCoverage: 90,
-    typeCheckingErrors: 0,
-    lintingErrorRate: 0.01,
-    securityVulnerabilities: 0
-  }
+  // Quality thresholds are provided by ZenoConfig and have defaults
+  const thresholds = context.config.qualityThresholds
 
   // Rule 1: Code coverage must meet threshold
   if (metrics.coverage !== undefined) {
     if (metrics.coverage < thresholds.codeCoverage) {
       const message =
-        `Code coverage ${metrics.coverage.toFixed(1)}% is below threshold ${thresholds.codeCoverage}%. ` +
+        `Code coverage ${metrics.coverage.toFixed(1)}% is below threshold ${String(thresholds.codeCoverage)}%. ` +
         `Increase test coverage to meet quality standards.`
 
       if (strict) {
@@ -76,7 +71,7 @@ export function validateQuality(context: QualityValidationContext): ValidationRe
   if (metrics.typeErrors !== undefined) {
     if (metrics.typeErrors > thresholds.typeCheckingErrors) {
       errors.push(
-        `Type checking errors (${metrics.typeErrors}) exceed threshold ${thresholds.typeCheckingErrors}. ` +
+        `Type checking errors (${String(metrics.typeErrors)}) exceed threshold ${String(thresholds.typeCheckingErrors)}. ` +
           `Fix all type errors before proceeding.`
       )
     }
@@ -101,7 +96,7 @@ export function validateQuality(context: QualityValidationContext): ValidationRe
     // Fall back to absolute count if total lines not provided
     if (metrics.lintErrors > 10) {
       warnings.push(
-        `${metrics.lintErrors} linting errors found. Consider reducing to improve code quality.`
+        `${String(metrics.lintErrors)} linting errors found. Consider reducing to improve code quality.`
       )
     }
   }
@@ -110,7 +105,7 @@ export function validateQuality(context: QualityValidationContext): ValidationRe
   if (metrics.securityIssues !== undefined) {
     if (metrics.securityIssues > thresholds.securityVulnerabilities) {
       errors.push(
-        `Security vulnerabilities (${metrics.securityIssues}) exceed threshold ${thresholds.securityVulnerabilities}. ` +
+        `Security vulnerabilities (${String(metrics.securityIssues)}) exceed threshold ${String(thresholds.securityVulnerabilities)}. ` +
           `Fix all security issues before proceeding. Run security scans and address findings.`
       )
     }

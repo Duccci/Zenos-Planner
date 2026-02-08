@@ -34,7 +34,7 @@ export interface ValidationResult {
 function detectCircularDependency(
   nodeHash: string,
   allNodes: Map<string, DependencyNode>,
-  visited: Set<string> = new Set(),
+  visited = new Set<string>(),
   path: string[] = []
 ): string[] | null {
   if (path.includes(nodeHash)) {
@@ -79,11 +79,11 @@ export function validateDependencies(context: DependencyValidationContext): Vali
   if (node.gateSequence !== undefined) {
     for (const depHash of node.dependencies) {
       const depNode = allNodes.get(depHash)
-      if (depNode && depNode.gateSequence !== undefined) {
+      if (depNode?.gateSequence !== undefined) {
         if (depNode.gateSequence > node.gateSequence) {
           errors.push(
-            `Dependency ${depHash} (gate ${depNode.gateId}, sequence ${depNode.gateSequence}) ` +
-              `is in a later gate than ${node.hash} (gate ${node.gateId}, sequence ${node.gateSequence}). ` +
+            `Dependency ${depHash} (gate ${depNode.gateId ?? '<unknown>'}, sequence ${String(depNode.gateSequence)}) ` +
+              `is in a later gate than ${node.hash} (gate ${node.gateId ?? '<unknown>'}, sequence ${String(node.gateSequence)}). ` +
               `Dependencies must be in the same or earlier gates.`
           )
         }

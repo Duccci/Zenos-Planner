@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { logger, logSection, logTable, logHash } from '../../src/utils/logger.js'
 
+// TODO: Tests use vi.spyOn to mock console methods for testing output
 describe('logger', () => {
   const originalEnv = process.env['ZENO_LOG_LEVEL']
 

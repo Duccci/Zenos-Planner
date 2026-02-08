@@ -1,3 +1,18 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx tsx:*)",
+      "Bash(ls:*)",
+      "Bash(npx eslint:*)",
+      "Bash(while read:*)",
+      "Bash(do dirname \"$f\")",
+      "Bash(done)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "Bash(npx vitest:*)"
+    ]
+  },
   "outputStyle": "taming-AI"
 }

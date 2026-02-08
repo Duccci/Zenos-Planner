@@ -20,14 +20,16 @@ export enum McpErrorCode {
   NOT_FOUND = 'NOT_FOUND',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
-  NETWORK_ERROR = 'INTERNAL_ERROR',
-  TIMEOUT = 'COMMAND_FAILED'
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  TIMEOUT = 'COMMAND_FAILED',
 }
 
 /**
  * Structured error response for MCP
  */
 export interface McpError {
+  // Keep deprecated enum in the type for backwards compatibility — lint disabled where needed
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   code: ErrorCode | McpErrorCode
   message: string
   context?: Record<string, unknown>
@@ -38,19 +40,19 @@ export interface McpError {
 /**
  * Map common error types to unified error codes
  */
-function mapErrorToCode(error: unknown): ErrorCode | McpErrorCode {
+function mapErrorToCode(error: unknown): string {
   if (error instanceof Error) {
     // Check for explicit code on the error object
-    const explicitCode = (error as any).code
+    const explicitCode = (error as Record<string, unknown>).code
     if (typeof explicitCode === 'string') {
       // Map known explicit codes to unified codes
       const codeMap: Record<string, ErrorCode> = {
         GIT_VIOLATION: 'GIT_VIOLATION',
         FUNCTION_NOT_FOUND: 'NOT_FOUND',
         INVALID_PARAMETERS: 'INVALID_INPUT',
-        INVOCATION_ERROR: 'INTERNAL_ERROR'
+        INVOCATION_ERROR: 'INTERNAL_ERROR',
       }
-      if (codeMap[explicitCode]) return codeMap[explicitCode]!
+      if (codeMap[explicitCode]) return codeMap[explicitCode]
     }
 
     const message = error.message.toLowerCase()
@@ -86,9 +88,9 @@ function mapErrorToCode(error: unknown): ErrorCode | McpErrorCode {
 /**
  * Generate actionable suggestions based on error type
  */
-function generateSuggestions(errorCode: ErrorCode | McpErrorCode | string, context?: Record<string, unknown>): string[] {
+function generateSuggestions(errorCode: string, context?: Record<string, unknown>): string[] {
   const suggestions: string[] = []
-  const code = String(errorCode)
+  const code = errorCode
 
   switch (code) {
     case 'NOT_FOUND':
@@ -144,7 +146,7 @@ function generateSuggestions(errorCode: ErrorCode | McpErrorCode | string, conte
   }
 
   // Add VSCode-specific connection troubleshooting if this seems like a connection issue
-  if (context?.['function'] === 'connection' || errorCode === McpErrorCode.NETWORK_ERROR) {
+  if (context?.['function'] === 'connection' || errorCode === 'NETWORK_ERROR') {
     suggestions.push('VSCode Troubleshooting:')
     suggestions.push('  1. Check .vscode/mcp.json exists and points to correct executable')
     suggestions.push('  2. Verify bin/mcp-server.js is executable (run: npm run build)')
@@ -158,10 +160,7 @@ function generateSuggestions(errorCode: ErrorCode | McpErrorCode | string, conte
 /**
  * Create a structured MCP error response
  */
-export function createMcpError(
-  error: unknown,
-  context?: Record<string, unknown>
-): McpError {
+export function createMcpError(error: unknown, context?: Record<string, unknown>): McpError {
   const errorCode = mapErrorToCode(error)
   const message = error instanceof Error ? error.message : 'Unknown error occurred'
   const suggestions = generateSuggestions(errorCode, context)
@@ -171,7 +170,7 @@ export function createMcpError(
     message,
     context,
     suggestions,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   }
 
   // Log the error with full context
@@ -179,10 +178,13 @@ export function createMcpError(
     message,
     context,
     suggestions,
-    originalError: error instanceof Error ? {
-      name: error.name,
-      stack: error.stack
-    } : error
+    originalError:
+      error instanceof Error
+        ? {
+            name: error.name,
+            stack: error.stack,
+          }
+        : error,
   })
 
   return mcpError
@@ -196,16 +198,20 @@ export function mcpErrorToToolResult(error: McpError): CallToolResult {
     content: [
       {
         type: 'text',
-        text: JSON.stringify({
-          error: error.message,
-          code: error.code,
-          context: error.context,
-          suggestions: error.suggestions,
-          timestamp: error.timestamp
-        }, null, 2)
-      }
+        text: JSON.stringify(
+          {
+            error: error.message,
+            code: error.code,
+            context: error.context,
+            suggestions: error.suggestions,
+            timestamp: error.timestamp,
+          },
+          null,
+          2
+        ),
+      },
     ],
-    isError: true
+    isError: true,
   }
 }
 
@@ -219,7 +225,7 @@ export function handleToolError(
 ): CallToolResult {
   const context = {
     function: functionName,
-    args: args ? Object.keys(args) : undefined
+    args: args ? Object.keys(args) : undefined,
   }
 
   const mcpError = createMcpError(error, context)

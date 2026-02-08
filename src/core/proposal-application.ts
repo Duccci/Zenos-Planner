@@ -40,7 +40,9 @@ export interface ProposalUpdateProgressOutput {
 /**
  * Update proposal task progress during implementation
  */
-export async function updateProposalProgress(input: ProposalUpdateProgressInput): Promise<ProposalUpdateProgressOutput> {
+export async function updateProposalProgress(
+  input: ProposalUpdateProgressInput
+): Promise<ProposalUpdateProgressOutput> {
   try {
     const projectRoot = process.cwd()
     const { hash, taskIndex, completed, notes } = input
@@ -71,14 +73,21 @@ export async function updateProposalProgress(input: ProposalUpdateProgressInput)
       taskIndex,
       completed,
       completionSummary,
-      message: `Updated task ${taskIndex} to ${completed ? 'completed' : 'in progress'}`
+      message: `Updated task ${String(taskIndex)} to ${completed ? 'completed' : 'in progress'}`,
     }
   } catch (error) {
     logger.error('Failed to update proposal progress', { error, input })
-    throw new ZenoError(`Progress update failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'PROGRESS_UPDATE_FAILED')
+    throw new ZenoError(
+      `Progress update failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      'PROGRESS_UPDATE_FAILED'
+    )
   }
 }
 
 // Helper functions moved to `proposal-locator.ts` and `proposal-progress.ts`
 import { findProposalByHash } from './proposal-locator.js'
-import { updateTaskStatus, calculateCompletionSummary, updateCompletionSummary } from './proposal-progress.js'
+import {
+  updateTaskStatus,
+  calculateCompletionSummary,
+  updateCompletionSummary,
+} from './proposal-progress.js'

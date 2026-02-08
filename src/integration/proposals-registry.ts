@@ -5,72 +5,85 @@
  * Handles: list, show, start, validate, approve, reject
  */
 
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/restrict-template-expressions */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
-  registry.register('proposal_list', async (params) => {
-    const validated = z.object({
-      gateId: z.string().optional(),
-      status: z.string().optional()
-    }).parse(params)
-    const result = await invokeCommand('proposal_list', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-    return result
-  }, {
-    description: 'List proposals, optionally filtered by gate or status',
-    parameters: [
-      {
-        name: 'gateId',
-        type: 'string',
-        description: 'Optional gate ID to filter proposals',
-        required: false
-      },
-      {
-        name: 'status',
-        type: 'string',
-        description: 'Optional status filter: pending, in_progress, completed, rejected',
-        required: false
+  registry.register(
+    'proposal_list',
+    async (params) => {
+      const validated = z
+        .object({
+          gateId: z.string().optional(),
+          status: z.string().optional(),
+        })
+        .parse(params)
+      const result = await invokeCommand('proposal_list', validated)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-    ],
-    returnType: 'Proposal[]',
-    schema: z.object({
-      gateId: z.string().optional(),
-      status: z.string().optional()
-    })
-  })
+      return result
+    },
+    {
+      description: 'List proposals, optionally filtered by gate or status',
+      parameters: [
+        {
+          name: 'gateId',
+          type: 'string',
+          description: 'Optional gate ID to filter proposals',
+          required: false,
+        },
+        {
+          name: 'status',
+          type: 'string',
+          description: 'Optional status filter: pending, in_progress, completed, rejected',
+          required: false,
+        },
+      ],
+      returnType: 'Proposal[]',
+      schema: z.object({
+        gateId: z.string().optional(),
+        status: z.string().optional(),
+      }),
+    }
+  )
 
-  registry.register('proposal_show', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-    const result = await invokeCommand('proposal_show', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-    return result
-  }, {
-    description: 'Show detailed information about a specific proposal',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the proposal',
-        required: true
+  registry.register(
+    'proposal_show',
+    async (params) => {
+      const validated = z.object({ hash: z.string() }).parse(params)
+      const result = await invokeCommand('proposal_show', validated)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-    ],
-    returnType: 'ProposalDetails',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
+      return result
+    },
+    {
+      description: 'Show detailed information about a specific proposal',
+      parameters: [
+        {
+          name: 'hash',
+          type: 'string',
+          description: 'The hash identifier of the proposal',
+          required: true,
+        },
+      ],
+      returnType: 'ProposalDetails',
+      schema: z.object({
+        hash: z.string().min(1, 'Hash is required'),
+      }),
+    }
+  )
 
   // Create a new proposal and register it in the proposals database
+
   registry.register(
     'proposal_create',
     async (params) => {
-      const { ProposalCreateInputSchema } = await import('../mcp/schemas/proposal-create-schemas.js')
+      const { ProposalCreateInputSchema } =
+        await import('../mcp/schemas/proposal-create-schemas.js')
       const validated = ProposalCreateInputSchema.parse(params)
 
       const { shortHash } = await import('../utils/hash.js')
@@ -100,34 +113,46 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      /* eslint-disable @typescript-eslint/no-unnecessary-type-conversion */
       // Validate solitary vs gate-tied
       if (validated.solitary && validated.gateId) {
         errors.push('Proposal cannot be both solitary and gate-tied')
       }
-      if (!validated.solitary && !validated.gateId) {
+      const hasGateId = Boolean(validated.gateId)
+      const isSolitary = Boolean(validated.solitary)
+      // Ensure either solitary or gateId is provided
+      if (!hasGateId && !isSolitary) {
         errors.push('Proposal must either be solitary or have a gateId')
       }
+      /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion */
 
       // Run dependency validator if dependencies provided
       if (validated.dependencies && validated.dependencies.length > 0) {
         const db = (await import('../storage/database.js')).getDatabase()
-        const allNodes = new Map<string, any>()
+        interface DepNode {
+          hash: string
+          dependencies: string[]
+          gateId?: string | null
+        }
+        const allNodes = new Map<string, DepNode>()
 
         // Build dependency graph from database
-        const allProposals = db.prepare('SELECT hash, dependencies, gate_id FROM proposals').all() as any[]
+        const allProposals = db
+          .prepare('SELECT hash, dependencies, gate_id FROM proposals')
+          .all() as { hash: string; dependencies?: string; gate_id?: string }[]
         for (const p of allProposals) {
           allNodes.set(p.hash, {
             hash: p.hash,
-            dependencies: p.dependencies ? JSON.parse(p.dependencies) : [],
-            gateId: p.gate_id
+            dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
+            gateId: p.gate_id ?? undefined,
           })
         }
 
         // Add current proposal node
-        const currentNode = {
+        const currentNode: DepNode = {
           hash,
           dependencies: validated.dependencies,
-          gateId: validated.gateId
+          gateId: validated.gateId ?? undefined,
         }
         allNodes.set(hash, currentNode)
 
@@ -164,9 +189,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Replace template placeholders
       const createdDate = new Date().toISOString().split('T')[0]
       proposalContent = proposalContent
-        .replace(/\[Proposal Title\]/g, validated.title ?? '')
+        .replace(/\[Proposal Title\]/g, validated.title)
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
-        .replace(/\[DATE\]/g, createdDate ?? '')
+        .replace(/\[DATE\]/g, createdDate)
 
       // Update summary section
       proposalContent = proposalContent.replace(
@@ -177,8 +202,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Build tasks section
       const tasksSection = validated.tasks
         .map((task, index) => {
-          const criteria = task.acceptanceCriteria.map((c) => `- [ ] ${c}`).join('\n')
-          return `### Task ${index + 1}: ${task.description}\n\n**Acceptance**:\n${criteria || '- [ ] Implementation complete'}\n\n---`
+          const ac = Array.isArray(task.acceptanceCriteria) ? task.acceptanceCriteria : []
+          const criteria = ac.map((c) => `- [ ] ${c}`).join('\n')
+          return `### Task ${String(index + 1)}: ${task.description}\n\n**Acceptance**:\n${criteria.length ? criteria : '- [ ] Implementation complete'}\n\n---`
         })
         .join('\n\n')
 
@@ -193,9 +219,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .join('\n')
 
       if (filesSection) {
+        const filesSectionContent = filesSection
         proposalContent = proposalContent.replace(
           /\| File \| Action \| Description \|[\s\S]*?\n---/,
-          `| File | Action | Description |\n|------|--------|-------------|\n${filesSection}\n\n---`
+          `| File | Action | Description |\n|------|--------|-------------|\n${filesSectionContent}\n\n---`
         )
       }
 
@@ -204,15 +231,28 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       if (validated.solitary) {
         // Solitary: zeno/proposals/solitary/YYYY-MM-DD-NN-name.md
         const date = createdDate
-        const slug = validated.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+        const slug = validated.title
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^\w-]/g, '')
         const fileName = `${date}-01-${slug}.md`
         filePath = join(process.cwd(), 'zeno', 'proposals', 'solitary', fileName)
       } else {
         // Gate-tied: zeno/proposals/gate-XX/NN-name.md
-        const gateNum = validated.gateId!.match(/\d+/)?.[0] || '00'
-        const slug = validated.title.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+        const gateNumMatch = validated.gateId ? /\d+/.exec(validated.gateId)?.[0] : undefined
+        const gateNum = gateNumMatch ?? '00'
+        const slug = validated.title
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/[^\w-]/g, '')
         const fileName = `01-${slug}.md`
-        filePath = join(process.cwd(), 'zeno', 'proposals', `gate-${gateNum.padStart(2, '0')}`, fileName)
+        filePath = join(
+          process.cwd(),
+          'zeno',
+          'proposals',
+          `gate-${gateNum.padStart(2, '0')}`,
+          fileName
+        )
       }
 
       // Write proposal file
@@ -291,7 +331,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         summary: z.string().min(1),
         gateId: z.string().optional(),
         solitary: z.boolean().optional(),
-        tasks: z.array(z.object({ description: z.string(), acceptanceCriteria: z.array(z.string()).optional() })),
+        tasks: z.array(
+          z.object({ description: z.string(), acceptanceCriteria: z.array(z.string()).optional() })
+        ),
         filesAffected: z.array(z.string()).optional(),
         context: z.string().optional(),
         dependencies: z.array(z.string()).optional(),
@@ -299,217 +341,268 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     }
   )
 
-  registry.register('proposal_start', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-    const result = await invokeCommand('proposal_start', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-  }, {
-    description: 'Start implementation of a proposal (status: pending -> in_progress)',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the proposal',
-        required: true
+  registry.register(
+    'proposal_start',
+    async (params) => {
+      const validated = z.object({ hash: z.string() }).parse(params)
+      const result = await invokeCommand('proposal_start', validated)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-    ],
-    returnType: 'void',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
-
-  registry.register('proposal_validate', async (params) => {
-    const validated = z.object({ hash: z.string(), strict: z.boolean().optional() }).parse(params)
-
-    // Import validators
-    const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
-    const { validateQuality } = await import('../mcp/validators/quality-validator.js')
-    const { loadConfig } = await import('../utils/config.js')
-
-    const errors: string[] = []
-    const warnings: string[] = []
-
-    // Load proposal from database
-    const db = (await import('../storage/database.js')).getDatabase()
-    const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as any
-
-    if (!proposal) {
-      throw new Error(`Proposal ${validated.hash} not found`)
-    }
-
-    // Parse JSON fields
-    const dependencies = proposal.dependencies ? JSON.parse(proposal.dependencies) : []
-
-    // Dependency validation
-    if (dependencies.length > 0) {
-      const allNodes = new Map<string, any>()
-      const allProposals = db.prepare('SELECT hash, dependencies, gate_id FROM proposals').all() as any[]
-
-      for (const p of allProposals) {
-        allNodes.set(p.hash, {
-          hash: p.hash,
-          dependencies: p.dependencies ? JSON.parse(p.dependencies) : [],
-          gateId: p.gate_id
-        })
-      }
-
-      const depValidation = validateDependencies({
-        node: {
-          hash: proposal.hash,
-          dependencies,
-          gateId: proposal.gate_id
+    },
+    {
+      description: 'Start implementation of a proposal (status: pending -> in_progress)',
+      parameters: [
+        {
+          name: 'hash',
+          type: 'string',
+          description: 'The hash identifier of the proposal',
+          required: true,
         },
-        allNodes
+      ],
+      returnType: 'void',
+      schema: z.object({
+        hash: z.string().min(1, 'Hash is required'),
+      }),
+    }
+  )
+
+  registry.register(
+    'proposal_validate',
+    async (params) => {
+      const validated = z.object({ hash: z.string(), strict: z.boolean().optional() }).parse(params)
+
+      // Import validators
+      const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
+      const { validateQuality } = await import('../mcp/validators/quality-validator.js')
+      const { loadConfig } = await import('../utils/config.js')
+
+      const errors: string[] = []
+      const warnings: string[] = []
+
+      // Load proposal from database
+      const db = (await import('../storage/database.js')).getDatabase()
+      interface ProposalRow {
+        hash: string
+        dependencies?: string | null
+        gate_id?: string | null
+        quality_metrics?: string | null
+        files_affected?: string | null
+      }
+      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
+        | ProposalRow
+        | undefined
+
+      if (!proposal) {
+        throw new Error(`Proposal ${validated.hash} not found`)
+      }
+
+      // Parse JSON fields
+      const dependencies = proposal.dependencies
+        ? (JSON.parse(proposal.dependencies) as string[])
+        : []
+
+      // Dependency validation
+      if (dependencies.length > 0) {
+        interface DepNode {
+          hash: string
+          dependencies: string[]
+          gateId?: string | null
+        }
+        const allNodes = new Map<string, DepNode>()
+        const allProposals = db
+          .prepare('SELECT hash, dependencies, gate_id FROM proposals')
+          .all() as { hash: string; dependencies?: string | null; gate_id?: string | null }[]
+
+        for (const p of allProposals) {
+          allNodes.set(p.hash, {
+            hash: p.hash,
+            dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
+            gateId: p.gate_id ?? undefined,
+          })
+        }
+
+        const depValidation = validateDependencies({
+          node: {
+            hash: proposal.hash,
+            dependencies,
+            gateId: proposal.gate_id,
+          },
+          allNodes,
+        })
+
+        if (depValidation.errors) errors.push(...depValidation.errors)
+        if (depValidation.warnings) warnings.push(...depValidation.warnings)
+      }
+
+      // Quality validation (if metrics available)
+      const config = await loadConfig()
+      const qualityMetrics: Record<string, unknown> | null = proposal.quality_metrics
+        ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
+        : null
+
+      if (qualityMetrics) {
+        const qualityValidation = validateQuality({
+          metrics: qualityMetrics,
+          config,
+          strict: validated.strict,
+        })
+
+        if (qualityValidation.errors) errors.push(...qualityValidation.errors)
+        if (qualityValidation.warnings) warnings.push(...qualityValidation.warnings)
+      }
+
+      return {
+        hash: validated.hash,
+        passed: errors.length === 0,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined,
+      }
+    },
+    {
+      description: 'Run automated validation checks on a proposal',
+      parameters: [
+        {
+          name: 'hash',
+          type: 'string',
+          description: 'The hash identifier of the proposal',
+          required: true,
+        },
+        {
+          name: 'strict',
+          type: 'boolean',
+          description: 'Treat warnings as errors and fail validation',
+          required: false,
+        },
+      ],
+      returnType: 'ValidationResult',
+      schema: z.object({
+        hash: z.string().min(1, 'Hash is required'),
+        strict: z.boolean().optional(),
+      }),
+    }
+  )
+
+  registry.register(
+    'proposal_approve',
+    async (params) => {
+      const validated = z.object({ hash: z.string() }).parse(params)
+
+      // Import validators
+      const { validateApplyPhase } = await import('../mcp/validators/apply-phase-validator.js')
+      const { validateQuality } = await import('../mcp/validators/quality-validator.js')
+      const { loadConfig } = await import('../utils/config.js')
+
+      // Load proposal from database
+      const db = (await import('../storage/database.js')).getDatabase()
+      interface ProposalRow {
+        hash: string
+        dependencies?: string | null
+        gate_id?: string | null
+        quality_metrics?: string | null
+        files_affected?: string | null
+      }
+      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
+        | ProposalRow
+        | undefined
+
+      if (!proposal) {
+        throw new Error(`Proposal ${validated.hash} not found`)
+      }
+
+      // Parse JSON fields
+      const qualityMetrics = proposal.quality_metrics
+        ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
+        : {}
+      const filesAffectedParsed: string[] = proposal.files_affected
+        ? (JSON.parse(proposal.files_affected) as string[])
+        : []
+
+      // Load config for validation
+      const config = await loadConfig()
+
+      // Run apply-phase validation (no git operations, files in scope)
+      const applyValidation = validateApplyPhase({
+        proposalHash: validated.hash,
+        filesAffected: filesAffectedParsed,
+        filesModified: filesAffectedParsed, // Assume all declared files were modified
+        gitOperations: [], // TODO: detect actual git operations during apply
+        qualityMetrics,
+        config,
       })
 
-      if (depValidation.errors) errors.push(...depValidation.errors)
-      if (depValidation.warnings) warnings.push(...depValidation.warnings)
-    }
+      if (!applyValidation.allowed) {
+        throw new Error(`Proposal approval blocked:\n${applyValidation.errors?.join('\n') ?? ''}`)
+      }
 
-    // Quality validation (if metrics available)
-    const config = await loadConfig()
-    const qualityMetrics = proposal.quality_metrics ? JSON.parse(proposal.quality_metrics) : null
-
-    if (qualityMetrics) {
+      // Run quality validation
       const qualityValidation = validateQuality({
         metrics: qualityMetrics,
         config,
-        strict: validated.strict
+        strict: true, // Strict mode for approval
       })
 
-      if (qualityValidation.errors) errors.push(...qualityValidation.errors)
-      if (qualityValidation.warnings) warnings.push(...qualityValidation.warnings)
-    }
-
-    return {
-      hash: validated.hash,
-      passed: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined
-    }
-  }, {
-    description: 'Run automated validation checks on a proposal',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the proposal',
-        required: true
-      },
-      {
-        name: 'strict',
-        type: 'boolean',
-        description: 'Treat warnings as errors and fail validation',
-        required: false
+      if (!qualityValidation.allowed) {
+        throw new Error(
+          `Quality thresholds not met:\n${qualityValidation.errors?.join('\n') ?? ''}`
+        )
       }
-    ],
-    returnType: 'ValidationResult',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required'),
-      strict: z.boolean().optional()
-    })
-  })
 
-  registry.register('proposal_approve', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-
-    // Import validators
-    const { validateApplyPhase } = await import('../mcp/validators/apply-phase-validator.js')
-    const { validateQuality } = await import('../mcp/validators/quality-validator.js')
-    const { loadConfig } = await import('../utils/config.js')
-
-    // Load proposal from database
-    const db = (await import('../storage/database.js')).getDatabase()
-    const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as any
-
-    if (!proposal) {
-      throw new Error(`Proposal ${validated.hash} not found`)
-    }
-
-    // Parse JSON fields
-    const qualityMetrics = proposal.quality_metrics ? JSON.parse(proposal.quality_metrics) : {}
-    const filesAffectedParsed = proposal.files_affected ? JSON.parse(proposal.files_affected) : []
-
-    // Load config for validation
-    const config = await loadConfig()
-
-    // Run apply-phase validation (no git operations, files in scope)
-    const applyValidation = validateApplyPhase({
-      proposalHash: validated.hash,
-      filesAffected: filesAffectedParsed,
-      filesModified: filesAffectedParsed, // Assume all declared files were modified
-      gitOperations: [], // TODO: detect actual git operations during apply
-      qualityMetrics,
-      config
-    })
-
-    if (!applyValidation.allowed) {
-      throw new Error(`Proposal approval blocked:\n${applyValidation.errors?.join('\n')}`)
-    }
-
-    // Run quality validation
-    const qualityValidation = validateQuality({
-      metrics: qualityMetrics,
-      config,
-      strict: true // Strict mode for approval
-    })
-
-    if (!qualityValidation.allowed) {
-      throw new Error(`Quality thresholds not met:\n${qualityValidation.errors?.join('\n')}`)
-    }
-
-    // Proceed with approval
-    const result = await invokeCommand('proposal_approve', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-
-    return {
-      hash: validated.hash,
-      status: 'approved',
-      validation: {
-        passed: true,
-        warnings: qualityValidation.warnings || []
+      // Proceed with approval
+      const result = await invokeCommand('proposal_approve', validated)
+      if (!result.success) {
+        throw new Error(result.error)
       }
-    }
-  }, {
-    description: 'Approve a completed proposal (status: in_progress -> completed)',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the proposal',
-        required: true
-      }
-    ],
-    returnType: 'void',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
 
-  registry.register('proposal_reject', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-    const result = await invokeCommand('proposal_reject', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-  }, {
-    description: 'Reject a proposal (status: in_progress -> rejected)',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the proposal',
-        required: true
+      return {
+        hash: validated.hash,
+        status: 'approved',
+        validation: {
+          passed: true,
+          warnings: qualityValidation.warnings ?? [],
+        },
       }
-    ],
-    returnType: 'void',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
+    },
+    {
+      description: 'Approve a completed proposal (status: in_progress -> completed)',
+      parameters: [
+        {
+          name: 'hash',
+          type: 'string',
+          description: 'The hash identifier of the proposal',
+          required: true,
+        },
+      ],
+      returnType: 'void',
+      schema: z.object({
+        hash: z.string().min(1, 'Hash is required'),
+      }),
+    }
+  )
+
+  registry.register(
+    'proposal_reject',
+    async (params) => {
+      const validated = z.object({ hash: z.string() }).parse(params)
+      const result = await invokeCommand('proposal_reject', validated)
+      if (!result.success) {
+        throw new Error(result.error)
+      }
+    },
+    {
+      description: 'Reject a proposal (status: in_progress -> rejected)',
+      parameters: [
+        {
+          name: 'hash',
+          type: 'string',
+          description: 'The hash identifier of the proposal',
+          required: true,
+        },
+      ],
+      returnType: 'void',
+      schema: z.object({
+        hash: z.string().min(1, 'Hash is required'),
+      }),
+    }
+  )
 }

@@ -16,7 +16,7 @@ export function registerConfigCommand(program: Command): void {
     .command('config')
     .description('Show project configuration')
     .option('--get <key>', 'Get a specific configuration value')
-    .action(async (options) => {
+    .action(async (options: { get?: string }) => {
       try {
         // Find project root
         const projectRoot = findProjectRoot()
@@ -30,11 +30,11 @@ export function registerConfigCommand(program: Command): void {
         if (options.get) {
           // Get specific key
           const keys = options.get.split('.')
-          let value: any = config
+          let value: unknown = config
 
           for (const key of keys) {
-            if (value && typeof value === 'object' && key in value) {
-              value = value[key]
+            if (value && typeof value === 'object' && key in (value as Record<string, unknown>)) {
+              value = (value as Record<string, unknown>)[key]
             } else {
               logger.error(`Configuration key '${options.get}' not found`)
               process.exit(1)
@@ -58,7 +58,7 @@ export function registerConfigCommand(program: Command): void {
           }
         }
       } catch (error) {
-        logger.error(`Failed to load configuration: ${error}`)
+        logger.error('Failed to load configuration', error instanceof Error ? error : undefined)
         process.exit(1)
       }
     })

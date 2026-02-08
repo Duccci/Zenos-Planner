@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { parseProposal, consolidateGateProposals, generateConsolidationMarkdown } from '../../src/utils/gate-consolidation.js'
 
+// TODO: Tests use vi.mock to mock file system and node:fs/promises modules
 vi.mock('../../src/utils/file.js', () => ({
   readFile: vi.fn(),
 }))

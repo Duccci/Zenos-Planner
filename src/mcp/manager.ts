@@ -37,7 +37,7 @@ export function readPid(projectRoot: string = process.cwd()): number | null {
     const content = readFileSync(path, { encoding: 'utf-8' }).trim()
     const pid = parseInt(content, 10)
     return Number.isFinite(pid) ? pid : null
-  } catch (err) {
+  } catch {
     return null
   }
 }
@@ -47,7 +47,7 @@ export function isProcessRunning(pid: number): boolean {
     // signal 0 does not kill the process, just tests for its existence
     process.kill(pid, 0)
     return true
-  } catch (err) {
+  } catch {
     return false
   }
 }
@@ -68,7 +68,7 @@ export function spawnServerBackground(projectRoot: string = process.cwd()): Prom
     const child = spawn(node, [script, ...args], {
       cwd: projectRoot,
       detached: true,
-      stdio: 'ignore'
+      stdio: 'ignore',
     })
 
     child.on('error', (err) => {
@@ -80,6 +80,8 @@ export function spawnServerBackground(projectRoot: string = process.cwd()): Prom
     child.unref()
 
     // Give the process a short moment to create PID file and start
-    setTimeout(() => resolve(), 200)
+    setTimeout(() => {
+      resolve()
+    }, 200)
   })
 }

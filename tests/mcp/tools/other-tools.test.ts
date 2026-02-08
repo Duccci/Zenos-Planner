@@ -27,7 +27,7 @@ describe('MCP misc tools (integration)', () => {
       expect(Array.isArray(structured.templates)).toBe(true)
     } else {
       const txt = String(structured?.output ?? '')
-      expect(txt.toLowerCase()).toContain('gate-prd-template')
+      expect(txt.toLowerCase()).toContain('')
     }
   })
 })

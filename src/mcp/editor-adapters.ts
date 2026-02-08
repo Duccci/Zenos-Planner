@@ -9,7 +9,10 @@ import { join } from 'node:path'
 import { existsSync, writeFileSync } from 'node:fs'
 import { logger } from '../utils/logger.js'
 
-export function getAdapterCommand(editor: 'vscode' | 'cursor' | 'windsurf', projectRoot = process.cwd()): string {
+export function getAdapterCommand(
+  editor: 'vscode' | 'cursor' | 'windsurf',
+  projectRoot = process.cwd()
+): string {
   const base = `node ${join(projectRoot, 'bin', 'mcp-server.js')}`
   if (editor === 'vscode') return base
   return `${base} --adapter ${editor}`
@@ -25,9 +28,9 @@ export function getVSCodeInstallUrl(): string {
         type: 'stdio',
         command: 'node',
         args: ['./bin/mcp-server.js'],
-        description: "Zeno Planner MCP server for AI-powered project management"
-      }
-    }
+        description: 'Zeno Planner MCP server for AI-powered project management',
+      },
+    },
   }
   const encodedConfig = encodeURIComponent(JSON.stringify(config))
   return `vscode:mcp/install?${encodedConfig}`
@@ -40,18 +43,26 @@ export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
 
   try {
     // Minimal config: point to the local wrapper
-    const content = JSON.stringify({
-      servers: {
-        'zeno-planner': {
-          type: 'stdio',
-          command: 'node',
-          args: ['./bin/mcp-server.js'],
-          description: "Zeno Planner MCP server for AI-powered project management"
-        }
-      }
-    }, null, 2)
+    const content = JSON.stringify(
+      {
+        servers: {
+          'zeno-planner': {
+            type: 'stdio',
+            command: 'node',
+            args: ['./bin/mcp-server.js'],
+            description: 'Zeno Planner MCP server for AI-powered project management',
+          },
+        },
+      },
+      null,
+      2
+    )
     // Ensure .vscode directory exists (best-effort)
-    try { writeFileSync(target, content, { encoding: 'utf-8' }) } catch (err) { /* ignore, caller will handle */ }
+    try {
+      writeFileSync(target, content, { encoding: 'utf-8' })
+    } catch {
+      /* ignore, caller will handle */
+    }
     logger.info(`Wrote workspace mcp.json to ${target}`)
     return true
   } catch (err) {

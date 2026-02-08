@@ -36,8 +36,8 @@ export async function invokeCommand(
       return {
         success: false,
         output: '',
-        error: `Validation failed: ${validation.errors.map(e => e.message).join(', ')}`,
-        exitCode: 1
+        error: `Validation failed: ${validation.errors.map((e) => e.message).join(', ')}`,
+        exitCode: 1,
       }
     }
 
@@ -58,7 +58,7 @@ export async function invokeCommand(
       success: false,
       output: '',
       error: error instanceof Error ? error.message : String(error),
-      exitCode: 1
+      exitCode: 1,
     }
   }
 }
@@ -70,11 +70,11 @@ export function validateCommandArguments(
   command: string,
   args: Record<string, unknown>
 ): { valid: boolean; errors: ValidationError[] } {
-  const func = functionRegistry.find(f => f.name === command)
+  const func = functionRegistry.find((f) => f.name === command)
   if (!func) {
     return {
       valid: false,
-      errors: [{ field: 'command', message: `Unknown command: ${command}` }]
+      errors: [{ field: 'command', message: `Unknown command: ${command}` }],
     }
   }
 
@@ -85,18 +85,18 @@ export function validateCommandArguments(
     if (param.required && !(param.name in args)) {
       errors.push({
         field: param.name,
-        message: `Required parameter '${param.name}' is missing`
+        message: `Required parameter '${param.name}' is missing`,
       })
     }
   }
 
   // Check parameter types
   for (const [key, value] of Object.entries(args)) {
-    const param = func.parameters.find(p => p.name === key)
+    const param = func.parameters.find((p) => p.name === key)
     if (!param) {
       errors.push({
         field: key,
-        message: `Unknown parameter '${key}'`
+        message: `Unknown parameter '${key}'`,
       })
       continue
     }
@@ -104,14 +104,14 @@ export function validateCommandArguments(
     if (!validateParameterType(value, param.type)) {
       errors.push({
         field: key,
-        message: `Parameter '${key}' must be of type ${param.type}, got ${typeof value}`
+        message: `Parameter '${key}' must be of type ${param.type}, got ${typeof value}`,
       })
     }
   }
 
   return {
     valid: errors.length === 0,
-    errors
+    errors,
   }
 }
 
@@ -170,7 +170,10 @@ function functionNameToCliCommand(funcName: string): string {
 function paramToCliName(paramName: string): string {
   if (paramName.endsWith('Id')) {
     // Map gateId -> gate, proposalId -> proposal
-    return paramName.slice(0, -2).replace(/([A-Z])/g, '-$1').toLowerCase()
+    return paramName
+      .slice(0, -2)
+      .replace(/([A-Z])/g, '-$1')
+      .toLowerCase()
   }
   return paramName.replace(/([A-Z])/g, '-$1').toLowerCase()
 }
@@ -187,18 +190,34 @@ export async function executeCommand(commandString: string): Promise<CommandResu
         const cmd = parts[0] ?? ''
         const args = parts.slice(1)
         // If global apply-phase flag is set, disallow git ops
-        const allowGit = !((globalThis as any).__ZENOPROPOSAL_APPLY_PHASE === true)
+        interface ZenoGlobal {
+          __ZENOPROPOSAL_APPLY_PHASE?: boolean
+        }
+        const zenoGlobal = globalThis as unknown as ZenoGlobal
+        const allowGit = zenoGlobal.__ZENOPROPOSAL_APPLY_PHASE !== true
         trackGitOperations(cmd, args, allowGit)
       } catch (gErr: unknown) {
         // Git violation detected — surface as structured command failure
         const message = gErr instanceof Error ? gErr.message : String(gErr)
-        const code = (gErr && typeof gErr === 'object' && (gErr as any).code) ? (gErr as any).code : 'GIT_VIOLATION'
-        const operations = (gErr && typeof gErr === 'object' && (gErr as any).operations) ? (gErr as any).operations : undefined
+        let code = 'GIT_VIOLATION'
+        let operations: unknown = undefined
+        if (typeof gErr === 'object' && gErr !== null) {
+          const obj = gErr as Record<string, unknown>
+          if (
+            'code' in obj &&
+            (typeof obj['code'] === 'string' || typeof obj['code'] === 'number')
+          ) {
+            code = String(obj['code'])
+          }
+          if ('operations' in obj && Array.isArray(obj['operations'])) {
+            operations = obj['operations']
+          }
+        }
         const payload = {
           code,
           message,
           operations,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         }
         logger.warn(`Blocked command due to git guardrail: ${message}`)
         resolve({ success: false, output: '', error: JSON.stringify(payload), exitCode: 2 })
@@ -207,23 +226,32 @@ export async function executeCommand(commandString: string): Promise<CommandResu
       const output = execSync(commandString, {
         encoding: 'utf-8',
         timeout: 30000, // 30 second timeout
-        maxBuffer: 1024 * 1024 // 1MB buffer
+        maxBuffer: 1024 * 1024, // 1MB buffer
       })
 
       resolve({
         success: true,
         output: output.trim(),
-        exitCode: 0
+        exitCode: 0,
       })
     } catch (error: unknown) {
-      const err = error as { stdout?: string | Buffer; stderr?: string | Buffer; status?: number; message?: string }
-      const stdout = err.stdout ? (Buffer.isBuffer(err.stdout) ? err.stdout.toString() : err.stdout).trim() : ''
-      const stderr = err.stderr ? (Buffer.isBuffer(err.stderr) ? err.stderr.toString() : err.stderr).trim() : (err.message ?? 'Unknown error')
+      const err = error as {
+        stdout?: string | Buffer
+        stderr?: string | Buffer
+        status?: number
+        message?: string
+      }
+      const stdout = err.stdout
+        ? (Buffer.isBuffer(err.stdout) ? err.stdout.toString() : err.stdout).trim()
+        : ''
+      const stderr = err.stderr
+        ? (Buffer.isBuffer(err.stderr) ? err.stderr.toString() : err.stderr).trim()
+        : (err.message ?? 'Unknown error')
       resolve({
         success: false,
         output: stdout,
         error: stderr,
-        exitCode: err.status ?? 1
+        exitCode: err.status ?? 1,
       })
     }
   })
@@ -250,18 +278,18 @@ function validateParameterType(value: unknown, expectedType: string): boolean {
  * Get available commands
  */
 export function getAvailableCommands(): string[] {
-  return functionRegistry.map(f => f.name)
+  return functionRegistry.map((f) => f.name)
 }
 
 /**
  * Get command help
  */
 export function getCommandHelp(command: string): string | undefined {
-  const func = functionRegistry.find(f => f.name === command)
+  const func = functionRegistry.find((f) => f.name === command)
   if (!func) return undefined
 
   const params = func.parameters
-    .map(p => `${p.name}${p.required ? '' : '?'}: ${p.type}`)
+    .map((p) => `${p.name}${p.required ? '' : '?'}: ${p.type}`)
     .join(', ')
 
   return `${func.name}(${params}): ${func.description}`

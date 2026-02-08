@@ -19,6 +19,7 @@ import {
 // Use OS temp directory to ensure isolation from parent git repo
 const TEST_DIR = join(tmpdir(), `.test-git-utils-${Date.now()}`)
 
+// TODO: Tests use vi.spyOn to mock git utility functions for testing
 describe('git utilities', () => {
   beforeEach(async () => {
     await mkdir(TEST_DIR, { recursive: true })

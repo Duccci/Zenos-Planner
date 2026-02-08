@@ -37,7 +37,13 @@ export type RequirementStatus = z.infer<typeof RequirementStatusEnum>
  * - archived: Proposal completed and archived
  * - rejected: Proposal rejected during review
  */
-export const ProposalStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected'])
+export const ProposalStatusEnum = z.enum([
+  'pending',
+  'in_progress',
+  'completed',
+  'archived',
+  'rejected',
+])
 export type ProposalStatus = z.infer<typeof ProposalStatusEnum>
 
 /**
@@ -67,11 +73,15 @@ export const GateIdSchema = z.string().regex(/^gate-\d{2}$/, 'Gate ID must be fo
 export type GateId = z.infer<typeof GateIdSchema>
 
 /** Requirement hash identifier (e.g., "#req12345678") */
-export const RequirementHashSchema = z.string().regex(/^[a-z0-9]{8}$/, 'Requirement hash must be 8 alphanumeric characters')
+export const RequirementHashSchema = z
+  .string()
+  .regex(/^[a-z0-9]{8}$/, 'Requirement hash must be 8 alphanumeric characters')
 export type RequirementHash = z.infer<typeof RequirementHashSchema>
 
 /** Proposal hash identifier (e.g., "#g01p01hash") */
-export const ProposalHashSchema = z.string().regex(/^[a-z0-9]{8}$/, 'Proposal hash must be 8 alphanumeric characters')
+export const ProposalHashSchema = z
+  .string()
+  .regex(/^[a-z0-9]{8}$/, 'Proposal hash must be 8 alphanumeric characters')
 export type ProposalHash = z.infer<typeof ProposalHashSchema>
 
 /** Git commit hash */
@@ -87,7 +97,7 @@ export type FilePath = z.infer<typeof FilePathSchema>
 // ============================================================================
 
 /** ISO 8601 timestamp string */
-export const TimestampSchema = z.string().datetime({ offset: true })
+export const TimestampSchema = z.iso.datetime()
 export type Timestamp = z.infer<typeof TimestampSchema>
 
 /** Optional timestamp (for fields that may be null) */
@@ -126,7 +136,7 @@ export const ErrorCodeEnum = z.enum([
   'INTERNAL_ERROR',
   'VALIDATION_ERROR',
   'DEPENDENCY_BLOCKED',
-  'GIT_VIOLATION'
+  'GIT_VIOLATION',
 ])
 export type ErrorCode = z.infer<typeof ErrorCodeEnum>
 
@@ -137,7 +147,7 @@ export const ErrorContextSchema = z.object({
   field: z.string().optional(),
   expectedValues: z.array(z.string()).optional(),
   currentValue: z.any().optional(),
-  suggestion: z.string().optional()
+  suggestion: z.string().optional(),
 })
 export type ErrorContext = z.infer<typeof ErrorContextSchema>
 
@@ -146,7 +156,7 @@ export const ErrorResponseSchema = z.object({
   code: ErrorCodeEnum,
   message: z.string(),
   context: ErrorContextSchema.optional(),
-  timestamp: TimestampSchema.optional()
+  timestamp: TimestampSchema.optional(),
 })
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 
@@ -154,9 +164,7 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
  * Discriminated union representing either a successful result or a structured error.
  * Use as the return type for any MCP tool handler or function-registry invocation.
  */
-export type ToolResponse<T> =
-  | { success: true; data: T }
-  | { success: false; error: ErrorResponse }
+export type ToolResponse<T> = { success: true; data: T } | { success: false; error: ErrorResponse }
 
 // ============================================================================
 // PAGINATION - List operation support
@@ -165,7 +173,7 @@ export type ToolResponse<T> =
 /** Pagination parameters for list operations */
 export const PaginationInputSchema = z.object({
   skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(1000).default(100)
+  take: z.number().int().min(1).max(1000).default(100),
 })
 export type PaginationInput = z.infer<typeof PaginationInputSchema>
 
@@ -174,7 +182,7 @@ export const PaginationMetadataSchema = z.object({
   total: z.number().int().min(0),
   skip: z.number().int().min(0),
   take: z.number().int().min(1),
-  hasMore: z.boolean()
+  hasMore: z.boolean(),
 })
 export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>
 
@@ -183,12 +191,7 @@ export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>
 // ============================================================================
 
 /** Template category enum */
-export const TemplateCategoryEnum = z.enum([
-  'markdown',
-  'architecture',
-  'config',
-  'workflow'
-])
+export const TemplateCategoryEnum = z.enum(['markdown', 'architecture', 'config', 'workflow'])
 export type TemplateCategory = z.infer<typeof TemplateCategoryEnum>
 
 /** Template metadata */
@@ -197,7 +200,7 @@ export const TemplateMetadataSchema = z.object({
   category: TemplateCategoryEnum,
   description: z.string(),
   version: z.string(),
-  usage: z.string().optional()
+  usage: z.string().optional(),
 })
 export type TemplateMetadata = z.infer<typeof TemplateMetadataSchema>
 
@@ -205,14 +208,14 @@ export type TemplateMetadata = z.infer<typeof TemplateMetadataSchema>
 export const TemplateContentSchema = z.object({
   name: z.string(),
   content: z.string(),
-  metadata: TemplateMetadataSchema
+  metadata: TemplateMetadataSchema,
 })
 export type TemplateContent = z.infer<typeof TemplateContentSchema>
 
 /** List of templates */
 export const TemplateListSchema = z.object({
   templates: z.array(TemplateMetadataSchema),
-  pagination: PaginationMetadataSchema
+  pagination: PaginationMetadataSchema,
 })
 export type TemplateList = z.infer<typeof TemplateListSchema>
 
@@ -221,12 +224,14 @@ export const TemplateContextSchema = z.object({
   templateName: z.string(),
   content: z.string(),
   metadata: TemplateMetadataSchema,
-  gateContext: z.object({
-    gateId: GateIdSchema,
-    gateName: z.string(),
-    gateDescription: z.string()
-  }).optional(),
-  usage: z.string()
+  gateContext: z
+    .object({
+      gateId: GateIdSchema,
+      gateName: z.string(),
+      gateDescription: z.string(),
+    })
+    .optional(),
+  usage: z.string(),
 })
 export type TemplateContext = z.infer<typeof TemplateContextSchema>
 
@@ -239,33 +244,37 @@ export const ProjectConfigSchema = z.object({
   projectName: z.string(),
   version: z.string(),
   description: z.string().optional(),
-  paths: z.object({
-    root: FilePathSchema,
-    src: FilePathSchema,
-    tests: FilePathSchema,
-    zeno: FilePathSchema
-  }).optional(),
-  quality: z.object({
-    minCoverage: z.number().min(0).max(100).optional(),
-    maxLintErrors: z.number().min(0).optional(),
-    maxSecurityIssues: z.number().min(0).optional()
-  }).optional()
+  paths: z
+    .object({
+      root: FilePathSchema,
+      src: FilePathSchema,
+      tests: FilePathSchema,
+      zeno: FilePathSchema,
+    })
+    .optional(),
+  quality: z
+    .object({
+      minCoverage: z.number().min(0).max(100).optional(),
+      maxLintErrors: z.number().min(0).optional(),
+      maxSecurityIssues: z.number().min(0).optional(),
+    })
+    .optional(),
 })
 export type ProjectConfig = z.infer<typeof ProjectConfigSchema>
 
 /** Configuration value - any JSON value */
-export const ConfigValueSchema: z.ZodType<any> = z.union([
+export const ConfigValueSchema = z.union([
   z.string(),
   z.number(),
   z.boolean(),
   z.null(),
-  z.array(z.any()),
-  z.record(z.string(), z.any())
+  z.array(z.unknown()),
+  z.record(z.string(), z.unknown()),
 ])
-export type ConfigValue = any
+export type ConfigValue = unknown
 
 /** Configuration object with arbitrary structure */
-export const ConfigObjectSchema = z.record(z.string(), z.any())
+export const ConfigObjectSchema = z.record(z.string(), z.unknown())
 export type ConfigObject = z.infer<typeof ConfigObjectSchema>
 
 // ============================================================================
@@ -273,22 +282,19 @@ export type ConfigObject = z.infer<typeof ConfigObjectSchema>
 // ============================================================================
 
 /** Success response wrapper for operations */
-export const SuccessResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
+export const SuccessResponseSchema = (dataSchema: z.ZodType): z.ZodType =>
   z.object({
     success: z.literal(true),
     data: dataSchema,
-    message: z.string().optional()
+    message: z.string().optional(),
   })
 
 /** Failure response wrapper for operations */
 export const FailureResponseSchema = z.object({
   success: z.literal(false),
-  error: ErrorResponseSchema
+  error: ErrorResponseSchema,
 })
 
 /** Operation result - either success or failure */
-export const OperationResultSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
-  z.union([
-    SuccessResponseSchema(dataSchema),
-    FailureResponseSchema
-  ])
+export const OperationResultSchema = (dataSchema: z.ZodType): z.ZodType =>
+  z.union([SuccessResponseSchema(dataSchema), FailureResponseSchema])

@@ -25,10 +25,10 @@ import { registerArchiveOps } from './archive-registry.js'
 import { registerConfigOps } from './config-registry.js'
 import { registerTemplateOps } from './template-registry.js'
 import { registerWorkflowOps } from './workflow-registry.js'
-import { 
-  registerRepositoryOps, 
-  registerArchitectureOps, 
-  registerAnalysisOps 
+import {
+  registerRepositoryOps,
+  registerArchitectureOps,
+  registerAnalysisOps,
 } from './schema-registry.js'
 
 /**
@@ -59,7 +59,7 @@ export function createFunctionRegistry(): FunctionRegistry {
   registerAnalysisOps(registry)
   registerTemplateOps(registry)
 
-  logger.debug(`Function registry initialized with ${registry.list().length} functions`)
+  logger.debug(`Function registry initialized with ${String(registry.list().length)} functions`)
 
   return registry
 }
@@ -73,9 +73,6 @@ let globalRegistry: FunctionRegistry | null = null
  * Get or create the global function registry
  */
 export function getGlobalRegistry(): FunctionRegistry {
-  if (!globalRegistry) {
-    globalRegistry = createFunctionRegistry()
-  }
+  globalRegistry ??= createFunctionRegistry()
   return globalRegistry
 }
-

@@ -91,7 +91,7 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
     const depsSection = content.slice(depsStart, depsEnd !== -1 ? depsEnd : undefined)
 
     // Directly match rows that contain a hash, a type and a description
-    const rowPattern = /^\|\s*(#\w+)\s*\|\s*(blocks|requires)\s*\|\s*([^\|]+)\|/gim
+    const rowPattern = /^\|\s*(#\w+)\s*\|\s*(blocks|requires)\s*\|\s*([^|]+)\|/gim
     let m: RegExpExecArray | null
     while ((m = rowPattern.exec(depsSection)) !== null) {
       const depHash = m[1]?.trim()
@@ -108,9 +108,13 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
     if (dependencies.blocks.length === 0 && dependencies.requires.length === 0) {
       const rowRegex = /\|([^|]+)\|([^|]+)\|([^|]+)\|/g
       let mm: RegExpExecArray | null
+      let foundRows = false
       while ((mm = rowRegex.exec(depsSection)) !== null) {
         const raw = mm[0]
-        const cells = raw.split('|').map((c) => c.trim()).filter((c) => c && c !== 'Hash' && c !== 'Type' && c !== 'Description')
+        const cells = raw
+          .split('|')
+          .map((c) => c.trim())
+          .filter((c) => c && c !== 'Hash' && c !== 'Type' && c !== 'Description')
         if (cells.length >= 3) {
           const depHash = cells[0]
           const depType = cells[1]?.toLowerCase()
@@ -119,19 +123,23 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
             const entry = { hash: depHash, description: depDesc }
             if (depType === 'blocks') dependencies.blocks.push(entry)
             else if (depType === 'requires') dependencies.requires.push(entry)
+            foundRows = true
           }
         }
       }
 
-      // Final fallback: scan lines for any hash + type keywords
-      if (dependencies.blocks.length === 0 && dependencies.requires.length === 0) {
+      // Final fallback: scan lines for any hash + type keywords (only if no rows were found)
+      if (!foundRows) {
         const lines = depsSection.split(/\r?\n/)
         for (const line of lines) {
           const hashMatch = /(#\w+)/.exec(line)
           const typeMatch = /(blocks|requires)/i.exec(line)
           const descMatch = /\|[^|]+\|[^|]+\|([^|]+)\|?/.exec(line)
           if (hashMatch && typeMatch) {
-            const entry = { hash: hashMatch[1]?.trim() ?? '', description: descMatch?.[1]?.trim() ?? '' }
+            const entry = {
+              hash: hashMatch[1]?.trim() ?? '',
+              description: descMatch?.[1]?.trim() ?? '',
+            }
             const t = typeMatch[1]?.toLowerCase()
             if (t === 'blocks') dependencies.blocks.push(entry)
             else if (t === 'requires') dependencies.requires.push(entry)
@@ -317,9 +325,7 @@ export async function consolidateGateProposals(
         new Map(requirementsFulfilled.map((r) => [r.hash, r])).values()
       ),
       lessonsLearned: uniqueLessons,
-      nextDependencies: Array.from(
-        new Map(nextDependencies.map((d) => [d.hash, d])).values()
-      ),
+      nextDependencies: Array.from(new Map(nextDependencies.map((d) => [d.hash, d])).values()),
       highLevelDelta: {
         summary: highLevelSummary,
         artifactsCreated: Array.from(new Set(artifactsCreated)),
@@ -415,9 +421,7 @@ export function generateConsolidationMarkdown(consolidation: GateConsolidation):
   }
   sections.push('')
   sections.push('**Quality Metrics**:')
-  sections.push(
-    `- Total Coverage: ${consolidation.highLevelDelta.qualityMetrics.totalCoverage}`
-  )
+  sections.push(`- Total Coverage: ${consolidation.highLevelDelta.qualityMetrics.totalCoverage}`)
   sections.push(
     `- Total Files Modified: ${String(consolidation.highLevelDelta.qualityMetrics.totalFiles)}`
   )
@@ -428,4 +432,3 @@ export function generateConsolidationMarkdown(consolidation: GateConsolidation):
 
   return sections.join('\n')
 }
-

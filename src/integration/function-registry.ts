@@ -46,7 +46,7 @@ export interface FunctionErrorResponse {
 /**
  * Result type for function invocation
  */
-export type FunctionResult<T = unknown> = 
+export type FunctionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: FunctionErrorResponse }
 
@@ -58,7 +58,7 @@ export interface RegisteredFunction<T = unknown> {
   description: string
   parameters: FunctionParameter[]
   returnType: string
-  schema: z.ZodSchema
+  schema: z.ZodType
   implementation: (params: Record<string, unknown>) => T | Promise<T>
 }
 
@@ -66,7 +66,7 @@ export interface RegisteredFunction<T = unknown> {
  * Function Registry class for registration and invocation
  */
 export class FunctionRegistry {
-  private functions: Map<string, RegisteredFunction> = new Map()
+  private functions = new Map<string, RegisteredFunction>()
 
   /**
    * Register a new function
@@ -78,7 +78,7 @@ export class FunctionRegistry {
       description: string
       parameters: FunctionParameter[]
       returnType: string
-      schema: z.ZodSchema
+      schema: z.ZodType
     }
   ): void {
     const registered: RegisteredFunction<T> = {
@@ -87,7 +87,7 @@ export class FunctionRegistry {
       parameters: options.parameters,
       returnType: options.returnType,
       schema: options.schema,
-      implementation
+      implementation,
     }
 
     this.functions.set(name, registered)
@@ -109,8 +109,8 @@ export class FunctionRegistry {
           success: false,
           error: {
             code: 'FUNCTION_NOT_FOUND',
-            message: `Function '${name}' is not registered`
-          }
+            message: `Function '${name}' is not registered`,
+          },
         }
       }
 
@@ -126,13 +126,13 @@ export class FunctionRegistry {
             code: 'INVALID_PARAMETERS',
             message: 'Parameter validation failed',
             context: {
-              issues: zodError.issues.map(issue => ({
+              issues: zodError.issues.map((issue) => ({
                 path: issue.path.join('.'),
                 message: issue.message,
-                code: issue.code
-              }))
-            }
-          }
+                code: issue.code,
+              })),
+            },
+          },
         }
       }
 
@@ -142,15 +142,24 @@ export class FunctionRegistry {
 
       return {
         success: true,
-        data: result as T
+        data: result as T,
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const errorStack = error instanceof Error ? error.stack : undefined
 
       // Prefer any explicit error code attached to the error object
-      const code = (error && typeof error === 'object' && (error as any).code) ? (error as any).code : 'INVOCATION_ERROR'
-      const operations = (error && typeof error === 'object' && (error as any).operations) ? (error as any).operations : undefined
+      let code = 'INVOCATION_ERROR'
+      let operations: unknown
+      if (typeof error === 'object' && error !== null) {
+        const obj = error as Record<string, unknown>
+        if ('code' in obj && (typeof obj.code === 'string' || typeof obj.code === 'number')) {
+          code = String(obj.code)
+        }
+        if ('operations' in obj) {
+          operations = obj.operations
+        }
+      }
 
       logger.error(`Function invocation failed: ${name} - ${errorMessage}`)
       if (errorStack) {
@@ -164,11 +173,11 @@ export class FunctionRegistry {
           message: `Error executing function '${name}': ${errorMessage}`,
           context: {
             functionName: name,
-            errorType: error instanceof Error ? error.constructor.name : typeof error
+            errorType: error instanceof Error ? error.constructor.name : typeof error,
           },
           timestamp: new Date().toISOString(),
-          operations
-        }
+          operations,
+        },
       }
     }
   }
@@ -197,13 +206,11 @@ export class FunctionRegistry {
       proposals: ['proposal_'],
       architecture: ['arch_'],
       templates: ['getTemplate', 'loadAllTemplates', 'getTemplatesByCategory'],
-      general: ['init', 'status', 'show', 'config_get']
+      general: ['init', 'status', 'show', 'config_get'],
     }
 
     const prefixes = categoryPrefixes[category] ?? []
-    return this.list().filter(func =>
-      prefixes.some(prefix => func.name.startsWith(prefix))
-    )
+    return this.list().filter((func) => prefixes.some((prefix) => func.name.startsWith(prefix)))
   }
 }
 
@@ -216,27 +223,21 @@ export const functionRegistry: FunctionDefinition[] = [
     description: 'Initialize a new Zeno project with interactive prompts for project setup',
     parameters: [],
     returnType: 'void',
-    examples: [
-      'init() - Start interactive project initialization'
-    ]
+    examples: ['init() - Start interactive project initialization'],
   },
   {
     name: 'status',
     description: 'Show current project status and progress overview',
     parameters: [],
     returnType: 'ProjectStatus',
-    examples: [
-      'status() - Display current project state'
-    ]
+    examples: ['status() - Display current project state'],
   },
   {
     name: 'gates_list',
     description: 'List all gates in the project with their status',
     parameters: [],
     returnType: 'Gate[]',
-    examples: [
-      'gates_list() - Show all project gates'
-    ]
+    examples: ['gates_list() - Show all project gates'],
   },
   {
     name: 'gates_show',
@@ -246,13 +247,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'gateId',
         type: 'string',
         description: 'The ID of the gate to show (e.g., "gate-01")',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'GateDetails',
-    examples: [
-      'gates_show("gate-01") - Show details for gate 1'
-    ]
+    examples: ['gates_show("gate-01") - Show details for gate 1'],
   },
   {
     name: 'gates_start',
@@ -262,13 +261,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'gateId',
         type: 'string',
         description: 'The ID of the gate to start',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'gates_start("gate-02") - Begin work on gate 2'
-    ]
+    examples: ['gates_start("gate-02") - Begin work on gate 2'],
   },
   {
     name: 'gates_complete',
@@ -278,13 +275,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'gateId',
         type: 'string',
         description: 'The ID of the gate to complete',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'gates_complete("gate-01") - Complete gate 1'
-    ]
+    examples: ['gates_complete("gate-01") - Complete gate 1'],
   },
   {
     name: 'req_list',
@@ -294,21 +289,21 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'gateId',
         type: 'string',
         description: 'Optional gate ID to filter requirements',
-        required: false
+        required: false,
       },
       {
         name: 'project',
         type: 'boolean',
         description: 'If true, list project-level requirements only',
-        required: false
-      }
+        required: false,
+      },
     ],
     returnType: 'Requirement[]',
     examples: [
       'req_list() - List all requirements',
       'req_list("gate-02") - List requirements for gate 2',
-      'req_list(null, true) - List project-level requirements'
-    ]
+      'req_list(null, true) - List project-level requirements',
+    ],
   },
   {
     name: 'req_show',
@@ -318,13 +313,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the requirement',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'RequirementDetails',
-    examples: [
-      'req_show("#a3f9c2d1") - Show requirement details'
-    ]
+    examples: ['req_show("#a3f9c2d1") - Show requirement details'],
   },
   {
     name: 'req_deps',
@@ -334,13 +327,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the requirement',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'DependencyGraph',
-    examples: [
-      'req_deps("#a3f9c2d1") - Show requirement dependencies'
-    ]
+    examples: ['req_deps("#a3f9c2d1") - Show requirement dependencies'],
   },
 
   {
@@ -351,19 +342,17 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the requirement',
-        required: true
+        required: true,
       },
       {
         name: 'gateId',
         type: 'string',
         description: 'The target gate ID',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'req_transfer("#a3f9c2d1", "gate-04") - Transfer requirement to gate-04'
-    ]
+    examples: ['req_transfer("#a3f9c2d1", "gate-04") - Transfer requirement to gate-04'],
   },
   {
     name: 'proposal_list',
@@ -373,21 +362,21 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'gateId',
         type: 'string',
         description: 'Optional gate ID to filter proposals',
-        required: false
+        required: false,
       },
       {
         name: 'status',
         type: 'string',
         description: 'Optional status filter: pending, in_progress, completed, rejected',
-        required: false
-      }
+        required: false,
+      },
     ],
     returnType: 'Proposal[]',
     examples: [
       'proposal_list() - List all proposals',
       'proposal_list("gate-02") - List proposals for gate 2',
-      'proposal_list(null, "pending") - List pending proposals'
-    ]
+      'proposal_list(null, "pending") - List pending proposals',
+    ],
   },
   {
     name: 'proposal_show',
@@ -397,13 +386,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the proposal',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'ProposalDetails',
-    examples: [
-      'proposal_show("#g02p07llm") - Show proposal details'
-    ]
+    examples: ['proposal_show("#g02p07llm") - Show proposal details'],
   },
   {
     name: 'proposal_start',
@@ -413,13 +400,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the proposal',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'proposal_start("#g02p07llm") - Start proposal implementation'
-    ]
+    examples: ['proposal_start("#g02p07llm") - Start proposal implementation'],
   },
   {
     name: 'proposal_validate',
@@ -429,13 +414,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the proposal',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'ValidationResult',
-    examples: [
-      'proposal_validate("#g02p07llm") - Validate proposal'
-    ]
+    examples: ['proposal_validate("#g02p07llm") - Validate proposal'],
   },
   {
     name: 'proposal_approve',
@@ -445,13 +428,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the proposal',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'proposal_approve("#g02p07llm") - Approve proposal'
-    ]
+    examples: ['proposal_approve("#g02p07llm") - Approve proposal'],
   },
   {
     name: 'proposal_reject',
@@ -461,22 +442,18 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier of the proposal',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'void',
-    examples: [
-      'proposal_reject("#g02p07llm") - Reject proposal'
-    ]
+    examples: ['proposal_reject("#g02p07llm") - Reject proposal'],
   },
   {
     name: 'arch_generate',
     description: 'Generate all architecture diagrams for the project',
     parameters: [],
     returnType: 'void',
-    examples: [
-      'arch_generate() - Generate architecture diagrams'
-    ]
+    examples: ['arch_generate() - Generate architecture diagrams'],
   },
   {
     name: 'arch_show',
@@ -486,13 +463,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'type',
         type: 'string',
         description: 'Diagram type: system, lifecycle, flow, gate-roadmap',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'Diagram',
-    examples: [
-      'arch_show("system") - Show system overview diagram'
-    ]
+    examples: ['arch_show("system") - Show system overview diagram'],
   },
   {
     name: 'show',
@@ -502,13 +477,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'hash',
         type: 'string',
         description: 'The hash identifier to resolve',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'EntityDetails',
-    examples: [
-      'show("#a3f9c2d1") - Resolve hash to entity'
-    ]
+    examples: ['show("#a3f9c2d1") - Resolve hash to entity'],
   },
   {
     name: 'getTemplate',
@@ -517,25 +490,24 @@ export const functionRegistry: FunctionDefinition[] = [
       {
         name: 'name',
         type: 'string',
-        description: 'Template name (e.g., "gate-prd-template", "proposal-template", "system-overview-template")',
-        required: true
-      }
+        description:
+          'Template name (e.g., "gate-prd-template", "proposal-template", "system-overview-template")',
+        required: true,
+      },
     ],
     returnType: 'string',
     examples: [
       'getTemplate("gate-prd-template") - Load gate PRD template',
       'getTemplate("proposal-template") - Load proposal template',
-      'getTemplate("system-overview-template") - Load system architecture diagram template'
-    ]
+      'getTemplate("system-overview-template") - Load system architecture diagram template',
+    ],
   },
   {
     name: 'template_list',
     description: 'List all available templates',
     parameters: [],
     returnType: 'Template[]',
-    examples: [
-      'template_list() - List available templates'
-    ]
+    examples: ['template_list() - List available templates'],
   },
   {
     name: 'template_get',
@@ -545,13 +517,11 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'name',
         type: 'string',
         description: 'Template name to retrieve',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'string',
-    examples: [
-      'template_get("gate-prd-template") - Get template content'
-    ]
+    examples: ['template_get("gate-prd-template") - Get template content'],
   },
   {
     name: 'template_context',
@@ -561,22 +531,18 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'name',
         type: 'string',
         description: 'Template name to retrieve',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'string',
-    examples: [
-      'template_context("proposal-template") - Get template context for LLMs'
-    ]
+    examples: ['template_context("proposal-template") - Get template context for LLMs'],
   },
   {
     name: 'loadAllTemplates',
     description: 'Load all 16 templates as a key-value map',
     parameters: [],
     returnType: 'Record<string, string>',
-    examples: [
-      'loadAllTemplates() - Get all available templates'
-    ]
+    examples: ['loadAllTemplates() - Get all available templates'],
   },
   {
     name: 'getTemplatesByCategory',
@@ -586,22 +552,20 @@ export const functionRegistry: FunctionDefinition[] = [
         name: 'category',
         type: 'string',
         description: 'Template category: "markdown" or "architecture"',
-        required: true
-      }
+        required: true,
+      },
     ],
     returnType: 'Template[]',
     examples: [
       'getTemplatesByCategory("markdown") - Get all markdown templates',
-      'getTemplatesByCategory("architecture") - Get all architecture templates'
-    ]
+      'getTemplatesByCategory("architecture") - Get all architecture templates',
+    ],
   },
   {
     name: 'config_get',
     description: 'Get project configuration values from zeno/.zeno/config.json',
     parameters: [],
     returnType: 'ZenoConfig',
-    examples: [
-      'config_get() - Get all configuration values'
-    ]
-  }
+    examples: ['config_get() - Get all configuration values'],
+  },
 ]

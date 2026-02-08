@@ -25,7 +25,7 @@ const allToolDefs = [
   ...templateToolDefinitions,
   ...configToolDefinitions,
   ...archiveToolDefinitions,
-  ...workflowToolDefinitions
+  ...workflowToolDefinitions,
 ]
 
 /**
@@ -36,24 +36,34 @@ const allToolDefs = [
  * predictable, schema-validated `structuredContent` for LLM integration while
  * still relying on function registry implementations as a backend when needed.
  */
-export function registerTools(server: McpServer, registry: FunctionRegistry) {
+export function registerTools(server: McpServer, registry: FunctionRegistry): string[] {
   const registered: string[] = []
 
   // Register handler-based tools first to allow them to override CLI-backed functions
-  const handlerFactories = [templateHandlers, repositoryHandlers, analysisHandlers, gateHandlers, requirementHandlers, proposalHandlers, configHandlers, archiveHandlers, workflowHandlers]
+  const handlerFactories = [
+    templateHandlers,
+    repositoryHandlers,
+    analysisHandlers,
+    gateHandlers,
+    requirementHandlers,
+    proposalHandlers,
+    configHandlers,
+    archiveHandlers,
+    workflowHandlers,
+  ]
   for (const factory of handlerFactories) {
-    const handlers = factory(registry as FunctionRegistry)
+    const handlers = factory(registry)
     for (const [name, handler] of Object.entries(handlers)) {
-      const override = allToolDefs.find(t => t.name === name)
+      const override = allToolDefs.find((t) => t.name === name)
       const title = override?.title ?? name
       const description = override?.description ?? ''
-      const inputSchema = override?.inputSchema ?? z.any()
+      const inputSchema: z.ZodType = (override?.inputSchema ?? z.any()) as z.ZodType
 
       // Register the handler-based tool (these take precedence)
       server.registerTool(
         name,
-        { title, description, inputSchema: inputSchema as any, outputSchema: z.any() },
-        handler as any
+        { title, description, inputSchema: inputSchema, outputSchema: z.any() as z.ZodType },
+        handler
       )
 
       logger.info(`Registered MCP handler tool: ${name}`)
@@ -64,7 +74,9 @@ export function registerTools(server: McpServer, registry: FunctionRegistry) {
   // Backwards compatibility removed: function-based tool registration is disabled.
   // Only handler-based tools are registered. This simplifies registration and
   // ensures handlers are the single source of truth for MCP tool behavior.
-  logger.info('Function-based tool registration disabled; only handler-based tools will be registered')
+  logger.info(
+    'Function-based tool registration disabled; only handler-based tools will be registered'
+  )
 
   return registered
 }

@@ -17,7 +17,8 @@ export const configToolDefinitions = [
   {
     name: 'config_get',
     title: 'Get Configuration',
-    description: 'Get project configuration including quality thresholds, git settings, version, and versioning settings. Returns structured ZenoConfig object with all project settings.',
+    description:
+      'Get project configuration including quality thresholds, git settings, version, and versioning settings. Returns structured ZenoConfig object with all project settings.',
     inputSchema: z.object({}), // No input parameters required
   },
 ]
@@ -26,7 +27,11 @@ export const configToolDefinitions = [
  * Handlers for configuration tools.
  * Validates outputs against schemas.
  */
-export function configHandlers(registry: FunctionRegistry) {
+import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+
+export function configHandlers(
+  registry: FunctionRegistry
+): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
   return {
     config_get: createSchemaValidatingHandler(registry, 'config_get', ConfigGetOutputSchema),
   }

@@ -29,11 +29,13 @@ export function registerStatusCommand(program: Command): void {
 
         // Check database for active gates
         const db = getDatabase()
-        const activeGates = db.prepare('SELECT * FROM gates WHERE status != ? ORDER BY sequence').all('completed') as Array<{
-          id: string;
-          name: string;
-          status: string;
-        }>;
+        const activeGates = db
+          .prepare('SELECT * FROM gates WHERE status != ? ORDER BY sequence')
+          .all('completed') as {
+          id: string
+          name: string
+          status: string
+        }[]
 
         if (activeGates.length > 0) {
           logger.info('Active Gates:')
@@ -51,18 +53,19 @@ export function registerStatusCommand(program: Command): void {
         } catch (error) {
           logger.warn(`Failed to read archive dir ${archiveDir}: ${String(error)}`)
         }
-        const archivedGates = archivedFiles.filter(f => f.startsWith('gate-') && f.endsWith('.md'))
+        const archivedGates = archivedFiles.filter(
+          (f) => f.startsWith('gate-') && f.endsWith('.md')
+        )
 
         if (archivedGates.length > 0) {
           logger.info('Completed Gates:')
           for (const file of archivedGates.sort()) {
             const match = /gate-(\d+)-(.+)\.md/.exec(file)
-            if (match?.[1] && match?.[2]) {
-              const num = match[1]
-              const namePart = match[2]
-              const name = namePart.replace(/-/g, ' ')
-              logger.info(`  Gate ${num}: ${name} (completed)`)
-            }
+            if (!match) continue
+            const num = match[1] ?? ''
+            const namePart = match[2] ?? ''
+            const name = namePart.replace(/-/g, ' ')
+            logger.info(`  Gate ${num}: ${name} (completed)`)
           }
         }
 
@@ -71,19 +74,23 @@ export function registerStatusCommand(program: Command): void {
         // Try to get MCP server status
         try {
           const { diagnostics } = await import('../../mcp/diagnostics.js')
-          const { createFunctionRegistry } = await import('../../integration/function-implementations.js')
+          const { createFunctionRegistry } =
+            await import('../../integration/function-implementations.js')
 
           const registry = createFunctionRegistry()
           const report = await diagnostics.generateReport(registry)
 
+          const statusLabel = report.health.status.toUpperCase()
+          const toolsRegistered = String(report.health.toolsRegistered)
+          const configLoaded = String(report.config.configLoaded)
+
           logger.info('MCP Server Status:')
-          logger.info(`  Status: ${report.health.status.toUpperCase()}`)
-          logger.info(`  Tools Registered: ${report.health.toolsRegistered}`)
-          logger.info(`  Config Loaded: ${report.config.configLoaded}`)
-        } catch (error) {
+          logger.info(`  Status: ${statusLabel}`)
+          logger.info(`  Tools Registered: ${toolsRegistered}`)
+          logger.info(`  Config Loaded: ${configLoaded}`)
+        } catch {
           logger.warn('MCP server status not available (server not running or not configured)')
         }
-
       } catch (error) {
         logger.error(`Failed to get status: ${String(error)}`)
       }

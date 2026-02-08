@@ -14,7 +14,8 @@
  */
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
-import type { ZodSchema } from 'zod'
+import type { ZodType } from 'zod'
+import type { FunctionErrorResponse } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 /**
@@ -47,73 +48,82 @@ export function parseJsonSafe(input: unknown): unknown {
 export function createSchemaValidatingHandler(
   registry: FunctionRegistry,
   functionName: string,
-  outputSchema: ZodSchema
+  outputSchema: ZodType
 ) {
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     try {
       // If caller provided a mock result (useful for tests and local simulation),
       // try to parse and validate it against the provided schema first.
-      const rawMock = (args as any)?.mockResult ?? null
-      if (rawMock !== null) {
+      const rawMock = (args as { mockResult?: unknown }).mockResult ?? null
+      if (rawMock != null) {
         const parsed = parseJsonSafe(rawMock)
         if (parsed !== null) {
           const validated = outputSchema.safeParse(parsed)
           if (validated.success) {
             return {
               content: [{ type: 'text', text: JSON.stringify(validated.data, null, 2) }],
-              structuredContent: validated.data as Record<string, unknown>
+              structuredContent: validated.data as Record<string, unknown>,
             }
           }
         }
 
         // Fallback textual representation when mock result couldn't be validated
-        const fallbackText = typeof rawMock === 'string' ? rawMock : JSON.stringify(rawMock, null, 2)
+        const fallbackText =
+          typeof rawMock === 'string' ? rawMock : JSON.stringify(rawMock, null, 2)
         return {
           content: [{ type: 'text', text: fallbackText }],
-          structuredContent: { output: fallbackText }
+          structuredContent: { output: fallbackText },
         }
       }
 
       const result = await registry.invoke(functionName, args)
 
       if (result.success) {
-        const data = result.data as unknown
-        const extracted = typeof data === 'object' && data !== null && 'output' in data
-          ? (data as any).output
-          : data
+        const data = result.data
+        const extracted =
+          typeof data === 'object' && data !== null && 'output' in data
+            ? (data as Record<string, unknown>)['output']
+            : data
 
         const parsed = parseJsonSafe(extracted)
 
-        if (parsed !== null) {
+        if (parsed != null) {
           const validated = outputSchema.safeParse(parsed)
           if (validated.success) {
             return {
               content: [{ type: 'text', text: JSON.stringify(validated.data, null, 2) }],
-              structuredContent: validated.data as Record<string, unknown>
+              structuredContent: validated.data as Record<string, unknown>,
             }
           }
         }
 
-        const fallbackText = String(extracted ?? data)
+        const fallbackText =
+          typeof extracted === 'undefined'
+            ? typeof data === 'string'
+              ? data
+              : JSON.stringify(data, null, 2)
+            : typeof extracted === 'string'
+              ? extracted
+              : JSON.stringify(extracted, null, 2)
         return {
           content: [{ type: 'text', text: fallbackText }],
-          structuredContent: { output: fallbackText }
+          structuredContent: { output: fallbackText },
         }
-      }
-
-      // Non-success result: return structured error envelope per unified schema
-      const err = result.error ?? { message: 'Unknown error', code: 'INTERNAL_ERROR' }
-      const errorPayload = {
-        code: (err as any).code ?? 'INTERNAL_ERROR',
-        message: (err as any).message ?? String(err),
-        context: (err as any).context ?? undefined,
-        timestamp: (err as any).timestamp ?? new Date().toISOString(),
-        operations: (err as any).operations ?? undefined
-      }
-      return {
-        content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
-        structuredContent: { error: errorPayload },
-        isError: true
+      } else {
+        // Non-success result: return structured error envelope per unified schema
+        const err: FunctionErrorResponse = result.error
+        const errorPayload = {
+          code: err.code,
+          message: err.message,
+          context: err.context,
+          timestamp: err.timestamp ?? new Date().toISOString(),
+          operations: err.operations,
+        }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+          structuredContent: { error: errorPayload },
+          isError: true,
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -121,12 +131,12 @@ export function createSchemaValidatingHandler(
         code: 'INTERNAL_ERROR',
         message: `Handler error: ${errorMessage}`,
         timestamp: new Date().toISOString(),
-        context: { functionName }
+        context: { functionName },
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
         structuredContent: { error: payload },
-        isError: true
+        isError: true,
       }
     }
   }
@@ -144,36 +154,33 @@ export function createSchemaValidatingHandler(
  * @example
  *   const handler = createBasicHandler(registry, 'gates_regenerate')
  */
-export function createBasicHandler(
-  registry: FunctionRegistry,
-  functionName: string
-) {
+export function createBasicHandler(registry: FunctionRegistry, functionName: string) {
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     try {
       const result = await registry.invoke(functionName, args)
 
       if (result.success) {
-        const data = result.data as unknown
+        const data = result.data
         const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
         return {
           content: [{ type: 'text', text }],
-          structuredContent: (result.data ?? {}) as Record<string, unknown>
+          structuredContent: result.data as Record<string, unknown>,
         }
-      }
+      } else {
+        const err: FunctionErrorResponse = result.error
+        const errorPayload = {
+          code: err.code,
+          message: err.message,
+          context: err.context,
+          timestamp: err.timestamp ?? new Date().toISOString(),
+          operations: err.operations,
+        }
 
-      const err = result.error ?? { message: 'Unknown error', code: 'INTERNAL_ERROR' }
-      const errorPayload = {
-        code: (err as any).code ?? 'INTERNAL_ERROR',
-        message: (err as any).message ?? String(err),
-        context: (err as any).context ?? undefined,
-        timestamp: (err as any).timestamp ?? new Date().toISOString(),
-        operations: (err as any).operations ?? undefined
-      }
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
-        structuredContent: { error: errorPayload },
-        isError: true
+        return {
+          content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+          structuredContent: { error: errorPayload },
+          isError: true,
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
@@ -181,12 +188,12 @@ export function createBasicHandler(
         code: 'INTERNAL_ERROR',
         message: `Handler error: ${errorMessage}`,
         timestamp: new Date().toISOString(),
-        context: { functionName }
+        context: { functionName },
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
         structuredContent: { error: payload },
-        isError: true
+        isError: true,
       }
     }
   }

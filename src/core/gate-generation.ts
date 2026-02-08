@@ -22,14 +22,14 @@ export interface GateGenerateOutput {
   success: boolean
   mode: string
   gatesGenerated: number
-  gates: Array<{
+  gates: {
     id: string
     name: string
     type: string
     status: string
     requirementsCount: number
     dependencies: string[]
-  }>
+  }[]
   requirementsAttributed: number
   diagramsUpdated: string[]
   message: string
@@ -41,7 +41,12 @@ export interface GateGenerateOutput {
 export async function generateGates(input: GateGenerateInput): Promise<GateGenerateOutput> {
   try {
     const projectRoot = process.cwd()
-    const { mode, anchorGateId, templateName = 'gate-prd-template', requirementsPerGate = 5 } = input
+    const {
+      mode,
+      anchorGateId,
+      templateName = 'gate-prd-template',
+      requirementsPerGate = 5,
+    } = input
 
     // Read project PRD and requirements
     const prdPath = path.join(projectRoot, 'zeno', 'PROJECT_PRD.md')
@@ -51,14 +56,14 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     const requirements = await getProjectRequirements(projectRoot)
 
     // Determine generation strategy based on mode
-    let gates: Array<{
+    let gates: {
       id: string
       name: string
       type: string
       status: string
       requirementsCount: number
       dependencies: string[]
-    }> = []
+    }[] = []
 
     switch (mode) {
       case 'new':
@@ -85,15 +90,22 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
       gates: createdGates,
       requirementsAttributed: requirements.length,
       diagramsUpdated,
-      message: `Generated ${createdGates.length} gates in ${mode} mode`
+      message: `Generated ${String(createdGates.length)} gates in ${mode} mode`,
     }
   } catch (error) {
     logger.error('Failed to generate gates', { error, input })
-    throw new ZenoError(`Gate generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'GATE_GENERATION_FAILED')
+    throw new ZenoError(
+      `Gate generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      'GATE_GENERATION_FAILED'
+    )
   }
 }
 
 // Implementations moved to `gate-planner.ts` and `gate-writer.ts`
-import { getProjectRequirements, generateNewGates, rebaselineGates, generateSingleGate } from './gate-planner.js'
+import {
+  getProjectRequirements,
+  generateNewGates,
+  rebaselineGates,
+  generateSingleGate,
+} from './gate-planner.js'
 import { createGatePrdFiles, updateGateDiagrams } from './gate-writer.js'
-

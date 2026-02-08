@@ -1,5 +1,10 @@
 import { logger } from '../../utils/logger.js'
 
+declare global {
+  // runtime injected flag set during proposal apply phase
+  var __ZENOPROPOSAL_APPLY_PHASE: boolean | undefined
+}
+
 /** Audit log entry for a git operation detection event */
 export interface GitAuditEntry {
   timestamp: string
@@ -31,8 +36,8 @@ export function trackGitOperations(
   const operations: string[] = []
 
   // Detect common git invocations
-  if (/\bgit\b/.test(command) || args.some(a => /\bgit\b/.test(a))) {
-    const sub = args[0] || ''
+  if (/\bgit\b/.test(command) || args.some((a) => /\bgit\b/.test(a))) {
+    const sub = args[0] ?? ''
     if (/^(add|commit|tag|push|pull|fetch|merge)$/.test(sub)) {
       operations.push(`git ${sub}`)
     } else {
@@ -51,7 +56,7 @@ export function trackGitOperations(
   }
 
   const hasGitOps = operations.length > 0
-  const phase = (globalThis as any).__ZENOPROPOSAL_APPLY_PHASE ? 'apply' : 'normal'
+  const phase = globalThis.__ZENOPROPOSAL_APPLY_PHASE ? 'apply' : 'normal'
 
   // Record audit entry regardless of whether ops were found
   if (hasGitOps) {
@@ -61,17 +66,20 @@ export function trackGitOperations(
       args,
       operations,
       allowed,
-      phase
+      phase,
     }
     auditLog.push(entry)
 
-    logger.warn(`[git-audit] Detected git operations: ${operations.join(', ')} — allowed=${allowed}, phase=${phase}`)
+    logger.warn(
+      `[git-audit] Detected git operations: ${operations.join(', ')} — allowed=${String(allowed)}, phase=${phase}`
+    )
 
     if (!allowed) {
       const err = new Error('GIT_VIOLATION: Git operations are not allowed in this phase')
-      ;(err as any).code = 'GIT_VIOLATION'
-      ;(err as any).operations = operations
-      throw err
+      const gitErr = err as Error & { code?: string; operations?: string[] }
+      gitErr.code = 'GIT_VIOLATION'
+      gitErr.operations = operations
+      throw gitErr
     }
   }
 

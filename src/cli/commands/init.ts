@@ -45,10 +45,7 @@ function validateCodebasePath(path: string): boolean | string {
 /**
  * Run the initialization workflow
  */
-async function runInitWorkflow(
-  projectName: string,
-  endState: string
-): Promise<void> {
+async function runInitWorkflow(projectName: string, endState: string): Promise<void> {
   const projectRoot = process.cwd()
 
   logger.info('Initializing Zeno project...')
@@ -77,7 +74,9 @@ async function runInitWorkflow(
   // 5. Generate gates
   logger.info('Generating project gates...')
   const gatesResult = generateGates(endState, undefined, requirements)
-  logger.info(`Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`)
+  logger.info(
+    `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
+  )
 
   // 6. Generate AGENTS.md
   logger.info('Generating AGENTS.md...')
@@ -103,8 +102,8 @@ export function registerInitCommand(program: Command): void {
     .option('-f, --force', 'Force reinitialization even if project is already initialized')
     .action(async (options) => {
       try {
-        logger.info('Welcome to Zeno\'s Planner!')
-        logger.info('Let\'s set up your project.\n')
+        logger.info("Welcome to Zeno's Planner!")
+        logger.info("Let's set up your project.\n")
 
         const projectRoot = process.cwd()
         const existingRoot = findProjectRoot(projectRoot)
@@ -118,14 +117,20 @@ export function registerInitCommand(program: Command): void {
               if (existingConfig.endState) {
                 logger.info(`End state: ${existingConfig.endState.substring(0, 100)}...`)
               }
-              logger.info('Use "zeno status" to see project status or "zeno gates list" to see your roadmap.')
+              logger.info(
+                'Use "zeno status" to see project status or "zeno gates list" to see your roadmap.'
+              )
               logger.info('Use --force to reinitialize anyway.')
               return
             } else {
-              logger.warn(`Forcing reinitialization of existing project: ${existingConfig.projectName}`)
+              logger.warn(
+                `Forcing reinitialization of existing project: ${existingConfig.projectName}`
+              )
             }
-          } catch (_error) {
-            logger.warn('Could not load existing configuration, proceeding with fresh initialization')
+          } catch {
+            logger.warn(
+              'Could not load existing configuration, proceeding with fresh initialization'
+            )
           }
         }
 
@@ -138,9 +143,11 @@ export function registerInitCommand(program: Command): void {
 
         // Prompt for end state description
         const endState = await editor({
-          message: 'Describe your project\'s end state (what you want to build):',
+          message: "Describe your project's end state (what you want to build):",
           default: existingConfig?.endState ?? 'A complete, production-ready application that...',
-          validate: (text) => text.trim().length > 10 || 'Please provide a more detailed description (at least 10 characters)',
+          validate: (text) =>
+            text.trim().length > 10 ||
+            'Please provide a more detailed description (at least 10 characters)',
         })
 
         // Ask about existing codebase
@@ -170,12 +177,13 @@ export function registerInitCommand(program: Command): void {
         }
 
         await runInitWorkflow(projectName, endState)
-
       } catch (error) {
         if (error instanceof Error && error.name === 'ExitPromptError') {
           logger.info('Initialization cancelled')
         } else {
-          logger.error(`Initialization failed: ${error instanceof Error ? error.message : String(error)}`)
+          logger.error(
+            `Initialization failed: ${error instanceof Error ? error.message : String(error)}`
+          )
           process.exit(1)
         }
       }

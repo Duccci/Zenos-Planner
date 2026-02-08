@@ -56,7 +56,8 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
 
   // Rule 2: Changes must be scoped to Files Affected
   const unauthorizedFiles = context.filesModified.filter(
-    (file) => !context.filesAffected.some((affected) => file.includes(affected) || affected.includes(file))
+    (file) =>
+      !context.filesAffected.some((affected) => file.includes(affected) || affected.includes(file))
   )
 
   if (unauthorizedFiles.length > 0) {
@@ -73,13 +74,13 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
 
     if (coverage !== undefined && coverage < thresholds.codeCoverage) {
       warnings.push(
-        `Code coverage ${coverage}% is below threshold ${thresholds.codeCoverage}%`
+        `Code coverage ${String(coverage)}% is below threshold ${String(thresholds.codeCoverage)}%`
       )
     }
 
     if (typeErrors !== undefined && typeErrors > thresholds.typeCheckingErrors) {
       warnings.push(
-        `Type errors (${typeErrors}) exceed threshold ${thresholds.typeCheckingErrors}`
+        `Type errors (${String(typeErrors)}) exceed threshold ${String(thresholds.typeCheckingErrors)}`
       )
     }
 
@@ -87,14 +88,14 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
       const lintErrorRate = lintErrors / (context.filesModified.length || 1)
       if (lintErrorRate > thresholds.lintingErrorRate) {
         warnings.push(
-          `Lint error rate (${lintErrorRate.toFixed(2)}) exceeds threshold ${thresholds.lintingErrorRate}`
+          `Lint error rate (${lintErrorRate.toFixed(2)}) exceeds threshold ${String(thresholds.lintingErrorRate)}`
         )
       }
     }
 
     if (securityIssues !== undefined && securityIssues > thresholds.securityVulnerabilities) {
       errors.push(
-        `Security vulnerabilities (${securityIssues}) exceed threshold ${thresholds.securityVulnerabilities}`
+        `Security vulnerabilities (${String(securityIssues)}) exceed threshold ${String(thresholds.securityVulnerabilities)}`
       )
     }
   }

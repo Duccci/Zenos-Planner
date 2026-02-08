@@ -76,7 +76,14 @@ export async function hashFile(filePath: string): Promise<string> {
     })
 
     stream.on('error', (error: Error) => {
-      reject(new HashError(`Failed to hash file: ${filePath}`, 'HASH_FILE_FAILED', { path: filePath }, error))
+      reject(
+        new HashError(
+          `Failed to hash file: ${filePath}`,
+          'HASH_FILE_FAILED',
+          { path: filePath },
+          error
+        )
+      )
     })
   })
 }
@@ -118,3 +125,66 @@ export function parseHashRef(ref: string): string | null {
   return cleanRef
 }
 
+/**
+ * Generate a deterministic short hash for a requirement-like object.
+ * Uses sorted object hashing to ensure stability across runs.
+ */
+export function generateRequirementHash(obj: {
+  type: string
+  priority: string
+  description: string
+  acceptanceCriteria?: string | null
+}): string {
+  // Normalize fields to avoid incidental differences
+  const normalized = {
+    type: obj.type,
+    priority: obj.priority,
+    description: obj.description.trim(),
+    acceptanceCriteria:
+      typeof obj.acceptanceCriteria === 'string' ? obj.acceptanceCriteria.trim() : undefined,
+  }
+  return hashObject(normalized)
+}
+
+/**
+ * Detects whether a base hash collides in the database and returns a final
+ * hash (possibly versioned) that is unique within the `requirements` table.
+ * If no collision is detected, returns the `baseHash` unchanged.
+ *
+ * This function is intentionally conservative and keeps logic local so callers
+ * don't need to add extra queries. It assumes `db` is a connected
+ * better-sqlite3 Database instance.
+ */
+import Database from 'better-sqlite3'
+export function detectHashCollision(
+  db: Database.Database,
+  baseHash: string,
+  _obj: unknown
+): string {
+  try {
+    // If exact base hash not present, it's safe to use
+    const exact = db.prepare('SELECT 1 FROM requirements WHERE hash = ? LIMIT 1').get(baseHash)
+    if (!exact) return baseHash
+
+    // Otherwise find highest _vN suffix and increment
+    const like = db.prepare(
+      'SELECT hash FROM requirements WHERE hash LIKE ? ORDER BY created_at DESC'
+    )
+    const rows = like.all(`${baseHash}_v%`) as { hash: string }[]
+    let max = 0
+    for (const r of rows) {
+      const m = /_v(\d+)$/.exec(r.hash)
+      if (m) {
+        const n = Number(m[1])
+        if (n > max) max = n
+      }
+    }
+
+    return `${baseHash}_v${String(max + 1)}`
+  } catch (err) {
+    // On any DB error, fallback to base hash (non-fatal); caller will handle
+    // potential conflicts downstream.
+    void err
+    return baseHash
+  }
+}

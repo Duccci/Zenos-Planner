@@ -31,7 +31,7 @@ export async function performGitCommitAndPush(options: {
   await commit(commitMessage, files)
 
   try {
-    await pushCurrentBranch(remote || 'origin')
+    await pushCurrentBranch(remote ?? 'origin')
   } catch (error) {
     logger.warn('Push failed but continuing with archive', error)
   }

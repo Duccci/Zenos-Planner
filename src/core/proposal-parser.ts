@@ -5,29 +5,29 @@
  */
 
 export function extractObjectives(content: string): string[] {
-  const objectivesMatch = content.match(/## Objectives\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/)
+  const objectivesMatch = /## Objectives\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
   if (!objectivesMatch) return []
 
-  return objectivesMatch[1]!
+  return (objectivesMatch[1] ?? '')
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.startsWith('- '))
-    .map(line => line.substring(2))
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '))
+    .map((line) => line.substring(2))
 }
 
-export function extractRequirements(content: string): Array<{ id: string; description: string }> {
-  const reqMatch = content.match(/## Requirements\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/)
+export function extractRequirements(content: string): { id: string; description: string }[] {
+  const reqMatch = /## Requirements\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
   if (!reqMatch) return []
 
-  return reqMatch[1]!
+  return (reqMatch[1] ?? '')
     .split('\n')
-    .filter(line => line.includes('#'))
-    .map(line => {
-      const hashMatch = line.match(/#([a-z0-9]{8})/)
+    .filter((line) => line.includes('#'))
+    .map((line) => {
+      const hashMatch = /#([a-z0-9]{8})/.exec(line)
       return {
-        id: hashMatch ? hashMatch[1]! : '',
-        description: line.replace(/.*#([a-z0-9]{8})/, '').trim()
+        id: hashMatch?.[1] ?? '',
+        description: line.replace(/.*#([a-z0-9]{8})/, '').trim(),
       }
     })
-    .filter(req => req.id)
+    .filter((req) => req.id)
 }

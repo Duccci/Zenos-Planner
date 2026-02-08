@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS repositories (
 -- Requirements table: Hierarchical requirements and project specifications
 -- Unified format for both traditional requirements and spec-driven development
 -- Content can be requirement descriptions, acceptance criteria, or full specifications
--- Presence in database = approved (changes only via gate/proposal refactors)
+-- Approval semantics: Database presence = approved. Requirements only enter database after
+-- approval via gate/proposal workflow. Implementation progress tracked through Git commits
+-- and proposal completion, not database fields.
 CREATE TABLE IF NOT EXISTS requirements (
   id TEXT PRIMARY KEY,
   gate_id TEXT,
@@ -47,7 +49,6 @@ CREATE TABLE IF NOT EXISTS requirements (
   description TEXT NOT NULL,
   acceptance_criteria TEXT,
   hash TEXT UNIQUE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'implemented', 'tested')),
   source_gate_id TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -70,9 +71,6 @@ CREATE TABLE IF NOT EXISTS proposals (
   FOREIGN KEY (gate_id) REFERENCES gates(id),
   FOREIGN KEY (requirement_id) REFERENCES requirements(id)
 );
-
--- Index for requirement status (used by status queries and filters)
-CREATE INDEX IF NOT EXISTS idx_requirements_status ON requirements(status);
 
 -- Indexes
 

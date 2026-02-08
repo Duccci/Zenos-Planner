@@ -69,9 +69,44 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
  * Close the database connection.
  * @throws DatabaseError if close fails
  */
+import { logger } from '../utils/logger.js'
+
+export function checkpointWAL(db: Database.Database = getDatabase()): {
+  status: 'ok' | 'blocked' | 'error'
+  detail?: string
+} {
+  try {
+    // PRAGMA wal_checkpoint(TRUNCATE) will merge WAL into database and truncate the WAL file
+    const res = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
+      | Record<string, unknown>
+      | undefined
+
+    logger.info('WAL checkpoint executed', res ?? {})
+
+    // If the PRAGMA returns an object with a numeric or string response, we consider it successful
+    return { status: 'ok', detail: res ? JSON.stringify(res) : 'ok' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logger.warn('WAL checkpoint failed or blocked', message)
+    // We conservatively mark this as 'blocked' so callers can decide to retry later
+    return { status: 'blocked', detail: message }
+  }
+}
+
 export function closeDatabase(): void {
   if (dbInstance !== null) {
     try {
+      // Attempt a WAL checkpoint before closing to avoid WAL accumulation
+      try {
+        const checkpoint = checkpointWAL(dbInstance)
+        logger.info('Checkpoint result before close', checkpoint)
+      } catch (cpErr) {
+        logger.warn(
+          'Failed to run WAL checkpoint before close',
+          cpErr instanceof Error ? cpErr.message : cpErr
+        )
+      }
+
       dbInstance.close()
       dbInstance = null
     } catch (error) {
@@ -94,13 +129,12 @@ export interface SchemaValidationResult {
   errors: string[]
 }
 
-/** Required tables for schema validation */
-const REQUIRED_TABLES = [
-  'gates',
-  'repositories',
-  'requirements',
-  'proposals',
-]
+/**
+ * Required tables for schema validation
+ * Note: Gates and proposals are file-based per Technical Decision 1.
+ * Only requirements table is validated as it's the sole database-backed entity.
+ */
+const REQUIRED_TABLES = ['requirements']
 
 /**
  * Validate that all required tables exist in the database.
@@ -123,7 +157,9 @@ export function validateSchema(db: Database.Database = getDatabase()): SchemaVal
         missingTables.push(table)
       }
     } catch (error) {
-      errors.push(`Error checking table ${table}: ${error instanceof Error ? error.message : String(error)}`)
+      errors.push(
+        `Error checking table ${table}: ${error instanceof Error ? error.message : String(error)}`
+      )
     }
   }
 
@@ -196,4 +232,3 @@ export async function initializeDatabase(
     )
   }
 }
-
