@@ -43,10 +43,16 @@ describe('gate-generator (unit)', () => {
     ];
 
     const stubDb = { prepare: vi.fn().mockImplementation((q: string) => {
-      if (q.includes('WHERE')) {
+      if (q.includes("SELECT name FROM sqlite_master WHERE type='table' AND name='gate_analysis'")) {
+        return { get: vi.fn().mockReturnValue(null) };
+      }
+      if (q.includes('WHERE id = ?')) {
         return { get: vi.fn().mockReturnValue(gateRows[0]) };
       }
-      return { all: vi.fn().mockReturnValue(gateRows) };
+      if (q.includes('ORDER BY sequence')) {
+        return { all: vi.fn().mockReturnValue(gateRows) };
+      }
+      return { get: vi.fn().mockReturnValue(null), all: vi.fn().mockReturnValue([]) };
     }) } as any;
     const dbMod = await import('../../src/storage/database.js');
     vi.spyOn(dbMod, 'getDatabase').mockReturnValue(stubDb as any);

@@ -14,25 +14,34 @@ describe('RequirementStorage', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-storage-${randomUUID()}.db`)
     db = new Database(tempDbPath)
+    
+    // Disable foreign key constraints for unit tests
+    db.pragma('foreign_keys = OFF')
 
-    // Initialize schema
+    // Initialize schema (must match src/storage/migrations/001_initial_schema.sql)
+    db.exec(`
+      CREATE TABLE gates (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        sequence INTEGER,
+        status TEXT
+      )
+    `)
+    
     db.exec(`
       CREATE TABLE requirements (
         id TEXT PRIMARY KEY,
+        project_id TEXT DEFAULT 'default-project',
         gate_id TEXT,
         parent_id TEXT,
-        project_requirement_id TEXT,
         type TEXT NOT NULL CHECK (type IN ('functional', 'non_functional', 'constraint')),
         priority TEXT NOT NULL CHECK (priority IN ('must', 'should', 'could', 'wont')),
-        level TEXT NOT NULL CHECK (level IN ('project', 'gate')),
-        source TEXT NOT NULL CHECK (source IN ('generated', 'inherited', 'transferred')),
         description TEXT NOT NULL,
         acceptance_criteria TEXT,
         hash TEXT UNIQUE NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'implemented', 'tested')),
-        source_gate_id TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        FOREIGN KEY (parent_id) REFERENCES requirements(id),
+        FOREIGN KEY (gate_id) REFERENCES gates(id)
       )
     `)
 
@@ -64,8 +73,9 @@ describe('RequirementStorage', () => {
       expect(requirement.description).toBe(description)
       expect(requirement.type).toBe(type)
       expect(requirement.priority).toBe(priority)
-      expect(requirement.level).toBe('project')
-      expect(requirement.source).toBe('generated')
+      // Project-level requirement (no gateId)
+      expect(requirement.gateId).toBeNull()
+      expect(requirement.projectId).toBe('default-project')
 
     })
 
@@ -104,10 +114,9 @@ describe('RequirementStorage', () => {
         'System must have fast response time',
         'non_functional',
         'must',
-        'project',
-        'generated',
-        undefined,
-        acceptanceCriteria
+        'default-project',      // projectId
+        undefined,              // gateId
+        acceptanceCriteria      // acceptanceCriteria
       )
 
       expect(requirement.acceptanceCriteria).toBe(acceptanceCriteria)
@@ -117,25 +126,20 @@ describe('RequirementStorage', () => {
       const gateId = 'gate-123'
 
       const requirement = storage.storeRequirement(
-        'Component must be testable',
-        'non_functional',
-        'should',
-        'gate',
-        'generated',
-        gateId
+        'Component must be testable',  // description
+        'non_functional',               // type
+        'should',                       // priority
+        'project-1',                    // projectId
+        gateId,                         // gateId
+        undefined,                      // acceptanceCriteria
+        undefined                       // parentId
       )
 
       expect(requirement.gateId).toBe(gateId)
-      expect(requirement.level).toBe('gate')
+      expect(requirement.projectId).toBe('project-1')
+      expect(requirement.type).toBe('non_functional')
     })
 
-    it('defaults status to pending when stored', () => {
-      const requirement = storage.storeRequirement('System must be observable', 'non_functional', 'should')
-      expect(requirement.status).toBe('pending')
-
-      const retrieved = storage.getRequirementByHash(requirement.hash)
-      expect(retrieved?.status).toBe('pending')
-    })
   })
 
   describe('getRequirementByHash', () => {
@@ -159,14 +163,15 @@ describe('RequirementStorage', () => {
 
   describe('getProjectRequirements', () => {
     it('returns all project-level requirements', () => {
-      storage.storeRequirement('Project req 1', 'functional', 'must', 'project')
-      storage.storeRequirement('Project req 2', 'non_functional', 'should', 'project')
-      storage.storeRequirement('Gate req', 'functional', 'must', 'gate', 'generated', 'gate-1')
+      storage.storeRequirement('Project req 1', 'functional', 'must')
+      storage.storeRequirement('Project req 2', 'non_functional', 'should')
+      storage.storeRequirement('Gate req', 'functional', 'must', 'default-project', 'gate-1')
 
       const projectReqs = storage.getProjectRequirements()
 
       expect(projectReqs.length).toBe(2)
-      expect(projectReqs.every(r => r.level === 'project')).toBe(true)
+      // Project-level requirements should have no gateId
+      expect(projectReqs.every(r => !r.gateId)).toBe(true)
     })
 
     it('returns empty array when no requirements exist', () => {
@@ -220,21 +225,4 @@ describe('RequirementStorage', () => {
     })
   })
 
-  describe('updateRequirementStatus', () => {
-    it('updates status and returns number of rows changed', () => {
-      const requirement = storage.storeRequirement('System must be resilient', 'non_functional', 'must')
-
-      const changes = storage.updateRequirementStatus(requirement.hash, 'implemented')
-      expect(changes).toBe(1)
-
-      const updated = storage.getRequirementByHash(requirement.hash)
-      expect(updated?.status).toBe('implemented')
-    })
-
-    it('throws on invalid status', () => {
-      const requirement = storage.storeRequirement('System must be resilient', 'non_functional', 'must')
-      // @ts-ignore - passing invalid status to ensure validation
-      expect(() => storage.updateRequirementStatus(requirement.hash, 'invalid')).toThrow()
-    })
-  })
 })

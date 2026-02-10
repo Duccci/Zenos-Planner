@@ -142,7 +142,7 @@ describe('Dependency Graph Utilities', () => {
       const node = graph.nodes.get('hash001')
       expect(node?.type).toBe('non_functional')
       expect(node?.priority).toBe('must')
-      expect(node?.level).toBe('gate')
+      // Gate-level requirement is identified by having a gateId
       expect(node?.gateId).toBe('gate-04')
     })
 

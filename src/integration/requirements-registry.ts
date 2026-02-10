@@ -8,6 +8,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
+import { RequirementStorage } from '../generation/requirement-storage.js'
 
 export function registerRequirementsOps(registry: FunctionRegistry): void {
   registry.register('req_list', async (params) => {
@@ -94,10 +95,9 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
       hash: z.string(),
       gateId: z.string()
     }).parse(params)
-    const result = await invokeCommand('req_transfer', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
+    const storage = new RequirementStorage()
+    const result = await storage.transferRequirement(validated.hash, validated.gateId)
+    return { success: true, data: { output: result } }
   }, {
     description: 'Transfer a requirement to another gate',
     parameters: [

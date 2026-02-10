@@ -35,10 +35,10 @@ ${gates.map(gate => `- **${gate.id}**: ${gate.name} - ${gate.description}`).join
 ## Requirements
 
 ### Project-Level Requirements
-${requirements.filter(r => r.level === 'project').map(r => `- #${r.hash}: ${r.description}`).join('\n')}
+${requirements.filter(r => !r.gateId).map(r => `- #${r.hash}: ${r.description}`).join('\n')}
 
 ### Gate-Specific Requirements
-${requirements.filter(r => r.level === 'gate').map(r => `- #${r.hash}: ${r.description} (Gate: ${r.gateId ?? 'unknown'})`).join('\n')}
+${requirements.filter(r => r.gateId).map(r => `- #${r.hash}: ${r.description} (Gate: ${r.gateId ?? 'unknown'})`).join('\n')}
 
 ## Quality Thresholds
 

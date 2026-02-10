@@ -94,10 +94,10 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const reqCount = db
         .prepare('SELECT COUNT(*) as count FROM requirements WHERE gate_id = ?')
-        .get(gate.id) as { count?: number } | undefined
+        .get(gate['id']) as { count?: number } | undefined
       const proposalCount = db
         .prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?')
-        .get(gate.id) as { count?: number } | undefined
+        .get(gate['id']) as { count?: number } | undefined
 
       const dependencies = db
         .prepare(
@@ -108,7 +108,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       WHERE d.source_hash = ? AND d.type = 'requires'
     `
         )
-        .all(gate.hash)
+        .all(gate['hash'])
 
       const detail = {
         ...gate,
@@ -263,7 +263,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       // Replace template placeholders
       const gateNumber = /\d+/.exec(validated.gateId)?.[0] ?? '00'
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date().toISOString().split('T')[0]!
       gateContent = gateContent
         .replace(/\[XX\]/g, gateNumber)
         .replace(/\[Gate Name\]/g, validated.name)

@@ -63,7 +63,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
       server.registerTool(
         name,
         { title, description, inputSchema: inputSchema, outputSchema: z.any() as z.ZodType },
-        handler
+        (args: unknown) => handler(args as Record<string, unknown>)
       )
 
       logger.info(`Registered MCP handler tool: ${name}`)

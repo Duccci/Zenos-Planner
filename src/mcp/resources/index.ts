@@ -5,7 +5,7 @@
  * discovered from the current working directory.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { glob } from 'glob'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -22,10 +22,13 @@ function findZenoProjects(workspacePath: string): string[] {
     projects.push(workspacePath)
   }
 
-  // Scan subdirectories for Zeno projects
+  // Scan subdirectories for Zeno projects (but skip 'zeno' directory to avoid nesting)
   try {
     const items = readdirSync(workspacePath)
     for (const item of items) {
+      // Skip the 'zeno' and '.zeno' directories themselves to prevent self-discovery
+      if (item === 'zeno' || item === '.zeno') continue
+
       const fullPath = join(workspacePath, item)
       if (statSync(fullPath).isDirectory() && isZenoProject(fullPath)) {
         projects.push(fullPath)
@@ -86,6 +89,10 @@ async function discoverResources(
         const files = await glob(config.pattern, { cwd: projectPath, absolute: true })
 
         for (const fullPath of files) {
+          if (!fullPath || !existsSync(fullPath)) {
+            logger.warn(`Skipping resource with unavailable path: ${String(fullPath)} in ${projectPath}`)
+            continue
+          }
           const relPath = relative(projectPath, fullPath)
           resources.push({
             uri: `file://${fullPath}`,
@@ -150,9 +157,21 @@ export async function registerResources(
       },
       () => {
         // Handle file-backed resources
+        logger.debug(`Resource requested: ${resource.uri}`)
         try {
           if (resource.uri.startsWith('file://')) {
-            const content = readFileSync(resource.uri.replace('file://', ''), 'utf8')
+            const path = resource.uri.replace('file://', '')
+            if (!path) {
+              const errMsg = `Invalid file resource URI: ${resource.uri}`
+              logger.error(errMsg)
+              throw new Error(errMsg)
+            }
+            if (!existsSync(path)) {
+              const errMsg = `File not found for resource ${resource.name}: ${path}`
+              logger.error(errMsg)
+              throw new Error(errMsg)
+            }
+            const content = readFileSync(path, 'utf8')
             return {
               contents: [
                 {
@@ -181,8 +200,8 @@ export async function registerResources(
           // Fallback
           throw new Error('Unsupported resource type')
         } catch (err) {
-          logger.error(`Failed to read resource ${resource.uri}:`, err)
-          throw new Error(`Resource not available: ${resource.name}`)
+          logger.error(`Failed to read resource ${resource.uri}: ${String(err)}`, err)
+          throw new Error(`Resource not available: ${resource.name} (${resource.uri}): ${String(err)}`)
         }
       }
     )
@@ -214,22 +233,39 @@ export async function registerResources(
                   res.uri,
                   { description: res.description, mimeType: res.mimeType },
                   () => {
-                    if (res.uri.startsWith('file://')) {
-                      const content = readFileSync(res.uri.replace('file://', ''), 'utf8')
-                      return { contents: [{ uri: res.uri, text: content, mimeType: res.mimeType }] }
-                    }
-                    if (res.uri.startsWith('template://')) {
-                      return {
-                        contents: [
-                          {
-                            uri: res.uri,
-                            text: `Template: ${res.description}`,
-                            mimeType: res.mimeType,
-                          },
-                        ],
+                    logger.debug(`Resource requested: ${res.uri}`)
+                    try {
+                      if (res.uri.startsWith('file://')) {
+                        const path = res.uri.replace('file://', '')
+                        if (!path) {
+                          const errMsg = `Invalid file resource URI: ${res.uri}`
+                          logger.error(errMsg)
+                          throw new Error(errMsg)
+                        }
+                        if (!existsSync(path)) {
+                          const errMsg = `File not found for resource ${res.name}: ${path}`
+                          logger.error(errMsg)
+                          throw new Error(errMsg)
+                        }
+                        const content = readFileSync(path, 'utf8')
+                        return { contents: [{ uri: res.uri, text: content, mimeType: res.mimeType }] }
                       }
+                      if (res.uri.startsWith('template://')) {
+                        return {
+                          contents: [
+                            {
+                              uri: res.uri,
+                              text: `Template: ${res.description}`,
+                              mimeType: res.mimeType,
+                            },
+                          ],
+                        }
+                      }
+                      throw new Error('Unsupported resource type')
+                    } catch (err) {
+                      logger.error(`Failed to read resource ${res.uri}: ${String(err)}`, err)
+                      throw new Error(`Resource not available: ${res.name} (${res.uri}): ${String(err)}`)
                     }
-                    throw new Error('Unsupported resource type')
                   }
                 )
                 registeredUris.add(res.uri)

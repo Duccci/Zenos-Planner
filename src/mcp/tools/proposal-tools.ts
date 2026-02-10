@@ -322,7 +322,7 @@ export function proposalHandlers(
           invokeResult = await registry.invoke('proposal_reject', validated.payload)
           break
         default:
-          throw new Error(`Unknown proposal action: ${String(validated.action)}`)
+          throw new Error(`Unknown proposal action: ${String((validated as unknown as Record<string, unknown>)['action'])}`)
       }
 
       // Check for invocation errors (invokeResult is guaranteed to be set or a default case threw above)

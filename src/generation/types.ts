@@ -16,52 +16,29 @@ export type RequirementType = 'functional' | 'non_functional' | 'constraint'
 export type RequirementPriority = 'must' | 'should' | 'could' | 'wont'
 
 /**
- * Requirement status in the development lifecycle
- */
-export type RequirementStatus = 'pending' | 'implemented' | 'tested'
-
-/**
- * Requirement level (project-wide or gate-specific)
- */
-export type RequirementLevel = 'project' | 'gate'
-
-/**
- * How the requirement was created
- */
-export type RequirementSource = 'generated' | 'inherited' | 'transferred'
-
-/**
  * Core requirement interface
- * Includes status field for lifecycle tracking (pending → implemented → tested).
- * Implementation progress tracked through Git commits and proposal completion.
+ * Database presence equals approval. Implementation progress tracked
+ * through Git commits and proposal completion, not database fields.
  */
 export interface Requirement {
   /** Unique identifier */
   id: string
+  /** Project identifier for multi-project support */
+  projectId: string
   /** Associated gate ID (null for project-level) */
   gateId: string | null
   /** Parent requirement ID for hierarchical requirements */
   parentId: string | null
-  /** Project-level requirement this derives from */
-  projectRequirementId: string | null
   /** Type of requirement */
   type: RequirementType
   /** Priority level */
   priority: RequirementPriority
-  /** Whether this is project or gate level */
-  level: RequirementLevel
-  /** How this requirement was created */
-  source: RequirementSource
   /** Human-readable description */
   description: string
   /** Acceptance criteria for completion */
   acceptanceCriteria?: string
   /** Content-addressed hash for uniqueness */
   hash: string
-  /** Gate where this requirement originated (for transferred requirements) */
-  sourceGateId?: string
-  /** Requirement status in lifecycle: pending → implemented → tested */
-  status: RequirementStatus
   /** Creation timestamp */
   createdAt: Date
 }

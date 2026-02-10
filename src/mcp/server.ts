@@ -36,10 +36,20 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
 
   // Register resources for project artifacts
   const { registerResources } = await import('./resources/index.js')
-  const resourceCount = await registerResources(server, workspacePath)
+  const resourceResult = await registerResources(server, workspacePath, { watch: true })
   const resourceCountNumber =
-    typeof resourceCount === 'number' ? resourceCount : resourceCount.count
+    typeof resourceResult === 'number' ? resourceResult : resourceResult.count
   logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)
+
+  // Store resource watcher for cleanup on server shutdown
+  let resourceWatcher: { close: () => void } | undefined
+  if (typeof resourceResult === 'object' && 'watcher' in resourceResult) {
+    resourceWatcher = resourceResult.watcher
+  }
+
+  // Attach watcher to server for lifecycle management
+  ;(server as unknown as { _resourceWatcher?: { close: () => void } })._resourceWatcher =
+    resourceWatcher
 
   return server
 }
@@ -71,8 +81,33 @@ export async function main(): Promise<void> {
       const cleanup = (): void => {
         logger.info('Shutting down MCP server...')
         void (async () => {
+          // 1. Close resource watcher first
+          try {
+            const resourceWatcher = (
+              server as unknown as { _resourceWatcher?: { close: () => void } }
+            )._resourceWatcher
+            resourceWatcher?.close()
+          } catch (err) {
+            logger.debug('Failed to close resource watcher', err)
+          }
+
+          // 2. Stop database checkpoint interval and close database
+          try {
+            const { stopWalCheckpointInterval, closeDatabase } = await import(
+              '../storage/database.js'
+            )
+            stopWalCheckpointInterval()
+            closeDatabase()
+          } catch (err) {
+            logger.debug('Failed to stop WAL checkpoint interval', err)
+          }
+
+          // 3. Close MCP server
           await server.close()
+
+          // 4. Remove PID file
           removePid?.()
+
           process.exit(0)
         })()
       }
@@ -82,6 +117,26 @@ export async function main(): Promise<void> {
       process.on('uncaughtException', (err) => {
         logger.error('Uncaught exception in MCP server', err)
         void (async () => {
+          // Cleanup watchers and database on uncaught exception
+          try {
+            const resourceWatcher = (
+              server as unknown as { _resourceWatcher?: { close: () => void } }
+            )._resourceWatcher
+            resourceWatcher?.close()
+          } catch {
+            // ignore
+          }
+
+          try {
+            const { stopWalCheckpointInterval, closeDatabase } = await import(
+              '../storage/database.js'
+            )
+            stopWalCheckpointInterval()
+            closeDatabase()
+          } catch {
+            // ignore
+          }
+
           await server.close()
           removePid?.()
           process.exit(1)

@@ -25,9 +25,7 @@ export interface DependencyNode {
   type: 'functional' | 'non_functional' | 'constraint'
   /** Priority level */
   priority: 'must' | 'should' | 'could' | 'wont'
-  /** Requirement level (project or gate-specific) */
-  level: 'project' | 'gate'
-  /** Gate ID if gate-level requirement */
+  /** Gate ID if gate-specific requirement */
   gateId?: string
   /** Child requirement hashes (direct dependencies) */
   children: string[]
@@ -85,7 +83,6 @@ export function buildDependencyGraph(requirements: Requirement[]): DependencyGra
       title: req.description.split('\n')[0] ?? req.id, // First line as title
       type: req.type,
       priority: req.priority,
-      level: req.level,
       gateId: req.gateId ?? undefined,
       children: [],
       parent: req.parentId ?? undefined,

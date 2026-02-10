@@ -80,11 +80,15 @@ export function calculateProposalDependencies(
 ): { from: string; to: string; type: string }[] {
   const dependencies: { from: string; to: string; type: string }[] = []
   for (let i = 1; i < proposals.length; i++) {
-    dependencies.push({
-      from: proposals[i - 1].hash,
-      to: proposals[i].hash,
-      type: 'sequential',
-    })
+    const prevProposal = proposals[i - 1]
+    const currProposal = proposals[i]
+    if (prevProposal && currProposal) {
+      dependencies.push({
+        from: prevProposal.hash,
+        to: currProposal.hash,
+        type: 'sequential',
+      })
+    }
   }
   return dependencies
 }

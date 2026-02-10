@@ -129,12 +129,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Run dependency validator if dependencies provided
       if (validated.dependencies && validated.dependencies.length > 0) {
         const db = (await import('../storage/database.js')).getDatabase()
-        interface DepNode {
-          hash: string
-          dependencies: string[]
-          gateId?: string | null
-        }
-        const allNodes = new Map<string, DepNode>()
+        const allNodes = new Map<string, { hash: string; dependencies: string[]; gateId?: string }>()
 
         // Build dependency graph from database
         const allProposals = db
@@ -149,14 +144,17 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
 
         // Add current proposal node
-        const currentNode: DepNode = {
+        const currentNode = {
           hash,
           dependencies: validated.dependencies,
           gateId: validated.gateId ?? undefined,
         }
         allNodes.set(hash, currentNode)
 
-        const depValidation = validateDependencies({ node: currentNode, allNodes })
+        const depValidation = validateDependencies({ 
+          node: currentNode as Parameters<typeof validateDependencies>[0]['node'],
+          allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes']
+        })
         if (depValidation.errors) {
           errors.push(...depValidation.errors)
         }
@@ -187,7 +185,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       let proposalContent = await readFile(templatePath, 'utf-8')
 
       // Replace template placeholders
-      const createdDate = new Date().toISOString().split('T')[0]
+      const createdDate = new Date().toISOString().split('T')[0] ?? ''
       proposalContent = proposalContent
         .replace(/\[Proposal Title\]/g, validated.title)
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
@@ -407,7 +405,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         interface DepNode {
           hash: string
           dependencies: string[]
-          gateId?: string | null
+          gateId?: string
         }
         const allNodes = new Map<string, DepNode>()
         const allProposals = db
@@ -418,15 +416,15 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           allNodes.set(p.hash, {
             hash: p.hash,
             dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
-            gateId: p.gate_id ?? undefined,
-          })
+            gateId: (p.gate_id ?? undefined) as string | undefined,
+          } as DepNode)
         }
 
         const depValidation = validateDependencies({
           node: {
             hash: proposal.hash,
             dependencies,
-            gateId: proposal.gate_id,
+            gateId: proposal.gate_id ?? undefined,
           },
           allNodes,
         })

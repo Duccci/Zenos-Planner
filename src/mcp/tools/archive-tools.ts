@@ -165,11 +165,13 @@ export function archiveHandlers(
         if (batchHandler) return await batchHandler(args)
 
         const validated = ArchiveBatchInputSchema.parse(args)
-        const artifacts = validated.artifacts as unknown as {
-          type: string
-          gateId?: string
-          hash?: string
-        }[]
+        const artifacts = validated.artifacts.map((a) => {
+          if (a.type === 'gate') {
+            return { type: 'gate' as const, gateId: a.gateId }
+          } else {
+            return { type: 'proposal' as const, hash: a.hash }
+          }
+        })
         const result = await archiveBatch(artifacts, validated.completionNotes)
         const parsedOk = ArchiveBatchOutputSchema.safeParse(result)
         if (!parsedOk.success) throw new Error('Invalid output from archiveBatch')

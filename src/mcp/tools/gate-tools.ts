@@ -162,8 +162,8 @@ export function gateHandlers(
 
           // Build dependency nodes from existing gates
           allGates.forEach((gate) => {
-            const gateId = String(gate.id)
-            const deps = (gate.dependencies ?? []) as unknown[]
+            const gateId = String(gate['id'])
+            const deps = Array.isArray(gate['dependencies']) ? (gate['dependencies'] as string[]) : []
             allNodes.set(gateId, {
               hash: gateId,
               dependencies: deps,
@@ -173,8 +173,8 @@ export function gateHandlers(
           })
 
           // Add the new gate being created
-          const payloadGateId = String(payload.gateId)
-          const payloadDeps = (payload.dependencies ?? []) as unknown[]
+          const payloadGateId = String(payload['gateId'])
+          const payloadDeps = Array.isArray(payload['dependencies']) ? (payload['dependencies'] as string[]) : []
           const newNode = {
             hash: payloadGateId,
             dependencies: payloadDeps,
@@ -183,8 +183,8 @@ export function gateHandlers(
           }
 
           const dependencyContext: DependencyValidationContext = {
-            node: newNode,
-            allNodes,
+            node: newNode as Parameters<typeof validateDependencies>[0]['node'],
+            allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes'],
           }
 
           const dependencyResult = validateDependencies(dependencyContext)
@@ -225,7 +225,7 @@ export function gateHandlers(
 
         const qualityContext: QualityValidationContext = {
           metrics: qualityMetrics,
-          config,
+          config: config as Parameters<typeof validateQuality>[0]['config'],
           strict: true, // Strict mode for gate completion
         }
 
@@ -246,7 +246,7 @@ export function gateHandlers(
 
   return {
     async gates_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const parsed = parseJsonSafe(raw)
         if (parsed) {
@@ -269,7 +269,7 @@ export function gateHandlers(
     },
 
     async gates_show(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const parsed = parseJsonSafe(raw)
         if (parsed) {
@@ -292,7 +292,7 @@ export function gateHandlers(
     },
 
     async gate_create(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const parsed = parseJsonSafe(raw)
         if (parsed) {
@@ -315,14 +315,14 @@ export function gateHandlers(
     },
 
     async gates_start(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const rawObj = raw as Record<string, unknown>
-        if (typeof raw === 'object' && rawObj.success === false) {
-          const errObj = rawObj.error as Record<string, unknown> | undefined
-          const rawCode = errObj?.code
+        if (typeof raw === 'object' && rawObj['success'] === false) {
+          const errObj = rawObj['error'] as Record<string, unknown> | undefined
+          const rawCode = errObj?.['code']
           const code = (typeof rawCode === 'string' ? rawCode : '').toLowerCase()
-          const msg = (errObj?.message as string | undefined) ?? String(rawObj.error)
+          const msg = (errObj?.['message'] as string | undefined) ?? String(rawObj['error'])
           return {
             content: [{ type: 'text', text: JSON.stringify({ error: code || msg }, null, 2) }],
             isError: true,
@@ -350,12 +350,12 @@ export function gateHandlers(
     },
 
     async gates_complete(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const rawObj = raw as Record<string, unknown>
-        if (typeof raw === 'object' && rawObj.success === false) {
+        if (typeof raw === 'object' && rawObj['success'] === false) {
           return {
-            content: [{ type: 'text', text: JSON.stringify(rawObj.error ?? {}, null, 2) }],
+            content: [{ type: 'text', text: JSON.stringify(rawObj['error'] ?? {}, null, 2) }],
             isError: true,
           }
         }
@@ -381,7 +381,7 @@ export function gateHandlers(
     },
 
     async gates_regenerate(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args.mockResult ?? null
+      const raw = args['mockResult'] ?? null
       if (raw !== null) {
         const parsed = parseJsonSafe(raw)
         if (parsed) {
@@ -478,7 +478,7 @@ export function gateHandlers(
             break
           default:
             throw new Error(
-              `Unknown gate action: ${String((validated as Record<string, unknown>).action)}`
+              `Unknown gate action: ${String((validated as Record<string, unknown>)['action'] ?? 'unknown')}`
             )
         }
 

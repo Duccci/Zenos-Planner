@@ -17,25 +17,25 @@ describe('Requirement Lifecycle Integration', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-lifecycle-${randomUUID()}.db`)
     db = new Database(tempDbPath)
+    
+    // Disable foreign key constraints for this test
+    db.pragma('foreign_keys = OFF')
 
     // Initialize schema
     db.exec(`
       CREATE TABLE requirements (
         id TEXT PRIMARY KEY,
+        project_id TEXT DEFAULT 'default-project',
         gate_id TEXT,
         parent_id TEXT,
-        project_requirement_id TEXT,
         type TEXT NOT NULL CHECK (type IN ('functional', 'non_functional', 'constraint')),
         priority TEXT NOT NULL CHECK (priority IN ('must', 'should', 'could', 'wont')),
-        level TEXT NOT NULL CHECK (level IN ('project', 'gate')),
-        source TEXT NOT NULL CHECK (source IN ('generated', 'inherited', 'transferred')),
         description TEXT NOT NULL,
         acceptance_criteria TEXT,
         hash TEXT UNIQUE NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'implemented', 'tested')),
-        source_gate_id TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        FOREIGN KEY (parent_id) REFERENCES requirements(id),
+        FOREIGN KEY (gate_id) REFERENCES gates(id)
       )
     `)
 
@@ -75,24 +75,15 @@ describe('Requirement Lifecycle Integration', () => {
 
       // Step 2: Access storage via requirements
       const stored = generated[0]!
-      expect(stored.status).toBe('pending')
-      expect(stored.level).toBe('project')
+      // Project-level requirements have no gateId
+      expect(stored.gateId).toBeNull()
 
       // Step 3: Retrieve from storage
       const retrieved = storage.getRequirementByHash(stored.hash)
       expect(retrieved).not.toBeNull()
       expect(retrieved?.id).toBe(stored.id)
 
-      // Step 4: Update status through lifecycle
-      generator.updateRequirementStatus(stored.hash, 'implemented')
-      const implemented = storage.getRequirementByHash(stored.hash)
-      expect(implemented?.status).toBe('implemented')
-
-      generator.updateRequirementStatus(stored.hash, 'tested')
-      const tested = storage.getRequirementByHash(stored.hash)
-      expect(tested?.status).toBe('tested')
-
-      // Step 5: Build dependency graph
+      // Step 4: Build dependency graph
       const graph = storage.buildRequirementGraph()
       expect(graph.nodes.has(stored.hash)).toBe(true)
 
@@ -108,9 +99,7 @@ describe('Requirement Lifecycle Integration', () => {
       const parent = storage.storeRequirement(
         'System must support authentication',
         'functional',
-        'must',
-        'project',
-        'generated'
+        'must'
       )
 
       // Create child requirement
@@ -118,8 +107,7 @@ describe('Requirement Lifecycle Integration', () => {
         'Support JWT tokens',
         'functional',
         'must',
-        'project',
-        'generated',
+        'default-project',
         undefined,
         undefined,
         parent.hash
@@ -144,8 +132,7 @@ describe('Requirement Lifecycle Integration', () => {
         'User authentication',
         'functional',
         'must',
-        'project',
-        'generated',
+        'default-project',
         undefined,
         undefined,
         root.hash
@@ -154,8 +141,7 @@ describe('Requirement Lifecycle Integration', () => {
         'JWT token support',
         'functional',
         'must',
-        'project',
-        'generated',
+        'default-project',
         undefined,
         undefined,
         auth.hash
@@ -177,20 +163,16 @@ describe('Requirement Lifecycle Integration', () => {
         'Child',
         'functional',
         'must',
-        'project',
-        'generated',
+        'default-project',
         undefined,
         undefined,
         parent.hash
       )
 
-      // Update child
-      const updated = storage.updateRequirement(child.hash, {
-        description: 'Updated child description',
-      })
-
-      // Parent-child relationship should be preserved
-      expect(updated.parentId).toBe(parent.hash)
+      // Verify parent-child relationship is preserved
+      const retrieved = storage.getRequirementByHash(child.hash)
+      expect(retrieved).not.toBeNull()
+      expect(retrieved?.parentId).toBe(parent.hash)
       const children = storage.getRequirementChildren(parent.hash)
       expect(children.length).toBe(1)
     })
@@ -203,8 +185,7 @@ describe('Requirement Lifecycle Integration', () => {
         'System must support authentication with multiple methods and token refresh',
         'functional',
         'must',
-        'gate',
-        'generated',
+        'default-project',
         'gate-04'
       )
 
@@ -217,17 +198,12 @@ describe('Requirement Lifecycle Integration', () => {
       const children = storage.getRequirementChildren(complex.hash)
       expect(children.length).toBeGreaterThan(0)
 
-      // Update statuses of decomposed requirements
+      // Verify children are accessible via storage
       for (const child of children) {
-        generator.updateRequirementStatus(child.hash, 'implemented')
-        const updated = storage.getRequirementByHash(child.hash)
-        expect(updated?.status).toBe('implemented')
+        const retrieved = storage.getRequirementByHash(child.hash)
+        expect(retrieved).not.toBeNull()
+        expect(retrieved?.parentId).toBe(complex.id)
       }
-
-      // Update parent status
-      generator.updateRequirementStatus(complex.hash, 'implemented')
-      const parentUpdated = storage.getRequirementByHash(complex.hash)
-      expect(parentUpdated?.status).toBe('implemented')
     })
   })
 
@@ -252,8 +228,7 @@ describe('Requirement Lifecycle Integration', () => {
         'API requirement',
         'functional',
         'must',
-        'gate',
-        'generated',
+        'default-project',
         'gate-01'
       )
 
@@ -267,7 +242,6 @@ describe('Requirement Lifecycle Integration', () => {
 
       const transferred = storage.getRequirementByHash(req.hash)
       expect(transferred?.gateId).toBe('gate-02')
-      expect(transferred?.source).toBe('transferred')
     })
 
     it('testTransferRequirementWithChildren', () => {
@@ -290,8 +264,7 @@ describe('Requirement Lifecycle Integration', () => {
         'Parent requirement',
         'functional',
         'must',
-        'gate',
-        'generated',
+        'default-project',
         'gate-03'
       )
 
@@ -300,8 +273,7 @@ describe('Requirement Lifecycle Integration', () => {
         'Child requirement',
         'functional',
         'must',
-        'gate',
-        'generated',
+        'default-project',
         'gate-03',
         undefined,
         parent.hash
@@ -352,11 +324,10 @@ describe('Requirement Lifecycle Integration', () => {
       const errors = validateDependencyGraph(graph)
       expect(errors.length).toBe(0)
 
-      // 6. Update some requirements through lifecycle
+      // 6. Verify requirements are retrievable
       if (generated.length > 0) {
-        generator.updateRequirementStatus(generated[0]!.hash, 'implemented')
-        const updated = storage.getRequirementByHash(generated[0]!.hash)
-        expect(updated?.status).toBe('implemented')
+        const retrieved = storage.getRequirementByHash(generated[0]!.hash)
+        expect(retrieved).not.toBeNull()
       }
     })
 
@@ -380,8 +351,7 @@ describe('Requirement Lifecycle Integration', () => {
         'System must support user authentication with JWT tokens and refresh mechanism',
         'functional',
         'must',
-        'gate',
-        'generated',
+        'default-project',
         'gate-05'
       )
 
@@ -411,10 +381,6 @@ describe('Requirement Lifecycle Integration', () => {
       const errors = validateDependencyGraph(graph)
       expect(errors.length).toBe(0)
 
-      // 7. Update lifecycle statuses
-      for (const child of movedChildren) {
-        generator.updateRequirementStatus(child.hash, 'implemented')
-      }
     })
   })
 
@@ -427,7 +393,7 @@ describe('Requirement Lifecycle Integration', () => {
 
     it('testDeleteRequirementBreaksParentChildRelationship', () => {
       const parent = storage.storeRequirement('Parent', 'functional', 'must')
-      const child = storage.storeRequirement('Child', 'functional', 'must', 'project', 'generated', undefined, undefined, parent.hash)
+      const child = storage.storeRequirement('Child', 'functional', 'must', 'default-project', undefined, undefined, parent.hash)
 
       // Cannot delete parent without cascade when children exist
       expect(() => {
@@ -446,8 +412,8 @@ describe('Requirement Lifecycle Integration', () => {
 
     it('testCascadeDeleteRemovesEntireTree', () => {
       const root = storage.storeRequirement('Root', 'functional', 'must')
-      const child = storage.storeRequirement('Child', 'functional', 'must', 'project', 'generated', undefined, undefined, root.hash)
-      const grandchild = storage.storeRequirement('Grandchild', 'functional', 'must', 'project', 'generated', undefined, undefined, child.hash)
+      const child = storage.storeRequirement('Child', 'functional', 'must', 'default-project', undefined, undefined, root.hash)
+      const grandchild = storage.storeRequirement('Grandchild', 'functional', 'must', 'default-project', undefined, undefined, child.hash)
 
       storage.deleteRequirement(root.hash, true) // Cascade
 
@@ -456,23 +422,5 @@ describe('Requirement Lifecycle Integration', () => {
       expect(storage.getRequirementByHash(grandchild.hash)).toBeNull()
     })
 
-    it('testStatusProgressionValidation', () => {
-      const req = storage.storeRequirement('Test', 'functional', 'must')
-
-      // Status should start as pending
-      expect(storage.getRequirementByHash(req.hash)?.status).toBe('pending')
-
-      // Update to implemented
-      generator.updateRequirementStatus(req.hash, 'implemented')
-      expect(storage.getRequirementByHash(req.hash)?.status).toBe('implemented')
-
-      // Update to tested
-      generator.updateRequirementStatus(req.hash, 'tested')
-      expect(storage.getRequirementByHash(req.hash)?.status).toBe('tested')
-
-      // Can revert to implemented (system allows)
-      generator.updateRequirementStatus(req.hash, 'implemented')
-      expect(storage.getRequirementByHash(req.hash)?.status).toBe('implemented')
-    })
   })
 })

@@ -20,16 +20,6 @@ export const GateStatusEnum = z.enum(['pending', 'in_progress', 'completed', 're
 export type GateStatus = z.infer<typeof GateStatusEnum>
 
 /**
- * Requirement status lifecycle:
- * - pending: Requirement generated, not started
- * - in_progress: Work in progress
- * - tested: Implementation complete and tested
- * - archived: Requirement archived after gate completion
- */
-export const RequirementStatusEnum = z.enum(['pending', 'in_progress', 'tested', 'archived'])
-export type RequirementStatus = z.infer<typeof RequirementStatusEnum>
-
-/**
  * Proposal status lifecycle:
  * - pending: Proposal generated, awaiting start
  * - in_progress: Implementation in progress

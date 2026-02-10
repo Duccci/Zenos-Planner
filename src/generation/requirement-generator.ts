@@ -37,8 +37,7 @@ export class RequirementGenerator {
       // Store requirements in database (idempotent)
       const requirements = this.storage.storeRequirementsFromCandidates(
         validatedCandidates,
-        'project', // Project-level requirements
-        'generated' // Generated from end state
+        'default-project'
       )
 
       // Log generation statistics
@@ -83,8 +82,7 @@ export class RequirementGenerator {
       // Store high-confidence requirements
       const requirements = this.storage.storeRequirementsFromCandidates(
         highConfidenceCandidates,
-        'project',
-        'generated'
+        'default-project'
       )
 
       const processingTime = Date.now() - startTime
@@ -177,36 +175,15 @@ export class RequirementGenerator {
       const candidates = RequirementGenerator.extractRequirementsFromText(obj)
       const { approved, review } = RequirementGenerator.approveRequirements(candidates)
 
-      // Link approved candidates to project requirements where possible
-      const projectRequirements = this.storage.getProjectRequirements()
-
+      // Store approved candidates
       for (const cand of approved) {
-        let projectRequirementId: string | undefined = undefined
-        let storeDescription = cand.description
-
-        // simple matching: find project requirement with common word overlap
-        for (const p of projectRequirements) {
-          const overlap = commonWordOverlap(p.description, cand.description)
-          if (overlap >= 0.5) {
-            projectRequirementId = p.id
-            // if near-exact match, append gate suffix to force creation of gate-level requirement
-            if (overlap >= 0.8) {
-              storeDescription = `${cand.description} (gate ${gateId})`
-            }
-            break
-          }
-        }
-
         const stored = this.storage.storeRequirement(
-          storeDescription,
+          cand.description,
           cand.type,
           cand.priority,
-          'gate',
-          'generated',
+          'default-project',
           gateId,
-          undefined,
-          undefined,
-          projectRequirementId
+          undefined
         )
 
         allStored.push(stored)
@@ -247,12 +224,10 @@ export class RequirementGenerator {
         c.description,
         c.type,
         c.priority,
-        'gate',
-        'generated',
+        parent.projectId,
         parent.gateId ?? undefined,
         undefined,
-        parent.id,
-        parent.projectRequirementId ?? undefined
+        parent.id
       )
 
       created.push(child)
@@ -267,25 +242,6 @@ export class RequirementGenerator {
     return created
   }
 
-  /**
-   * Proxy to storage.updateRequirementStatus
-   */
-  updateRequirementStatus = (
-    hash: string,
-    status: 'pending' | 'implemented' | 'tested'
-  ): number => {
-    return this.storage.updateRequirementStatus(hash, status)
-  }
-}
-
-/** Helper: overlap score of common words between descriptions */
-function commonWordOverlap(a: string, b: string): number {
-  const setA = new Set(a.toLowerCase().split(/\W+/).filter(Boolean))
-  const setB = new Set(b.toLowerCase().split(/\W+/).filter(Boolean))
-  if (setA.size === 0 || setB.size === 0) return 0
-  let inter = 0
-  for (const w of setA) if (setB.has(w)) inter++
-  return inter / Math.max(setA.size, setB.size)
 }
 
 /** Helper: Extract objectives section from a gate PRD markdown */

@@ -15,6 +15,9 @@ import { DatabaseError } from '../utils/errors.js'
 /** Database instance singleton */
 let dbInstance: Database.Database | null = null
 
+/** WAL checkpoint interval timer */
+let walCheckpointInterval: NodeJS.Timeout | null = null
+
 /** Database file name */
 const DB_FILE = 'requirements.db'
 
@@ -54,6 +57,9 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
     // Enable foreign keys
     dbInstance.pragma('foreign_keys = ON')
 
+    // Start periodic WAL checkpoint (every 60 seconds)
+    startWalCheckpointInterval(60000)
+
     return dbInstance
   } catch (error) {
     throw new DatabaseError(
@@ -71,6 +77,44 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
  */
 import { logger } from '../utils/logger.js'
 
+/**
+ * Start periodic WAL checkpoint interval.
+ * Checkpoints the WAL file at regular intervals to prevent unbounded growth.
+ * @param intervalMs - Checkpoint interval in milliseconds (default: 60000 = 60 seconds)
+ */
+export function startWalCheckpointInterval(intervalMs: number = 60000): void {
+  // Clear any existing interval
+  if (walCheckpointInterval !== null) {
+    clearInterval(walCheckpointInterval)
+  }
+
+  walCheckpointInterval = setInterval(() => {
+    try {
+      if (dbInstance) {
+        checkpointWAL(dbInstance)
+      }
+    } catch (err) {
+      logger.debug('Periodic WAL checkpoint encountered error (non-blocking)', err)
+    }
+  }, intervalMs)
+
+  // Allow process to exit even with active interval
+  walCheckpointInterval.unref()
+
+  logger.debug(`WAL checkpoint interval started: every ${intervalMs}ms`)
+}
+
+/**
+ * Stop the periodic WAL checkpoint interval.
+ */
+export function stopWalCheckpointInterval(): void {
+  if (walCheckpointInterval !== null) {
+    clearInterval(walCheckpointInterval)
+    walCheckpointInterval = null
+    logger.debug('WAL checkpoint interval stopped')
+  }
+}
+
 export function checkpointWAL(db: Database.Database = getDatabase()): {
   status: 'ok' | 'blocked' | 'error'
   detail?: string
@@ -81,7 +125,7 @@ export function checkpointWAL(db: Database.Database = getDatabase()): {
       | Record<string, unknown>
       | undefined
 
-    logger.info('WAL checkpoint executed', res ?? {})
+    logger.debug('WAL checkpoint executed', res ?? {})
 
     // If the PRAGMA returns an object with a numeric or string response, we consider it successful
     return { status: 'ok', detail: res ? JSON.stringify(res) : 'ok' }
@@ -94,12 +138,15 @@ export function checkpointWAL(db: Database.Database = getDatabase()): {
 }
 
 export function closeDatabase(): void {
+  // Stop periodic checkpoint interval
+  stopWalCheckpointInterval()
+
   if (dbInstance !== null) {
     try {
       // Attempt a WAL checkpoint before closing to avoid WAL accumulation
       try {
         const checkpoint = checkpointWAL(dbInstance)
-        logger.info('Checkpoint result before close', checkpoint)
+        logger.debug('Checkpoint result before close', checkpoint)
       } catch (cpErr) {
         logger.warn(
           'Failed to run WAL checkpoint before close',
@@ -218,7 +265,7 @@ export async function initializeDatabase(
     return {
       created: tableCount.count === 0 || migrationsApplied > 0,
       migrationsApplied,
-      tablesCreated: validation.missingTables.length === 0 ? REQUIRED_TABLES.length - 1 : 0, // -1 for migrations table
+      tablesCreated: validation.missingTables.length === 0 ? REQUIRED_TABLES.length : 0,
     }
   } catch (error) {
     if (error instanceof DatabaseError) {

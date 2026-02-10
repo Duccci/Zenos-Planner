@@ -31,28 +31,22 @@ CREATE TABLE IF NOT EXISTS repositories (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Requirements table: Hierarchical requirements and project specifications
--- Unified format for both traditional requirements and spec-driven development
--- Content can be requirement descriptions, acceptance criteria, or full specifications
--- Approval semantics: Database presence = approved. Requirements only enter database after
--- approval via gate/proposal workflow. Implementation progress tracked through Git commits
--- and proposal completion, not database fields.
+-- Requirements table: Hierarchical requirements across projects
+-- Organized by project, gate, and parent/child relationships
+-- Database presence = approved. Implementation tracked via Git, not in database.
 CREATE TABLE IF NOT EXISTS requirements (
   id TEXT PRIMARY KEY,
+  project_id TEXT DEFAULT 'default-project',
   gate_id TEXT,
   parent_id TEXT,
-  project_requirement_id TEXT,
   type TEXT NOT NULL CHECK (type IN ('functional', 'non_functional', 'constraint')),
   priority TEXT NOT NULL CHECK (priority IN ('must', 'should', 'could', 'wont')),
-  level TEXT NOT NULL CHECK (level IN ('project', 'gate')),
-  source TEXT NOT NULL CHECK (source IN ('generated', 'inherited', 'transferred')),
   description TEXT NOT NULL,
   acceptance_criteria TEXT,
   hash TEXT UNIQUE NOT NULL,
-  source_gate_id TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (parent_id) REFERENCES requirements(id)
+  FOREIGN KEY (parent_id) REFERENCES requirements(id),
+  FOREIGN KEY (gate_id) REFERENCES gates(id)
 );
 
 -- Proposals table: Implementation proposals for gates
@@ -86,8 +80,8 @@ CREATE INDEX IF NOT EXISTS idx_proposals_status ON proposals(status);
 -- Requirement queries (hash-based lookups and hierarchical traversal)
 CREATE INDEX IF NOT EXISTS idx_requirements_hash ON requirements(hash);
 CREATE INDEX IF NOT EXISTS idx_requirements_parent ON requirements(parent_id);
-CREATE INDEX IF NOT EXISTS idx_requirements_level ON requirements(level);
-CREATE INDEX IF NOT EXISTS idx_requirements_source ON requirements(source);
+CREATE INDEX IF NOT EXISTS idx_requirements_gate_id ON requirements(gate_id);
+CREATE INDEX IF NOT EXISTS idx_requirements_project_id ON requirements(project_id);
 CREATE INDEX IF NOT EXISTS idx_requirements_type ON requirements(type);
 CREATE INDEX IF NOT EXISTS idx_requirements_priority ON requirements(priority);
 

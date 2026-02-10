@@ -22,7 +22,6 @@ async function walk(dir: string): Promise<string[]> {
     const full = path.join(dir, e)
     const stat = await fs.stat(full)
     if (stat.isDirectory()) {
-      if (e.toLowerCase() === 'archive') continue
       out.push(...(await walk(full)))
     } else if (e.endsWith('.md')) {
       out.push(full)
@@ -51,11 +50,15 @@ export async function discoverProposals(projectRoot: string): Promise<Proposal[]
       const statusMatch = /\*\*Status\*\*\s*:\s*([a-z_]+)/i.exec(content)
       const gateId = parts.find((p) => /^gate-\d{2}/.test(p))
 
+      const statusValue = statusMatch?.[1]
+      const status = statusValue && ['pending', 'in_progress', 'completed', 'rejected'].includes(statusValue)
+        ? (statusValue as 'pending' | 'in_progress' | 'completed' | 'rejected')
+        : 'pending'
       proposals.push({
         hash: hashMatch?.[1] ?? path.basename(full, '.md'),
         title,
         type,
-        status: statusMatch?.[1] ?? 'pending',
+        status,
         gateId,
       })
     } catch {
@@ -123,7 +126,6 @@ export function findProposalsReferencingRequirementSync(
         continue
       }
       if (stat.isDirectory()) {
-        if (e.toLowerCase() === 'archive') continue
         walkSync(full)
       } else if (e.endsWith('.md')) {
         try {

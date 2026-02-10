@@ -11,8 +11,6 @@ import {
   Requirement,
   RequirementType,
   RequirementPriority,
-  RequirementLevel,
-  RequirementSource,
   RequirementCandidate,
 } from './types.js'
 import { generateRequirementHash, detectHashCollision } from '../utils/hash.js'
@@ -26,28 +24,22 @@ import {
 
 interface RequirementRow {
   id: string
+  project_id: string
   gate_id: string | null
   parent_id: string | null
-  project_requirement_id: string | null
   type: string
   priority: string
-  level: string
-  source: string
   description: string
   acceptance_criteria: string | null
   hash: string
-  status?: string | null
-  source_gate_id: string | null
   created_at: string
-  updated_at?: string | null
 }
 
 /**
  * Requirement storage operations
  *
- * NOTE: Database schema migrations that remove the `status` column and perform
- * cleanup (e.g., `hash_registry` reconciliation) are scheduled for execution
- * during Gate 04 as the authoritative cleanup step for requirements ASoT.
+ * Database presence equals approval. Implementation progress tracked
+ * through Git commits and proposal completion, not database fields.
  */
 export class RequirementStorage {
   private db: Database.Database
@@ -65,12 +57,10 @@ export class RequirementStorage {
     description: string,
     type: RequirementType,
     priority: RequirementPriority,
-    level: RequirementLevel = 'project',
-    source: RequirementSource = 'generated',
+    projectId: string = 'default-project',
     gateId?: string,
     acceptanceCriteria?: string,
-    parentId?: string,
-    projectRequirementId?: string
+    parentId?: string
   ): Requirement {
     // Generate deterministic base hash from semantic content
     const baseHash: string = generateRequirementHash({
@@ -80,6 +70,20 @@ export class RequirementStorage {
       acceptanceCriteria: acceptanceCriteria?.trim(),
     })
 
+    // Check if exact content already exists
+    const existingExact = this.getRequirementByHash(baseHash)
+    if (existingExact) {
+      // Verify content matches (in case of hash collision)
+      if (
+        existingExact.type === type &&
+        existingExact.priority === priority &&
+        existingExact.description === description.trim() &&
+        (existingExact.acceptanceCriteria ?? undefined) === (acceptanceCriteria?.trim() ?? undefined)
+      ) {
+        return existingExact
+      }
+    }
+
     // Detect collisions and compute final hash (may be versioned)
     const finalHash: string = detectHashCollision(this.db, baseHash, {
       type,
@@ -88,7 +92,7 @@ export class RequirementStorage {
       acceptanceCriteria: acceptanceCriteria?.trim(),
     })
 
-    // If an exact match exists (same content), return it
+    // If the final hash already exists (shouldn't happen but safety check), return it
     const existing = this.getRequirementByHash(finalHash)
     if (existing) {
       return existing
@@ -103,10 +107,9 @@ export class RequirementStorage {
     const selectParentStmt = this.db.prepare('SELECT id FROM requirements WHERE id = ?')
     const insertStmt = this.db.prepare(`
       INSERT INTO requirements (
-        id, gate_id, parent_id, project_requirement_id, type, priority,
-        level, source, description, acceptance_criteria, hash, status,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, project_id, gate_id, parent_id, type, priority,
+        description, acceptance_criteria, hash, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     // Use a transaction to ensure atomicity
@@ -125,17 +128,14 @@ export class RequirementStorage {
 
       insertStmt.run(
         id,
+        projectId,
         gateId ?? null,
         parentId ?? null,
-        projectRequirementId ?? null,
         type,
         priority,
-        level,
-        source,
         description.trim(),
         acceptanceCriteria?.trim() ?? null,
         finalHash,
-        'pending',
         now
       )
 
@@ -157,17 +157,14 @@ export class RequirementStorage {
 
       return {
         id,
+        projectId,
         gateId: gateId ?? null,
         parentId: parentId ?? null,
-        projectRequirementId: projectRequirementId ?? null,
         type,
         priority,
-        level,
-        source,
         description: description.trim(),
         acceptanceCriteria: acceptanceCriteria?.trim(),
         hash: finalHash,
-        status: 'pending' as const,
         createdAt: new Date(now),
       }
     } catch (err: unknown) {
@@ -195,10 +192,12 @@ export class RequirementStorage {
   /**
    * Store multiple requirements from candidates
    */
+  /**
+   * Store multiple requirements from candidates
+   */
   storeRequirementsFromCandidates(
     candidates: RequirementCandidate[],
-    level: RequirementLevel = 'project',
-    source: RequirementSource = 'generated',
+    projectId: string = 'default-project',
     gateId?: string
   ): Requirement[] {
     const requirements: Requirement[] = []
@@ -211,12 +210,9 @@ export class RequirementStorage {
             candidate.description,
             candidate.type,
             candidate.priority,
-            level,
-            source,
+            projectId,
             gateId,
-            undefined, // acceptance criteria
-            undefined, // parent
-            undefined // project requirement
+            undefined // acceptance criteria
           )
           requirements.push(requirement)
         } catch (err: unknown) {
@@ -237,9 +233,8 @@ export class RequirementStorage {
     try {
       // Try exact match first (supports base or versioned hashes)
       const exactQuery = `
-        SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-               level, source, description, acceptance_criteria, hash, status,
-               source_gate_id, created_at, updated_at
+        SELECT id, project_id, gate_id, parent_id, type, priority,
+               description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE hash = ?
       `
@@ -250,9 +245,8 @@ export class RequirementStorage {
       // If not found and a base hash (16 hex) was provided, look for a versioned hash
       if (!row && /^[a-f0-9]{16}$/i.test(hash)) {
         const likeQuery = `
-          SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-                 level, source, description, acceptance_criteria, hash,
-                 source_gate_id, created_at
+          SELECT id, project_id, gate_id, parent_id, type, priority,
+                 description, acceptance_criteria, hash, created_at
           FROM requirements
           WHERE hash LIKE ?
           ORDER BY created_at DESC
@@ -266,20 +260,15 @@ export class RequirementStorage {
 
       return {
         id: row.id,
+        projectId: row.project_id,
         gateId: row.gate_id,
         parentId: row.parent_id,
-        projectRequirementId: row.project_requirement_id,
         type: row.type as RequirementType,
         priority: row.priority as RequirementPriority,
-        level: row.level as RequirementLevel,
-        source: row.source as RequirementSource,
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status ?? undefined,
-        sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
-        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
       }
     } catch (err: unknown) {
       const e: Error = err instanceof Error ? err : new Error(String(err))
@@ -293,45 +282,39 @@ export class RequirementStorage {
   }
 
   /**
-   * Get all project-level requirements
+   * Get all project-level requirements (gate_id is null)
    */
   getProjectRequirements(projectId?: string): Requirement[] {
     try {
       let query = `
-        SELECT r.id, r.gate_id, r.parent_id, r.project_requirement_id, r.type, r.priority,
-               r.level, r.source, r.description, r.acceptance_criteria, r.hash, r.status,
-               r.source_gate_id, r.created_at, r.updated_at
-        FROM requirements r
-        WHERE r.level = 'project'
+        SELECT id, project_id, gate_id, parent_id, type, priority,
+               description, acceptance_criteria, hash, created_at
+        FROM requirements
+        WHERE gate_id IS NULL
       `
       const params: unknown[] = []
 
       if (projectId) {
-        // If we had project_id in requirements, we could filter by it
-        // For now, assume all project requirements are global
+        query += ' AND project_id = ?'
+        params.push(projectId)
       }
 
-      query += ' ORDER BY r.created_at'
+      query += ' ORDER BY created_at'
 
       const stmt = this.db.prepare(query)
       const rows = stmt.all(...params) as RequirementRow[]
 
       return rows.map((row: RequirementRow) => ({
         id: row.id,
+        projectId: row.project_id,
         gateId: row.gate_id,
         parentId: row.parent_id,
-        projectRequirementId: row.project_requirement_id,
         type: row.type as RequirementType,
         priority: row.priority as RequirementPriority,
-        level: row.level as RequirementLevel,
-        source: row.source as RequirementSource,
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status ?? undefined,
-        sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
-        updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
       }))
     } catch (err: unknown) {
       const e: Error = err instanceof Error ? err : new Error(String(err))
@@ -350,8 +333,8 @@ export class RequirementStorage {
   buildRequirementGraph(gateId?: string): DependencyGraph {
     try {
       let query = `
-        SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-               level, source, description, acceptance_criteria, hash, source_gate_id, created_at
+        SELECT id, project_id, gate_id, parent_id, type, priority,
+               description, acceptance_criteria, hash, created_at
         FROM requirements
       `
       const params: unknown[] = []
@@ -368,13 +351,11 @@ export class RequirementStorage {
 
       const requirements: Requirement[] = rows.map((row) => ({
         id: row.id,
+        projectId: row.project_id,
         gateId: row.gate_id,
         parentId: row.parent_id,
-        projectRequirementId: row.project_requirement_id,
         type: row.type as RequirementType,
         priority: row.priority as RequirementPriority,
-        level: row.level as RequirementLevel,
-        source: row.source as RequirementSource,
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
@@ -394,49 +375,6 @@ export class RequirementStorage {
   }
 
   /**
-   * Get requirements by level ('project' | 'gate')
-   */
-  getRequirementsByLevel(level: RequirementLevel): Requirement[] {
-    try {
-      const stmt = this.db.prepare(`
-        SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-               level, source, description, acceptance_criteria, hash, status,
-               source_gate_id, created_at, updated_at
-        FROM requirements
-        WHERE level = ?
-        ORDER BY created_at
-      `)
-
-      const rows = stmt.all(level) as RequirementRow[]
-
-      return rows.map((row) => ({
-        id: row.id,
-        gateId: row.gate_id,
-        parentId: row.parent_id,
-        projectRequirementId: row.project_requirement_id,
-        type: row.type as RequirementType,
-        priority: row.priority as RequirementPriority,
-        level: row.level as RequirementLevel,
-        source: row.source as RequirementSource,
-        description: row.description,
-        acceptanceCriteria: row.acceptance_criteria ?? undefined,
-        hash: row.hash,
-        status: row.status ?? undefined,
-        sourceGateId: row.source_gate_id ?? undefined,
-        createdAt: new Date(row.created_at),
-      }))
-    } catch (err: unknown) {
-      const e: Error = err instanceof Error ? err : new Error(String(err))
-      throw new DatabaseError(
-        'Failed to get requirements by level',
-        'DB_REQUIREMENTS_BY_LEVEL_FAILED',
-        { level },
-        e
-      )
-    }
-  }
-
-  /**
    * Get direct children of a requirement identified by hash
    */
   getRequirementChildren(parentHash: string): Requirement[] {
@@ -445,9 +383,8 @@ export class RequirementStorage {
       if (!parent) return []
 
       const stmt = this.db.prepare(`
-        SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-               level, source, description, acceptance_criteria, hash, status,
-               source_gate_id, created_at, updated_at
+        SELECT id, project_id, gate_id, parent_id, type, priority,
+               description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE parent_id = ?
         ORDER BY created_at
@@ -457,18 +394,14 @@ export class RequirementStorage {
 
       return rows.map((row) => ({
         id: row.id,
+        projectId: row.project_id,
         gateId: row.gate_id,
         parentId: row.parent_id,
-        projectRequirementId: row.project_requirement_id,
         type: row.type as RequirementType,
         priority: row.priority as RequirementPriority,
-        level: row.level as RequirementLevel,
-        source: row.source as RequirementSource,
         description: row.description,
         acceptanceCriteria: row.acceptance_criteria ?? undefined,
         hash: row.hash,
-        status: row.status ?? undefined,
-        sourceGateId: row.source_gate_id ?? undefined,
         createdAt: new Date(row.created_at),
       }))
     } catch (err: unknown) {
@@ -495,9 +428,8 @@ export class RequirementStorage {
         const parentRow = this.db
           .prepare(
             `
-          SELECT id, gate_id, parent_id, project_requirement_id, type, priority,
-                 level, source, description, acceptance_criteria, hash, status,
-                 source_gate_id, created_at, updated_at
+          SELECT id, project_id, gate_id, parent_id, type, priority,
+                 description, acceptance_criteria, hash, created_at
           FROM requirements
           WHERE id = ?
         `
@@ -508,20 +440,15 @@ export class RequirementStorage {
 
         const parent: Requirement = {
           id: parentRow.id,
+          projectId: parentRow.project_id,
           gateId: parentRow.gate_id,
           parentId: parentRow.parent_id,
-          projectRequirementId: parentRow.project_requirement_id,
           type: parentRow.type as RequirementType,
           priority: parentRow.priority as RequirementPriority,
-          level: parentRow.level as RequirementLevel,
-          source: parentRow.source as RequirementSource,
           description: parentRow.description,
           acceptanceCriteria: parentRow.acceptance_criteria ?? undefined,
           hash: parentRow.hash,
-          status: parentRow.status ?? undefined,
-          sourceGateId: parentRow.source_gate_id ?? undefined,
           createdAt: new Date(parentRow.created_at),
-          updatedAt: parentRow.updated_at ? new Date(parentRow.updated_at) : undefined,
         }
 
         result.push(parent)
@@ -534,134 +461,6 @@ export class RequirementStorage {
       throw new DatabaseError(
         'Failed to get requirement ancestors',
         'DB_REQUIREMENT_ANCESTORS_FAILED',
-        { hash },
-        e
-      )
-    }
-  }
-
-  /**
-   * Update requirement with validation and circular dependency prevention
-   */
-  updateRequirement(hash: string, updates: Partial<Requirement>): Requirement {
-    try {
-      const existing = this.getRequirementByHash(hash)
-      if (!existing) {
-        throw new DatabaseError('Requirement not found', 'DB_REQUIREMENT_NOT_FOUND', { hash })
-      }
-
-      // Enum validations
-      const validTypes = ['functional', 'non_functional', 'constraint']
-      const validPriorities = ['must', 'should', 'could', 'wont']
-      const validLevels = ['project', 'gate']
-
-      if (updates.type && !validTypes.includes(updates.type)) {
-        throw new DatabaseError('Invalid requirement type', 'DB_REQUIREMENT_INVALID_TYPE', {
-          type: updates.type,
-        })
-      }
-      if (updates.priority && !validPriorities.includes(updates.priority)) {
-        throw new DatabaseError('Invalid requirement priority', 'DB_REQUIREMENT_INVALID_PRIORITY', {
-          priority: updates.priority,
-        })
-      }
-      if (updates.level && !validLevels.includes(updates.level)) {
-        throw new DatabaseError('Invalid requirement level', 'DB_REQUIREMENT_INVALID_LEVEL', {
-          level: updates.level,
-        })
-      }
-
-      // Prevent circular dependencies if changing parent
-      if (updates.parentId) {
-        if (updates.parentId === existing.id) {
-          throw new DatabaseError('Cannot set parent to self', 'DB_REQUIREMENT_CIRCULAR_PARENT', {
-            hash,
-          })
-        }
-
-        // Get ancestors of the candidate parent; if existing.id is present, it would create a cycle
-        const parentAncestors: { id: string; parentId: string | null; hash: string }[] = []
-        let cursorId = updates.parentId
-        while (cursorId) {
-          const row = this.db
-            .prepare('SELECT id, parent_id, hash FROM requirements WHERE id = ?')
-            .get(cursorId) as { id: string; parent_id: string | null; hash: string } | undefined
-          if (!row) break
-          parentAncestors.push({ id: row.id, parentId: row.parent_id, hash: row.hash })
-          cursorId = row.parent_id
-        }
-
-        if (parentAncestors.some((a) => a.id === existing.id)) {
-          throw new DatabaseError(
-            'Circular dependency detected',
-            'DB_REQUIREMENT_CIRCULAR_DETECTED',
-            { hash }
-          )
-        }
-      }
-
-      const fields: string[] = []
-      const params: unknown[] = []
-
-      if (updates.description) {
-        fields.push('description = ?')
-        params.push(updates.description)
-      }
-      if (updates.type) {
-        fields.push('type = ?')
-        params.push(updates.type)
-      }
-      if (updates.priority) {
-        fields.push('priority = ?')
-        params.push(updates.priority)
-      }
-      if (updates.level) {
-        fields.push('level = ?')
-        params.push(updates.level)
-      }
-      if (typeof updates.gateId !== 'undefined') {
-        fields.push('gate_id = ?')
-        params.push(updates.gateId ?? null)
-      }
-      if (typeof updates.parentId !== 'undefined') {
-        fields.push('parent_id = ?')
-        params.push(updates.parentId ?? null)
-      }
-      if (typeof updates.acceptanceCriteria !== 'undefined') {
-        fields.push('acceptance_criteria = ?')
-        params.push(updates.acceptanceCriteria ?? null)
-      }
-
-      if (fields.length === 0) return existing
-
-      // Always update updated_at
-      fields.push('updated_at = ?')
-      params.push(new Date().toISOString())
-
-      const sql = `UPDATE requirements SET ${fields.join(', ')} WHERE id = ?`
-      params.push(existing.id)
-
-      const updateTx = this.db.transaction(() => {
-        const stmt = this.db.prepare(sql)
-        stmt.run(...params)
-      })
-
-      updateTx()
-
-      const updated = this.getRequirementByHash(hash)
-      if (!updated)
-        throw new DatabaseError(
-          'Failed to retrieve updated requirement',
-          'DB_REQUIREMENT_RETRIEVE_FAILED',
-          { hash }
-        )
-      return updated
-    } catch (err: unknown) {
-      if (err instanceof DatabaseError) throw err
-      const e: Error = err instanceof Error ? err : new Error(String(err))
-      throw new DatabaseError(
-        'Failed to update requirement',
-        'DB_REQUIREMENT_UPDATE_FAILED',
         { hash },
         e
       )
@@ -728,31 +527,6 @@ export class RequirementStorage {
   }
 
   /**
-   * Update requirement status (e.g., pending -> implemented -> tested)
-   * Returns number of rows changed.
-   */
-  updateRequirementStatus(hash: string, status: 'pending' | 'implemented' | 'tested'): number {
-    if (!['pending', 'implemented', 'tested'].includes(status)) {
-      throw new Error('Invalid status')
-    }
-
-    try {
-      const stmt = this.db.prepare('UPDATE requirements SET status = ? WHERE hash = ?')
-      const result = stmt.run(status, hash)
-      // better-sqlite3 returns changes on statement
-      return (result as { changes?: number }).changes ?? 0
-    } catch (err: unknown) {
-      const e: Error = err instanceof Error ? err : new Error(String(err))
-      throw new DatabaseError(
-        'Failed to update requirement status',
-        'DB_REQUIREMENT_STATUS_UPDATE_FAILED',
-        { hash, status },
-        e
-      )
-    }
-  }
-
-  /**
    * Transfer a requirement (and its descendants) to a new gate.
    * Sets `gate_id = targetGateId`, `source = 'transferred'`, and records previous gate in `source_gate_id`.
    */
@@ -783,11 +557,10 @@ export class RequirementStorage {
       }
 
       const previousGate = targetReq.gateId ?? null
-      const now = new Date().toISOString()
 
       const getChildrenStmt = this.db.prepare('SELECT id FROM requirements WHERE parent_id = ?')
       const updateStmt = this.db.prepare(
-        'UPDATE requirements SET gate_id = ?, source = ?, source_gate_id = ?, updated_at = ? WHERE id = ?'
+        'UPDATE requirements SET gate_id = ? WHERE id = ?'
       )
 
       const transferTx = this.db.transaction(() => {
@@ -803,7 +576,7 @@ export class RequirementStorage {
         }
 
         for (const id of Array.from(toUpdate)) {
-          updateStmt.run(targetGateId, 'transferred', previousGate, now, id)
+          updateStmt.run(targetGateId, id)
         }
       })
 
@@ -825,7 +598,7 @@ export class RequirementStorage {
         hash: targetReq.hash,
         previousGateId: previousGate,
         newGateId: targetGateId,
-        transferredAt: now,
+        transferredAt: new Date().toISOString(),
         affectedProposals,
       }
     } catch (err: unknown) {

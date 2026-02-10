@@ -94,24 +94,22 @@ export const ProjectOverviewSchema = z.object({
     name: z.string(),
     hash: z.string(),
     completedAt: z.string(),
-    status: z.string()
   })),
   currentGateInfo: z.object({
     sequence: z.number(),
     name: z.string(),
     hash: z.string(),
-    status: z.string(),
-    estimatedComplexity: z.string()
+    estimatedComplexity: z.string(),
   }).nullable(),
   upcomingGates: z.array(z.object({
     sequence: z.number(),
     name: z.string(),
-    estimatedComplexity: z.string()
+    estimatedComplexity: z.string(),
   })),
   architecture: z.object({
     layers: z.array(z.string()),
-    keyDependencies: z.record(z.string(), z.string())
-  })
+    keyDependencies: z.record(z.string(), z.string()),
+  }),
 })
 
 export type ProjectOverview = z.infer<typeof ProjectOverviewSchema>

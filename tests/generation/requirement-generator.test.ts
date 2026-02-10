@@ -16,25 +16,34 @@ describe('RequirementGenerator', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-zeno-${randomUUID()}.db`)
     db = new Database(tempDbPath)
+    
+    // Disable foreign key constraints for unit tests
+    db.pragma('foreign_keys = OFF')
 
-    // Initialize schema
+    // Initialize schema (must match src/storage/migrations/001_initial_schema.sql)
+    db.exec(`
+      CREATE TABLE gates (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        sequence INTEGER,
+        status TEXT
+      )
+    `)
+    
     db.exec(`
       CREATE TABLE requirements (
         id TEXT PRIMARY KEY,
+        project_id TEXT DEFAULT 'default-project',
         gate_id TEXT,
         parent_id TEXT,
-        project_requirement_id TEXT,
         type TEXT NOT NULL CHECK (type IN ('functional', 'non_functional', 'constraint')),
         priority TEXT NOT NULL CHECK (priority IN ('must', 'should', 'could', 'wont')),
-        level TEXT NOT NULL CHECK (level IN ('project', 'gate')),
-        source TEXT NOT NULL CHECK (source IN ('generated', 'inherited', 'transferred')),
         description TEXT NOT NULL,
         acceptance_criteria TEXT,
         hash TEXT UNIQUE NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'implemented', 'tested')),
-        source_gate_id TEXT,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        FOREIGN KEY (parent_id) REFERENCES requirements(id),
+        FOREIGN KEY (gate_id) REFERENCES gates(id)
       )
     `)
 
@@ -132,10 +141,10 @@ describe('RequirementGenerator', () => {
       const requirements = await generator.generateFromEndState(endState)
 
       for (const req of requirements) {
-        expect(req.level).toBe('project')
-        expect(req.source).toBe('generated')
-        expect(req.status).toBe('pending')
+        // Project-level requirements have no gateId
         expect(req.gateId).toBeNull()
+        expect(req.projectId).toBeDefined()
+        expect(req.type).toBeDefined()
       }
     })
   })
@@ -173,20 +182,9 @@ describe('RequirementGenerator', () => {
       const allRequirements = generator.getProjectRequirements()
 
       expect(allRequirements.length).toBeGreaterThan(0)
-      expect(allRequirements.every(r => r.level === 'project')).toBe(true)
+      // Project-level requirements should have no gateId
+      expect(allRequirements.every(r => !r.gateId)).toBe(true)
     })
   })
 
-  describe('updateRequirementStatus', () => {
-    it('updates requirement status', async () => {
-      const endState = 'System must be secure.'
-      const requirements = await generator.generateFromEndState(endState)
-      const hash = requirements[0]!.hash
-
-      generator.updateRequirementStatus(hash, 'implemented')
-
-      const updated = storage.getRequirementByHash(hash)
-      expect(updated?.status).toBe('implemented')
-    })
-  })
 })

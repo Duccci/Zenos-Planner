@@ -120,7 +120,12 @@ export function registerTemplateCommand(program: Command): void {
           }
         } else {
           // Table format - default, human readable
-          console.log('\n' + formatTemplateTable(templates) + '\n')
+          const tableData = templates.map((t) => ({
+            name: t.name,
+            category: t.category,
+            description: t.description ?? 'No description',
+          }))
+          console.log('\n' + formatTemplateTable(tableData) + '\n')
         }
       } catch (error) {
         console.error('Error listing templates:', error)

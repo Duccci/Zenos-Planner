@@ -165,7 +165,7 @@ export function repositoryHandlers(
 
         return {
           content: [{ type: 'text', text: JSON.stringify(raw, null, 2) }],
-          structuredContent: raw,
+          structuredContent: (raw ?? {}) as Record<string, unknown>,
         }
       }
 

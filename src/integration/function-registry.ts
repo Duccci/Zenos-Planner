@@ -153,11 +153,11 @@ export class FunctionRegistry {
       let operations: unknown
       if (typeof error === 'object' && error !== null) {
         const obj = error as Record<string, unknown>
-        if ('code' in obj && (typeof obj.code === 'string' || typeof obj.code === 'number')) {
-          code = String(obj.code)
+        if ('code' in obj && (typeof obj['code'] === 'string' || typeof obj['code'] === 'number')) {
+          code = String(obj['code'])
         }
         if ('operations' in obj) {
-          operations = obj.operations
+          operations = obj['operations']
         }
       }
 

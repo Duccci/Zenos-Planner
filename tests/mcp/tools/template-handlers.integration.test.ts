@@ -8,7 +8,7 @@ describe('Template Handlers (unit)', () => {
     const res = await handlers.template_get({ name: 'gate-prd-template' })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(String(res.structuredContent?.content || '')).toContain('# Gate [XX]: [Gate Name]')
+    expect(String(res.structuredContent?.artifact?.content || '')).toContain('# Gate [XX]: [Gate Name]')
   })
 
   it('template_context returns content on success', async () => {

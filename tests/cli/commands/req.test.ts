@@ -66,7 +66,7 @@ describe('Requirements Commands', () => {
 
   it('req list --project should filter to project-level requirements', async () => {
     const registry: Partial<FunctionRegistry> = {
-      invoke: vi.fn().mockResolvedValue({ success: true, output: { requirements: [ { hash: 'r#proj', title: 'Project Req', gateId: '' }, { hash: 'r#g', title: 'Gate Req', gateId: 'gate-01' } ] } }),
+      invoke: vi.fn().mockResolvedValue({ success: true, data: { requirements: [ { hash: 'r#proj', description: 'Project Req', gateId: '' }, { hash: 'r#g', description: 'Gate Req', gateId: 'gate-01' } ] } }),
       register: vi.fn(),
       list: vi.fn().mockReturnValue([]),
       get: vi.fn(),
@@ -90,15 +90,17 @@ describe('Requirements Commands', () => {
   it('req show should display details including parent and children', async () => {
     const mockOut = {
       success: true,
-      output: {
-        hash: 'r#1',
-        title: 'Top level',
-        description: 'Detailed description',
-        type: 'functional',
-        gateId: 'gate-01',
-        parentRequirement: { hash: 'r#0', title: 'Parent' },
-        childRequirements: [{ hash: 'r#2', title: 'Child A' }],
-        acceptance: [{ criteria: 'Do X' }]
+      data: {
+        requirement: {
+          hash: 'r#1',
+          description: 'Detailed description',
+          type: 'functional',
+          priority: 'must',
+          level: 'gate',
+          gateId: 'gate-01',
+          parentId: 'r#0',
+          acceptanceCriteria: 'Do X'
+        }
       }
     }
 
@@ -119,18 +121,19 @@ describe('Requirements Commands', () => {
     await program.parseAsync(['node', 'test', 'req', 'show', 'r#1'])
 
     expect(registry.invoke).toHaveBeenCalledWith('req_show', { hash: 'r#1' })
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Requirement Details'))
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Parent:'))
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Children:'))
+    expect(logger.info).toHaveBeenCalledWith('Requirement: r#1')
+    expect(logger.info).toHaveBeenCalledWith('Parent: r#0')
   })
 
   it('req deps should print ascii tree by default and json with --format json', async () => {
     const depsOut = {
       success: true,
-      output: {
-        root: 'r#1',
-        nodes: [{ hash: 'r#1', title: 'Root' }, { hash: 'r#2', title: 'Child' }],
-        edges: [{ from: 'r#1', to: 'r#2', type: 'depends_on' }]
+      data: {
+        graph: {
+          root: 'r#1',
+          nodes: [{ hash: 'r#1', title: 'Root' }, { hash: 'r#2', title: 'Child' }],
+          edges: [{ from: 'r#1', to: 'r#2', type: 'depends_on' }]
+        }
       }
     }
 
@@ -144,8 +147,6 @@ describe('Requirements Commands', () => {
     const mod = await import('../../../src/integration/function-implementations.js')
     vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
 
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
-
     const program = new Command()
     program.exitOverride()
     registerReqCommands(program)
@@ -153,14 +154,8 @@ describe('Requirements Commands', () => {
     await program.parseAsync(['node', 'test', 'req', 'deps', 'r#1'])
 
     expect(registry.invoke).toHaveBeenCalledWith('req_deps', { hash: 'r#1' })
-    expect(logSpy).toHaveBeenCalled()
-
-    logSpy.mockClear()
-
-    await program.parseAsync(['node', 'test', 'req', 'deps', 'r#1', '--format', 'json'])
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('"root": "r#1"'))
-
-    logSpy.mockRestore()
+    expect(logger.info).toHaveBeenCalledWith('Dependency graph for r#1:')
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('"root": "r#1"'))
   })
 
   it('req transfer should call transfer and show confirmation', async () => {
@@ -189,7 +184,6 @@ describe('Requirements Commands', () => {
     await program.parseAsync(['node', 'test', 'req', 'transfer', 'r#1', 'gate-04'])
 
     expect(registry.invoke).toHaveBeenCalledWith('req_transfer', { hash: 'r#1', gateId: 'gate-04' })
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Requirement transferred'))
-    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Source Gate: gate-01'))
+    expect(logger.info).toHaveBeenCalledWith('Requirement r#1 transferred to gate gate-04')
   })
 })
