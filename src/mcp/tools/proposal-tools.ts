@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import {
   ProposalListInputSchema,
   ProposalShowInputSchema,
@@ -37,9 +38,8 @@ import { validateQuality, type QualityValidationContext } from '../validators/qu
 export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
-    title: 'Proposal Action',
     description:
-      'Unified proposal lifecycle tool with guardrail enforcement. Supports actions: list, show, create, validate, approve, reject, start. Actions "start" and "approve" run scope, quality, and apply-phase validators. Use discriminated union with action and payload.',
+      'Unified proposal lifecycle: list, show, create, validate, approve, reject, start with guardrails',
     inputSchema: ProposalActionInputSchema,
   },
 ]
@@ -51,51 +51,42 @@ export const proposalToolDefinitions = [
 export const legacyProposalToolDefinitions = [
   {
     name: 'proposal_list',
-    title: 'Proposal List',
-    description: 'List proposals optionally filtered by gate or status',
+    description: 'List proposals by gate or status',
     inputSchema: ProposalListInputSchema,
   },
   {
     name: 'proposal_show',
-    title: 'Proposal Show',
-    description: 'Show detailed proposal information',
+    description: 'Show proposal details',
     inputSchema: ProposalShowInputSchema,
   },
   {
     name: 'proposal_create',
-    title: 'Proposal Create',
-    description: 'Create a new proposal with tasks, files affected, and validation',
+    description: 'Create proposal with tasks and affected files',
     inputSchema: ProposalCreateInputSchema,
   },
   {
     name: 'proposal_validate',
-    title: 'Proposal Validate',
     description: 'Validate proposal structure and dependencies',
     inputSchema: ProposalValidateInputSchema,
   },
   {
     name: 'proposal_approve',
-    title: 'Proposal Approve',
-    description:
-      'Approve a proposal. This operation must not invoke git commands — applies changes to proposal state only. Git commits occur at gate completion.',
+    description: 'Approve proposal (state change only, no git)',
     inputSchema: ProposalApproveInputSchema,
   },
   {
     name: 'proposal_reject',
-    title: 'Proposal Reject',
-    description: 'Reject a proposal with reason',
+    description: 'Reject proposal with reason',
     inputSchema: ProposalRejectInputSchema,
   },
   {
     name: 'proposal_start',
-    title: 'Proposal Start',
-    description:
-      'Start working on an approved proposal. This operation must not invoke git commands — applies changes to proposal state only.',
+    description: 'Start working on approved proposal (state change only)',
     inputSchema: ProposalStartInputSchema,
   },
 ]
 
-import type { FunctionRegistry, FunctionResult } from '../../integration/function-registry.js'
+import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
   ProposalListOutputSchema,
@@ -105,10 +96,11 @@ import {
   ProposalRejectOutputSchema,
   ProposalStartOutputSchema,
 } from '../schemas/proposal-schemas.js'
-import type { ZenoConfig } from '../../utils/config.js'
+
 import { ProposalCreateOutputSchema } from '../schemas/proposal-create-schemas.js'
 import { ProposalActionOutputSchema } from '../schemas/proposal-action-schemas.js'
 import { createSchemaValidatingHandler } from './handler-factory.js'
+import { createEntityActionHandler } from './entity-action-handler.js'
 
 /**
  * Unified proposal action handler.
@@ -156,209 +148,156 @@ export function proposalHandlers(
    * Run validators for proposal actions that change state.
    * Returns combined validation results from all applicable validators.
    */
-  async function runProposalValidators(
-    action: 'start' | 'approve',
-    payload: { hash: string },
-    registry: FunctionRegistry
-  ): Promise<{ allowed: boolean; errors?: string[]; warnings?: string[] }> {
-    const allErrors: string[] = []
-    const allWarnings: string[] = []
-
-    try {
-      // Get proposal details for validation context
-      const proposalResult = await registry.invoke<
-        import('../schemas/proposal-schemas.js').ProposalDetail
-      >('proposal_show', { hash: payload.hash })
-      if (!proposalResult.success) {
-        const proposalErr =
-          'error' in proposalResult ? proposalResult.error.message : 'unknown error'
-        allErrors.push(`Failed to retrieve proposal details: ${proposalErr}`)
-        return { allowed: false, errors: allErrors }
-      }
-
-      const proposal = proposalResult.data
-      const filesAffected: string[] = proposal.files?.map((f) => f.path) ?? []
-
-      // Get project configuration from config - this is the primary source of truth
-      const configResult = await registry.invoke<ZenoConfig>('config_get', {})
-      let config: ZenoConfig
-
-      if (configResult.success) {
-        config = configResult.data
-      } else {
-        // If config retrieval fails, use sensible defaults from getDefaultConfig
-        // Import at runtime to avoid circular deps in some test scenarios
-        const { getDefaultConfig } = await import('../../utils/config.js')
-        const cfgErrMsg = 'error' in configResult ? configResult.error.message : 'unknown error'
-        allWarnings.push(
-          `Failed to retrieve config: ${cfgErrMsg}. Using default quality thresholds.`
-        )
-        config = getDefaultConfig('unknown')
-      }
-
-      // For 'start' action: validate scope and apply phase constraints
-      if (action === 'start') {
-        // Get current git status to check for uncommitted changes
-        // Note: This is a simplified check - in practice we'd need to detect actual file modifications
-        const gitOperations: string[] = [] // TODO: Implement git operation detection
-        const filesModified: string[] = [] // TODO: Track files modified during implementation
-
-        const applyPhaseContext: ApplyPhaseValidationContext = {
-          proposalHash: payload.hash,
-          filesAffected,
-          filesModified,
-          gitOperations,
-          config,
-        }
-
-        const applyPhaseResult = validateApplyPhase(applyPhaseContext)
-        allErrors.push(...(applyPhaseResult.errors ?? []))
-        allWarnings.push(...(applyPhaseResult.warnings ?? []))
-      }
-
-      // For 'approve' action: validate quality metrics
-      if (action === 'approve') {
-        // Get quality metrics (simplified - in practice this would come from CI/CD or analysis)
-        const qualityMetrics = {
-          coverage: 95, // TODO: Get actual coverage
-          typeErrors: 0, // TODO: Get actual type errors
-          lintErrors: 2, // TODO: Get actual lint errors
-          securityIssues: 0, // TODO: Get actual security issues
-        }
-
-        const qualityContext: QualityValidationContext = {
-          metrics: qualityMetrics,
-          config,
-          strict: false, // Allow warnings for approval
-        }
-
-        const qualityResult = validateQuality(qualityContext)
-        allErrors.push(...(qualityResult.errors ?? []))
-        allWarnings.push(...(qualityResult.warnings ?? []))
-      }
-    } catch (error) {
-      allWarnings.push(`Validator execution failed: ${String(error)}`)
-    }
-
-    return {
-      allowed: allErrors.length === 0,
-      errors: allErrors.length > 0 ? allErrors : undefined,
-      warnings: allWarnings.length > 0 ? allWarnings : undefined,
-    }
-  }
 
   /**
    * Unified action dispatcher for proposal lifecycle operations.
    * Validates action and payload, then delegates to appropriate handler.
    */
-  async function proposal_action(args: Record<string, unknown>): Promise<CallToolResult> {
-    try {
-      const validated = ProposalActionInputSchema.parse(args)
-
-      let invokeResult: FunctionResult | undefined
-      let validationForResult:
-        | { allowed: boolean; errors?: string[]; warnings?: string[] }
-        | undefined = undefined
-
-      switch (validated.action) {
-        case 'list':
-          invokeResult = await registry.invoke('proposal_list', validated.payload)
-          break
-        case 'show':
-          invokeResult = await registry.invoke('proposal_show', validated.payload)
-          break
-        case 'create':
-          invokeResult = await registry.invoke('proposal_create', validated.payload)
-          break
-        case 'validate':
-          invokeResult = await registry.invoke('proposal_validate', validated.payload)
-          break
-        case 'approve':
-        case 'start': {
-          // Run validators for state-changing actions
-          const validationResults = await runProposalValidators(
-            validated.action,
-            validated.payload as { hash: string },
-            registry
-          )
-
-          // If validation fails with errors, return validation results
-          if (!validationResults.allowed) {
-            const errorOutput = {
-              action: validated.action,
-              error: 'Validation failed',
-              validation: validationResults,
-            }
-            return {
-              content: [{ type: 'text', text: JSON.stringify(errorOutput, null, 2) }],
-              structuredContent: errorOutput,
-              isError: true,
-            } as CallToolResult
-          }
-
-          // Proceed with the action
-          // Set apply-phase guard so that any shell commands invoking git are blocked
-          type GlobalApplyPhase = { __ZENOPROPOSAL_APPLY_PHASE?: boolean } & typeof globalThis
-          try {
-            ;(globalThis as unknown as GlobalApplyPhase).__ZENOPROPOSAL_APPLY_PHASE = true
-            invokeResult = await registry.invoke(
-              validated.action === 'approve' ? 'proposal_approve' : 'proposal_start',
-              validated.payload
-            )
-          } finally {
-            try {
-              delete (globalThis as unknown as GlobalApplyPhase).__ZENOPROPOSAL_APPLY_PHASE
-            } catch {
-              ;(globalThis as unknown as GlobalApplyPhase).__ZENOPROPOSAL_APPLY_PHASE = false
-            }
-          }
-
-          // Include validation warnings in result if present
-          validationForResult =
-            (validationResults.warnings?.length ?? 0) > 0 ? validationResults : undefined
-          break
+  // Replace inline dispatcher with generic entity action handler
+  const proposalActionHandler = createEntityActionHandler(
+    {
+      entity: 'proposal',
+      actions: ['list', 'show', 'create', 'validate', 'approve', 'reject', 'start'] as const,
+      inputSchema: ProposalActionInputSchema,
+      outputSchema: ProposalActionOutputSchema,
+      actionOutputSchema(action) {
+        switch (action) {
+          case 'list':
+            return ProposalListOutputSchema
+          case 'show':
+            return ProposalDetailSchema
+          case 'create':
+            return ProposalCreateOutputSchema
+          case 'validate':
+            return ProposalValidateOutputSchema
+          case 'approve':
+            return ProposalApproveOutputSchema
+          case 'reject':
+            return ProposalRejectOutputSchema
+          case 'start':
+            return ProposalStartOutputSchema
         }
-        case 'reject':
-          invokeResult = await registry.invoke('proposal_reject', validated.payload)
-          break
-        default:
-          throw new Error(`Unknown proposal action: ${String((validated as unknown as Record<string, unknown>)['action'])}`)
-      }
+      },
+      actionHandlers: {
+        list: async (payload, r) => r.invoke('proposal_list', payload),
+        show: async (payload, r) => r.invoke('proposal_show', payload),
+        create: async (payload, r) => r.invoke('proposal_create', payload),
+        validate: async (payload, r) => r.invoke('proposal_validate', payload),
+        approve: async (payload, r) => r.invoke('proposal_approve', payload),
+        reject: async (payload, r) => r.invoke('proposal_reject', payload),
+        start: async (payload, r) => r.invoke('proposal_start', payload),
+      },
 
-      // Check for invocation errors (invokeResult is guaranteed to be set or a default case threw above)
-      const res = invokeResult
-      if (!res.success) {
-        const errMsg = (res as { success: false; error: { message: string } }).error.message
-        throw new Error(errMsg)
-      }
+      validators: {
+        start: (payload, r) => [
+          async () => {
+            const allErrors: string[] = []
+            const allWarnings: string[] = []
 
-      // At this point `res` is the success variant and contains `data`.
-      const data = (res as { success: true; data: unknown }).data
+            const proposalResult = await r.invoke('proposal_show', {
+              hash: (payload as { hash: string }).hash,
+            })
 
-      // Wrap result in action envelope
-      const output = {
-        action: validated.action,
-        result: data,
-        validation: validationForResult, // Only set for validated actions
-      }
+            if (!proposalResult.success) {
+              const proposalErr =
+                'error' in proposalResult ? proposalResult.error.message : 'unknown error'
+              allErrors.push(`Failed to retrieve proposal details: ${proposalErr}`)
+              return { allowed: false, errors: allErrors }
+            }
 
-      // Validate output
-      const validatedOutput = ProposalActionOutputSchema.parse(output)
+            const proposal = proposalResult.data
+            const filesAffected = (proposal as { files_affected?: string[] }).files_affected ?? []
 
-      return {
-        content: [{ type: 'text', text: JSON.stringify(validatedOutput, null, 2) }],
-        structuredContent: validatedOutput,
-      } as CallToolResult
-    } catch (error) {
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ error: String(error) }, null, 2) }],
-        isError: true,
-      } as CallToolResult
-    }
-  }
+            const configResult = await r.invoke('config_get', {})
+
+            let config: any
+
+            if (configResult.success) {
+              config = configResult.data
+            } else {
+              const { getDefaultConfig } = await import('../../utils/config.js')
+              const cfgErrMsg =
+                'error' in configResult ? configResult.error.message : 'unknown error'
+              allWarnings.push(
+                `Failed to retrieve config: ${cfgErrMsg}. Using default quality thresholds.`
+              )
+              config = getDefaultConfig('unknown')
+            }
+
+            const gitOperations: string[] = []
+            const filesModified: string[] = []
+
+            const applyPhaseContext: ApplyPhaseValidationContext = {
+              proposalHash: (payload as { hash: string }).hash,
+              filesAffected,
+              filesModified,
+              gitOperations,
+              config,
+            }
+
+            const applyPhaseResult = validateApplyPhase(applyPhaseContext)
+            allErrors.push(...(applyPhaseResult.errors ?? []))
+            allWarnings.push(...(applyPhaseResult.warnings ?? []))
+
+            return {
+              allowed: allErrors.length === 0,
+              errors: allErrors.length > 0 ? allErrors : undefined,
+              warnings: allWarnings.length > 0 ? allWarnings : undefined,
+            }
+          },
+        ],
+        approve: (_payload, r) => [
+          async () => {
+            const allErrors: string[] = []
+            const allWarnings: string[] = []
+
+            const configResult = await r.invoke('config_get', {})
+
+            let config: any
+
+            if (configResult.success) {
+              config = configResult.data as any
+            } else {
+              const { getDefaultConfig } = await import('../../utils/config.js')
+              const cfgErrMsg =
+                'error' in configResult ? configResult.error.message : 'unknown error'
+              allWarnings.push(
+                `Failed to retrieve config: ${cfgErrMsg}. Using default quality thresholds.`
+              )
+              config = getDefaultConfig('unknown')
+            }
+
+            const qualityMetrics = {
+              coverage: 95,
+              typeErrors: 0,
+              lintErrors: 2,
+              securityIssues: 0,
+            }
+
+            const qualityContext: QualityValidationContext = {
+              metrics: qualityMetrics,
+              config,
+              strict: false,
+            }
+
+            const qualityResult = validateQuality(qualityContext)
+            allErrors.push(...(qualityResult.errors ?? []))
+            allWarnings.push(...(qualityResult.warnings ?? []))
+
+            return {
+              allowed: allErrors.length === 0,
+              errors: allErrors.length > 0 ? allErrors : undefined,
+              warnings: allWarnings.length > 0 ? allWarnings : undefined,
+            }
+          },
+        ],
+      },
+    },
+    registry
+  )
 
   return {
     ...handlers,
-    proposal_action,
+    proposal_action: proposalActionHandler,
   }
 }

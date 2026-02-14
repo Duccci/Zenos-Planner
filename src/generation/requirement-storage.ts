@@ -7,12 +7,7 @@
 
 import Database from 'better-sqlite3'
 import { getDatabase } from '../storage/database.js'
-import {
-  Requirement,
-  RequirementType,
-  RequirementPriority,
-  RequirementCandidate,
-} from './types.js'
+import { Requirement, RequirementType, RequirementPriority, RequirementCandidate } from './types.js'
 import { generateRequirementHash, detectHashCollision } from '../utils/hash.js'
 import { findProposalsReferencingRequirementSync } from './proposals-discovery.js'
 import { DatabaseError } from '../utils/errors.js'
@@ -57,7 +52,7 @@ export class RequirementStorage {
     description: string,
     type: RequirementType,
     priority: RequirementPriority,
-    projectId: string = 'default-project',
+    projectId = 'default-project',
     gateId?: string,
     acceptanceCriteria?: string,
     parentId?: string
@@ -78,7 +73,8 @@ export class RequirementStorage {
         existingExact.type === type &&
         existingExact.priority === priority &&
         existingExact.description === description.trim() &&
-        (existingExact.acceptanceCriteria ?? undefined) === (acceptanceCriteria?.trim() ?? undefined)
+        (existingExact.acceptanceCriteria ?? undefined) ===
+          (acceptanceCriteria?.trim() ?? undefined)
       ) {
         return existingExact
       }
@@ -197,7 +193,7 @@ export class RequirementStorage {
    */
   storeRequirementsFromCandidates(
     candidates: RequirementCandidate[],
-    projectId: string = 'default-project',
+    projectId = 'default-project',
     gateId?: string
   ): Requirement[] {
     const requirements: Requirement[] = []
@@ -559,9 +555,7 @@ export class RequirementStorage {
       const previousGate = targetReq.gateId ?? null
 
       const getChildrenStmt = this.db.prepare('SELECT id FROM requirements WHERE parent_id = ?')
-      const updateStmt = this.db.prepare(
-        'UPDATE requirements SET gate_id = ? WHERE id = ?'
-      )
+      const updateStmt = this.db.prepare('UPDATE requirements SET gate_id = ? WHERE id = ?')
 
       const transferTx = this.db.transaction(() => {
         // Collect all descendant ids (including the root)

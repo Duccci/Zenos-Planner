@@ -16,9 +16,7 @@ import { ConfigGetOutputSchema } from '../schemas/config-schemas.js'
 export const configToolDefinitions = [
   {
     name: 'config_get',
-    title: 'Get Configuration',
-    description:
-      'Get project configuration including quality thresholds, git settings, version, and versioning settings. Returns structured ZenoConfig object with all project settings.',
+    description: 'Get project configuration (quality thresholds, git, version)',
     inputSchema: z.object({}), // No input parameters required
   },
 ]

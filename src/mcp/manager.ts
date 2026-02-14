@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
+import { execSync } from 'node:child_process'
 import { getZenoDir } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
@@ -58,30 +58,39 @@ export function isServerRunning(projectRoot: string = process.cwd()): boolean {
   return isProcessRunning(pid)
 }
 
-export function spawnServerBackground(projectRoot: string = process.cwd()): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Spawn `node bin/zeno.js mcp server` in the project root as a detached process
-    const node = process.execPath
-    const script = 'bin/zeno.js'
-    const args = ['mcp', 'server']
+/**
+ * Stop a running MCP server by PID.
+ * Reads the PID file, sends SIGTERM (or taskkill on Windows), and removes the PID file.
+ * @returns true if a server was stopped, false if none was running
+ */
+export function stopServer(projectRoot: string = process.cwd()): boolean {
+  const pid = readPid(projectRoot)
+  if (!pid) {
+    logger.info('No MCP server PID file found')
+    return false
+  }
 
-    const child = spawn(node, [script, ...args], {
-      cwd: projectRoot,
-      detached: true,
-      stdio: 'ignore',
-    })
+  if (!isProcessRunning(pid)) {
+    logger.info(`MCP server PID ${String(pid)} is not running; removing stale PID file`)
+    removePid(projectRoot)
+    return false
+  }
 
-    child.on('error', (err) => {
-      logger.error('Failed to spawn MCP server:', err)
-      reject(err)
-    })
+  try {
+    if (process.platform === 'win32') {
+      // On Windows, SIGTERM via process.kill is unreliable for node processes.
+      // Use taskkill which sends WM_CLOSE followed by TerminateProcess.
+      execSync(`taskkill /PID ${String(pid)} /T /F`, { stdio: 'ignore' })
+      logger.info(`Terminated MCP server via taskkill (PID ${String(pid)})`)
+    } else {
+      process.kill(pid, 'SIGTERM')
+      logger.info(`Sent SIGTERM to MCP server (PID ${String(pid)})`)
+    }
+  } catch (err) {
+    logger.warn(`Failed to stop PID ${String(pid)}`, err)
+  }
 
-    // Detach and let it run independently
-    child.unref()
-
-    // Give the process a short moment to create PID file and start
-    setTimeout(() => {
-      resolve()
-    }, 200)
-  })
+  // Clean up PID file regardless
+  removePid(projectRoot)
+  return true
 }

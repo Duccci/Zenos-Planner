@@ -37,7 +37,14 @@ Mark each step as in-progress, then completed immediately after finishing.
    - Verify gate-tied proposals omit test tasks (tests belong in the gate's final test proposal)
    - Verify solitary proposals include test tasks inline
 9. **Cross-reference architecture** - Verify file paths match `system-overview.md` (gate-level planning step only; the apply agent does not re-read architecture docs)
-10. **Output summary** - List all proposals with hashes, requires/blocks relationships
+10. **Update gate PRD** (gate-tied only) - Populate the `## Proposals` section in the gate PRD:
+    - Fill `### Proposal Status` table with all generated proposals (name, hash, status, dependency notes)
+    - Generate `### Proposal Dependency Graph` as a Mermaid `graph LR` diagram showing `requires` edges between proposals
+    - Each node uses the proposal hash as ID and `"NN Proposal Name"` as label
+    - Edges point from dependent to dependency (arrow means "requires")
+    - Proposals with no dependencies have no outgoing edges
+    - Update the `**Status**` line to reflect that proposals have been generated
+11. **Output summary** - List all proposals with hashes, requires/blocks relationships
 
     ...
 

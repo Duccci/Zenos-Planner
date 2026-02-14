@@ -70,81 +70,86 @@ export async function main(): Promise<void> {
 
     await server.connect(transport)
 
+    // Pre-import modules needed for cleanup so they're available synchronously
+    // in signal handlers (dynamic import in signal handlers is unreliable on Windows)
+    const { writePid, removePid: removePidFn } = await import('./manager.js')
+    const { stopWalCheckpointInterval, closeDatabase } = await import('../storage/database.js')
+
     // Write PID so other processes can detect running MCP server
     let removePid: (() => void) | undefined
     try {
-      const { writePid, removePid: removePidFn } = await import('./manager.js')
       removePid = removePidFn
       writePid()
-
-      // Clean up pid on exit
-      const cleanup = (): void => {
-        logger.info('Shutting down MCP server...')
-        void (async () => {
-          // 1. Close resource watcher first
-          try {
-            const resourceWatcher = (
-              server as unknown as { _resourceWatcher?: { close: () => void } }
-            )._resourceWatcher
-            resourceWatcher?.close()
-          } catch (err) {
-            logger.debug('Failed to close resource watcher', err)
-          }
-
-          // 2. Stop database checkpoint interval and close database
-          try {
-            const { stopWalCheckpointInterval, closeDatabase } = await import(
-              '../storage/database.js'
-            )
-            stopWalCheckpointInterval()
-            closeDatabase()
-          } catch (err) {
-            logger.debug('Failed to stop WAL checkpoint interval', err)
-          }
-
-          // 3. Close MCP server
-          await server.close()
-
-          // 4. Remove PID file
-          removePid?.()
-
-          process.exit(0)
-        })()
-      }
-
-      process.on('SIGINT', cleanup)
-      process.on('SIGTERM', cleanup)
-      process.on('uncaughtException', (err) => {
-        logger.error('Uncaught exception in MCP server', err)
-        void (async () => {
-          // Cleanup watchers and database on uncaught exception
-          try {
-            const resourceWatcher = (
-              server as unknown as { _resourceWatcher?: { close: () => void } }
-            )._resourceWatcher
-            resourceWatcher?.close()
-          } catch {
-            // ignore
-          }
-
-          try {
-            const { stopWalCheckpointInterval, closeDatabase } = await import(
-              '../storage/database.js'
-            )
-            stopWalCheckpointInterval()
-            closeDatabase()
-          } catch {
-            // ignore
-          }
-
-          await server.close()
-          removePid?.()
-          process.exit(1)
-        })()
-      })
     } catch (err) {
       logger.warn('PID file management not available', err)
     }
+
+    // Track whether cleanup has already run to prevent double-cleanup
+    let cleaningUp = false
+
+    // Synchronous cleanup that doesn't rely on async import or process.exit
+    // inside an async void. Signal handlers on Windows need to be fast and
+    // synchronous to avoid orphaned processes.
+    const cleanupSync = (exitCode: number): void => {
+      if (cleaningUp) return
+      cleaningUp = true
+      logger.info('Shutting down MCP server...')
+
+      // 1. Close resource watcher (sync)
+      try {
+        const resourceWatcher = (server as unknown as { _resourceWatcher?: { close: () => void } })
+          ._resourceWatcher
+        resourceWatcher?.close()
+      } catch (err) {
+        logger.debug('Failed to close resource watcher', err)
+      }
+
+      // 2. Stop database checkpoint interval and close database (sync)
+      try {
+        stopWalCheckpointInterval()
+        closeDatabase()
+      } catch (err) {
+        logger.debug('Failed to stop WAL checkpoint interval', err)
+      }
+
+      // 3. Close MCP server (async but we don't wait — process is exiting)
+      server.close().catch(() => {
+        // Ignore errors during shutdown
+      })
+
+      // 4. Remove PID file (sync)
+      try {
+        removePid?.()
+      } catch {
+        // ignore
+      }
+
+      process.exit(exitCode)
+    }
+
+    process.on('SIGINT', () => {
+      cleanupSync(0)
+    })
+    process.on('SIGTERM', () => {
+      cleanupSync(0)
+    })
+
+    // Windows orphan prevention: when the parent editor closes the stdio pipe,
+    // stdin emits 'end'. Without this, the process hangs forever on Windows
+    // because SIGINT/SIGTERM are not reliably delivered from a dead parent.
+    process.stdin.on('end', () => {
+      logger.info('stdin closed — parent disconnected')
+      cleanupSync(0)
+    })
+    process.stdin.on('error', () => {
+      logger.info('stdin error — parent disconnected')
+      cleanupSync(0)
+    })
+
+    process.on('uncaughtException', (err) => {
+      logger.error('Uncaught exception in MCP server', err)
+      cleanupSync(1)
+    })
 
     logger.info('Zeno MCP server started successfully')
     logger.info('Listening for MCP requests on stdio...')

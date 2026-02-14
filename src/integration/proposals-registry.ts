@@ -5,7 +5,7 @@
  * Handles: list, show, start, validate, approve, reject
  */
 
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/restrict-template-expressions */
+/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-condition */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
@@ -129,7 +129,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Run dependency validator if dependencies provided
       if (validated.dependencies && validated.dependencies.length > 0) {
         const db = (await import('../storage/database.js')).getDatabase()
-        const allNodes = new Map<string, { hash: string; dependencies: string[]; gateId?: string }>()
+        const allNodes = new Map<
+          string,
+          { hash: string; dependencies: string[]; gateId?: string }
+        >()
 
         // Build dependency graph from database
         const allProposals = db
@@ -151,9 +154,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
         allNodes.set(hash, currentNode)
 
-        const depValidation = validateDependencies({ 
+        const depValidation = validateDependencies({
           node: currentNode as Parameters<typeof validateDependencies>[0]['node'],
-          allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes']
+          allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes'],
         })
         if (depValidation.errors) {
           errors.push(...depValidation.errors)
@@ -373,7 +376,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Import validators
       const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
       const { validateQuality } = await import('../mcp/validators/quality-validator.js')
+      const { validateProposalPhases } =
+        await import('../mcp/validators/proposal-phases-validator.js')
       const { loadConfig } = await import('../utils/config.js')
+      const { readFile } = await import('../utils/file.js')
 
       const errors: string[] = []
       const warnings: string[] = []
@@ -382,10 +388,12 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string
+        title?: string
         dependencies?: string | null
         gate_id?: string | null
         quality_metrics?: string | null
         files_affected?: string | null
+        created_at?: string
       }
       const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
         | ProposalRow
@@ -393,6 +401,52 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       if (!proposal) {
         throw new Error(`Proposal ${validated.hash} not found`)
+      }
+
+      // Proposal phases validation - check for multi-phased proposals
+      try {
+        // Try to find and read the proposal file to check for multi-phase language
+        const { findProposalByHash } = await import('../core/proposal-locator.js')
+        const proposalFilePath = await findProposalByHash(validated.hash)
+
+        if (proposalFilePath) {
+          const proposalContent = await readFile(proposalFilePath)
+
+          // Extract proposal sections
+          const titleMatch = /^#\s+Proposal:\s+(.+)$/m.exec(proposalContent)
+          const summaryMatch = /## Summary\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(proposalContent)
+          const implNotesMatch = /## Implementation Notes\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(
+            proposalContent
+          )
+          const tasksMatch = /## Tasks\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(proposalContent)
+          const rollbackMatch = /## Rollback\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(proposalContent)
+
+          const title = titleMatch?.[1] ?? proposal.title ?? ''
+          const summary = summaryMatch?.[1]?.trim() ?? ''
+          const implementationNotes = implNotesMatch?.[1]?.trim()
+          const taskDescriptions = tasksMatch?.[1]
+            ? tasksMatch[1].split(/###\s+Task\s+\d+:/).filter((t) => t.trim())
+            : []
+          const rollback = rollbackMatch?.[1]?.trim()
+
+          const phasesValidation = validateProposalPhases({
+            title,
+            summary,
+            implementationNotes,
+            taskDescriptions,
+            rollback,
+          })
+
+          if (phasesValidation.errors) errors.push(...phasesValidation.errors)
+          if (phasesValidation.warnings) warnings.push(...phasesValidation.warnings)
+        }
+      } catch (err) {
+        // If we can't read the file or proposal locator doesn't exist, skip phase validation
+        // This is non-critical and shouldn't block the entire validation
+        const errMsg = err instanceof Error ? err.message : String(err)
+        if (!errMsg.includes('ENOENT') && !errMsg.includes('not found')) {
+          warnings.push(`Could not validate proposal phases: ${errMsg}`)
+        }
       }
 
       // Parse JSON fields
@@ -416,7 +470,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           allNodes.set(p.hash, {
             hash: p.hash,
             dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
-            gateId: (p.gate_id ?? undefined) as string | undefined,
+            gateId: p.gate_id ?? undefined,
           } as DepNode)
         }
 

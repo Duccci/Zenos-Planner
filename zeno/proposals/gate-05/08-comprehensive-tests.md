@@ -23,13 +23,13 @@ Gate 05 completion criteria require test coverage >= 90% for diagram generation 
 
 | Hash | Type | Description |
 |------|------|-------------|
-| #p05g01complxcfg | requires | Complexity analyzer module to test |
+| #p05g01complxcf0 | requires | Complexity analyzer module to test |
 | #p05g02rendbase0 | requires | Renderers and base classes to test |
-| #p05g03corediag | requires | Core diagram generators to test |
-| #p05g04conddiag | requires | Conditional diagram generators to test |
-| #p05g05selctmeta | requires | Diagram selector and metadata scanner to test |
-| #p05g06gatetmpl | requires | Gate template integration to test |
-| #p05g07clireg | requires | CLI commands and registry integration to test |
+| #p05g03corediag0 | requires | Core diagram generators to test |
+| #p05g04conddiag0 | requires | Conditional diagram generators to test |
+| #p05g05selctmet0 | requires | Diagram selector and metadata scanner to test |
+| #p05g06gatetmpl0 | requires | Gate template integration to test |
+| #p05g07cliregint | requires | CLI commands and registry integration to test |
 
 ---
 

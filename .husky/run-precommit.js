@@ -1,13 +1,23 @@
 import { execSync } from 'child_process';
+import path from 'path';
 import fs from 'fs';
+
+// On Windows, npm .cmd shims contain `2>NUL` redirects. When Git Bash
+// invokes these shims, the redirect creates a literal file named "nul"
+// instead of using the Windows NUL device. Clean it up after each command.
+function cleanupNulFile() {
+  try { fs.unlinkSync(path.join(process.cwd(), 'nul')); } catch {}
+}
 
 function run(cmd, options = {}) {
   console.log(`> ${cmd}`);
   try {
     execSync(cmd, { stdio: 'inherit', shell: true, ...options });
   } catch (err) {
+    cleanupNulFile();
     process.exit(err.status || 1);
   }
+  cleanupNulFile();
 }
 
 console.log(' Running pre-commit quality checks...');

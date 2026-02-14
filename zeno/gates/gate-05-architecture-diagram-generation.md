@@ -300,3 +300,49 @@ This gate addresses core documentation requirements from project initialization:
 - [ ] Test coverage >=90% for diagram generation and selection modules
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Zero lint errors, zero type errors
+
+## Proposals
+
+**Status**: Proposals generated, pending implementation.
+
+[View detailed proposal information via: `zeno proposal show <hash>`]
+
+### Proposal Status
+
+| Proposal | Hash | Status | Notes |
+|----------|------|--------|-------|
+| Complexity Analyzer & Configuration | #p05g01complxcf0 | pending | Foundational - no dependencies |
+| Rendering Base Classes & Graphviz Integration | #p05g02rendbase0 | pending | Requires #p05g01complxcf0 |
+| Core Diagram Generators | #p05g03corediag0 | pending | Requires #p05g02rendbase0 |
+| Conditional Diagram Generators | #p05g04conddiag0 | pending | Requires #p05g02rendbase0, #p05g01complxcf0 |
+| Diagram Selection & Architecture Metadata | #p05g05selctmet0 | pending | Requires #p05g01complxcf0, #p05g03corediag0, #p05g04conddiag0 |
+| Gate Template Integration | #p05g06gatetmpl0 | pending | Requires #p05g05selctmet0 |
+| CLI Commands & Function Registry Integration | #p05g07cliregint | pending | Requires #p05g02rendbase0..#p05g06gatetmpl0 |
+| Comprehensive Test Suite | #p05g08testsuite | pending | Requires all above |
+
+### Proposal Dependency Graph
+
+```mermaid
+graph LR
+    p01["01 Complexity Analyzer"]
+    p02["02 Rendering Base Classes"] --> p01
+    p03["03 Core Diagram Generators"] --> p02
+    p04["04 Conditional Diagram Generators"] --> p02
+    p04 --> p01
+    p05["05 Diagram Selection & Metadata"] --> p01
+    p05 --> p03
+    p05 --> p04
+    p06["06 Gate Template Integration"] --> p05
+    p07["07 CLI Commands & Registry"] --> p02
+    p07 --> p03
+    p07 --> p04
+    p07 --> p05
+    p07 --> p06
+    p08["08 Comprehensive Tests"] --> p01
+    p08 --> p02
+    p08 --> p03
+    p08 --> p04
+    p08 --> p05
+    p08 --> p06
+    p08 --> p07
+```

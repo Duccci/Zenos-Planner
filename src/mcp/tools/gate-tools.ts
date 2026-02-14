@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string, @typescript-eslint/no-unnecessary-condition */
 import {
   GatesListInputSchema,
   GatesShowInputSchema,
@@ -22,9 +23,8 @@ import { validateQuality, type QualityValidationContext } from '../validators/qu
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    title: 'Gates Action',
     description:
-      'Unified gate lifecycle tool with guardrail enforcement. Supports actions: list, show, create, start, complete, regenerate. Actions "create" and "complete" run dependency and quality validators. Use discriminated union with action and payload.',
+      'Unified gate lifecycle: list, show, create, start, complete, regenerate with guardrails',
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -35,44 +35,38 @@ export const gateToolDefinitions = [
 export const legacyGateToolDefinitions = [
   {
     name: 'gates_list',
-    title: 'Gates List',
-    description: 'List all project gates (optional status filter)',
+    description: 'List project gates with optional status filter',
     inputSchema: GatesListInputSchema,
   },
   {
     name: 'gates_show',
-    title: 'Gate Show',
-    description: 'Show detailed gate information for a gate id',
+    description: 'Show gate details by ID',
     inputSchema: GatesShowInputSchema,
   },
   {
     name: 'gate_create',
-    title: 'Gate Create',
-    description: 'Create a new gate PRD with validation and roadmap updates',
+    description: 'Create a new gate with PRD and roadmap updates',
     inputSchema: GateCreateInputSchema,
   },
   {
     name: 'gates_start',
-    title: 'Gate Start',
-    description: 'Start a gate (transition to in_progress)',
+    description: 'Transition gate to in_progress',
     inputSchema: GatesStartInputSchema,
   },
   {
     name: 'gates_complete',
-    title: 'Gate Complete',
-    description: 'Complete a gate with optional completion notes',
+    description: 'Complete a gate with optional notes',
     inputSchema: GatesCompleteInputSchema,
   },
   {
     name: 'gates_regenerate',
-    title: 'Gates Regenerate',
-    description: 'Regenerate future gates or check for suggestions',
+    description: 'Regenerate future gates',
     inputSchema: GatesRegenerateInputSchema,
   },
 ]
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { FunctionRegistry, FunctionResult } from '../../integration/function-registry.js'
+import type { FunctionRegistry } from '../../integration/function-registry.js'
 import {
   GatesListOutputSchema,
   GateDetailSchema,
@@ -80,22 +74,19 @@ import {
   GatesCompleteOutputSchema,
   GatesRegenerateOutputSchema,
 } from '../schemas/gate-schemas.js'
-import type { GatesCompleteOutput } from '../schemas/gate-schemas.js'
+
 import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
 import { GatesActionOutputSchema } from '../schemas/gates-action-schemas.js'
-import { createSchemaValidatingHandler, parseJsonSafe } from './handler-factory.js'
+import {
+  createSchemaValidatingHandler,
+  parseJsonSafe,
+  createNotImplementedHandler,
+} from './handler-factory.js'
+import { createEntityActionHandler } from './entity-action-handler.js'
 
 export function gateHandlers(
   _registry?: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  function notImplemented(msg?: string): CallToolResult {
-    const message = msg ?? 'Gate functionality not implemented yet (Gate 03-06 required).'
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
-      isError: true,
-    } as unknown as CallToolResult
-  }
-
   const listHandler = _registry
     ? createSchemaValidatingHandler(_registry, 'gates_list', GatesListOutputSchema)
     : undefined
@@ -115,134 +106,175 @@ export function gateHandlers(
     ? createSchemaValidatingHandler(_registry, 'gates_regenerate', GatesRegenerateOutputSchema)
     : undefined
 
-  const runGateValidators = async (
-    action: 'create' | 'complete',
-    payload: Record<string, unknown>,
-    registry: FunctionRegistry
-  ): Promise<{ allowed: boolean; errors?: string[]; warnings?: string[] }> => {
-    const allErrors: string[] = []
-    const allWarnings: string[] = []
-
-    try {
-      // Get project configuration from config - this is the primary source of truth
-      const configResult = await registry.invoke('config_get', {})
-      let config: Record<string, unknown>
-
-      if (configResult.success) {
-        config = configResult.data as Record<string, unknown>
-      } else {
-        // If config retrieval fails, use sensible defaults for quality thresholds
-        allWarnings.push(
-          `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
-        )
-        config = {
-          qualityThresholds: {
-            codeCoverage: 90,
-            typeCheckingErrors: 0,
-            lintingErrorRate: 0.01,
-            securityVulnerabilities: 0,
-          },
+  const gateActionHandler = createEntityActionHandler(
+    {
+      entity: 'gate',
+      actions: ['list', 'show', 'create', 'start', 'complete', 'regenerate'] as const,
+      inputSchema: GatesActionInputSchema,
+      outputSchema: GatesActionOutputSchema,
+      actionOutputSchema(action) {
+        switch (action) {
+          case 'list':
+            return GatesListOutputSchema
+          case 'show':
+            return GateDetailSchema
+          case 'create':
+            return GateCreateOutputSchema
+          case 'start':
+            return GatesStartOutputSchema
+          case 'complete':
+            return GatesCompleteOutputSchema
+          case 'regenerate':
+            return GatesRegenerateOutputSchema
         }
-      }
+      },
+      actionHandlers: {
+        list: async (payload, r) => r.invoke('gates_list', payload),
+        show: async (payload, r) => r.invoke('gates_show', payload),
+        create: async (payload, r) => r.invoke('gate_create', payload),
+        start: async (payload, r) => r.invoke('gates_start', payload),
+        complete: async (payload, r) => r.invoke('gates_complete', payload),
+        regenerate: async (payload, r) => r.invoke('gates_regenerate', payload),
+      },
+      validators: {
+        create: (_payload, r) => [
+          async () => {
+            const allErrors: string[] = []
+            const allWarnings: string[] = []
 
-      // For 'create' action: validate dependencies
-      if (action === 'create') {
-        // Get all existing gates for dependency validation
-        const gatesResult = await registry.invoke('gates_list', {})
-        if (!gatesResult.success) {
-          allWarnings.push(
-            `Failed to retrieve gates list for dependency validation: ${gatesResult.error.message}`
-          )
-        } else {
-          const allGates = gatesResult.data as Record<string, unknown>[]
-          const allNodes = new Map<
-            string,
-            { hash: string; dependencies: unknown[]; gateId: string; gateSequence: number }
-          >()
-
-          // Build dependency nodes from existing gates
-          allGates.forEach((gate) => {
-            const gateId = String(gate['id'])
-            const deps = Array.isArray(gate['dependencies']) ? (gate['dependencies'] as string[]) : []
-            allNodes.set(gateId, {
-              hash: gateId,
-              dependencies: deps,
-              gateId: gateId,
-              gateSequence: parseInt(gateId.split('-')[1] ?? '') || 0,
-            })
-          })
-
-          // Add the new gate being created
-          const payloadGateId = String(payload['gateId'])
-          const payloadDeps = Array.isArray(payload['dependencies']) ? (payload['dependencies'] as string[]) : []
-          const newNode = {
-            hash: payloadGateId,
-            dependencies: payloadDeps,
-            gateId: payloadGateId,
-            gateSequence: parseInt(payloadGateId.split('-')[1] ?? '') || 0,
-          }
-
-          const dependencyContext: DependencyValidationContext = {
-            node: newNode as Parameters<typeof validateDependencies>[0]['node'],
-            allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes'],
-          }
-
-          const dependencyResult = validateDependencies(dependencyContext)
-          allErrors.push(...(dependencyResult.errors ?? []))
-          allWarnings.push(...(dependencyResult.warnings ?? []))
-        }
-      }
-
-      // For 'complete' action: validate quality metrics
-      if (action === 'complete') {
-        // First, get the completion result to extract actual quality metrics
-        let qualityMetrics = {
-          coverage: 95,
-          typeErrors: 0,
-          lintErrors: 2,
-          securityIssues: 0,
-        }
-
-        // Try to get actual metrics from gates_complete result
-        try {
-          const completeResult = await registry.invoke<GatesCompleteOutput>(
-            'gates_complete',
-            payload
-          )
-          if (completeResult.success && completeResult.data.summary.qualityMetrics) {
-            const actualMetrics = completeResult.data.summary.qualityMetrics
-            qualityMetrics = {
-              coverage: actualMetrics.testCoverage,
-              typeErrors: actualMetrics.typeErrors,
-              lintErrors: actualMetrics.lintErrors,
-              securityIssues: actualMetrics.securityIssues,
+            const configResult = await r.invoke('config_get', {})
+            if (!configResult.success) {
+              allWarnings.push(
+                `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
+              )
             }
-          }
-        } catch (e) {
-          // Use defaults if we can't get actual metrics
-          allWarnings.push(`Could not retrieve actual quality metrics: ${String(e)}`)
-        }
 
-        const qualityContext: QualityValidationContext = {
-          metrics: qualityMetrics,
-          config: config as Parameters<typeof validateQuality>[0]['config'],
-          strict: true, // Strict mode for gate completion
-        }
+            try {
+              const gatesResult = await r.invoke('gates_list', {})
+              if (!gatesResult.success) {
+                allWarnings.push(
+                  `Failed to retrieve gates list for dependency validation: ${gatesResult.error.message}`
+                )
+              } else {
+                const allGates = gatesResult.data as Record<string, unknown>[]
+                const allNodes = new Map<
+                  string,
+                  { hash: string; dependencies: unknown[]; gateId: string; gateSequence: number }
+                >()
 
-        const qualityResult = validateQuality(qualityContext)
-        allErrors.push(...(qualityResult.errors ?? []))
-        allWarnings.push(...(qualityResult.warnings ?? []))
-      }
-    } catch (error) {
-      allWarnings.push(`Validator execution failed: ${String(error)}`)
-    }
+                allGates.forEach((gate) => {
+                  const gateId = String(gate['id'])
+                  const deps = Array.isArray(gate['dependencies'])
+                    ? (gate['dependencies'] as string[])
+                    : []
+                  allNodes.set(gateId, {
+                    hash: gateId,
+                    dependencies: deps,
+                    gateId: gateId,
+                    gateSequence: parseInt(gateId.split('-')[1] ?? '') || 0,
+                  })
+                })
 
-    return {
-      allowed: allErrors.length === 0,
-      errors: allErrors.length > 0 ? allErrors : undefined,
-      warnings: allWarnings.length > 0 ? allWarnings : undefined,
-    }
-  }
+                const payloadGateId = String(_payload?.['gateId'] ?? '')
+                const payloadDeps = Array.isArray(_payload?.['dependencies'])
+                  ? (_payload?.['dependencies'] as string[])
+                  : []
+                const newNode = {
+                  hash: payloadGateId,
+                  dependencies: payloadDeps,
+                  gateId: payloadGateId,
+                  gateSequence: parseInt(payloadGateId.split('-')[1] ?? '') || 0,
+                }
+
+                const dependencyContext: DependencyValidationContext = {
+                  node: newNode as Parameters<typeof validateDependencies>[0]['node'],
+                  allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes'],
+                }
+
+                const dependencyResult = validateDependencies(dependencyContext)
+                allErrors.push(...(dependencyResult.errors ?? []))
+                allWarnings.push(...(dependencyResult.warnings ?? []))
+              }
+            } catch (error) {
+              allWarnings.push(`Validator execution failed: ${String(error)}`)
+            }
+
+            return {
+              allowed: allErrors.length === 0,
+              errors: allErrors.length > 0 ? allErrors : undefined,
+              warnings: allWarnings.length > 0 ? allWarnings : undefined,
+            }
+          },
+        ],
+        complete: (_payload, r) => [
+          async () => {
+            const allErrors: string[] = []
+            const allWarnings: string[] = []
+
+            const configResult = await r.invoke('config_get', {})
+            let config: Record<string, unknown>
+
+            if (configResult.success) {
+              config = configResult.data as Record<string, unknown>
+            } else {
+              allWarnings.push(
+                `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
+              )
+              config = {
+                qualityThresholds: {
+                  codeCoverage: 90,
+                  typeCheckingErrors: 0,
+                  lintingErrorRate: 0.01,
+                  securityVulnerabilities: 0,
+                },
+              }
+            }
+
+            let qualityMetrics = {
+              coverage: 95,
+              typeErrors: 0,
+              lintErrors: 2,
+              securityIssues: 0,
+            }
+
+            try {
+              const completeResult = await r.invoke('gates_complete', _payload)
+
+              if (completeResult.success && (completeResult.data as any).summary?.qualityMetrics) {
+                const actualMetrics = (completeResult.data as any).summary.qualityMetrics
+
+                qualityMetrics = {
+                  coverage: actualMetrics.testCoverage,
+                  typeErrors: actualMetrics.typeErrors,
+                  lintErrors: actualMetrics.lintErrors,
+                  securityIssues: actualMetrics.securityIssues,
+                }
+              }
+            } catch (e) {
+              allWarnings.push(`Could not retrieve actual quality metrics: ${String(e)}`)
+            }
+
+            const qualityContext: QualityValidationContext = {
+              metrics: qualityMetrics,
+              config: config as Parameters<typeof validateQuality>[0]['config'],
+              strict: true,
+            }
+
+            const qualityResult = validateQuality(qualityContext)
+            allErrors.push(...(qualityResult.errors ?? []))
+            allWarnings.push(...(qualityResult.warnings ?? []))
+
+            return {
+              allowed: allErrors.length === 0,
+              errors: allErrors.length > 0 ? allErrors : undefined,
+              warnings: allWarnings.length > 0 ? allWarnings : undefined,
+            }
+          },
+        ],
+      },
+    },
+    _registry
+  )
 
   return {
     async gates_list(args: Record<string, unknown>): Promise<CallToolResult> {
@@ -264,7 +296,7 @@ export function gateHandlers(
         }
       }
 
-      if (!listHandler) return notImplemented('Gates list not implemented yet.')
+      if (!listHandler) return createNotImplementedHandler('Gates list not implemented yet.')
       return listHandler(args)
     },
 
@@ -287,7 +319,7 @@ export function gateHandlers(
         }
       }
 
-      if (!showHandler) return notImplemented('Gate details not implemented yet.')
+      if (!showHandler) return createNotImplementedHandler('Gate details not implemented yet.')
       return showHandler(args)
     },
 
@@ -310,7 +342,7 @@ export function gateHandlers(
         }
       }
 
-      if (!createHandler) return notImplemented('Gate creation not implemented yet.')
+      if (!createHandler) return createNotImplementedHandler('Gate creation not implemented yet.')
       return createHandler(args)
     },
 
@@ -345,7 +377,7 @@ export function gateHandlers(
         }
       }
 
-      if (!startHandler) return notImplemented('Gate start not implemented yet.')
+      if (!startHandler) return createNotImplementedHandler('Gate start not implemented yet.')
       return startHandler(args)
     },
 
@@ -376,7 +408,8 @@ export function gateHandlers(
         }
       }
 
-      if (!completeHandler) return notImplemented('Gate completion not implemented yet.')
+      if (!completeHandler)
+        return createNotImplementedHandler('Gate completion not implemented yet.')
       return completeHandler(args)
     },
 
@@ -399,7 +432,7 @@ export function gateHandlers(
         }
       }
 
-      if (!regenHandler) return notImplemented('Gates regenerate not implemented yet.')
+      if (!regenHandler) return createNotImplementedHandler('Gates regenerate not implemented yet.')
       return regenHandler(args)
     },
 
@@ -407,106 +440,13 @@ export function gateHandlers(
      * Unified action dispatcher for gate lifecycle operations.
      * Validates action and payload, then delegates to appropriate handler.
      */
-    async gates_action(args: Record<string, unknown>): Promise<CallToolResult> {
-      if (!_registry) {
-        return notImplemented('Gates action requires registry')
-      }
 
-      try {
-        const { GatesActionInputSchema } = await import('../schemas/gates-action-schemas.js')
-        const validated = GatesActionInputSchema.parse(args)
+    // Unified action dispatcher (generic)
+    gates_action: gateActionHandler,
 
-        let invokeResult: FunctionResult
-
-        switch (validated.action) {
-          case 'list':
-            invokeResult = await _registry.invoke('gates_list', validated.payload)
-            break
-          case 'show':
-            invokeResult = await _registry.invoke('gates_show', validated.payload)
-            break
-          case 'create':
-          case 'complete': {
-            // Run validators for state-changing actions
-            const validationResults = await runGateValidators(
-              validated.action,
-              validated.payload,
-              _registry
-            )
-
-            // If validation fails with errors, return validation results
-            if (!validationResults.allowed) {
-              const errorOutput = {
-                action: validated.action,
-                error: 'Validation failed',
-                validation: validationResults,
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(errorOutput, null, 2) }],
-                structuredContent: errorOutput,
-                isError: true,
-              } as CallToolResult
-            }
-
-            // Proceed with the action
-            invokeResult = await _registry.invoke(
-              validated.action === 'create' ? 'gate_create' : 'gates_complete',
-              validated.payload
-            )
-
-            // Always include validation results (even if empty/passing)
-            if (invokeResult.success) {
-              invokeResult = {
-                success: true,
-                data: {
-                  ...(invokeResult.data as Record<string, unknown>),
-                  validation: {
-                    passed: !validationResults.errors || validationResults.errors.length === 0,
-                    errors: validationResults.errors ?? [],
-                    warnings: validationResults.warnings ?? [],
-                  },
-                },
-              }
-            }
-            break
-          }
-          case 'start':
-            invokeResult = await _registry.invoke('gates_start', validated.payload)
-            break
-          case 'regenerate':
-            invokeResult = await _registry.invoke('gates_regenerate', validated.payload)
-            break
-          default:
-            throw new Error(
-              `Unknown gate action: ${String((validated as Record<string, unknown>)['action'] ?? 'unknown')}`
-            )
-        }
-
-        // Check for invocation errors
-        if (!invokeResult.success) {
-          throw new Error(invokeResult.error.message)
-        }
-
-        // Wrap result in action envelope
-        const output = {
-          action: validated.action,
-          result: invokeResult.data as Record<string, unknown>,
-          validation: undefined,
-        }
-
-        // Validate output
-        const validatedOutput = GatesActionOutputSchema.parse(output)
-
-        return {
-          content: [{ type: 'text', text: JSON.stringify(validatedOutput, null, 2) }],
-          structuredContent: validatedOutput,
-        } as CallToolResult
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ error: String(error) }, null, 2) }],
-          isError: true,
-        } as CallToolResult
-      }
-    },
+    /**
+     * Unified action dispatcher for gate lifecycle operations.
+     * Validates action and payload, then delegates to appropriate handler.
+     */
   }
 }

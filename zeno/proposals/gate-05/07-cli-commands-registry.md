@@ -26,7 +26,7 @@ The CLI commands `arch generate` and `arch show` exist as stubs (logging "Not ye
 | #p05g02rendbase0 | requires | Provides renderers and base classes used by the generation pipeline |
 | #p05g03corediag0 | requires | Provides core diagram generators invoked by arch generate |
 | #p05g04conddiag0 | requires | Provides conditional diagram generators invoked by arch generate |
-| #p05g05selctmeta | requires | Provides DiagramSelector and ArchitectureMetadataScanner orchestrated by commands |
+| #p05g05selctmet0 | requires | Provides DiagramSelector and ArchitectureMetadataScanner orchestrated by commands |
 | #p05g06gatetmpl0 | requires | Provides gate diagram metadata used to determine which diagrams to generate |
 
 ---

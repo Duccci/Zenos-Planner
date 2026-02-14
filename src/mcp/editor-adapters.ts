@@ -6,7 +6,7 @@
  */
 
 import { join } from 'node:path'
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs'
 import { logger } from '../utils/logger.js'
 
 export function getAdapterCommand(
@@ -39,34 +39,39 @@ export function getVSCodeInstallUrl(): string {
 export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
   const vscodeDir = join(projectRoot, '.vscode')
   const target = join(vscodeDir, 'mcp.json')
-  if (existsSync(target)) return false
+
+  let configWritten = false
 
   try {
-    // Minimal config: point to the local wrapper
-    const content = JSON.stringify(
-      {
-        servers: {
-          'zeno-planner': {
-            type: 'stdio',
-            command: 'node',
-            args: ['./bin/mcp-server.js'],
-            description: 'Zeno Planner MCP server for AI-powered project management',
+    // Ensure .vscode directory exists
+    if (!existsSync(vscodeDir)) {
+      mkdirSync(vscodeDir, { recursive: true })
+    }
+
+    // Write mcp.json if it doesn't exist
+    if (!existsSync(target)) {
+      const content = JSON.stringify(
+        {
+          servers: {
+            'zeno-planner': {
+              type: 'stdio',
+              command: 'node',
+              args: ['./bin/mcp-server.js'],
+              description: 'Zeno Planner MCP server for AI-powered project management',
+            },
           },
         },
-      },
-      null,
-      2
-    )
-    // Ensure .vscode directory exists (best-effort)
-    try {
+        null,
+        2
+      )
       writeFileSync(target, content, { encoding: 'utf-8' })
-    } catch {
-      /* ignore, caller will handle */
+      logger.info(`Wrote workspace mcp.json to ${target}`)
+      configWritten = true
     }
-    logger.info(`Wrote workspace mcp.json to ${target}`)
-    return true
+
+    return configWritten
   } catch (err) {
-    logger.warn('Failed to ensure workspace mcp.json', err)
+    logger.warn('Failed to ensure workspace MCP configuration', err)
     return false
   }
 }

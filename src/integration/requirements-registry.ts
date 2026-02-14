@@ -3,121 +3,135 @@
  *
  * Registers all requirement-related operations with the function registry.
  * Handles: list, show, deps, transfer
+ *
+ * All operations use direct in-process database access via RequirementStorage.
+ * Previous implementation used invokeCommand/execSync to spawn CLI child
+ * processes, which caused an infinite recursion loop (CLI -> registry ->
+ * invokeCommand -> CLI -> ...) and catastrophic process accumulation.
  */
 
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
-import { invokeCommand } from './command-invoker.js'
 import { RequirementStorage } from '../generation/requirement-storage.js'
 
 export function registerRequirementsOps(registry: FunctionRegistry): void {
-  registry.register('req_list', async (params) => {
-    const validated = z.object({
-      gateId: z.string().optional(),
-      project: z.boolean().optional()
-    }).parse(params)
-    const result = await invokeCommand('req_list', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-    return result
-  }, {
-    description: 'List requirements, optionally filtered by gate or project-wide',
-    parameters: [
-      {
-        name: 'gateId',
-        type: 'string',
-        description: 'Optional gate ID to filter requirements',
-        required: false
-      },
-      {
-        name: 'project',
-        type: 'boolean',
-        description: 'If true, list project-level requirements only',
-        required: false
-      }
-    ],
-    returnType: 'Requirement[]',
-    schema: z.object({
-      gateId: z.string().optional(),
-      project: z.boolean().optional()
-    })
-  })
+  // Unified requirement action handler: list | show | deps | transfer
+  registry.register(
+    'req_action',
+    (params) => {
+      const validated = z.object({ action: z.string(), payload: z.any().optional() }).parse(params)
+      const storage = new RequirementStorage()
 
-  registry.register('req_show', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-    const result = await invokeCommand('req_show', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-    return result
-  }, {
-    description: 'Show detailed information about a specific requirement',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the requirement',
-        required: true
-      }
-    ],
-    returnType: 'RequirementDetails',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
+      switch (validated.action) {
+        case 'list': {
+          const payload = z
+            .object({ gateId: z.string().optional(), project: z.boolean().optional() })
+            .parse(validated.payload ?? {})
 
-  registry.register('req_deps', async (params) => {
-    const validated = z.object({ hash: z.string() }).parse(params)
-    const result = await invokeCommand('req_deps', validated)
-    if (!result.success) {
-      throw new Error(result.error)
-    }
-    return result
-  }, {
-    description: 'Show dependency graph for a requirement',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the requirement',
-        required: true
-      }
-    ],
-    returnType: 'DependencyGraph',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required')
-    })
-  })
+          if (payload.project) {
+            const reqs = storage.getProjectRequirements()
+            return {
+              requirements: reqs.map((r) => ({
+                hash: r.hash,
+                description: r.description,
+                type: r.type,
+                priority: r.priority,
+                gateId: r.gateId,
+                parentId: r.parentId,
+                projectId: r.projectId,
+              })),
+            }
+          }
 
-  registry.register('req_transfer', async (params) => {
-    const validated = z.object({
-      hash: z.string(),
-      gateId: z.string()
-    }).parse(params)
-    const storage = new RequirementStorage()
-    const result = await storage.transferRequirement(validated.hash, validated.gateId)
-    return { success: true, data: { output: result } }
-  }, {
-    description: 'Transfer a requirement to another gate',
-    parameters: [
-      {
-        name: 'hash',
-        type: 'string',
-        description: 'The hash identifier of the requirement',
-        required: true
-      },
-      {
-        name: 'gateId',
-        type: 'string',
-        description: 'The target gate ID',
-        required: true
+          // Use buildRequirementGraph which returns nodes as a Map<string, DependencyNode>
+          const graph = storage.buildRequirementGraph(payload.gateId)
+          const requirements = Array.from(graph.nodes.values()).map((n) => ({
+            hash: n.hash,
+            description: n.title,
+            type: n.type,
+            priority: n.priority,
+            gateId: n.gateId ?? null,
+            parentId: n.parent ?? null,
+          }))
+
+          return { requirements }
+        }
+
+        case 'show': {
+          const payload = z.object({ hash: z.string() }).parse(validated.payload)
+          const req = storage.getRequirementByHash(payload.hash)
+          if (!req) {
+            return { requirement: null }
+          }
+          const children = storage.getRequirementChildren(payload.hash)
+          const ancestors = storage.getRequirementAncestors(payload.hash)
+          return {
+            requirement: {
+              hash: req.hash,
+              description: req.description,
+              type: req.type,
+              priority: req.priority,
+              gateId: req.gateId,
+              parentId: req.parentId,
+              projectId: req.projectId,
+              acceptanceCriteria: req.acceptanceCriteria ?? null,
+              createdAt: req.createdAt.toISOString(),
+            },
+            children: children.map((c) => ({ hash: c.hash, description: c.description })),
+            ancestors: ancestors.map((a) => ({ hash: a.hash, description: a.description })),
+          }
+        }
+
+        case 'deps': {
+          const payload = z.object({ hash: z.string() }).parse(validated.payload)
+          const req = storage.getRequirementByHash(payload.hash)
+          if (!req) {
+            return { graph: null }
+          }
+          const graph = storage.buildRequirementGraph(req.gateId ?? undefined)
+          return {
+            graph: {
+              nodes: Array.from(graph.nodes.values()).map((n) => ({
+                hash: n.hash,
+                description: n.title,
+                type: n.type,
+                priority: n.priority,
+                gateId: n.gateId ?? null,
+              })),
+              edges: graph.edges.map((e) => ({
+                from: e.from,
+                to: e.to,
+                type: e.type,
+              })),
+            },
+          }
+        }
+
+        case 'transfer': {
+          const payload = z
+            .object({ hash: z.string(), gateId: z.string() })
+            .parse(validated.payload)
+          const result = storage.transferRequirement(payload.hash, payload.gateId)
+          return result
+        }
+
+        default:
+          throw new Error(`Unknown req_action: ${validated.action}`)
       }
-    ],
-    returnType: 'void',
-    schema: z.object({
-      hash: z.string().min(1, 'Hash is required'),
-      gateId: z.string().min(1, 'Gate ID is required')
-    })
-  })
+    },
+    {
+      description: 'Unified requirement action (list|show|deps|transfer)',
+      parameters: [
+        { name: 'action', type: 'string', description: 'Action to perform', required: true },
+        {
+          name: 'payload',
+          type: 'object',
+          description: 'Action-specific payload',
+          required: false,
+        },
+      ],
+      returnType: 'any',
+      schema: z.object({ action: z.string(), payload: z.any().optional() }),
+    }
+  )
 }

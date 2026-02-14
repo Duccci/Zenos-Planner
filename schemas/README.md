@@ -30,3 +30,26 @@ These schemas can be used by:
 ## Schema Guidelines
 
 Schemas are organized by purpose and used for validation at runtime. They are independent of template loading infrastructure.
+
+## Tool registry & action schemas
+
+- Tools that follow the entity-action pattern use a discriminator-based request envelope: `{ action: string, payload?: object }`.
+- Per-action output schemas are validated separately (used for `mockResult` and action output validation).
+
+Example registry entry (conceptual):
+
+```json
+{
+  "name": "proposal_action",
+  "inputSchema": "z.object({ action: z.enum(['list','show','create']), payload: z.any().optional() })",
+  "outputSchema": "z.object({ action: z.string(), result: z.any() })",
+  "actionOutputSchema": {
+    "list": "z.object({ proposals: z.array(z.object({...})) })",
+    "show": "z.object({ id: z.string(), name: z.string() })",
+    "create": "z.object({ id: z.string(), status: z.string() })"
+  }
+}
+```
+
+Refer to `docs/mcp-tools-development.md` for guidance on designing action schemas and validators.
+

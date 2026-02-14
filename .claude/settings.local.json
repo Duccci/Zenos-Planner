@@ -15,7 +15,15 @@
       "Bash(test:*)",
       "Bash(sqlite3:*)",
       "Bash(git log:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(wmic:*)",
+      "Bash(findstr:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -File -:*)",
+      "Bash(taskkill /F /IM node.exe:*)",
+      "Bash(powershell:*)",
+      "Bash(git -C \"c:\\\\Users\\\\Owner\\\\Documents\\\\GitHub\\\\Zenos-Planner\" log --all --diff-filter=A --name-only --format=\"\" -- nul)",
+      "Bash(cmd /c \"echo test > nul\")"
     ]
   },
   "outputStyle": "taming-AI"

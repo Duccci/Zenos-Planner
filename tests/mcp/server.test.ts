@@ -60,7 +60,7 @@ describe('MCP Server', () => {
 
       expect(toolNames.length).toBeGreaterThanOrEqual(12)
       expect(toolNames).toContain('gates_list')
-      expect(toolNames).toContain('req_list')
+      expect(toolNames).toContain('req_action')
       expect(toolNames).toContain('proposal_show')
     })
 

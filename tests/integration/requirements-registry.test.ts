@@ -25,12 +25,12 @@ describe('Requirements Registry wiring', () => {
 
     registerRequirementsOps(registry)
 
-    const res = await registry.invoke('req_transfer', { hash: 'abcd1234', gateId: 'gate-02' })
+    const res = await registry.invoke('req_action', { action: 'transfer', payload: { hash: 'abcd1234', gateId: 'gate-02' } })
 
     expect(res.success).toBe(true)
     expect(res.data).toBeDefined()
-    // Should have returned output shape
-    const out = (res.data as any).output
+    // Should have returned transfer result shape
+    const out = res.data as any
     expect(out).toHaveProperty('hash', 'abcd1234')
     expect(out).toHaveProperty('previousGateId')
     expect(out).toHaveProperty('newGateId', 'gate-02')

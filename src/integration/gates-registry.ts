@@ -263,7 +263,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       // Replace template placeholders
       const gateNumber = /\d+/.exec(validated.gateId)?.[0] ?? '00'
-      const today = new Date().toISOString().split('T')[0]!
+      const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
       gateContent = gateContent
         .replace(/\[XX\]/g, gateNumber)
         .replace(/\[Gate Name\]/g, validated.name)

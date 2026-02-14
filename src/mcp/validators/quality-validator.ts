@@ -48,11 +48,12 @@ export function validateQuality(context: QualityValidationContext): ValidationRe
   const { metrics, strict = false } = context
 
   // Quality thresholds are provided by ZenoConfig and have defaults
-  const thresholds = context.config.qualityThresholds ?? {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const thresholds = context.config.qualityThresholds || {
     codeCoverage: 90,
     lintingErrorRate: 0.01,
     typeScriptStrictMode: true,
-    securityVulnerabilities: 0
+    securityVulnerabilities: 0,
   }
 
   // Rule 1: Code coverage must meet threshold

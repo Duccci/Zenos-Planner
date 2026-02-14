@@ -6,7 +6,7 @@
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
-import { createSchemaValidatingHandler, parseJsonSafe } from './handler-factory.js'
+import { createSchemaValidatingHandler, handleMockResult } from './handler-factory.js'
 import {
   ProposalGenerateInputSchema,
   ProposalUpdateProgressInputSchema,
@@ -22,19 +22,16 @@ import {
 export const workflowToolDefinitions = [
   {
     name: 'generateProposals',
-    title: 'Generate Proposals',
-    description: 'Generate proposal documents from a gate PRD',
+    description: 'Generate proposals from gate PRD',
     inputSchema: ProposalGenerateInputSchema,
   },
   {
     name: 'updateProposalProgress',
-    title: 'Update Proposal Progress',
-    description: 'Update progress for a proposal',
+    description: 'Update proposal progress',
     inputSchema: ProposalUpdateProgressInputSchema,
   },
   {
     name: 'generateGates',
-    title: 'Generate Gates',
     description: 'Generate or regenerate gates',
     inputSchema: GateGenerateInputSchema,
   },
@@ -43,17 +40,6 @@ export const workflowToolDefinitions = [
 import { generateProposals } from '../../core/proposal-generation.js'
 import { updateProposalProgress } from '../../core/proposal-application.js'
 import { generateGates } from '../../core/gate-generation.js'
-
-/**
- * Extract mockResult from tool arguments if present (for testing)
- * Returns the mockResult value if present, or explicitly null if not found
- */
-function extractMockResult(args: unknown): unknown {
-  if (args && typeof args === 'object' && 'mockResult' in args && args.mockResult !== undefined) {
-    return args.mockResult
-  }
-  return null
-}
 
 export function workflowHandlers(
   _registry?: FunctionRegistry
@@ -75,20 +61,8 @@ export function workflowHandlers(
   return {
     async generateProposals(args: Record<string, unknown>) {
       try {
-        const raw = extractMockResult(args)
-        if (raw !== null) {
-          const parsed = parseJsonSafe(raw)
-          const ok = ProposalGenerateOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(raw, null, 2) }],
-            structuredContent: { output: raw },
-          }
-        }
+        const mock = handleMockResult(args, ProposalGenerateOutputSchema)
+        if (mock) return mock
 
         // Prefer handler-based invocation when registry is available (handler supports mockResult)
         if (generateHandler) return await generateHandler(args)
@@ -149,20 +123,8 @@ export function workflowHandlers(
 
     async generateGates(args: Record<string, unknown>) {
       try {
-        const raw = extractMockResult(args)
-        if (raw !== null) {
-          const parsed = parseJsonSafe(raw)
-          const ok = GateGenerateOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(raw, null, 2) }],
-            structuredContent: { output: raw },
-          }
-        }
+        const mock = handleMockResult(args, GateGenerateOutputSchema)
+        if (mock) return mock
 
         if (generateGatesHandler) return await generateGatesHandler(args)
 

@@ -82,6 +82,19 @@ Implements Git integration layer enabling approved proposals to be automatically
 - [ ] Create clean/dirty status reporting
 - [ ] Implement conflict detection (proposals modifying same files)
 
+### Agent Delegation with Configurable Models
+Enables agents to hand off work to other agents using different LLM models via `/delegate` command:
+- [ ] Implement `/delegate <model>` CLI command for agent-to-agent hand-offs
+- [ ] Add `agent_delegate` MCP tool for structured delegation with context preservation
+- [ ] Support configurable target models: claude-opus, claude-sonnet, copilot, ollama (local), claude-3-5-sonnet, mistral, etc.
+- [ ] Read model configuration from `zeno/.zeno/config.json` (delegation.defaultModel)
+- [ ] Preserve conversation context during hand-off (full history transfer)
+- [ ] Include worktree path and proposal metadata in delegation payload
+- [ ] Track delegation chain (which agent delegated to which model)
+- [ ] Implement hand-off URL/reference for continuing work in target model
+- [ ] Support fallback model if primary delegate fails (e.g., fall back to local ollama if cloud API unavailable)
+- [ ] Create session management to maintain state across agent hand-offs
+
 ### Testing & Quality
 - [ ] Write unit tests for worktree operations
 - [ ] Write tests for merge logic and conflict handling
@@ -211,7 +224,13 @@ This gate addresses execution and persistence requirements from project initiali
 - [ ] `zeno worktree list` shows all active worktrees
 - [ ] `zeno worktree prune` cleans up expired/dead worktrees
 - [ ] Git status integration shows which proposals modify which files
+- [ ] `/delegate` command successfully hands off to configured model with context preservation
+- [ ] `agent_delegate` MCP tool transfers worktree path and proposal metadata
+- [ ] Multiple delegate targets work (claude-opus, claude-sonnet, copilot, ollama, etc.)
+- [ ] Delegation configuration read from `zeno/.zeno/config.json`
+- [ ] Session management preserves state across agent hand-offs
+- [ ] Fallback delegation works when primary model unavailable
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for git integration module
 - [ ] Zero lint errors, zero type errors
-- [ ] Documentation updated for worktree workflow and commit conventions
+- [ ] Documentation updated for worktree workflow, delegation, and commit conventions

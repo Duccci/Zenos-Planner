@@ -75,7 +75,7 @@ describe('Function Registry Signatures', () => {
   })
 
   it('should have requirement operation signatures', () => {
-    const reqOps = ['req_list', 'req_show', 'req_deps', 'req_transfer']
+    const reqOps = ['req_action']
     for (const op of reqOps) {
       expect(functionRegistry.some(f => f.name === op)).toBe(true, `Missing function signature: ${op}`)
     }
@@ -444,11 +444,11 @@ describe('FunctionRegistry Class', () => {
         schema: z.object({})
       })
 
-      registry.register('req_list', () => [], {
-        description: 'List requirements',
-        parameters: [],
-        returnType: 'Requirement[]',
-        schema: z.object({})
+      registry.register('req_action', () => [], {
+        description: 'Unified requirement actions',
+        parameters: [ { name: 'action', type: 'string', description: 'Action', required: true }, { name: 'payload', type: 'object', description: 'Payload', required: false } ],
+        returnType: 'any',
+        schema: z.object({ action: z.string(), payload: z.any().optional() })
       })
 
       registry.register('status', () => ({}), {
@@ -468,7 +468,7 @@ describe('FunctionRegistry Class', () => {
     it('should filter functions by requirement category', () => {
       const reqs = registry.getByCategory('requirements')
       expect(reqs.length).toBe(1)
-      expect(reqs[0]?.name).toBe('req_list')
+      expect(reqs[0]?.name).toBe('req_action')
     })
 
     it('should filter functions by general category', () => {

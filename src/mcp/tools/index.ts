@@ -1,32 +1,24 @@
 import { z } from 'zod'
-import { gateToolDefinitions } from './gate-tools.js'
-import { requirementToolDefinitions } from './requirement-tools.js'
-import { proposalToolDefinitions } from './proposal-tools.js'
-import { templateToolDefinitions, templateHandlers } from './template-tools.js'
-import { repositoryToolDefinitions, repositoryHandlers } from './repository-tools.js'
-import { analysisToolDefinitions, analysisHandlers } from './analysis-tools.js'
-import { configToolDefinitions } from './config-tools.js'
+import { logger } from '../../utils/logger.js'
 import { gateHandlers } from './gate-tools.js'
 import { requirementHandlers } from './requirement-tools.js'
 import { proposalHandlers } from './proposal-tools.js'
 import { configHandlers } from './config-tools.js'
-import { archiveToolDefinitions, archiveHandlers } from './archive-tools.js'
-import { workflowToolDefinitions, workflowHandlers } from './workflow-tools.js'
-import { logger } from '../../utils/logger.js'
+import { archiveHandlers } from './archive-tools.js'
+import { templateHandlers } from './template-tools.js'
+import { repositoryHandlers } from './repository-tools.js'
+import { analysisHandlers } from './analysis-tools.js'
+import { workflowHandlers } from './workflow-tools.js'
+import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 
-const allToolDefs = [
-  ...gateToolDefinitions,
-  ...requirementToolDefinitions,
-  ...proposalToolDefinitions,
-  ...repositoryToolDefinitions,
-  ...analysisToolDefinitions,
-  ...templateToolDefinitions,
-  ...configToolDefinitions,
-  ...archiveToolDefinitions,
-  ...workflowToolDefinitions,
-]
+// Programmatically generate tool definitions from the ToolRegistry metadata
+const allToolDefs = Object.values(ToolRegistry).map((entry) => ({
+  name: entry.toolName,
+  description: entry.description,
+  inputSchema: entry.inputSchema as unknown as z.ZodType,
+}))
 
 /**
  * Centralized MCP tool registration
@@ -55,14 +47,13 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     const handlers = factory(registry)
     for (const [name, handler] of Object.entries(handlers)) {
       const override = allToolDefs.find((t) => t.name === name)
-      const title = override?.title ?? name
       const description = override?.description ?? ''
       const inputSchema: z.ZodType = (override?.inputSchema ?? z.any()) as z.ZodType
 
       // Register the handler-based tool (these take precedence)
       server.registerTool(
         name,
-        { title, description, inputSchema: inputSchema, outputSchema: z.any() as z.ZodType },
+        { description, inputSchema: inputSchema, outputSchema: z.any() as z.ZodType },
         (args: unknown) => handler(args as Record<string, unknown>)
       )
 

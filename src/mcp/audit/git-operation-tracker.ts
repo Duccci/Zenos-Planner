@@ -18,6 +18,9 @@ export interface GitAuditEntry {
 /** In-memory audit log — can be retrieved for compliance checks */
 const auditLog: GitAuditEntry[] = []
 
+/** Maximum number of audit log entries to retain */
+const MAX_AUDIT_LOG_SIZE = 100
+
 /**
  * Track and optionally block git operations in a given command invocation.
  *
@@ -69,6 +72,11 @@ export function trackGitOperations(
       phase,
     }
     auditLog.push(entry)
+
+    // Evict oldest entries to prevent unbounded memory growth
+    if (auditLog.length > MAX_AUDIT_LOG_SIZE) {
+      auditLog.splice(0, auditLog.length - MAX_AUDIT_LOG_SIZE)
+    }
 
     logger.warn(
       `[git-audit] Detected git operations: ${operations.join(', ')} — allowed=${String(allowed)}, phase=${phase}`

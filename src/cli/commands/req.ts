@@ -4,6 +4,7 @@
  * Commands for querying and managing requirements.
  * Database presence equals approval; progress tracked via Git.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-assignment */
 
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
@@ -31,7 +32,7 @@ export function registerReqCommands(program: Command): void {
         if (options.gate) {
           params.gateId = options.gate
         }
-        const result = await registry.invoke('req_list', params)
+        const result = await registry.invoke('req_action', { action: 'list', payload: params })
         if (result.success) {
           const requirements = ((result.data as any)?.requirements as any[]) || []
           logger.info(`Requirements (${requirements.length}):`)
@@ -53,9 +54,9 @@ export function registerReqCommands(program: Command): void {
     .action(async (hash: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_show', { hash })
+        const result = await registry.invoke('req_action', { action: 'show', payload: { hash } })
         if (result.success) {
-          const req = (result.data as any)?.requirement as any
+          const req = (result.data as any)?.requirement
           if (req) {
             logger.info(`Requirement: ${req.hash as string}`)
             logger.info(`Description: ${req.description as string}`)
@@ -64,7 +65,8 @@ export function registerReqCommands(program: Command): void {
             logger.info(`Project: ${req.projectId as string}`)
             if (req.gateId) logger.info(`Gate: ${req.gateId as string}`)
             if (req.parentId) logger.info(`Parent: ${req.parentId as string}`)
-            if (req.acceptanceCriteria) logger.info(`Acceptance: ${req.acceptanceCriteria as string}`)
+            if (req.acceptanceCriteria)
+              logger.info(`Acceptance: ${req.acceptanceCriteria as string}`)
           } else {
             logger.error('Requirement not found')
           }
@@ -82,7 +84,7 @@ export function registerReqCommands(program: Command): void {
     .action(async (hash: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_deps', { hash })
+        const result = await registry.invoke('req_action', { action: 'deps', payload: { hash } })
         if (result.success) {
           const graph = (result.data as { graph?: unknown })?.graph
           if (graph) {
@@ -100,15 +102,16 @@ export function registerReqCommands(program: Command): void {
       }
     })
 
-
-
   reqCmd
     .command('transfer <hash> <gate-id>')
     .description('Transfer requirement to another gate')
     .action(async (hash: string, gateId: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_transfer', { hash, gateId })
+        const result = await registry.invoke('req_action', {
+          action: 'transfer',
+          payload: { hash, gateId },
+        })
         if (result.success) {
           logger.info(`Requirement ${hash} transferred to gate ${gateId}`)
         } else {

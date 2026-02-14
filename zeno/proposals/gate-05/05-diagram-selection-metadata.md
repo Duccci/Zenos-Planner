@@ -1,6 +1,6 @@
 # Proposal: Diagram Selection & Architecture Metadata
 
-**Hash**: #p05g05selctmeta
+**Hash**: #p05g05selctmet0
 **Gate**: gate-05 - Architecture & Diagram Generation
 **Status**: pending
 **Created**: 2026-02-09
@@ -23,7 +23,7 @@ Technical Decisions 2, 9, and 10 specify intelligent diagram selection driven by
 
 | Hash | Type | Description |
 |------|------|-------------|
-| #p05g01complxcfg | requires | Provides ComplexityConfig and complexity analysis functions |
+| #p05g01complxcf0 | requires | Provides ComplexityConfig and complexity analysis functions |
 | #p05g03corediag0 | requires | Provides core diagram generators that the selector orchestrates |
 | #p05g04conddiag0 | requires | Provides conditional diagram generators that the selector triggers based on complexity |
 

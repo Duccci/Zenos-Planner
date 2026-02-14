@@ -31,7 +31,33 @@ High-level implementation: Comprehensive refactoring and cleanup of Zeno's MCP s
 
 High-level implementation: Successfully implemented critical MCP tools and guardrail validators, achieving 100% CLI command coverage via MCP and filling workflow gaps from 60% to 95%. Created 19 new files including schemas, validators, and tool implementations with comprehensive testing and documentation. All quality thresholds met.
 
+### Implement Generic Entity Action Handler (#p0209mcp-handler-generic)
+**Completed**: 2026-02-11
+
+High-level implementation: Created a generic EntityActionHandler factory that standardizes action dispatch for MCP tools, reducing code duplication from 300+ LOC to reusable pattern. Refactored gates and proposal handlers to use the new factory, establishing foundation for consistent tool behavior across all entity types.
+
 ## Security & Safety
+
+### Extract MCP Handler Utilities (#p0209mcp-util-extract)
+**Completed**: 2026-02-10
+
+High-level implementation: Extracted and centralized duplicated MCP handler utilities into `src/mcp/tools/handler-factory.ts` (`extractMockResult`, `handleMockResult`, `runValidators`, `formatValidationError`, `handleError`, `createNotImplementedHandler`). Updated multiple handler modules to use the centralized utilities, removed duplicate code (~174 LOC net reduction), and added unit & integration tests. Proposal archived to `zeno/proposals/archive/solitary/#p0209mcp-util-extract.md`.
+
+### Create Unified Entity Action Tools (#p0209mcp-tool-unify)
+**Completed**: 2026-02-12
+
+High-level implementation: Introduced unified `req_action` and `archive_action` tools consolidating individual requirement and archive handlers into single action-based tools. Deleted all redundant individual handlers (`req_list`, `req_show`, `req_deps`, `req_transfer`, `archive_gate`, `archive_proposal`, `archive_batch`) and their tool definitions. Eliminated ~150 LOC of dead code while maintaining zero change to MCP API. All existing tests pass without modification.
+
+### Centralize MCP Schema Registry (#p0209mcp-registry)
+**Completed**: 2026-02-12
+
+High-level implementation: Created centralized `schemas/registry.ts` as single source of truth for tool metadata, replacing manual tool definition array concatenation in `tools/index.ts`. Registry contains entries for gates, proposals, requirements, archives, and config with action metadata and schemas. Tool registration now driven programmatically by registry, improving maintainability and enabling future schema queries. No change to MCP behavior or API.
+
+### MCP Tools Testing & Documentation (#p0209mcp-testing-docs)
+**Completed**: 2026-02-12
+
+High-level implementation: Comprehensive testing and documentation for MCP tools consolidation. Added 50+ unit tests and 20+ integration tests achieving >90% code coverage for new handler utilities and entity action pattern. Created developer guide documenting entity action pattern, tool creation process, and registry structure. Updated MCP documentation with unified tools and examples. All 100+ tests passing with zero TypeScript errors.
+
 
 ### MCP Implementation - Error Handling, Git Safety, Solitary Archival (#m26020403safe)
 **Completed**: 2026-02-06

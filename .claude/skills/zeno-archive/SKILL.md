@@ -3,10 +3,10 @@ name: zeno-archive
 description: Archive a completed artifact (gate or proposal) and update dependent artifacts.
 ---
 
+<!-- ZENO:START -->
 **Guardrails**
-- Archive only at gate completion; do NOT archive individual proposals between apply and gate completion
+- Archive only when status is `completed`; proposals: all tasks done with `[x]` marks; gates: all requirements `tested`
 - Gate types: `gate-01` (gates); `#p01...` or filename (gate-tied proposals); `#s20260115...` (solitary)
-- Proposal archival is automatic when gate is completed; user focuses on gate-level approval only
 - Update dependent artifacts; preserve audit trail
 
 **Functions**
@@ -14,11 +14,11 @@ description: Archive a completed artifact (gate or proposal) and update dependen
 - `config_get()` - Access versioning settings
 
 **Steps**
-1. **Identify artifact** - Gate ID only (proposals are archived as part of gate completion, not individually)
-2. **Validate gate ready** - Check status is `completed`, all proposals completed, acceptance criteria met, requirements status
-3. **Consolidate proposals** - Automatically archive and consolidate all gate-tied and solitary proposals
-4. **Move to archive** - Move gate and associated proposals; tag in git; commit
-5. **Output summary** - Show gate archival results, archived proposals, and git tag created
+1. **Identify artifact** - Gate ID or proposal hash
+2. **Validate ready** - Check status is `completed`, acceptance criteria, requirements status
+3. **For gates**: Consolidate proposals; create completion summary; move to archive; tag in git; commit
+4. **For proposals**: Verify completion; move to archive; update requirements status
+5. **Output summary** - Show archival results and git tag created
 
 **Steps for GATES**
 1. **Validate gate ready** - Status `completed`; all proposals archived; all requirements tested
@@ -105,9 +105,136 @@ zeno/
             └── #s20260120hash.md
 ```
 
-## GATE ARCHIVAL WORKFLOW (Automatic Proposal Archival Included)
+---
 
-During gate archival, all gate-tied proposals are automatically archived as part of the consolidation process. No separate proposal archival step is needed.
+## PROPOSAL ARCHIVE WORKFLOW
+
+2B. **Validate proposal is ready for archive**
+   - Read the proposal file from `zeno/proposals/gate-XX/<name>.md`.
+
+   - Verify:
+     - **Status** is `completed` (human approved).
+     - All **Tasks** have acceptance criteria marked `- [x]`.
+     - All automated checks passed.
+   - If validation fails, report what's incomplete and stop.
+
+3B. **Ensure requirements are updated**
+   - Read the **Requirement** field from the proposal header.
+   - For each requirement hash referenced:
+     - **Invoke**: `zeno req status <hash> tested` (if tests passed).
+     - Or verify status is already `tested`.
+   - This ensures requirement tracking reflects completion.
+
+4B. **Clean up the proposal document**
+   Update the proposal file with completion metadata:
+   ```markdown
+   **Status**: completed  
+   **Implemented**: [DATE]  
+   **Archived**: [DATE]  
+   **Archived By**: [git user.name or "system"]
+   ```
+
+   Add **Completion Summary** section before Rollback:
+   ```markdown
+   ## Completion Summary
+
+   **Tasks Completed**: [X/X]  
+   **Files Modified**: [count]  
+   **Test Coverage**: [X%]  
+   **Commits**: [commit hash(es)]
+
+   ### Artifacts Created
+   - `src/path/to/file.ts` - [Brief description]
+   - `tests/path/to/file.test.ts` - [Brief description]
+
+   ### Quality Metrics
+   - Coverage: [X%] (threshold: 90%)
+   - Security: 0 vulnerabilities
+   - Lint errors: [X] (threshold: <0.01%)
+   - Type errors: 0
+   ```
+
+5B. **Update the parent gate**
+   - Read the gate PRD from `zeno/gates/gate-XX-name.md`.
+   - Check if all proposals for this gate are now completed/archived:
+     - If yes, gate may be ready for archive (notify user).
+     - If no, report remaining active proposals.
+
+   Update gate document if applicable:
+   ```markdown
+   ## Proposal Status
+
+   | Proposal | Status | Archived |
+   |----------|--------|----------|
+   | #p01projconf01 | completed | 2026-01-04 |
+   | #p01errlogs02 | completed | pending archive |
+   | #p01fileutil03 | in_progress | - |
+   ```
+
+6B. **Update dependencies**
+   - Read the **Dependencies** table from the proposal.
+   - For entries with type `blocks`:
+     - Those proposals/requirements are now unblocked.
+     - Notify user which proposals can now proceed.
+   - Verify no circular dependencies created.
+
+7B. **Move proposal to completed directory**
+   - Rename file from `zeno/proposals/gate-XX/<name>.md` to `zeno/proposals/archive/<hash>.md` (if not already moved by approval).
+   - Hash becomes the canonical filename (e.g., `p01projconf01.md`).
+   - Verify the move succeeded.
+
+8B. **Commit proposal archive**
+   - Call `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
+   - Construct commit message using `git.commitFormat` and the following mapping:
+     - **type**: `chore` (archive)
+     - **scope**: `proposal` or `gate-XX` (include gate ID)
+     - **subject**: `Archive proposal: [Title] (#<hash>)`
+     - **body**: short summary of the artifact being archived (1-3 lines), key quality metrics (coverage, tests, lint, type errors), and list of major commits or files changed.
+   - Stage all changes: `git add -A`
+   - Create commit using the formatted message (for example: `X.Y.Z chore(proposal): Archive proposal: [Title] (#<hash>)`)
+   - Push commit to configured remote: `git push <git.remote> <current-branch>`
+
+9B. **Check gate completion**
+   After archiving, check if gate is ready for archive:
+   - All proposals completed/archived?
+   - All requirements status `tested`?
+   - All quality gates met?
+   
+   If yes, prompt user:
+   ```
+   All proposals for Gate XX are completed.
+   
+   To archive the gate: `/zeno-archive gate-XX`
+   This will:
+   - Consolidate proposals
+   - Create git tag for the gate release
+   ```
+
+10B. **Summary output (Proposal)**
+    ```
+    Archived proposal #<hash>: [Title]
+
+    Location: zeno/proposals/archive/<hash>.md
+    Gate: gate-XX - [Gate Name]
+    
+    Requirements updated:
+      - #req1: [Name] -> tested
+      - #req2: [Name] -> tested
+
+    Unblocked proposals:
+      - #p02... (now ready for implementation)
+
+    Gate status: [X/Y proposals completed]
+    
+    Changes committed and pushed:
+      - All implementation files, tests, and artifacts included
+      - Proposal moved to completed directory
+      - Gate document updated
+    
+    Next steps:
+      - If more proposals remain: `/zeno-apply #next-hash`
+      - If gate complete: `/zeno-archive gate-XX`
+    ```
 
 **Consolidation Details (Gates)**
 
@@ -119,14 +246,14 @@ The consolidation process automatically extracts and aggregates:
 
 This reduces context size while preserving critical breadcrumbs for future reference.
 
-## SOLITARY PROPOSAL ARCHIVAL (Manual, Optional)
+---
 
-Solitary proposals can be manually archived when the user decides they're complete. This is optional and user-initiated (unlike gate-tied proposals which are archived automatically at gate completion).
+## SOLITARY PROPOSAL ARCHIVE WORKFLOW
 
 2C. **Validate solitary proposal is ready for archive**
    - Read the proposal file from `zeno/proposals/solitary/<YYYY-MM-DD-name>.md`.
    - Verify:
-     - **Status** is `completed` (user approved).
+     - **Status** is `completed` (human approved).
      - All **Tasks** have acceptance criteria marked `- [x]`.
      - All automated checks passed.
    - If validation fails, report what's incomplete and stop.
@@ -152,9 +279,9 @@ Solitary proposals can be manually archived when the user decides they're comple
 5C. **Clean up the proposal document**
    Update the proposal file with completion metadata:
    ```markdown
-   **Status**: completed
-   **Implemented**: [DATE]
-   **Archived**: [DATE]
+   **Status**: completed  
+   **Implemented**: [DATE]  
+   **Archived**: [DATE]  
    **Archived By**: [git user.name or "system"]
    ```
    Add or update **Completion Summary** section before Rollback with quality metrics.
@@ -181,18 +308,20 @@ Solitary proposals can be manually archived when the user decides they're comple
 
     Location: zeno/proposals/archive/solitary/#hash.md
     Consolidated to: zeno/gates/archive/solitary.md
-
+    
     Implementation summary added to registry under [Category] section.
 
     Changes committed and pushed:
       - Proposal moved to archive
       - Consolidation file updated
       - Solitary directory cleaned of completed work
-
+    
     Next steps:
       - Continue with other pending solitary proposals
       - Or return to gate work with next proposal
     ```
+
+---
 
 **Batch Archive**
 
@@ -212,3 +341,4 @@ To archive multiple proposals at once:
 - Consolidation utility: `src/utils/gate-consolidation.ts`.
 - Solitary consolidation file: `zeno/gates/archive/solitary.md`.
 - Archived artifacts are immutable; create new proposal if changes needed.
+<!-- ZENO:END -->

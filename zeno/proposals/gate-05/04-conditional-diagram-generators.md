@@ -24,7 +24,7 @@ Gate 05 specifies conditional diagrams that are generated per-gate when complexi
 | Hash | Type | Description |
 |------|------|-------------|
 | #p05g02rendbase0 | requires | Provides DiagramGeneratorBase, renderers, and DiagramContext |
-| #p05g01complxcfg | requires | Provides complexity analysis to determine when conditional generators should fire |
+| #p05g01complxcf0 | requires | Provides complexity analysis to determine when conditional generators should fire |
 
 ---
 

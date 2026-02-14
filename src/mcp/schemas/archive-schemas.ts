@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import {
-  GateIdSchema,
-  TimestampSchema
-} from './common-schemas.js'
+import { GateIdSchema, TimestampSchema } from './common-schemas.js'
 
 /**
  * Zod schemas for archive operations
@@ -14,7 +11,7 @@ import {
 
 export const ArchiveGateInputSchema = z.object({
   gateId: GateIdSchema,
-  completionNotes: z.string().optional()
+  completionNotes: z.string().optional(),
 })
 export type ArchiveGateInput = z.infer<typeof ArchiveGateInputSchema>
 
@@ -29,7 +26,7 @@ export const ArchiveGateOutputSchema = z.object({
   consolidatedProposals: z.number().int().min(0),
   fulfilledRequirements: z.number().int().min(0),
   nextGateId: z.string().optional(),
-  summary: z.string()
+  summary: z.string(),
 })
 export type ArchiveGateOutput = z.infer<typeof ArchiveGateOutputSchema>
 
@@ -39,7 +36,7 @@ export type ArchiveGateOutput = z.infer<typeof ArchiveGateOutputSchema>
 
 export const ArchiveProposalInputSchema = z.object({
   hash: z.string().regex(/^[a-z0-9]{8}$/, 'Must be 8-character hash'),
-  completionNotes: z.string().optional()
+  completionNotes: z.string().optional(),
 })
 export type ArchiveProposalInput = z.infer<typeof ArchiveProposalInputSchema>
 
@@ -51,14 +48,16 @@ export const ArchiveProposalOutputSchema = z.object({
   gateId: GateIdSchema.optional(),
   archivedAt: TimestampSchema,
   location: z.string(),
-  updatedRequirements: z.array(z.object({
-    hash: z.string(),
-    name: z.string(),
-    status: z.string()
-  })),
+  updatedRequirements: z.array(
+    z.object({
+      hash: z.string(),
+      name: z.string(),
+      status: z.string(),
+    })
+  ),
   unblockedProposals: z.array(z.string()),
   gateStatus: z.string(),
-  summary: z.string()
+  summary: z.string(),
 })
 export type ArchiveProposalOutput = z.infer<typeof ArchiveProposalOutputSchema>
 
@@ -67,28 +66,27 @@ export type ArchiveProposalOutput = z.infer<typeof ArchiveProposalOutputSchema>
 // ============================================================================
 
 export const ArchiveBatchInputSchema = z.object({
-  artifacts: z.array(z.union([
-    z.object({
-      type: z.literal('gate'),
-      gateId: GateIdSchema
-    }),
-    z.object({
-      type: z.literal('proposal'),
-      hash: z.string().regex(/^[a-z0-9]{8}$/)
-    })
-  ])),
-  completionNotes: z.string().optional()
+  artifacts: z.array(
+    z.union([
+      z.object({
+        type: z.literal('gate'),
+        gateId: GateIdSchema,
+      }),
+      z.object({
+        type: z.literal('proposal'),
+        hash: z.string().regex(/^[a-z0-9]{8}$/),
+      }),
+    ])
+  ),
+  completionNotes: z.string().optional(),
 })
 export type ArchiveBatchInput = z.infer<typeof ArchiveBatchInputSchema>
 
 export const ArchiveBatchOutputSchema = z.object({
   success: z.boolean(),
   archivedCount: z.number().int().min(0),
-  results: z.array(z.union([
-    ArchiveGateOutputSchema,
-    ArchiveProposalOutputSchema
-  ])),
-  summary: z.string()
+  results: z.array(z.union([ArchiveGateOutputSchema, ArchiveProposalOutputSchema])),
+  summary: z.string(),
 })
 export type ArchiveBatchOutput = z.infer<typeof ArchiveBatchOutputSchema>
 
@@ -102,8 +100,8 @@ export const ArchiveValidationErrorSchema = z.object({
   context: z.object({
     artifactType: z.enum(['gate', 'proposal']),
     artifactId: z.string(),
-    issues: z.array(z.string())
-  })
+    issues: z.array(z.string()),
+  }),
 })
 export type ArchiveValidationError = z.infer<typeof ArchiveValidationErrorSchema>
 
@@ -114,7 +112,75 @@ export const ArchiveNotReadyErrorSchema = z.object({
     artifactType: z.enum(['gate', 'proposal']),
     artifactId: z.string(),
     reason: z.string(),
-    missingRequirements: z.array(z.string()).optional()
-  })
+    missingRequirements: z.array(z.string()).optional(),
+  }),
 })
 export type ArchiveNotReadyError = z.infer<typeof ArchiveNotReadyErrorSchema>
+
+// ============================================================================
+// UNIFIED ARCHIVE ACTION SCHEMAS
+// ============================================================================
+
+export const ArchiveActionInputSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('gate'),
+    payload: ArchiveGateInputSchema,
+  }),
+  z.object({
+    action: z.literal('proposal'),
+    payload: ArchiveProposalInputSchema,
+  }),
+  z.object({
+    action: z.literal('batch'),
+    payload: ArchiveBatchInputSchema,
+  }),
+])
+
+export type ArchiveActionInput = z.infer<typeof ArchiveActionInputSchema>
+
+export const ArchiveActionOutputSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('gate'),
+    result: ArchiveGateOutputSchema,
+    validation: z
+      .object({
+        warnings: z.array(z.string()),
+        errors: z.array(z.string()),
+      })
+      .optional(),
+  }),
+  z.object({
+    action: z.literal('proposal'),
+    result: ArchiveProposalOutputSchema,
+    validation: z
+      .object({
+        warnings: z.array(z.string()),
+        errors: z.array(z.string()),
+      })
+      .optional(),
+  }),
+  z.object({
+    action: z.literal('batch'),
+    result: ArchiveBatchOutputSchema,
+    validation: z
+      .object({
+        warnings: z.array(z.string()),
+        errors: z.array(z.string()),
+      })
+      .optional(),
+  }),
+])
+
+export type ArchiveActionOutput = z.infer<typeof ArchiveActionOutputSchema>
+
+// Helper function to get output schema for a specific action
+export function getArchiveActionOutputSchema(action: ArchiveActionInput['action']): z.ZodType {
+  switch (action) {
+    case 'gate':
+      return ArchiveGateOutputSchema
+    case 'proposal':
+      return ArchiveProposalOutputSchema
+    case 'batch':
+      return ArchiveBatchOutputSchema
+  }
+}

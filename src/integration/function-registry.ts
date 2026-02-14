@@ -282,6 +282,25 @@ export const functionRegistry: FunctionDefinition[] = [
     examples: ['gates_complete("gate-01") - Complete gate 1'],
   },
   {
+    name: 'req_action',
+    description: 'Unified requirement actions: list | show | deps | transfer',
+    parameters: [
+      {
+        name: 'action',
+        type: 'string',
+        description: 'Action to perform (list|show|deps|transfer)',
+        required: true,
+      },
+      { name: 'payload', type: 'object', description: 'Action-specific payload', required: false },
+    ],
+    returnType: 'any',
+    examples: [
+      'req_action({ action: "list", payload: { gateId: "gate-02" } }) - List requirements',
+      'req_action({ action: "show", payload: { hash: "#a3f9c2d1" } }) - Show requirement details',
+      'req_action({ action: "transfer", payload: { hash: "#a3f9c2d1", gateId: "gate-04" } }) - Transfer requirement',
+    ],
+  },
+  {
     name: 'req_list',
     description: 'List requirements, optionally filtered by gate or project-wide',
     parameters: [
@@ -333,7 +352,6 @@ export const functionRegistry: FunctionDefinition[] = [
     returnType: 'DependencyGraph',
     examples: ['req_deps("#a3f9c2d1") - Show requirement dependencies'],
   },
-
   {
     name: 'req_transfer',
     description: 'Transfer a requirement to another gate',
@@ -344,12 +362,7 @@ export const functionRegistry: FunctionDefinition[] = [
         description: 'The hash identifier of the requirement',
         required: true,
       },
-      {
-        name: 'gateId',
-        type: 'string',
-        description: 'The target gate ID',
-        required: true,
-      },
+      { name: 'gateId', type: 'string', description: 'The target gate ID', required: true },
     ],
     returnType: 'void',
     examples: ['req_transfer("#a3f9c2d1", "gate-04") - Transfer requirement to gate-04'],

@@ -2,7 +2,8 @@
  * MCP Resources Implementation
  *
  * Registers MCP resources for project artifacts (PRDs, proposals, architecture diagrams)
- * discovered from the current working directory.
+ * discovered from the current working directory. Supports filesystem watching to add/remove
+ * resources dynamically as files are created or deleted.
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
@@ -69,13 +70,19 @@ const RESOURCE_TYPES = {
   // Architecture docs removed - apply agents should not read them to reduce context burden
 } as const
 
+/** Shape returned by discoverResources */
+interface DiscoveredResource {
+  uri: string
+  name: string
+  description: string
+  mimeType: string
+}
+
 /**
  * Discover resources from working directory
  */
-async function discoverResources(
-  basePath: string
-): Promise<{ uri: string; name: string; description: string; mimeType: string }[]> {
-  const resources: { uri: string; name: string; description: string; mimeType: string }[] = []
+async function discoverResources(basePath: string): Promise<DiscoveredResource[]> {
+  const resources: DiscoveredResource[] = []
 
   // Find all Zeno projects in the workspace
   const projectPaths = findZenoProjects(basePath)
@@ -89,10 +96,6 @@ async function discoverResources(
         const files = await glob(config.pattern, { cwd: projectPath, absolute: true })
 
         for (const fullPath of files) {
-          if (!fullPath || !existsSync(fullPath)) {
-            logger.warn(`Skipping resource with unavailable path: ${String(fullPath)} in ${projectPath}`)
-            continue
-          }
           const relPath = relative(projectPath, fullPath)
           resources.push({
             uri: `file://${fullPath}`,
@@ -119,9 +122,36 @@ async function discoverResources(
   return resources
 }
 
-/**
- * Register MCP resources on the server
- */
+/** Creates the read callback for a resource (avoids creating a unique closure per resource) */
+function makeReadCallback(res: DiscoveredResource) {
+  return () => {
+    if (res.uri.startsWith('file://')) {
+      const filePath = res.uri.replace('file://', '')
+      if (!existsSync(filePath)) {
+        throw new Error(`Resource not available: ${res.name}`)
+      }
+      const content = readFileSync(filePath, 'utf8')
+      return {
+        contents: [{ uri: res.uri, text: content, mimeType: res.mimeType }],
+      }
+    }
+
+    if (res.uri.startsWith('template://')) {
+      return {
+        contents: [
+          {
+            uri: res.uri,
+            text: `Template: ${res.description}\n\nUse the pattern in the name to build a concrete resource URI (e.g., replace {id}).`,
+            mimeType: res.mimeType,
+          },
+        ],
+      }
+    }
+
+    throw new Error(`Unsupported resource type: ${res.uri}`)
+  }
+}
+
 /**
  * Register MCP resources on the server
  */
@@ -144,150 +174,125 @@ export async function registerResources(
     return 0
   }
 
-  // Track registered URIs to avoid duplicate registrations
-  const registeredUris = new Set<string>()
+  // Track registered resources so the watcher can remove stale ones.
+  // Maps URI → the handle returned by server.registerResource (which has .remove())
+  const registeredHandles = new Map<string, { remove: () => void }>()
 
   for (const resource of resources) {
-    server.registerResource(
-      resource.name,
-      resource.uri,
-      {
-        description: resource.description,
-        mimeType: resource.mimeType,
-      },
-      () => {
-        // Handle file-backed resources
-        logger.debug(`Resource requested: ${resource.uri}`)
-        try {
-          if (resource.uri.startsWith('file://')) {
-            const path = resource.uri.replace('file://', '')
-            if (!path) {
-              const errMsg = `Invalid file resource URI: ${resource.uri}`
-              logger.error(errMsg)
-              throw new Error(errMsg)
-            }
-            if (!existsSync(path)) {
-              const errMsg = `File not found for resource ${resource.name}: ${path}`
-              logger.error(errMsg)
-              throw new Error(errMsg)
-            }
-            const content = readFileSync(path, 'utf8')
-            return {
-              contents: [
-                {
-                  uri: resource.uri,
-                  text: content,
-                  mimeType: resource.mimeType,
-                },
-              ],
-            }
-          }
-
-          // Template resources return a template description as content
-          if (resource.uri.startsWith('template://')) {
-            const templateText = `Template: ${resource.description}\n\nUse the pattern in the name to build a concrete resource URI (e.g., replace {id}).`
-            return {
-              contents: [
-                {
-                  uri: resource.uri,
-                  text: templateText,
-                  mimeType: resource.mimeType,
-                },
-              ],
-            }
-          }
-
-          // Fallback
-          throw new Error('Unsupported resource type')
-        } catch (err) {
-          logger.error(`Failed to read resource ${resource.uri}: ${String(err)}`, err)
-          throw new Error(`Resource not available: ${resource.name} (${resource.uri}): ${String(err)}`)
-        }
-      }
-    )
-
-    registeredUris.add(resource.uri)
+    try {
+      const handle = server.registerResource(
+        resource.name,
+        resource.uri,
+        {
+          description: resource.description,
+          mimeType: resource.mimeType,
+        },
+        makeReadCallback(resource)
+      )
+      registeredHandles.set(resource.uri, handle as unknown as { remove: () => void })
+    } catch {
+      // registerResource throws on duplicate URI — skip silently
+      logger.debug(`Skipped duplicate resource: ${resource.uri}`)
+    }
   }
 
-  logger.info(`Registered ${String(resources.length)} MCP resources from workspace: ${basePath}`)
+  logger.info(
+    `Registered ${String(registeredHandles.size)} MCP resources from workspace: ${basePath}`
+  )
 
-  // If watcher requested, start a filesystem watcher to detect new resources
+  // If watcher requested, start a filesystem watcher to detect new/removed resources
   if (options?.watch) {
     const { watch } = await import('node:fs')
     const watchDir = join(basePath, 'zeno')
     let debounce: NodeJS.Timeout | null = null
+    let refreshInFlight = false
+
+    // Rate-limit: suppress refreshes during bursts (e.g., git operations,
+    // bulk file writes). Allow at most 1 refresh per 10-second window.
+    let lastRefreshTime = 0
+    const MIN_REFRESH_INTERVAL_MS = 10_000
 
     const watcher = watch(watchDir, { recursive: true }, (_evt, filename) => {
       if (!filename) return
+      // Only react to .md file changes to avoid spurious refreshes
+      if (!filename.endsWith('.md')) return
+
       if (debounce) clearTimeout(debounce)
       debounce = setTimeout(() => {
-        // explicitly ignore returned promise from async refresh
+        if (refreshInFlight) return
+
+        // Rate-limit: skip if we refreshed too recently
+        const now = Date.now()
+        if (now - lastRefreshTime < MIN_REFRESH_INTERVAL_MS) {
+          return
+        }
+        lastRefreshTime = now
+        refreshInFlight = true
+
         void (async () => {
           try {
             const updated = await discoverResources(basePath)
+            const updatedUris = new Set(updated.map((r) => r.uri))
+
+            // Remove resources that no longer exist on disk
+            for (const [uri, handle] of registeredHandles) {
+              if (!updatedUris.has(uri)) {
+                try {
+                  handle.remove()
+                } catch {
+                  // ignore — may already be removed
+                }
+                registeredHandles.delete(uri)
+                logger.info(`Resource removed: ${uri}`)
+              }
+            }
+
+            // Add resources that are new
             for (const res of updated) {
-              if (!registeredUris.has(res.uri)) {
-                logger.info(`New resource discovered: ${res.name}`)
-                server.registerResource(
-                  res.name,
-                  res.uri,
-                  { description: res.description, mimeType: res.mimeType },
-                  () => {
-                    logger.debug(`Resource requested: ${res.uri}`)
-                    try {
-                      if (res.uri.startsWith('file://')) {
-                        const path = res.uri.replace('file://', '')
-                        if (!path) {
-                          const errMsg = `Invalid file resource URI: ${res.uri}`
-                          logger.error(errMsg)
-                          throw new Error(errMsg)
-                        }
-                        if (!existsSync(path)) {
-                          const errMsg = `File not found for resource ${res.name}: ${path}`
-                          logger.error(errMsg)
-                          throw new Error(errMsg)
-                        }
-                        const content = readFileSync(path, 'utf8')
-                        return { contents: [{ uri: res.uri, text: content, mimeType: res.mimeType }] }
-                      }
-                      if (res.uri.startsWith('template://')) {
-                        return {
-                          contents: [
-                            {
-                              uri: res.uri,
-                              text: `Template: ${res.description}`,
-                              mimeType: res.mimeType,
-                            },
-                          ],
-                        }
-                      }
-                      throw new Error('Unsupported resource type')
-                    } catch (err) {
-                      logger.error(`Failed to read resource ${res.uri}: ${String(err)}`, err)
-                      throw new Error(`Resource not available: ${res.name} (${res.uri}): ${String(err)}`)
-                    }
-                  }
-                )
-                registeredUris.add(res.uri)
+              if (!registeredHandles.has(res.uri)) {
+                try {
+                  const handle = server.registerResource(
+                    res.name,
+                    res.uri,
+                    { description: res.description, mimeType: res.mimeType },
+                    makeReadCallback(res)
+                  )
+                  registeredHandles.set(res.uri, handle as unknown as { remove: () => void })
+                  logger.info(`New resource discovered: ${res.name}`)
+                } catch {
+                  // duplicate or registration error — skip
+                }
               }
             }
           } catch (err) {
             logger.warn('Resource watcher failed to refresh resources', err)
+          } finally {
+            refreshInFlight = false
           }
         })()
-      }, 250)
+      }, 2000) // 2s debounce — long enough to batch rapid file changes
+    })
+
+    // Handle watcher errors gracefully (e.g., watched directory deleted)
+    watcher.on('error', (err) => {
+      logger.warn('Resource watcher error:', err)
     })
 
     logger.info(`Resource watcher started on ${watchDir}`)
     return {
-      count: resources.length,
+      count: registeredHandles.size,
       watcher: {
         close: () => {
-          watcher.close()
+          if (debounce) clearTimeout(debounce)
+          try {
+            watcher.close()
+          } catch {
+            // ignore
+          }
         },
       },
     }
   }
 
-  return resources.length
+  return registeredHandles.size
 }

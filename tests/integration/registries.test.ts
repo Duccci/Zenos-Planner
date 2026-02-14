@@ -35,10 +35,9 @@ describe('Domain Registries', () => {
     const registry = new FunctionRegistry()
     registerRequirementsOps(registry)
 
-    expect(registry.get('req_list')).toBeDefined()
-    expect(registry.get('req_show')).toBeDefined()
-    const schema = (registry.get('req_show') as any).schema
-    expect(() => schema.parse({ hash: 'r1' })).not.toThrow()
+    expect(registry.get('req_action')).toBeDefined()
+    const schema = (registry.get('req_action') as any).schema
+    expect(() => schema.parse({ action: 'show', payload: { hash: 'r1' } })).not.toThrow()
   })
 
   it('registers template functions', () => {
@@ -55,7 +54,7 @@ describe('Domain Registries', () => {
     registerArchiveOps(registry)
 
     expect(registry.get('generateProposals')).toBeDefined()
-    expect(registry.get('archive_proposal')).toBeDefined()
+    expect(registry.get('archive_action')).toBeDefined()
   })
 
   it('registers repository/architecture/analysis ops', () => {

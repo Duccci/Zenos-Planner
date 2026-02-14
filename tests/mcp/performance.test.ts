@@ -181,7 +181,7 @@ describe('MCP Tool Performance', () => {
     const PERFORMANCE_BASELINE = {
       gates_list: 700,
       gates_show: 700,
-      req_list: 700,
+      req_action(list): 700,
       req_show_with_deps: 1000,
       proposal_list: 700,
       proposal_validate: 1000,
@@ -196,7 +196,7 @@ describe('MCP Tool Performance', () => {
       const tests = [
         { name: 'gates_list', fn: () => registry.invoke('gates_list', {}) },
         { name: 'gates_show', fn: () => registry.invoke('gates_show', { gateId: 'gate-01' }) },
-        { name: 'req_list', fn: () => registry.invoke('req_list', {}) },
+        { name: 'req_action(list)', fn: () => registry.invoke('req_action', { action: 'list', payload: {} }) },
         { name: 'req_show_with_deps', fn: () => registry.invoke('req_show', { hash: 'p01ts' }) },
         { name: 'proposal_list', fn: () => registry.invoke('proposal_list', {}) },
         { name: 'repos_list', fn: () => registry.invoke('repos_list', {}) },

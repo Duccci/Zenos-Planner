@@ -1,68 +1,67 @@
-import {
-  ReqListInputSchema,
-  ReqShowInputSchema,
-  ReqDepsInputSchema,
-  ReqTransferInputSchema,
-} from '../schemas/requirement-schemas.js'
-
 export const requirementToolDefinitions = [
   {
-    name: 'req_list',
-    title: 'Requirement List',
-    description: 'List requirements optionally filtered by gate or type',
-    inputSchema: ReqListInputSchema,
-  },
-  {
-    name: 'req_show',
-    title: 'Requirement Show',
-    description: 'Show requirement details by hash or id',
-    inputSchema: ReqShowInputSchema,
-  },
-  {
-    name: 'req_deps',
-    title: 'Requirement Dependencies',
-    description: 'Get dependency graph for a requirement',
-    inputSchema: ReqDepsInputSchema,
-  },
-  {
-    name: 'req_transfer',
-    title: 'Requirement Transfer',
-    description: 'Transfer requirement to different gate',
-    inputSchema: ReqTransferInputSchema,
+    name: 'req_action',
+    description: 'Unified requirement actions: list, show, deps, transfer',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: {
+          type: 'string',
+          enum: ['list', 'show', 'deps', 'transfer'],
+          description: 'The requirement action to perform',
+        },
+        payload: {
+          type: 'object',
+          description: 'Action-specific payload',
+        },
+      },
+      required: ['action'],
+    },
   },
 ]
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import {
-  ReqListOutputSchema,
-  RequirementDetailSchema,
-  DependencyGraphSchema,
-  ReqTransferOutputSchema,
-} from '../schemas/requirement-schemas.js'
-import { createSchemaValidatingHandler } from './handler-factory.js'
-
+  ReqActionInputSchema,
+  ReqActionOutputSchema,
+  getReqActionOutputSchema,
+} from '../schemas/req-action-schemas.js'
+import { createEntityActionHandler } from './entity-action-handler.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function requirementHandlers(
   registry: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  const reqListHandler = createSchemaValidatingHandler(registry, 'req_list', ReqListOutputSchema)
-  const reqShowHandler = createSchemaValidatingHandler(
-    registry,
-    'req_show',
-    RequirementDetailSchema
-  )
-  const reqDepsHandler = createSchemaValidatingHandler(registry, 'req_deps', DependencyGraphSchema)
-  const reqTransferHandler = createSchemaValidatingHandler(
-    registry,
-    'req_transfer',
-    ReqTransferOutputSchema
+  const reqActionHandler = createEntityActionHandler(
+    {
+      entity: 'requirement',
+      actions: ['list', 'show', 'deps', 'transfer'] as const,
+      inputSchema: ReqActionInputSchema,
+      outputSchema: ReqActionOutputSchema,
+      actionOutputSchema: getReqActionOutputSchema,
+      actionHandlers: {
+        list: async (payload, r) =>
+          r.invoke('req_action', { action: 'list', payload: payload ?? {} }),
+        show: async (payload, r) => r.invoke('req_action', { action: 'show', payload }),
+        deps: async (payload, r) => r.invoke('req_action', { action: 'deps', payload }),
+        transfer: async (payload, r) => {
+          if (!payload) throw new Error('Transfer payload required')
+          const { targetGateId, ...rest } = payload as {
+            targetGateId: string
+            hash: string
+            reason?: string
+          }
+          return r.invoke('req_action', {
+            action: 'transfer',
+            payload: { ...rest, gateId: targetGateId },
+          })
+        },
+      },
+    },
+    registry
   )
 
   return {
-    req_list: reqListHandler,
-    req_show: reqShowHandler,
-    req_deps: reqDepsHandler,
-    req_transfer: reqTransferHandler,
+    req_action: reqActionHandler,
   }
 }

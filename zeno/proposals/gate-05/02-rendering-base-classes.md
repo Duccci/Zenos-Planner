@@ -23,7 +23,7 @@ Technical Decisions 1, 5, and 8 specify a hybrid rendering system where Mermaid 
 
 | Hash | Type | Description |
 |------|------|-------------|
-| #p05g01complxcfg | requires | Provides ComplexityConfig and shouldUseDot() used by base classes to select rendering backend |
+| #p05g01complxcf0 | requires | Provides ComplexityConfig and shouldUseDot() used by base classes to select rendering backend |
 
 ---
 

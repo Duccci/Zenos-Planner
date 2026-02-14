@@ -1,6 +1,6 @@
 # Proposal: Complexity Analyzer & Configuration
 
-**Hash**: #p05g01complxcfg
+**Hash**: #p05g01complxcf0
 **Gate**: gate-05 - Architecture & Diagram Generation
 **Status**: pending
 **Created**: 2026-02-09

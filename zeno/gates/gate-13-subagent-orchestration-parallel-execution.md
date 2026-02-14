@@ -142,6 +142,20 @@ Implements multi-tier agent orchestration and parallel execution enabling Zeno t
 - [ ] Create Ollama health check command
 - [ ] Build task assignment visibility (`zeno orchestrator tasks`)
 
+### Configurable Model Delegation for Orchestration
+Extends Gate 10's `/delegate` mechanism to support multi-model orchestration:
+- [ ] Add `delegation.models` configuration to `zeno/.zeno/config.json` with tier-to-model mapping
+- [ ] Support delegation targets: claude-opus (planning), claude-sonnet (implementation), copilot, ollama (local), custom endpoints
+- [ ] Implement model selection by gate tier: PhD Tier → claude-opus, Expert Tier → claude-sonnet, Focused Tier → ollama
+- [ ] Read `delegation.defaultPlanningModel` and `delegation.defaultImplementationModel` from config
+- [ ] Allow `/delegate` to override model selection via --model flag
+- [ ] Implement model failover: if primary unavailable, try fallback from config
+- [ ] Support regional/deployed model endpoints via config (e.g., api.azure.openai.com for Copilot)
+- [ ] Create delegation routing: planning agents use planning model, background agents use implementation model
+- [ ] Log all delegation calls with model name and duration for cost analysis
+- [ ] Build Ollama integration for local model fallback (no API key required)
+- [ ] Test delegation with mixed models (Claude for planning, Ollama for implementation)
+
 ### Testing & Quality
 - [ ] Write unit tests for dependency graph analysis
 - [ ] Write tests for parallelization detection
@@ -220,6 +234,8 @@ Gate 01-12 established:
 - Claude API planning orchestrator (proposal spec generation)
 - LangGraph/CrewAI/Mastra integration and task graph management
 - Ollama model initialization and local tool-calling integration
+- Configurable model delegation via `/delegate` command (Claude, Copilot, Ollama, custom endpoints)
+- Tier-based model routing (PhD→Opus, Expert→Sonnet, Focused→Ollama)
 - Dependency graph analysis for parallelization
 - Worktree allocation per task (using Gate 10 MCP tools)
 - Orchestrator-level merge coordination
@@ -227,6 +243,7 @@ Gate 01-12 established:
 - Task status tracking and progress monitoring
 - Result consolidation and validation
 - Error handling, retry logic, and graceful degradation
+- Model failover and fallback behavior
 - `zeno gate <id> execute` command with parallelization
 - Comprehensive test coverage (90% minimum)
 

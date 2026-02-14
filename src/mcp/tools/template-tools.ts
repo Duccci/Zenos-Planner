@@ -6,20 +6,17 @@ import type { FunctionRegistry } from '../../integration/function-registry.js'
 export const templateToolDefinitions = [
   {
     name: 'template_list',
-    title: 'Template List',
-    description: 'List available templates by category',
+    description: 'List templates by category',
     inputSchema: z.any(),
   },
   {
     name: 'template_get',
-    title: 'Template Get',
     description: 'Get template content with metadata',
     inputSchema: z.any(),
   },
   {
     name: 'template_context',
-    title: 'Template Context',
-    description: 'Prepare template context for LLM usage',
+    description: 'Prepare template context for LLM',
     inputSchema: z.any(),
   },
 ]

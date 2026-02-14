@@ -82,7 +82,7 @@ import { logger } from '../utils/logger.js'
  * Checkpoints the WAL file at regular intervals to prevent unbounded growth.
  * @param intervalMs - Checkpoint interval in milliseconds (default: 60000 = 60 seconds)
  */
-export function startWalCheckpointInterval(intervalMs: number = 60000): void {
+export function startWalCheckpointInterval(intervalMs = 60000): void {
   // Clear any existing interval
   if (walCheckpointInterval !== null) {
     clearInterval(walCheckpointInterval)
@@ -101,7 +101,7 @@ export function startWalCheckpointInterval(intervalMs: number = 60000): void {
   // Allow process to exit even with active interval
   walCheckpointInterval.unref()
 
-  logger.debug(`WAL checkpoint interval started: every ${intervalMs}ms`)
+  logger.debug(`WAL checkpoint interval started: every ${String(intervalMs)}ms`)
 }
 
 /**
@@ -115,21 +115,25 @@ export function stopWalCheckpointInterval(): void {
   }
 }
 
+/** Cached WAL checkpoint statement to avoid allocating a new one per interval tick */
+let cachedCheckpointStmt: ReturnType<Database.Database['prepare']> | null = null
+
 export function checkpointWAL(db: Database.Database = getDatabase()): {
   status: 'ok' | 'blocked' | 'error'
   detail?: string
 } {
   try {
-    // PRAGMA wal_checkpoint(TRUNCATE) will merge WAL into database and truncate the WAL file
-    const res = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
-      | Record<string, unknown>
-      | undefined
+    // Reuse prepared statement to avoid creating garbage on every checkpoint interval
+    cachedCheckpointStmt ??= db.prepare('PRAGMA wal_checkpoint(TRUNCATE)')
+    const res = cachedCheckpointStmt.get([]) as Record<string, unknown> | undefined
 
     logger.debug('WAL checkpoint executed', res ?? {})
 
     // If the PRAGMA returns an object with a numeric or string response, we consider it successful
     return { status: 'ok', detail: res ? JSON.stringify(res) : 'ok' }
   } catch (error) {
+    // Invalidate cached statement on error (db may have been closed/rebuilt)
+    cachedCheckpointStmt = null
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('WAL checkpoint failed or blocked', message)
     // We conservatively mark this as 'blocked' so callers can decide to retry later
@@ -156,6 +160,7 @@ export function closeDatabase(): void {
 
       dbInstance.close()
       dbInstance = null
+      cachedCheckpointStmt = null
     } catch (error) {
       throw new DatabaseError(
         'Failed to close database',

@@ -43,7 +43,7 @@ export interface McpError {
 function mapErrorToCode(error: unknown): ErrorCode {
   if (error instanceof Error) {
     // Check for explicit code on the error object
-    const explicitCode = (error as unknown as Record<string, unknown>)?.['code']
+    const explicitCode = (error as unknown as Record<string, unknown>)['code']
     if (typeof explicitCode === 'string') {
       // Map known explicit codes to unified codes
       const codeMap: Record<string, ErrorCode> = {
@@ -52,7 +52,7 @@ function mapErrorToCode(error: unknown): ErrorCode {
         INVALID_PARAMETERS: 'INVALID_INPUT',
         INVOCATION_ERROR: 'INTERNAL_ERROR',
       }
-      if (codeMap[explicitCode]) return codeMap[explicitCode] as ErrorCode
+      if (codeMap[explicitCode]) return codeMap[explicitCode]
     }
 
     const message = error.message.toLowerCase()

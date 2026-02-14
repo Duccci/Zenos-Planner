@@ -23,7 +23,7 @@ Technical Decision 11 specifies that diagram names, ordering, and dependencies a
 
 | Hash | Type | Description |
 |------|------|-------------|
-| #p05g05selctmeta | requires | Provides DiagramSelector that determines which diagrams are planned for each gate |
+| #p05g05selctmet0 | requires | Provides DiagramSelector that determines which diagrams are planned for each gate |
 
 ---
 

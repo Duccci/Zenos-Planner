@@ -84,53 +84,53 @@ export function registerMcpCommands(program: Command): void {
   // Install helper for editors: writes mcp.json workspace file or user-level file
   mcpCommand
     .command('install')
-    .description('Install MCP configuration and optional editor helpers')
-    .option('--editor <editor>', 'Editor to target (vscode|cursor|windsurf|all)', 'all')
-    .option('--global', 'Install at user global level instead of workspace')
+    .description('Install MCP configuration and start the MCP server in the background')
+    .option('--editor <editor>', 'Editor to target (vscode|cursor|windsurf|all)', 'vscode')
     .option('--dry-run', 'Do not modify files, only show actions')
-    .action(async (opts: { editor: string; global?: boolean; dryRun?: boolean }) => {
+    .action(async (opts: { editor: string; dryRun?: boolean }) => {
       try {
-        const { ensureWorkspaceMcp, getAdapterCommand } =
-          await import('../../mcp/editor-adapters.js')
-        const projectRoot = process.cwd()
+        const { ensureWorkspaceMcp } = await import('../../mcp/editor-adapters.js')
 
-        const selectedEditor =
-          opts.editor === 'vscode' || opts.editor === 'cursor' || opts.editor === 'windsurf'
-            ? opts.editor
-            : 'vscode'
+        const projectRoot = process.cwd()
 
         if (opts.dryRun) {
           console.log('Dry run: actions that would be performed:')
           console.log(`  - Ensure workspace .vscode/mcp.json exists`)
-          console.log(
-            `  - Adapter activation command for ${opts.editor}: ${getAdapterCommand(selectedEditor, projectRoot)}`
-          )
-          process.exit(0)
-        }
-
-        if (opts.global) {
-          console.log(
-            'Global installation requested. Please run platform-specific steps to write to your editor user settings.'
-          )
-          // Keep it intentionally minimal; full global install requires admin privileges and platform checks
           process.exit(0)
         }
 
         const written = ensureWorkspaceMcp(projectRoot)
-        if (written) console.log('Wrote .vscode/mcp.json to workspace (recommended)')
-        else console.log('Workspace already contains .vscode/mcp.json; no changes made')
+        if (written) console.log('[mcp-install] Wrote .vscode/mcp.json to workspace')
+        else console.log('[mcp-install] Workspace MCP config already exists')
 
-        // Show installation URL for VSCode
-        if (opts.editor === 'vscode' || opts.editor === 'all') {
-          const { getVSCodeInstallUrl } = await import('../../mcp/editor-adapters.js')
-          console.log(`\nOne-click VSCode setup: "${getVSCodeInstallUrl()}"`)
-          console.log('Click the link above to install MCP server automatically')
-        }
-
-        console.log(`Adapter activation command: ${getAdapterCommand(selectedEditor, projectRoot)}`)
+        // Note: The MCP server is launched by the editor via mcp.json stdio config.
+        // We no longer spawn a detached background server here — that caused orphaned
+        // node processes to accumulate because each `mcp install` call spawned a new
+        // child without checking if one was already running, and detached processes
+        // on Windows are not reliably cleaned up via SIGINT/SIGTERM.
+        console.log('[mcp-install] Editor MCP config installed.')
+        console.log('[mcp-install] The editor will start the MCP server automatically via stdio.')
         process.exit(0)
       } catch (error) {
         logger.error('Failed to run mcp install:', error)
+        process.exit(1)
+      }
+    })
+
+  mcpCommand
+    .command('stop')
+    .description('Stop a running background MCP server')
+    .action(async () => {
+      try {
+        const { stopServer } = await import('../../mcp/manager.js')
+        const stopped = stopServer(process.cwd())
+        if (stopped) {
+          console.log('[mcp-stop] MCP server stopped')
+        } else {
+          console.log('[mcp-stop] No running MCP server found')
+        }
+      } catch (error) {
+        logger.error('Failed to stop MCP server:', error)
         process.exit(1)
       }
     })
