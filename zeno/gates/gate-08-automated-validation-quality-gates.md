@@ -3,7 +3,7 @@
 **Status**: pending  
 **Type**: feature  
 **Created**: 2026-02-04  
-**Sequence**: 8 of 13  
+**Sequence**: 8 of 12  
 **Hash**: #g08validate
 
 <!-- Status lifecycle:
@@ -15,71 +15,40 @@
 
 ## Overview
 
-Implements comprehensive automated validation framework that enforces quality gates before human approval. This gate integrates linting (ESLint), type checking (TypeScript compiler), testing (Vitest), code coverage (c8, threshold: 90%), and security scanning (0 vulnerabilities) into a unified validation orchestrator. Delivers validation report generation with clear pass/fail status, automated checks for all proposal types, and human-understandable results. Quality gates act as automated gatekeepers, catching issues early and ensuring proposals only reach human review when they meet minimum standards, reducing reviewer burden and preventing defective code from being approved.
+Implements automated validation that enforces quality gates before human approval. Rather than hardcoding each validator, this gate creates a lightweight validation orchestrator that invokes existing tooling (ESLint, tsc, Vitest, npm audit) and leverages agent scripts from `agents/pipeline-agents/00-quality-assurance/` for configurable, LLM-driven quality assessment. The `quality-gate-controller` and `validation-depth-controller` agents define quality criteria and validation intensity; Zeno orchestrates their invocation via MCP. Quality gates catch issues early, ensuring proposals meet minimum standards before reaching human review.
 
 ## Objectives
 
-### Linting & Code Quality Checks
-- [ ] Integrate ESLint for code quality (syntax, style, best practices)
-- [ ] Create custom ESLint rules for Zeno conventions
-- [ ] Calculate linting error rate (threshold: <0.01%, max 1 error per 10k lines)
-- [ ] Build linting report generator (format errors for human review)
-- [ ] Implement automatic fixable linting issues (auto-fix mode)
+### Validation Orchestrator
+- [ ] Create unified validation runner (invokes checks and aggregates results)
+- [ ] Invoke ESLint for code quality (via shell, standard rules — no custom Zeno rules)
+- [ ] Invoke TypeScript compiler for strict mode type checking (via shell)
+- [ ] Invoke Vitest for test execution and result parsing (via shell)
+- [ ] Invoke coverage tool (c8) for coverage reporting with 90% threshold
+- [ ] Invoke npm audit for dependency vulnerability scanning (threshold: 0 high/critical)
+- [ ] Aggregate pass/fail results into structured validation report
 
-### Type Checking & TypeScript Validation
-- [ ] Integrate TypeScript compiler API for type checking
-- [ ] Enforce strict mode compilation (no implicit any, strict null checks)
-- [ ] Create type error report generator
-- [ ] Track compilation errors and warnings
-- [ ] Support incremental type checking (only check changed files)
+### Agent-Driven Quality Assessment
+- [ ] Expose validation results via MCP tool for LLM/agent consumption
+- [ ] Leverage `quality-gate-controller` agent for configurable quality criteria
+- [ ] Leverage `validation-depth-controller` agent for validation intensity scaling
+- [ ] Agent scripts determine which checks run and at what depth — Zeno orchestrates execution
+- [ ] No hardcoded ESLint rule definitions or custom validator classes
 
-### Test Execution & Coverage
-- [ ] Integrate Vitest for test execution
-- [ ] Create test result parser (pass/fail/skip counts)
-- [ ] Integrate c8 for code coverage reporting
-- [ ] Enforce coverage threshold (90% minimum)
-- [ ] Calculate per-file and aggregate coverage metrics
-- [ ] Generate coverage report with failing files highlighted
-
-### Security Vulnerability Scanning
-- [ ] Integrate npm audit or similar for dependency vulnerabilities
-- [ ] Set security threshold: 0 known CVEs (fail on any high/critical vulnerability)
-- [ ] Create vulnerability report with remediations
-- [ ] Track vulnerability severity (critical, high, medium, low)
-- [ ] Support dependency update recommendations
-
-### Dependency Conflict Detection
-- [ ] Implement circular dependency detection (prevent cycles in codebase)
-- [ ] Create cross-repo dependency validation
-- [ ] Track dependency version conflicts
-- [ ] Detect peer dependency mismatches
-- [ ] Build conflict resolution suggestions
-
-### Automated Validation Orchestrator
-- [ ] Create unified validation runner (executes all checks sequentially or in parallel)
-- [ ] Build check result aggregation (combine all check outputs)
-- [ ] Implement validation timeout handling
-- [ ] Create partial failure reporting (some checks fail, others pass)
-- [ ] Support check skip flags (allow users to skip certain checks temporarily)
-
-### Validation Reporting & Commands
+### Validation Reporting
 - [ ] Implement `zeno proposal validate <hash>` command (run all checks on proposal)
-- [ ] Create structured validation report (JSON and human-readable formats)
-- [ ] Build validation summary dashboard (X checks passed, Y checks failed)
-- [ ] Implement detailed error/warning output with file locations
-- [ ] Create actionable suggestions for fixing failures
+- [ ] Create structured validation report (pass/fail per check, error details)
+- [ ] Provide actionable error messages with file locations
+- [ ] Return machine-readable results for LLM iteration
 
-### Integration with Proposal Workflow
-- [ ] Link validation to proposal status (validation required before approval)
-- [ ] Create validation cache (avoid re-running unchanged checks)
-- [ ] Implement incremental validation (only re-validate changed files/requirements)
-- [ ] Build validation audit trail (track check results per proposal version)
-- [ ] Support manual validation override (for emergency approvals, tracked in audit log)
+### Shared Conflict Detection Module
+- [ ] Implement file-level conflict detection as a shared module (consumed by Gates 06, 10)
+- [ ] Detect circular dependencies via requirement/proposal dependency graph
+- [ ] Consolidate conflict detection logic (single implementation, not duplicated per gate)
 
 ### Testing & Quality
-- [ ] Write unit tests for each validator (linting, type checking, coverage, security)
-- [ ] Write integration tests for validation orchestrator
-- [ ] Test validation report generation and formatting
+- [ ] Write unit tests for validation orchestrator
+- [ ] Write tests for validation report generation
 - [ ] Test threshold enforcement (coverage, linting, security)
 - [ ] Achieve 90% test coverage for validation module
 
@@ -98,109 +67,74 @@ Gate 01-07 established:
 
 - **Gate 9 (Human Approval)**: Only validated proposals reach human review
 - **Gate 10 (Git Integration)**: Validated proposals committed to git with safety assurance
-- **Gate 12 (Subagent Orchestration)**: Validation results inform orchestration decisions
-- **LLM-driven workflows**: `/zeno-apply` workflow uses validation before requesting approval
-- **Agent feedback loops**: LLMs can iterate on failed validations without human intervention
 
 ### Scope Boundaries
 
 **In Scope**:
-- ESLint integration with custom rules for Zeno conventions
-- TypeScript strict mode type checking
-- Vitest test execution and result parsing
-- c8 code coverage reporting with 90% threshold enforcement
-- npm audit security scanning (threshold: 0 CVEs for high/critical)
-- Circular and cross-repo dependency detection
-- Unified validation orchestrator combining all checks
+- Validation orchestrator wrapping existing tools (ESLint, tsc, Vitest, c8, npm audit)
+- Agent-driven quality assessment via `quality-gate-controller` and `validation-depth-controller`
 - `zeno proposal validate <hash>` command
-- Structured validation reports (JSON, human-readable)
-- Validation caching and incremental checking
-- Actionable error messages with fix suggestions
+- Structured validation reports (machine and human readable)
+- Shared conflict detection module
+- Threshold enforcement: 90% coverage, 0 CVEs (high/critical), <0.01% lint error rate
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
-- Custom linting rule development (beyond Zeno conventions)
-- Performance profiling (no performance gates in MVP)
-- Code complexity metrics (cyclomatic complexity, cognitive complexity)
+- Custom ESLint rule development
+- Hardcoded validator classes per check type
+- Validation caching and incremental checking (premature optimization)
+- Performance profiling or complexity metrics
 - Code duplication detection
-- License compliance checking
-- SBOM (Software Bill of Materials) generation
-- Automated code generation or fixes (beyond lint auto-fixes)
-- Security vulnerability remediation (recommendations only)
+- License compliance or SBOM generation
 
 ## Requirements
 
-This gate addresses quality assurance requirements from project initialization:
-
-1. **Automated Quality Gates** - Proposals automatically validated against quality thresholds before human review
-2. **Clear Feedback** - LLMs receive structured validation results enabling iteration without human intervention
-3. **Zero Technical Debt** - Quality thresholds (90% coverage, 0 vulnerabilities, <0.01% lint errors) enforced before approval
-4. **Audit Trail** - All validation results tracked for compliance and learning
-5. **Fast Feedback Loop** - Validation completes quickly enabling rapid iteration
+1. **Automated Quality Gates** — Proposals validated against quality thresholds before human review
+2. **Clear Feedback** — LLMs receive structured validation results enabling iteration
+3. **Agent-Configurable** — Quality criteria and validation depth configured via agent scripts, not hardcoded
+4. **Shared Conflict Detection** — Single conflict detection module used across gates
 
 ## Technical Decisions
 
-### 1. Validation Threshold Enforcement
-- **Choice**: Non-configurable MVP thresholds: 90% coverage, 0 CVEs (high/critical), <0.01% lint error rate
-- **Alternatives Considered**: Configurable thresholds, warning-only mode, gradual enforcement
-- **Rationale**: Enforce high quality from the start, prevent technical debt accumulation. Fixed thresholds simplify MVP.
-- **Trade-offs**: Gained consistency and quality; lost per-project customization (deferred to v2)
+### 1. Shell-Based Tool Invocation
+- **Choice**: Invoke ESLint, tsc, Vitest, c8, npm audit via shell commands and parse output
+- **Alternatives Considered**: TypeScript compiler API, programmatic ESLint API, custom validator classes
+- **Rationale**: Shell invocation is simple, leverages existing tool installations, and keeps Zeno lightweight. No need to import these tools as dependencies — they're project development tools.
+- **Trade-offs**: Gained simplicity; parsing shell output is less reliable than programmatic APIs (acceptable for MVP)
 
-### 2. Unified Validation Orchestrator
-- **Choice**: Single orchestrator combining all validators, fail-fast on first critical failure
-- **Alternatives Considered**: Independent validators run in isolation, parallel execution, weighted pass/fail
-- **Rationale**: Fail-fast prevents wasting time on subsequent checks when fundamental issues exist. Single orchestrator simplifies result aggregation.
-- **Trade-offs**: Gained clarity; slightly slower on highly parallel systems (mitigated by parallelization where safe)
+### 2. Agent-Driven Quality Configuration
+- **Choice**: Leverage `quality-gate-controller` and `validation-depth-controller` agents from `agents/pipeline-agents/00-quality-assurance/`
+- **Alternatives Considered**: Hardcoded validator classes, configurable YAML quality profiles
+- **Rationale**: Agent scripts already define quality criteria and validation intensity scaling. Zeno exposes validation results via MCP; agents assess and configure. Keeps Zeno as an orchestrator, not a quality engine.
+- **Trade-offs**: Gained configurability and LLM-driven assessment; depends on agent quality
 
-### 3. Incremental Validation
-- **Choice**: Cache validation results, only re-run checks for changed files
-- **Alternatives Considered**: Full re-validation every time, pure streaming with no caching
-- **Rationale**: Speeds up validation for large proposals by avoiding redundant checks on unchanged code.
-- **Trade-offs**: Gained performance; added cache invalidation complexity
-
-## Architecture & Dependencies
-
-### Validators
-- `ESLintValidator` - Checks code style and conventions
-- `TypeScriptValidator` - Type checks with strict mode
-- `VitestValidator` - Runs tests and parses results
-- `CoverageValidator` - Checks code coverage (c8 integration)
-- `SecurityValidator` - Scans for vulnerabilities (npm audit)
-- `DependencyValidator` - Detects circular and cross-repo dependency issues
-
-### Validation Orchestration
-- `ValidationOrchestrator` - Coordinates all validators
-- `ValidationCache` - Caches results for unchanged code
-- `ValidationReportGenerator` - Creates human and machine-readable reports
-
-### Validation Integration
-- `ProposalValidator` - Validates entire proposals (calls orchestrator)
-- `IncrementalValidator` - Only validates changed files
+### 3. Non-Configurable MVP Thresholds
+- **Choice**: Fixed thresholds for MVP: 90% coverage, 0 CVEs (high/critical), <0.01% lint error rate
+- **Rationale**: Enforce high quality from the start. Configurable thresholds deferred to post-MVP.
 
 ## Implementation Steps
 
-1. Integrate ESLint with custom rule definitions
-2. Integrate TypeScript compiler API for strict mode checking
-3. Integrate Vitest and test result parsing
-4. Integrate c8 for coverage reporting
-5. Integrate npm audit for security scanning
-6. Build dependency conflict detection
-7. Create validation orchestrator
-8. Implement `zeno proposal validate` command
-9. Build validation report generation
-10. Implement caching and incremental validation
-11. Write comprehensive tests
+1. Create validation orchestrator (shell command runner + result aggregator)
+2. Implement ESLint, tsc, Vitest, c8, npm audit invocations
+3. Build structured validation report format
+4. Implement `zeno proposal validate` command
+5. Expose validation results via MCP tool
+6. Implement shared conflict detection module
+7. Write comprehensive tests
 
 ## Gate Completion Criteria
 
-- [ ] ESLint validation correctly identifies style and convention violations
-- [ ] TypeScript type checking works in strict mode, catches all type errors
-- [ ] Vitest test execution runs and reports test results correctly
-- [ ] Coverage threshold (90%) enforced, reports failing files
+- [ ] Validation orchestrator invokes all checks and aggregates results
+- [ ] ESLint, TypeScript, Vitest, coverage, and security checks all execute correctly
+- [ ] Validation report clearly shows pass/fail per check with error details
+- [ ] Coverage threshold (90%) enforced, failing files reported
 - [ ] Security scanning detects vulnerabilities, threshold 0 enforced
-- [ ] Linting error rate calculated correctly (<0.01% threshold)
-- [ ] Validation orchestrator runs all checks and aggregates results
-- [ ] `zeno proposal validate <hash>` executes all validators and generates report
+- [ ] `zeno proposal validate <hash>` runs all checks and reports results
+- [ ] Validation results exposed via MCP tool for agent consumption
+- [ ] Shared conflict detection module works for file-level overlap detection
+- [ ] All tests passing with TypeScript strict mode
+- [ ] Test coverage ≥90% for validation module
+- [ ] Zero lint errors, zero type errors
 - [ ] Validation reports are structured (JSON) and human-readable
 - [ ] Caching prevents re-validation of unchanged files
 - [ ] Validation results stored with proposal for audit trail

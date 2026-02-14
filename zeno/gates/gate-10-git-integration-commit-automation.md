@@ -3,7 +3,7 @@
 **Status**: pending  
 **Type**: feature  
 **Created**: 2026-02-04  
-**Sequence**: 10 of 13  
+**Sequence**: 10 of 12  
 **Hash**: #g10gitint
 
 <!-- Status lifecycle:
@@ -83,17 +83,7 @@ Implements Git integration layer enabling approved proposals to be automatically
 - [ ] Implement conflict detection (proposals modifying same files)
 
 ### Agent Delegation with Configurable Models
-Enables agents to hand off work to other agents using different LLM models via `/delegate` command:
-- [ ] Implement `/delegate <model>` CLI command for agent-to-agent hand-offs
-- [ ] Add `agent_delegate` MCP tool for structured delegation with context preservation
-- [ ] Support configurable target models: claude-opus, claude-sonnet, copilot, ollama (local), claude-3-5-sonnet, mistral, etc.
-- [ ] Read model configuration from `zeno/.zeno/config.json` (delegation.defaultModel)
-- [ ] Preserve conversation context during hand-off (full history transfer)
-- [ ] Include worktree path and proposal metadata in delegation payload
-- [ ] Track delegation chain (which agent delegated to which model)
-- [ ] Implement hand-off URL/reference for continuing work in target model
-- [ ] Support fallback model if primary delegate fails (e.g., fall back to local ollama if cloud API unavailable)
-- [ ] Create session management to maintain state across agent hand-offs
+Deferred to post-MVP (Gate 13 scope). See Gate 13 for agent delegation design.
 
 ### Testing & Quality
 - [ ] Write unit tests for worktree operations
@@ -119,8 +109,6 @@ Gate 01-09 established:
 ### What This Gate Enables
 
 - **Gate 11 (Rescope & Replan)**: Git history enables rescope impact analysis
-- **Gate 12 (Subagent Orchestration)**: Worktree management enables true parallel execution
-- **Gate 13 (Documentation)**: Git history and tags provide project timeline
 - **Production Release**: Approved proposals committed with proper attribution and tagging
 - **Audit Compliance**: All changes tracked with structured commit messages
 
@@ -224,13 +212,6 @@ This gate addresses execution and persistence requirements from project initiali
 - [ ] `zeno worktree list` shows all active worktrees
 - [ ] `zeno worktree prune` cleans up expired/dead worktrees
 - [ ] Git status integration shows which proposals modify which files
-- [ ] `/delegate` command successfully hands off to configured model with context preservation
-- [ ] `agent_delegate` MCP tool transfers worktree path and proposal metadata
-- [ ] Multiple delegate targets work (claude-opus, claude-sonnet, copilot, ollama, etc.)
-- [ ] Delegation configuration read from `zeno/.zeno/config.json`
-- [ ] Session management preserves state across agent hand-offs
-- [ ] Fallback delegation works when primary model unavailable
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for git integration module
 - [ ] Zero lint errors, zero type errors
-- [ ] Documentation updated for worktree workflow, delegation, and commit conventions

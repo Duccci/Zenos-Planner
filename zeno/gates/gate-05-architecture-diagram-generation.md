@@ -3,7 +3,7 @@
 **Status**: in_progress
 **Type**: feature  
 **Created**: 2026-02-04  
-**Sequence**: 5 of 13  
+**Sequence**: 5 of 12  
 **Hash**: #g05archdiag
 
 <!-- Status lifecycle:
@@ -26,16 +26,13 @@ Implements architecture diagram generation with intelligent template selection b
 - [ ] Implement gate roadmap diagram generator (gate sequence and parallel relationships)
 - [ ] Implement context diagram generator (system boundary, external dependencies)
 
-### Conditional Gate-Level Diagrams (Generated When Complexity Detected)
+### Additional Diagram Types (LLM-Driven Selection via MCP)
 - [ ] Implement sequence diagram generator (temporal interactions for complex workflows)
 - [ ] Implement component diagram generator (detailed module structure for complex components)
 - [ ] Implement package diagram generator (code organization and module dependencies)
-- [ ] Implement complexity detection algorithm (identifies when to generate gate-level diagrams)
-
-### Conditional Infrastructure Diagrams (Generated for Deployment/Infrastructure Gates)
 - [ ] Implement deployment diagram generator (runtime infrastructure, deployment topology)
 - [ ] Implement network diagram generator (network topology, communication patterns)
-- [ ] Implement infrastructure detection (identifies deployment gates needing infrastructure diagrams)
+- [ ] LLM selects which additional diagrams are needed per-gate via MCP tools (no algorithmic auto-detection)
 
 ### Hybrid Rendering System (Mermaid + Graphviz DOT)
 - [ ] Implement Mermaid diagram generator base class (simple diagrams, below complexity threshold)
@@ -54,19 +51,16 @@ Implements architecture diagram generation with intelligent template selection b
 - [ ] Build architecture artifact storage conventions (organize diagrams in `zeno/architecture/`)
 - [ ] Implement gate structure change detection (triggers architecture review notification when gates change)
 
-### Intelligent Diagram Selection
-- [ ] Implement project type detection (LLM/user-driven via MCP, informed by gate PRDs and codebase analysis)
-- [ ] Create diagram selection matrix (project type -> required diagrams)
-- [ ] Build gate complexity analyzer (configurable thresholds: element count, nesting depth, depth penalty)
-- [ ] Implement infrastructure detection (identifies infrastructure-focused gates)
-- [ ] Support user/LLM preference overrides (allow explicit diagram type requests via MCP tools)
+### Diagram Selection (LLM-Driven via MCP)
+- [ ] Expose diagram type catalogue via MCP tool (available types, descriptions, when useful)
+- [ ] LLM selects diagrams based on gate PRD context and project structure
+- [ ] Support explicit diagram type requests from user or LLM via MCP tools
+- [ ] No algorithmic complexity detection — LLMs determine need based on context
 
 ### Gate Template Integration
 - [ ] Add `## Architecture Diagrams` section to gate PRD template
-- [ ] Define per-gate diagram entries with: name, type, order, and inter-diagram dependencies
-- [ ] Integrate diagram metadata into gate generation algorithm (produced alongside requirements)
-- [ ] Support parallelization hints in diagram metadata (independent diagrams can be generated concurrently)
-- [ ] Enable subagent-ready diagram task decomposition (Gate 12 prerequisite)
+- [ ] Define per-gate diagram entries with: name, type, and order
+- [ ] Integrate diagram metadata into gate generation flow (produced alongside requirements)
 
 ### Testing & Quality
 - [ ] Write unit tests for all diagram generators (template rendering, mermaid syntax validation)
@@ -95,9 +89,7 @@ Gate 01-04 established:
 
 - **Gate 6 (Multi-Repo & Subproject Detection)**: Uses architecture diagrams to visualize cross-repo dependencies
 - **Gate 7 (Proposal Generation)**: Architecture context helps decompose proposals from requirements
-- **Gate 9 (Git Integration)**: Architecture diagrams can be committed with proposals for context
-- **Gate 12 (Subagent Orchestration)**: Architectural clarity supports parallel work item identification
-- **Gate 13 (Documentation)**: Architecture diagrams form core of system documentation
+- **Gate 10 (Git Integration)**: Architecture diagrams committed with proposals for context
 - **LLM-driven workflows**: Visual diagrams help LLMs understand system structure for proposal generation
 
 ### Scope Boundaries
@@ -107,10 +99,9 @@ Gate 01-04 established:
 - Graphviz DOT diagram generation for complex models (above threshold) with inline SVG embedding
 - Graphviz as host-installed dependency with graceful fallback and setup helper
 - Five core diagrams: system overview, data flow, gate lifecycle, gate roadmap, context
-- Gate-level diagrams: sequence, component, package (conditional, per-gate complexity-based)
-- Infrastructure diagrams: deployment, network (conditional, infrastructure-focused gates)
+- Additional diagrams: sequence, component, package, deployment, network (LLM-selected per-gate via MCP)
 - LLM-driven content generation via MCP template exposure (strict format, flexible content)
-- Configurable complexity thresholds (element count, nesting depth, depth penalty)
+- LLM-driven diagram selection via MCP (no algorithmic complexity detection)
 - Architecture metadata via runtime folder scanning of `zeno/architecture/`
 - Gate PRD template integration with diagram metadata (name, type, order, dependencies)
 - Gate structure change detection triggering architecture review
@@ -152,17 +143,16 @@ This gate addresses core documentation requirements from project initialization:
   - Hybrid approach balances maintainability (text-based Mermaid) with rendering quality (prerendered DOT)
 - **Trade-offs**: Gained rendering quality for complex diagrams; added Graphviz system dependency; prerendered SVG requires regeneration on source changes, but automation handles this
 
-### 2. Intelligent Diagram Selection
-- **Choice**: Auto-select diagrams based on project type, gate type, and complexity metrics
-- **Alternatives Considered**: Generate all 10 diagram types for every project, user manual selection only, hardcoded per-project selection
-- **Rationale**: Different projects need different diagrams (CLI tools don't need network diagrams, libraries don't need deployment diagrams). Auto-selection reduces clutter while ensuring critical diagrams exist.
-- **Trade-offs**: Gained focused documentation; added complexity to selection logic
+### 2. LLM-Driven Diagram Selection
+- **Choice**: LLM selects which additional diagrams to generate based on gate PRD context, project structure, and user input via MCP tools
+- **Alternatives Considered**: Algorithmic complexity detection, generate all 10 types for every project, user manual selection only
+- **Rationale**: LLMs understand project context better than threshold-based algorithms. MCP tool exposure lets the LLM assess what diagrams are valuable. Keeps Zeno lightweight — no static analysis engine for diagram selection.
+- **Trade-offs**: Gained simplicity and context-aware selection; depends on LLM quality for selection decisions
 
-### 3. Core vs. Optional Diagrams
-- **Choice**: 5 core diagrams (always generated), 3 gate-level (conditional), 2 infrastructure-level (conditional)
+### 3. Core vs. Additional Diagrams
+- **Choice**: 5 core diagrams (always generated), 5 additional types (LLM-selected per-gate)
 - **Alternatives Considered**: All 10 types always, minimal set only, fully manual
-- **Rationale**: Core diagrams provide baseline understanding. Optional diagrams generated when metrics indicate need (complexity, infrastructure focus).
-- **Trade-offs**: Gained clarity and reduced documentation bloat; requires complexity detection algorithm
+- **Rationale**: Core diagrams provide baseline understanding. Additional diagrams generated when LLM determines they add value for a given gate.
 
 ### 4. LLM-Driven Content Generation via MCP Templates
 - **Choice**: Templates define strict structural format; LLM generates flexible diagram content through MCP tool interactions
@@ -181,18 +171,7 @@ This gate addresses core documentation requirements from project initialization:
   - README documents Graphviz as an optional dependency with install instructions per platform
 - **Trade-offs**: Gained licensing compliance and smaller package; requires users to install Graphviz separately for complex diagram rendering
 
-### 6. Configurable Complexity Thresholds
-- **Choice**: Element count = nodes + edges; nesting depth is a separate multiplier; thresholds are configurable
-- **Definition of "element"**: `count = nodes + edges`. A graph with 3 nodes and 3 edges = 6 elements (exceeds default threshold)
-- **Nesting depth factor**: Nesting depth > 2 levels reduces the effective threshold (deeply nested graphs render poorly in Mermaid even with fewer elements). Effective threshold = `configured_threshold - (nesting_depth - 2) * depth_penalty`
-- **Default configuration** (overridable in `zeno.config.ts` or project settings):
-  - `complexity.elementThreshold`: 5 (default Mermaid/DOT boundary)
-  - `complexity.depthPenalty`: 1 (elements subtracted per nesting level beyond 2)
-  - `complexity.maxMermaidDepth`: 3 (force DOT rendering above this nesting depth regardless of element count)
-- **Rationale**: Different projects have different complexity profiles. A microservices project with shallow graphs needs different thresholds than a deeply nested monolith. Configurability prevents false rendering choices.
-- **Trade-offs**: Gained precision in rendering selection; added configuration surface area
-
-### 7. Git-Based Diagram Versioning
+### 6. Git-Based Diagram Versioning
 - **Choice**: Rely on Git commit history for versioning; no application-level version tracking
 - **Alternatives Considered**: SemVer per diagram, content-hash snapshots, database version table
 - **Rationale**: Diagrams are markdown files in `zeno/architecture/` already under Git version control. Adding application-level versioning duplicates what Git provides natively. `git log -- zeno/architecture/system-overview.md` gives full history. Architecture metadata tracks current state (which diagrams exist, their types, associated gates) but not version history.
@@ -287,10 +266,9 @@ This gate addresses core documentation requirements from project initialization:
 - [ ] Graphviz DOT diagrams render to valid inline SVG via host `dot` CLI
 - [ ] Graceful fallback to Mermaid-only when Graphviz is not installed (warning emitted)
 - [ ] `zeno setup graphviz` prints correct platform-specific install instructions
-- [ ] Diagram selection logic correctly applies configurable complexity thresholds (nodes + edges, nesting depth)
-- [ ] Gate-level diagrams generated per-gate when complexity triggers them, with correct naming convention
-- [ ] Infrastructure diagrams generated only for infrastructure-focused gates
-- [ ] Gate PRD template includes `## Architecture Diagrams` section with diagram metadata (name, type, order, dependencies)
+- [ ] LLM-driven diagram selection works via MCP tools (no algorithmic complexity detection)
+- [ ] Additional diagrams generated per-gate when LLM selects them, with correct naming convention
+- [ ] Gate PRD template includes `## Architecture Diagrams` section with diagram metadata (name, type, order)
 - [ ] `zeno arch generate` invokes LLM-driven generation through MCP template exposure
 - [ ] `zeno arch show <type>` retrieves and displays diagrams correctly
 - [ ] Architecture metadata scanner correctly indexes `zeno/architecture/` folder contents

@@ -1,9 +1,13 @@
 # Gate 13: Subagent Orchestration & Parallel Execution
 
-**Status**: pending  
+> **POST-MVP** — This gate is deferred beyond MVP. The scope described below needs significant
+> refactoring and reconsideration before implementation. It should not be worked on until
+> Gates 05-12 are complete and the MVP is stable.
+
+**Status**: deferred  
 **Type**: feature  
 **Created**: 2026-02-04  
-**Sequence**: 13 of 13  
+**Sequence**: post-MVP  
 **Hash**: #g13subagent
 
 <!-- Status lifecycle:

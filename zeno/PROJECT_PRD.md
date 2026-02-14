@@ -84,6 +84,8 @@ The tool bridges the gap between high-level project vision and detailed implemen
 
 ### 12. Subagent Orchestration via Cursor Workflows with Four-Stage Delegation
 
+> **POST-MVP** — This decision describes the long-term vision. Subagent orchestration is deferred beyond MVP (Gates 05-12). See Gate 13 for tracking.
+
 **Choice**: Zeno orchestrates work through four-stage agent delegation with specialized agents in both planning and implementation:
 1. **Planning Agents** (specialized decomposition): Expert Tier and PhD Tier agents selected from `agents/expert-agents/` submodule based on gate type and required expertise
 2. **Local Agent** (interactive orchestration): Coordinates specialized planning agents, finalizes dispatch plan, allocates worktrees
@@ -205,8 +207,8 @@ Merge Orchestration & Worktree Cleanup
 **Integration Points**:
 - Gate 5 (Multi-Repo): Worktrees support multi-repo scenarios (one worktree per repo + proposal)
 - Gate 9 (Git Integration): Worktree creation/deletion, merge automation, conflict detection
-- Gate 12 (Subagent Orchestration): Allocate worktrees per independent proposal/gate; orchestrator manages lifecycle
-- Gate 10 (Rescope): Isolated rescope planning in dedicated worktree without disrupting ongoing work
+- Gate 10 (Git Integration): Worktree creation/deletion, merge automation, conflict detection
+- Post-MVP (Subagent Orchestration): Allocate worktrees per independent proposal/gate; orchestrator manages lifecycle
 
 **Impact**:
 - Reduces gate completion time by 40-60% through parallelization (agents no longer wait for peer merges)
@@ -399,7 +401,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **hash-registry** - Content-addressable storage system
 - **git-integration** - Git hooks, commit automation, and worktree management
 - **worktree-orchestrator** - Git worktree lifecycle (create, merge, cleanup) and conflict detection
-- **subagent-orchestrator** - Subagent creation and coordination via Cursor workflows with worktree-based parallelization
+- **subagent-orchestrator** - Subagent creation and coordination via Cursor workflows with worktree-based parallelization (post-MVP)
 
 ### Infrastructure Requirements
 - **SQLite 3.x** - Requirements database (no server required)
@@ -645,8 +647,8 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Test end-to-end workflow (3+ agents, parallel proposals, merge coordination)
 - [ ] Document approval workflow for human review
 
-### Phase 5: Monitoring & Optimization (Week 9-10, Parallel with Gates 10-11)
-- [ ] Setup agent dashboard showing worktree status
+### Phase 5: Monitoring & Optimization (Post-MVP, Parallel with Gates 11-12)
+- [ ] Setup agent status reporting via MCP tools
 - [ ] Add logging/audit trails for delegation flow
 - [ ] Implement backpressure (limit concurrent worktrees based on disk space)
 - [ ] Optimize context passing between agents (reduce hand-off overhead)
@@ -654,58 +656,45 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Measure parallelization benefits (time savings analysis)
 
 
-### Gate 10: Rescope & Replan Engine
-- [ ] Implement rescope detection (end state change)
-- [ ] Create rescope gate generator (documents the change)
-- [ ] Build future gate regeneration from current position
-- [ ] Implement gate deletion for obsolete future gates
+### Gate 10: Git Integration & Commit Automation
+- [ ] Implement structured commit messages with configurable format
+- [ ] Build git tag creation for completed gates
+- [ ] Implement worktree lifecycle management (create, merge, prune, remove)
+- [ ] Build merge coordination for parallel proposals
+- [ ] Implement file-level conflict detection
+- [ ] Create `zeno worktree` CLI commands
+- [ ] Expose worktree MCP tools
+- [ ] Write tests for git integration module
+
+### Gate 11: Rescope & Replan Engine
+- [ ] Implement rescope detection (PROJECT_PRD.md end-state diff)
+- [ ] Create rescope gate generator (immutable, type: rescope)
+- [ ] Build rescope impact analysis (affected gates and requirements)
+- [ ] Implement future gate regeneration from current position
+- [ ] Build gate deletion and re-sequencing
+- [ ] Implement requirement transfer between gates
 - [ ] Create rescope approval workflow
-- [ ] Implement `zeno rescope` command
-- [ ] Build rescope impact analysis
-- [ ] Add rescope history tracking
-- [ ] Write tests for rescope logic
+- [ ] Expose rescope MCP tools
+- [ ] Write tests for rescope module
 
-### Gate 11: Dashboard & Visualization
-- [ ] Implement `zeno status` command (project overview)
-- [ ] Create `zeno dashboard` TUI with ink or blessed
-- [ ] Build gate progress visualization
-- [ ] Create requirement tree visualization
-- [ ] Implement proposal status board
-- [ ] Add dependency graph viewer
-- [ ] Create interactive navigation
-- [ ] Build real-time status updates
-- [ ] Write tests for dashboard
+### Gate 12: Status & Reporting
+- [ ] Implement `zeno status` CLI command (text summary)
+- [ ] Expose `project_status` MCP tool (structured project overview)
+- [ ] Expose `gate_summary`, `requirement_summary`, `proposal_summary` MCP tools
+- [ ] Implement status data aggregation from SQLite
+- [ ] Write tests for status module
 
-### Gate 12: Subagent Orchestration & Parallel Execution
-- [ ] Implement subagent creation via Cursor workflows
-- [ ] Build subagent task delegation system (requirements, proposals, gate components)
-- [ ] **Build dependency graph analyzer to identify parallel work** (which proposals can execute simultaneously)
-- [ ] **Create per-subagent worktree allocation strategy** (worktree per independent proposal/gate)
-- [ ] **Implement orchestrator worktree coordination** (create worktrees, dispatch agents, track worktree status)
-- [ ] Create subagent status tracking and progress monitoring
-- [ ] Implement coordination of parallel subagent execution
-- [ ] **Build merge ordering logic** (merge non-dependent proposals in parallel, rebase dependent proposals)
-- [ ] Build conflict detection for concurrent modifications (prevent parallel work on same files)
-- [ ] Create subagent result consolidation and integration
-- [ ] Implement subagent error handling and retry logic
-- [ ] **Build worktree cleanup coordination** (signal cleanup after approval, handle rejected proposals)
-- [ ] Build orchestrator state synchronization with Zeno state
-- [ ] Write tests for subagent coordination (including multi-worktree scenarios)
+### Gate 13: Subagent Orchestration & Parallel Execution (Post-MVP)
+- [ ] Subagent orchestration — deferred, needs refactoring/reconsideration
+- [ ] See gate-13-subagent-orchestration-parallel-execution.md
 
-### Gate 13: Documentation & Polish
-- [ ] Write comprehensive README with examples
-- [ ] Create CLI command reference documentation
-- [ ] Write architecture documentation
-- [ ] Polish and finalize AGENTS.md (tool usage guide with complete examples)
-- [ ] Create tutorial for greenfield projects
-- [ ] Create tutorial for existing codebases
-- [ ] Build example projects (small, medium, large)
-- [ ] Create troubleshooting guide
-- [ ] Write contribution guidelines
-- [ ] Add inline code documentation
-- [ ] Create video walkthrough (optional)
+### Gate 14: Documentation Cleanup (Post-MVP)
+- [ ] README.md accuracy pass
+- [ ] CLI/MCP command reference audit
+- [ ] AGENTS.md updates
+- [ ] JSDoc on public APIs
 
-_Gates are ordered sequentially. Each gate represents an actionable milestone that feeds into more detailed gate-level PRDs. Total: 13 gates (previously 12, with MCP Server added as Gate 2.5)._
+_MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14 deferred to post-MVP._
 
 ## Open Questions
 

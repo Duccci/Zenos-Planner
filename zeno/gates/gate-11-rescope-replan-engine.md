@@ -3,7 +3,7 @@
 **Status**: pending  
 **Type**: feature  
 **Created**: 2026-02-04  
-**Sequence**: 11 of 13  
+**Sequence**: 11 of 12  
 **Hash**: #g11rescope
 
 <!-- Status lifecycle:
@@ -15,186 +15,150 @@
 
 ## Overview
 
-Implements rescope and replan capabilities enabling projects to adapt to changing requirements mid-development. This gate detects end-state changes, generates rescope gates documenting scope transitions, regenerates future gates from current position, manages gate deletion for obsolete future gates, and provides rescope approval workflows. Rescope support addresses a critical real-world need: projects inevitably discover complexity that requires scope adjustment. Rather than forcing projects to continue on invalid roadmaps, Zeno enables controlled rescoping with clear documentation, impact analysis, and human approval, preserving project momentum while maintaining clarity about changed scope.
+Implements rescope and replan capabilities enabling projects to adapt to changing requirements mid-development. When a user modifies PROJECT_PRD.md (the single source of truth), `zeno rescope` detects the change, creates an immutable rescope gate documenting the transition, regenerates future gates from the current position, transfers requirements to new gates, and requires human approval before applying changes. No isolated worktrees or automatic diagram regeneration—rescope operates on the main working tree and focuses on gate/requirement management.
 
 ## Objectives
 
 ### Rescope Detection & Documentation
-Note: Rescope planning benefits from isolated worktrees (Gate 10) to evaluate scope changes without disrupting ongoing work
 
-- [ ] Implement rescope detection (compare current end state to original PROJECT_PRD.md)
-- [ ] Implement rescope worktree (isolated planning environment via Gate 10 worktree tools)
-- [ ] Create rescope gate generator (documents the scope change with rationale)
-- [ ] Build rescope impact analysis (which gates affected, which requirements added/removed)
-- [ ] Generate rescope summary document (before state, after state, reason, impact)
-- [ ] Implement rescope history tracking (maintain log of all scope changes)
+- [ ] Implement rescope detection (diff current PROJECT_PRD.md against stored end-state snapshot)
+- [ ] Create rescope gate generator (type: `rescope`, documents before/after state and rationale)
+- [ ] Build rescope impact analysis (which future gates affected, which requirements added/removed/moved)
+- [ ] Implement rescope history log in SQLite (timestamp, summary, affected gates, approval status)
 
-### Future Gate Regeneration (With Worktree Awareness)
-Gates may now run in parallel (per gate-roadmap); regeneration must preserve parallel dependencies
+### Future Gate Regeneration
 
-- [ ] Implement future gate regeneration from current position (after rescope gate)
-- [ ] Update gate regeneration to respect parallel gate dependencies
-- [ ] Build gate deletion logic (remove obsolete future gates)
-- [ ] Create gate re-sequencing (renumber gates after rescope, preserve parallel structure)
-- [ ] Support partial regeneration (regenerate only affected gates)
-- [ ] Implement gate preservation (keep completed gates unchanged)
+- [ ] Implement future gate regeneration from current position (preserve completed gates)
+- [ ] Build gate deletion logic (remove obsolete future gates, clean orphaned references)
+- [ ] Create gate re-sequencing (renumber gates after rescope)
+- [ ] Support partial regeneration (regenerate only affected gates, preserve unaffected)
 
 ### Requirement Transfer & Reattribution
-- [ ] Implement requirement transfer between gates (for scope changes)
+
+- [ ] Implement requirement transfer between gates (`zeno req transfer <hash> <gate-id>`)
 - [ ] Build requirement reattribution logic (reassign requirements to new gates)
-- [ ] Create requirement status preservation (keep implemented/tested status through rescope)
-- [ ] Support requirement archival (mark requirements as obsolete if removed)
-- [ ] Implement requirement dependency update (adjust dependencies after transfer)
+- [ ] Create requirement status preservation (keep implemented/tested status through transfer)
+- [ ] Support requirement archival (mark requirements as obsolete with `won't` priority)
 
 ### Rescope Approval Workflow
-- [ ] Implement rescope approval gate (requires human approval before regenerating future gates)
-- [ ] Create rescope proposal system (detailed documentation of changes)
-- [ ] Build impact assessment (stakeholder can understand scope change implications)
-- [ ] Support rescope rejection (allow stakeholders to push back on scope changes)
-- [ ] Implement rescope history audit trail
 
-### Rescope Commands
-- [ ] Implement `zeno rescope` command (detect scope changes and initiate rescope workflow)
-- [ ] Build rescope status reporting (`zeno status` shows rescope state)
-- [ ] Create rescope approval interface (presentation of rescope proposal)
-- [ ] Implement rescope confirmation (final check before applying changes)
+- [ ] Implement rescope approval (human must approve before future gates regenerated)
+- [ ] Present rescope impact summary via MCP tool (`rescope_review`)
+- [ ] Support rescope rejection (revert to pre-rescope state, preserve feedback)
 
-### Architecture Updates for Rescope
-- [ ] Update gate roadmap diagram for new gate sequence post-rescope
-- [ ] Regenerate architecture diagrams (dependencies may have changed)
-- [ ] Update AGENTS.md if rescope affects project conventions
-- [ ] Create rescope-specific documentation
+### Rescope Commands & MCP Tools
 
-### Integration with Replan Engine
-- [ ] Link rescope with replan (rescope can trigger replan of affected proposals)
-- [ ] Support proposal re-evaluation post-rescope (proposals may no longer be valid)
-- [ ] Implement proposal archival if requirements removed (mark as obsolete)
-- [ ] Create replan briefing for affected proposals
+- [ ] Implement `zeno rescope` CLI command (detect changes, present impact, request approval)
+- [ ] Expose `rescope_detect` MCP tool (returns diff of end-state changes)
+- [ ] Expose `rescope_apply` MCP tool (apply approved rescope, regenerate gates)
+- [ ] Expose `rescope_history` MCP tool (query rescope log)
 
 ### Testing & Quality
-- [ ] Write unit tests for rescope detection
-- [ ] Write tests for gate regeneration logic
-- [ ] Test requirement transfer and reattribution
-- [ ] Test rescope impact analysis
-- [ ] Test rescope approval workflow
+
+- [ ] Write unit tests for rescope detection (end-state diff logic)
+- [ ] Write tests for gate regeneration and re-sequencing
+- [ ] Test requirement transfer and status preservation
+- [ ] Test rescope approval/rejection workflow
 - [ ] Achieve 90% test coverage for rescope module
 
 ## Context
 
 ### What Was Completed Before This Gate
 
-Gate 01-10 established:
+Gates 01-10 established:
 - Full planning, proposal, validation, and execution workflow
 - Git integration with worktree-based parallel execution
 - All core Zeno capabilities for project execution
 
 ### What This Gate Enables
 
-- **Gate 12 (Dashboard)**: Rescope status displayed in project dashboard
-- **Gate 13 (Subagent Orchestration)**: Rescope may trigger re-orchestration of work
+- **Gate 12 (Status & Reporting)**: Rescope state surfaced in `zeno status` MCP tool
 - **Late-stage adaptability**: Projects can rescope with full confidence in impact analysis and approval
-- **Continuous learning**: Rescope enables projects to improve scope understanding iteratively
 
 ### Scope Boundaries
 
 **In Scope**:
-- Rescope detection (PROJECT_PRD.md end state change)
-- Rescope gate generation (documents the change)
+- Rescope detection (PROJECT_PRD.md end-state change)
+- Rescope gate generation (immutable documentation of scope change)
 - Future gate regeneration from current position
 - Gate deletion and re-sequencing
 - Requirement transfer and reattribution
 - Rescope approval workflow
-- `zeno rescope` command
-- Rescope impact analysis
-- Rescope history tracking
-- Integration with replan engine
+- `zeno rescope` CLI command + MCP tools
+- Rescope history tracking in SQLite
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
-- Automatic scope optimization (humans decide scope, tool doesn't recommend)
-- Version branching (not supported - single timeline)
-- Partial gate acceptance (entire gate approved or rejected)
-- Timeline re-estimation (focuses on achievability, not time)
-- Stakeholder notification (humans handle communication)
+- Isolated rescope worktree (operates on main working tree)
+- Automatic architecture diagram regeneration (LLM can regenerate diagrams independently via Gate 05 tools)
+- Automatic AGENTS.md updates (manual or LLM-driven)
+- Automatic scope optimization (humans decide scope)
+- Version branching (single timeline)
+- Timeline re-estimation
 
 ## Requirements
 
-This gate addresses adaptability and learning requirements from project initialization:
-
 1. **Mid-Project Scope Adjustment** - Projects can rescope when requirements change
-2. **Clear Impact Analysis** - Stakeholders understand what changes when scope is adjusted
+2. **Clear Impact Analysis** - Humans understand what changes when scope is adjusted
 3. **Proper Documentation** - Rescope creates audit trail with before/after state
-4. **Dependency Management** - Requirements and proposals properly updated post-rescope
+4. **Dependency Management** - Requirements properly transferred and reattributed post-rescope
 5. **Approval & Control** - Humans approve all scope changes before they take effect
 
 ## Technical Decisions
 
 ### 1. Rescope Detection Strategy
-- **Choice**: Compare current end state in PROJECT_PRD.md to original end state
-- **Alternatives Considered**: Requirement-driven detection, manual rescope initiation, incremental tracking
-- **Rationale**: PROJECT_PRD.md is single source of truth. Change there signals rescope need. Simple to detect, easy to verify.
-- **Trade-offs**: Gained clarity; requires human to modify PRD explicitly (not implicit)
+- **Choice**: Diff current PROJECT_PRD.md end-state section against stored snapshot in SQLite
+- **Rationale**: PROJECT_PRD.md is single source of truth. Snapshot comparison is deterministic and simple.
+- **Trade-offs**: Requires human to modify PRD explicitly (not implicit detection)
 
 ### 2. Rescope Gate Strategy
-- **Choice**: Create immutable rescope gate documenting scope change (type: rescope)
-- **Alternatives Considered**: Update existing gates in-place, separate rescope metadata, archive old roadmap
-- **Rationale**: Immutable gate preserves history and creates audit trail. Makes rescope explicit and visible in roadmap.
-- **Trade-offs**: Gained transparency; adds gate to sequence
+- **Choice**: Create immutable rescope gate (type: `rescope`) documenting scope change
+- **Rationale**: Preserves history and creates visible audit trail in gate sequence.
+- **Trade-offs**: Adds a gate to sequence, but provides clear documentation
 
 ### 3. Future Gate Regeneration
-- **Choice**: Regenerate future gates from current position (don't rewind past completed gates)
-- **Alternatives Considered**: Regenerate all gates, keep old gates unchanged
+- **Choice**: Regenerate only future gates from current position (preserve completed gates)
 - **Rationale**: Respects completed work. Only adjusts future scope.
-- **Trade-offs**: Gained efficiency; may require partial re-planning of later gates
 
 ## Architecture & Dependencies
 
-### Rescope Detection & Documentation
-- `RescopeDetector` - Identifies end state changes
-- `RescopeGateGenerator` - Creates rescope gate documenting change
-- `ImpactAnalyzer` - Analyzes affected gates and requirements
+### Core Components
+- `RescopeDetector` - Diffs PROJECT_PRD.md end-state against stored snapshot
+- `RescopeGateGenerator` - Creates immutable rescope gate with impact summary
+- `FutureGateRegenerator` - Regenerates future gates, deletes obsolete ones, re-sequences
+- `RequirementTransferManager` - Moves/archives requirements between gates
 
-### Gate Regeneration
-- `FutureGateRegenerator` - Regenerates gates post-rescope
-- `GateSequencer` - Re-sequences gates after deletions
-
-### Requirement Management
-- `RequirementTransferManager` - Moves requirements between gates
-- `RequirementReattributor` - Re-assigns requirements to new gates
-
-### Rescope Workflow
-- `RescopeApprovalWorkflow` - Handles rescope approval
+### MCP Tools
+- `rescope_detect` - Returns end-state diff and affected gates list
+- `rescope_apply` - Applies approved rescope (generates rescope gate, regenerates future gates)
+- `rescope_review` - Presents impact summary for human review
+- `rescope_history` - Queries rescope log from SQLite
 
 ## Implementation Steps
 
-1. Implement rescope detection (compare PROJECT_PRD.md)
-2. Build rescope gate generator
-3. Create impact analysis
-4. Implement future gate regeneration
-5. Build gate deletion and re-sequencing
-6. Implement requirement transfer
+1. Implement end-state snapshot storage in SQLite (captured at `zeno init` and after each rescope)
+2. Build rescope detection (diff current PRD against snapshot)
+3. Create impact analysis (identify affected gates and requirements)
+4. Implement rescope gate generator
+5. Build future gate regeneration and re-sequencing
+6. Implement requirement transfer and archival
 7. Create rescope approval workflow
-8. Implement `zeno rescope` command
-9. Build rescope history tracking
+8. Implement `zeno rescope` CLI command
+9. Expose MCP tools
 10. Write comprehensive tests
 
 ## Gate Completion Criteria
 
-- [ ] Rescope detection correctly identifies PROJECT_PRD.md end state changes
-- [ ] Rescope gate generated with proper documentation and impact summary
+- [ ] Rescope detection correctly identifies PROJECT_PRD.md end-state changes
+- [ ] Rescope gate generated with before/after state and impact summary
 - [ ] Impact analysis correctly identifies affected gates and requirements
-- [ ] Future gates regenerated properly post-rescope
-- [ ] Gate re-sequencing updates all references (dependencies, roadmap, etc.)
+- [ ] Future gates regenerated properly post-rescope (completed gates preserved)
+- [ ] Gate re-sequencing updates all references
 - [ ] Obsolete gates deleted cleanly (no orphaned references)
-- [ ] Requirements transferred and reattributed correctly
-- [ ] Requirement status preserved through transfer
-- [ ] Requirement dependencies updated for new gate locations
-- [ ] `zeno rescope` command detects and initiates rescope workflow
-- [ ] Rescope approval workflow presents clear impact to stakeholders
-- [ ] Rescope history tracked with audit trail
-- [ ] Affected proposals flagged for re-evaluation
-- [ ] Architecture diagrams updated post-rescope
+- [ ] Requirements transferred and reattributed correctly with status preserved
+- [ ] `zeno rescope` CLI command detects changes and initiates approval workflow
+- [ ] MCP tools (`rescope_detect`, `rescope_apply`, `rescope_review`, `rescope_history`) functional
+- [ ] Rescope history tracked in SQLite with audit trail
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for rescope module
 - [ ] Zero lint errors, zero type errors
-- [ ] Documentation updated for rescope workflow and impact analysis

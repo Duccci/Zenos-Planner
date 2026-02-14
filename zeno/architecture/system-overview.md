@@ -13,7 +13,7 @@
 graph TB
     subgraph "User Interface Layer"
         CLI[CLI Commands]
-        TUI[TUI Dashboard]
+        MCP[MCP Server<br/>LLM Tool Interface]
         LLM[LLM Integration]
     end
     
@@ -58,8 +58,9 @@ graph TB
     CLI --> ZenoEngine
     CLI --> GateManager
     CLI --> ReplanEngine
-    TUI --> GateManager
-    LLM --> CLI
+    MCP --> GateManager
+    MCP --> ZenoEngine
+    LLM --> MCP
     
     %% Core Engine connections
     ZenoEngine --> CodeAnalyzer
@@ -125,9 +126,9 @@ graph TB
 The system is organized into seven distinct layers, each with specific responsibilities:
 
 ### 1. User Interface Layer
-- **CLI Commands**: Primary command-line interface for all operations
-- **TUI Dashboard**: Terminal UI for visual project monitoring
-- **LLM Integration**: Interface for AI coding assistants (Cursor, Claude, GPT-4)
+- **CLI Commands**: Command-line interface for human operations
+- **MCP Server**: Primary interface — exposes all Zeno tools to LLMs via Model Context Protocol
+- **LLM Integration**: Interface for AI coding assistants (Cursor, Claude, Copilot)
 
 ### 2. Core Engine Layer
 - **Zeno Engine**: Implements Zeno's paradox algorithm for gate generation

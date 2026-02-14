@@ -14,43 +14,45 @@
 graph TB
     Start([Project Start]) --> G1[Gate 1<br/>Core Infrastructure<br/>Completed]
     
-    G1 --> G2[Gate 2<br/>Zeno Engine & Gate Generation<br/>In Progress]
+    G1 --> G2[Gate 2<br/>Zeno Engine & Gate Generation<br/>Completed]
     
-    G2 --> G2_5[Gate 2.5<br/>MCP Server & LLM Tool Integration<br/>Pending]
+    G2 --> G2_5[Gate 2.5<br/>MCP Server & LLM Tool Integration<br/>Completed]
     
-    G2_5 --> G3[Gate 3<br/>Requirements & Database Layer<br/>Pending]
+    G2_5 --> G3[Gate 3<br/>Requirements & Database Layer<br/>Completed]
     
-    G3 --> G4[Gate 4<br/>Architecture & Diagram Generation<br/>Pending]
-    G3 --> G5[Gate 5<br/>Multi-Repo & Subproject Detection<br/>Pending]
+    G3 --> G4[Gate 4<br/>Solitary Gate<br/>Completed]
     
-    G4 --> G6[Gate 6<br/>Proposal Generation & Management<br/>Pending]
-    G5 --> G6
+    G4 --> G5[Gate 5<br/>Architecture & Diagram Generation<br/>Pending]
+    G4 --> G6[Gate 6<br/>Multi-Repo & Subproject Detection<br/>Pending]
     
-    G6 --> G7[Gate 7<br/>Automated Validation & Quality Gates<br/>Pending]
-    G6 --> G8[Gate 8<br/>Human Approval & Rejection<br/>Pending]
+    G5 --> G7[Gate 7<br/>Proposal Generation & Management<br/>Pending]
+    G6 --> G7
     
-    G7 --> G9[Gate 9<br/>Git Integration & Commit Automation<br/>Pending]
-    G8 --> G9
+    G7 --> G8[Gate 8<br/>Automated Validation & Quality Gates<br/>Pending]
+    G7 --> G9[Gate 9<br/>Human Approval & Rejection<br/>Pending]
     
-    G9 --> G10[Gate 10<br/>Rescope & Replan Engine<br/>Pending]
+    G8 --> G10[Gate 10<br/>Git Integration & Commit Automation<br/>Pending]
+    G9 --> G10
     
-    G10 --> G11[Gate 11<br/>Dashboard & Visualization<br/>Pending]
-    G10 --> G12[Gate 12<br/>Subagent Orchestration<br/>Pending]
+    G10 --> G11[Gate 11<br/>Rescope & Replan Engine<br/>Pending]
     
-    G11 --> G13[Gate 13<br/>Documentation & Polish<br/>Pending]
-    G12 --> G13
+    G11 --> G12[Gate 12<br/>Status & Reporting<br/>Pending]
     
-    G13 --> End([Project Complete])
+    G12 --> End([MVP Complete])
+    
+    End -.-> G13[Gate 13<br/>Subagent Orchestration<br/>Post-MVP]
+    G13 -.-> G14[Gate 14<br/>Documentation Cleanup<br/>Post-MVP]
     
     %% Styling
     classDef completed fill:#27AE60,stroke:#1E8449,stroke-width:3px,color:#fff,font-weight:bold
     classDef inProgress fill:#F39C12,stroke:#C87F0A,stroke-width:3px,color:#fff,font-weight:bold
     classDef pending fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff,font-weight:bold
+    classDef deferred fill:#95A5A6,stroke:#7F8C8D,stroke-width:2px,color:#fff,font-style:italic
     classDef startEndStyle fill:#9B59B6,stroke:#7D3C98,stroke-width:3px,color:#fff,font-weight:bold
     
-    class G1 completed
-    class G2 inProgress
-    class G2_5,G3,G4,G5,G6,G7,G8,G9,G10,G11,G12,G13 pending
+    class G1,G2,G2_5,G3,G4 completed
+    class G5,G6,G7,G8,G9,G10,G11,G12 pending
+    class G13,G14 deferred
     class Start,End startEndStyle
 ```
 
@@ -58,26 +60,25 @@ graph TB
 
 ## Description
 
-The gate roadmap diagram displays the complete gate sequence showing dependencies between all 13 gates (plus Gate 2.5 MCP Server). Each gate represents concrete deliverables that progressively move the project toward completion.
+The gate roadmap displays the MVP gate sequence (Gates 05-12) plus two deferred post-MVP gates (13-14). Gates 01-04 are archived as completed.
 
 **Gate Summary:**
-- **Gate 1**: Core Infrastructure (Completed)
-- **Gate 2**: Zeno Engine & Gate Generation (In Progress)
-- **Gate 2.5**: MCP Server & LLM Tool Integration (bridges CLI to LLM-native execution)
-- **Gate 3**: Requirements & Database Layer (hierarchical requirements, CRUD, dependency tracking)
-- **Gates 4-5**: Architecture & Multi-Repo (diagrams, repository detection) - **Parallel**
-- **Gate 6**: Proposal Generation & Management (decompose requirements into implementation tasks)
-- **Gates 7-8**: Validation & Approval (quality checks and human review) - **Parallel**
-- **Gate 9**: Git Integration & Worktree Automation (commit automation, isolated parallel development)
-- **Gate 10**: Rescope & Replan Engine (handle mid-project scope changes)
-- **Gates 11-12**: Dashboard & Subagent Orchestration (visibility and parallel execution) - **Parallel**
-- **Gate 13**: Documentation & Polish (comprehensive docs, examples, tutorials)
+- **Gates 1-4**: Core Infrastructure, Zeno Engine, MCP Server, Requirements DB, Solitary (Completed/Archived)
+- **Gates 5-6**: Architecture & Multi-Repo (diagrams, LLM-driven boundary detection) - **Parallel**
+- **Gate 7**: Proposal Generation & Management (RFC 2119 requirement updates in SQLite)
+- **Gates 8-9**: Validation & Approval (agent-driven quality checks and human review) - **Parallel**
+- **Gate 10**: Git Integration & Worktree Automation (commit automation, isolated parallel development)
+- **Gate 11**: Rescope & Replan Engine (handle mid-project scope changes)
+- **Gate 12**: Status & Reporting (MCP status tools and `zeno status` CLI)
+- **Gate 13**: Subagent Orchestration & Parallel Execution (post-MVP)
+- **Gate 14**: Documentation Cleanup (post-MVP)
 
 **Key Architectural Insights:**
-- Early gates (1-3) establish infrastructure and core data structures
-- Middle gates (4-9) implement full execution pipeline (generation → validation → approval → commit)
-- Late gates (10-13) add advanced capabilities (rescoping, monitoring, orchestration, documentation)
-- Multiple parallel opportunities (Gates 4-5, 7-8, 11-12) enable concurrent development
+- Gates 1-4 established infrastructure and core data structures (archived)
+- Gates 5-10 implement full execution pipeline (generation → validation → approval → commit)
+- Gates 11-12 add rescope adaptability and status reporting
+- Gate 13 (subagent orchestration) is deferred to post-MVP for reconsideration
+- Multiple parallel opportunities (Gates 5-6, 8-9) enable concurrent development
 
 ---
 
@@ -85,69 +86,60 @@ The gate roadmap diagram displays the complete gate sequence showing dependencie
 
 Gates that can be worked on simultaneously (independent execution paths):
 
-### Gates 4 & 5 (Post-Gate 3)
-- **Gate 4**: Architecture & Diagram Generation (Mermaid/Graphviz rendering)
-- **Gate 5**: Multi-Repo & Subproject Detection (repository boundary detection)
+### Gates 5 & 6 (Post-Gate 4)
+- **Gate 5**: Architecture & Diagram Generation (Mermaid/Graphviz, LLM-driven selection via MCP)
+- **Gate 6**: Multi-Repo & Subproject Detection (LLM-driven boundary recommendation)
 
-These gates are independent and can proceed in parallel after Gate 3 completes. Both require database and requirements API from Gate 3 but have no direct dependencies on each other.
+These gates are independent and can proceed in parallel after Gate 4 completes. Both require database and requirements API but have no direct dependencies on each other.
 
-### Gates 7 & 8 (Post-Gate 6)
-- **Gate 7**: Automated Validation & Quality Gates (ESLint, TypeScript, coverage, security)
-- **Gate 8**: Human Approval & Rejection Workflow (approval prompts, feedback collection)
+### Gates 8 & 9 (Post-Gate 7)
+- **Gate 8**: Automated Validation & Quality Gates (shell-based tool invocation + agent-driven assessment)
+- **Gate 9**: Human Approval & Rejection Workflow (approve/reject with feedback + MCP exposure)
 
-Validation and approval workflows are independent systems. Validation feeds into approval but both can be developed simultaneously. Implementation can start in parallel after Gate 6 provides proposal structure.
-
-### Gates 11 & 12 (Post-Gate 10)
-- **Gate 11**: Dashboard & Visualization (TUI dashboard, project status overview)
-- **Gate 12**: Subagent Orchestration & Parallel Execution (orchestrator, worktree coordination)
-
-Dashboard and orchestration features are independent. Dashboard visualizes project state while orchestration manages execution. Both depend on earlier infrastructure but can be developed simultaneously.
+Validation and approval workflows are independent systems. Validation feeds into approval but both can be developed simultaneously after Gate 7 provides proposal structure.
 
 ---
 
 ## Gate Dependencies & Critical Path
 
 **Critical Path** (longest sequential chain):
-Gate 1 → Gate 2 → Gate 2.5 → Gate 3 → Gate 6 → Gate 7 → Gate 9 → Gate 10 → Gate 11/12 → Gate 13
+Gate 1 → Gate 2 → Gate 2.5 → Gate 3 → Gate 4 → Gate 5/6 → Gate 7 → Gate 8/9 → Gate 10 → Gate 11 → Gate 12
 
-This path determines minimum project timeline. Parallel opportunities (Gates 4-5, 7-8, 11-12) can reduce overall time but don't affect critical path.
+This path determines minimum project timeline. Parallel opportunities (Gates 5-6, 8-9) can reduce overall time but don't affect critical path.
 
 **Key Dependency Notes:**
-- **Gate 2.5** depends on: Gate 2 (all CLI commands must exist before wrapping in MCP)
-- **Gate 2.5** enables: All downstream gates (3-13) via MCP tool interface (LLM-native execution)
-- **Gate 3** enables: Gate 4-6 (all depend on requirement database and CRUD operations)
-- **Gate 6** depends on: Gates 4-5 (proposal generation needs architecture diagrams and repository structure for context)
-- **Gate 9** depends on: Gates 7-8 (git automation depends on validated proposals)
-- **Gate 10** depends on: Gate 9 (rescoping needs git history for impact analysis)
-- **Gate 11** depends on: Gate 10 (dashboard needs complete project state for visualization)
-- **Gate 12** depends on: Gate 10 (orchestration needs git integration for worktree management)
-- **Gate 13** depends on: Gates 11-12 (documentation focuses on system as a whole including monitoring and orchestration)
+- **Gate 2.5** enables: All downstream gates via MCP tool interface (LLM-native execution)
+- **Gate 4 (Solitary)** consolidated MCP tooling as a prerequisite for execution pipeline
+- **Gate 7** depends on: Gates 5-6 (proposal generation needs architecture diagrams and repository structure)
+- **Gate 10** depends on: Gates 8-9 (git automation depends on validated, approved proposals)
+- **Gate 11** depends on: Gate 10 (rescoping needs git history for impact analysis)
+- **Gate 12** depends on: Gate 11 (status reporting surfaces rescope state)
 
 ---
 
 ## Related Documentation
 
-- **Project PRD**: `zeno/PROJECT_PRD.md` - Complete project specification with all gate objectives
-- **Individual Gate PRDs**: `zeno/gates/gate-XX-name.md` - Detailed requirements and objectives per gate
-  - `gate-03-mcp-server.md` - LLM-native tool integration
-  - `gate-04-requirements-database-layer.md` - Requirement storage and querying
+- **Project PRD**: `zeno/PROJECT_PRD.md` - Complete project specification
+- **Individual Gate PRDs**: `zeno/gates/gate-XX-name.md` - Detailed requirements per gate
   - `gate-05-architecture-diagram-generation.md` - Mermaid & Graphviz rendering
-  - `gate-06-multi-repo-subproject-detection.md` - Repository boundary detection
-  - `gate-07-proposal-generation-management.md` - Requirement decomposition
-  - `gate-08-automated-validation-quality-gates.md` - Quality checks and validation
+  - `gate-06-multi-repo-subproject-detection.md` - LLM-driven boundary detection
+  - `gate-07-proposal-generation-management.md` - RFC 2119 requirement updates
+  - `gate-08-automated-validation-quality-gates.md` - Agent-driven quality checks
   - `gate-09-human-approval-rejection-workflow.md` - Approval process and feedback
   - `gate-10-git-integration-commit-automation.md` - Worktree management and merging
   - `gate-11-rescope-replan-engine.md` - Scope change handling
-  - `gate-12-dashboard-visualization.md` - TUI dashboard and progress tracking
-  - `gate-13-subagent-orchestration-parallel-execution.md` - Multi-agent coordination
-  - `gate-14-documentation-polish.md` - Documentation and examples
+  - `gate-12-status-reporting.md` - MCP status tools and CLI reporting
+  - `gate-13-subagent-orchestration-parallel-execution.md` - Multi-agent coordination (post-MVP)
+  - `gate-14-documentation-polish.md` - Documentation cleanup (post-MVP)
+- **Archived Gates**: `zeno/gates/archive/` - Completed gates (01-04, solitary)
 - **AGENTS.md**: AI agent instructions (root level and project-specific)
 - **Architecture Diagrams**: `zeno/architecture/*.md` - System design diagrams
 
 ---
 
 **Source**: `zeno/architecture/gate-roadmap.md`  
-**Generated by**: Zeno's Planner
+**Generated by**: Zeno's Planner  
+**Last Updated**: 2026-02-13
 
 
 

@@ -84,7 +84,7 @@ zeno/
 │   └── archive/
 │       ├── gate-01-name.md (completed)
 │       ├── gate-02-name.md (completed)
-│       └── solitary.md (consolidated solitary proposals)
+│       └── solitary.md (consolidated solitary proposals with requirement updates)
 └── proposals/
     ├── gate-01/
     │   ├── 01-proposal.md
@@ -98,12 +98,10 @@ zeno/
         ├── gate-01/
         │   ├── #p010hash1.md
         │   └── #p010hash2.md
-        ├── gate-02/
-        │   └── #p020hash1.md
-        └── solitary/
-            ├── #s20260115hash.md
-            └── #s20260120hash.md
+        └── gate-02/
+            └── #p020hash1.md
 ```
+Note: Solitary proposals are consolidated into `zeno/gates/archive/solitary.md` (single registry file) rather than moved to an archive directory. This differs from gate-tied proposals which have individual archive locations.
 
 ---
 
@@ -250,6 +248,8 @@ This reduces context size while preserving critical breadcrumbs for future refer
 
 ## SOLITARY PROPOSAL ARCHIVE WORKFLOW
 
+**Key Difference from Gate-Tied Proposals**: Solitary proposals consolidate into a single registry file (`solitary.md`) rather than maintaining individual archive copies. No requirement status tracking occurs at proposal level (requirement tracking handled at gate level only). Consolidation occurs immediately during proposal archival.
+
 2C. **Validate solitary proposal is ready for archive**
    - Read the proposal file from `zeno/proposals/solitary/<YYYY-MM-DD-name>.md`.
    - Verify:
@@ -267,14 +267,14 @@ This reduces context size while preserving critical breadcrumbs for future refer
    - Read or create `zeno/gates/archive/solitary.md`.
    - Determine the appropriate category section (Infrastructure, Documentation, Security, Maintenance, etc.):
      - Create category if it doesn't exist.
-   - Add entry with format:
+   - Add entry with standardized format:
      ```markdown
-     ### [Proposal Title] (#hash)
+     ### [Proposal Title] (#s<hash>)
      **Completed**: [DATE]
-
+     
      High-level implementation: [2-3 sentence summary from step 3C]
      ```
-   - Verify entry is properly formatted and appears under correct category.
+   - Verify entry is properly formatted, hash has `#s` prefix, and appears under correct category.
 
 5C. **Clean up the proposal document**
    Update the proposal file with completion metadata:
@@ -286,40 +286,48 @@ This reduces context size while preserving critical breadcrumbs for future refer
    ```
    Add or update **Completion Summary** section before Rollback with quality metrics.
 
-6C. **Move solitary proposal to archive**
-   - Rename file from `zeno/proposals/solitary/<YYYY-MM-DD-name>.md` to `zeno/proposals/archive/solitary/#hash.md`.
-   - Hash becomes the canonical filename (e.g., `#s20260115eslint.md`).
-   - Verify the move succeeded.
+6C. **Remove solitary proposal from active directory**
+   - Delete/move file from `zeno/proposals/solitary/<YYYY-MM-DD-name>.md`.
+   - Consolidation occurs in `solitary.md` (single registry), not in separate archive directory.
+   - Verify the removal succeeded and workspace is clean.
 
 7C. **Commit solitary proposal archive**
    - Call `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
    - Construct commit message using `git.commitFormat` with:
      - **type**: `chore`
      - **scope**: `solitary`
-     - **subject**: `Archive solitary proposal: [Title] (#<hash>)`
-     - **body**: 1-3 sentence summary extracted in Step 3C, consolidation location (`zeno/gates/archive/solitary.md`), and quality metrics.
+     - **subject**: `Archive solitary proposal: [Title] (#s<hash>)`
+     - **body**: 1-3 sentence summary from step 3C, consolidation location (`zeno/gates/archive/solitary.md`), and quality metrics.
    - Stage all changes: `git add -A`
-   - Create commit using the formatted message (e.g., `X.Y.Z solitary-[Title] - Archive completed solitary proposal and update consolidation registry`)
+   - Create commit using the formatted message (e.g., `X.Y.Z chore(solitary): Archive solitary proposal: [Title] (#s<hash>)`)
    - Push commit to configured remote: `git push <git.remote> <current-branch>`
 
-8C. **Summary output (Solitary Proposal)**
+7C. **Summary output (Solitary Proposal)**
     ```
-    Archived solitary proposal #<hash>: [Title]
+    Archived solitary proposal #s<hash>: [Title]
 
-    Location: zeno/proposals/archive/solitary/#hash.md
     Consolidated to: zeno/gates/archive/solitary.md
+    Category: [Infrastructure & Tooling | Security & Safety | etc.]
     
-    Implementation summary added to registry under [Category] section.
+    Implementation summary added to registry.
 
     Changes committed and pushed:
-      - Proposal moved to archive
-      - Consolidation file updated
-      - Solitary directory cleaned of completed work
+      - Proposal removed from active solitary directory
+      - Consolidation file (solitary.md) updated with entry
     
     Next steps:
       - Continue with other pending solitary proposals
       - Or return to gate work with next proposal
     ```
+
+## DESIGN NOTES
+
+**Solitary vs Gate-Tied Archival**:
+- **Consolidation**: Solitary → single registry file; Gate-Tied → individual archives + gate PRD summary
+- **Requirement Tracking**: Not applicable for solitary proposals; Gate-Tied → mandatory (per-gate requirements only)
+- **Timing**: Solitary → at proposal archival; Gate-Tied → mixed (proposal archival for updates, gate completion for consolidation)
+- **Design Rationale**: Solitary work is cross-cutting and continuous; gate-tied work is milestone-driven and state-coupled
+- **Future Documentation**: These design decisions and tradeoffs should be captured in Gate 7 or 8 (Workflow & Governance documentation gate)
 
 ---
 
