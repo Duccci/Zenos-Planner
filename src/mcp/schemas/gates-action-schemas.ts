@@ -19,6 +19,7 @@ import {
   GatesRegenerateOutputSchema,
 } from './gate-schemas.js'
 import { GateCreateInputSchema, GateCreateOutputSchema } from './gate-create-schemas.js'
+import { GateGenerateInputSchema, GateGenerateOutputSchema } from './workflow-schemas.js'
 
 /**
  * Discriminated union for gate action inputs
@@ -28,6 +29,7 @@ export const GatesActionInputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('list'), payload: GatesListInputSchema }),
   z.object({ action: z.literal('show'), payload: GatesShowInputSchema }),
   z.object({ action: z.literal('create'), payload: GateCreateInputSchema }),
+  z.object({ action: z.literal('generate'), payload: GateGenerateInputSchema }),
   z.object({ action: z.literal('start'), payload: GatesStartInputSchema }),
   z.object({ action: z.literal('complete'), payload: GatesCompleteInputSchema }),
   z.object({ action: z.literal('regenerate'), payload: GatesRegenerateInputSchema }),
@@ -52,32 +54,37 @@ export const GatesActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('list'),
     result: GatesListOutputSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
   }),
   z.object({
     action: z.literal('show'),
     result: GateDetailSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
   }),
   z.object({
     action: z.literal('create'),
     result: GateCreateOutputSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('generate'),
+    result: GateGenerateOutputSchema,
+    validation: ValidationResultSchema.optional(),
   }),
   z.object({
     action: z.literal('start'),
     result: GatesStartOutputSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
   }),
   z.object({
     action: z.literal('complete'),
     result: GatesCompleteOutputSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
   }),
   z.object({
     action: z.literal('regenerate'),
     result: GatesRegenerateOutputSchema,
-    validation: ValidationResultSchema.optional()
+    validation: ValidationResultSchema.optional(),
   }),
 ])
 
@@ -86,20 +93,26 @@ export type GatesActionOutput = z.infer<typeof GatesActionOutputSchema>
 /**
  * Type guards for gate actions
  */
-export const isGatesListAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'list' }> =>
-  input.action === 'list'
+export const isGatesListAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'list' }> => input.action === 'list'
 
-export const isGatesShowAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'show' }> =>
-  input.action === 'show'
+export const isGatesShowAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'show' }> => input.action === 'show'
 
-export const isGatesCreateAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'create' }> =>
-  input.action === 'create'
+export const isGatesCreateAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'create' }> => input.action === 'create'
 
-export const isGatesStartAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'start' }> =>
-  input.action === 'start'
+export const isGatesStartAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'start' }> => input.action === 'start'
 
-export const isGatesCompleteAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'complete' }> =>
-  input.action === 'complete'
+export const isGatesCompleteAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'complete' }> => input.action === 'complete'
 
-export const isGatesRegenerateAction = (input: GatesActionInput): input is Extract<GatesActionInput, { action: 'regenerate' }> =>
-  input.action === 'regenerate'
+export const isGatesRegenerateAction = (
+  input: GatesActionInput
+): input is Extract<GatesActionInput, { action: 'regenerate' }> => input.action === 'regenerate'

@@ -1,5 +1,4 @@
 import type { FunctionRegistry } from '../../integration/function-registry.js'
-import { z } from 'zod'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
   ReposListOutputSchema,
@@ -8,91 +7,55 @@ import {
   ReposAdjustOutputSchema,
 } from '../schemas/repository-schemas.js'
 import {
-  createSchemaValidatingHandler,
-  handleMockResult,
-  createNotImplementedHandler,
-} from './handler-factory.js'
+  RepositoryActionInputSchema,
+  RepositoryActionOutputSchema,
+} from '../schemas/repository-action-schemas.js'
+import { createEntityActionHandler } from './entity-action-handler.js'
 
 export const repositoryToolDefinitions = [
   {
-    name: 'repos_list',
-    description: 'List detected repositories and boundaries',
-    inputSchema: z.any(),
-  },
-  {
-    name: 'repos_deps',
-    description: 'Show repository dependency graph',
-    inputSchema: z.any(),
-  },
-  {
-    name: 'repos_detect',
-    description: 'Detect repository boundaries by analyzing code',
-    inputSchema: z.any(),
-  },
-  {
-    name: 'repos_adjust',
-    description: 'Adjust detected repository boundaries manually',
-    inputSchema: z.any(),
+    name: 'repos_action',
+    description: `Unified repository management and analysis.
+
+Actions: list (see detected repositories and boundaries), detect (re-run boundary detection), deps (view dependency graph), adjust (manually adjust boundaries).
+
+Call this tool when: you need to understand repository structure, detect boundaries, view dependencies, or adjust boundaries.`,
+    inputSchema: RepositoryActionInputSchema,
   },
 ]
 
 export function repositoryHandlers(
-  _registry?: FunctionRegistry
+  registry: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  const listHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'repos_list', ReposListOutputSchema)
-    : undefined
-  const depsHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'repos_deps', RepositoryDependencyGraphSchema)
-    : undefined
-  const detectHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'repos_detect', ReposDetectOutputSchema)
-    : undefined
-  const adjustHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'repos_adjust', ReposAdjustOutputSchema)
-    : undefined
+  const reposActionHandler = createEntityActionHandler(
+    {
+      entity: 'repository',
+      actions: ['list', 'detect', 'deps', 'adjust'] as const,
+      inputSchema: RepositoryActionInputSchema,
+      outputSchema: RepositoryActionOutputSchema,
+      actionOutputSchema(action) {
+        switch (action) {
+          case 'list':
+            return ReposListOutputSchema
+          case 'detect':
+            return ReposDetectOutputSchema
+          case 'deps':
+            return RepositoryDependencyGraphSchema
+          case 'adjust':
+            return ReposAdjustOutputSchema
+        }
+      },
+      actionHandlers: {
+        list: async (payload, r) => r.invoke('repos_list', payload),
+        detect: async (payload, r) => r.invoke('repos_detect', payload),
+        deps: async (payload, r) => r.invoke('repos_deps', payload),
+        adjust: async (payload, r) => r.invoke('repos_adjust', payload),
+      },
+    },
+    registry
+  )
 
   return {
-    async repos_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, ReposListOutputSchema)
-      if (mock) return mock
-
-      if (!listHandler)
-        return createNotImplementedHandler(
-          'Repository analysis not implemented yet (Gate 05 required).'
-        )
-      return listHandler(args)
-    },
-
-    async repos_deps(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, RepositoryDependencyGraphSchema)
-      if (mock) return mock
-
-      if (!depsHandler)
-        return createNotImplementedHandler(
-          'Repository dependency analysis not implemented yet (Gate 05 required).'
-        )
-      return depsHandler(args)
-    },
-
-    async repos_detect(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, ReposDetectOutputSchema)
-      if (mock) return mock
-
-      if (!detectHandler)
-        return createNotImplementedHandler(
-          'Repository detection not implemented yet (Gate 05 required).'
-        )
-      return detectHandler(args)
-    },
-
-    async repos_adjust(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, ReposAdjustOutputSchema)
-      if (mock) return mock
-
-      if (!adjustHandler)
-        return createNotImplementedHandler('Repository adjust not implemented yet.')
-      return adjustHandler(args)
-    },
+    repos_action: reposActionHandler,
   }
 }

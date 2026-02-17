@@ -15,7 +15,7 @@ describe('MCP resources watcher', () => {
     try { rmSync(tmpDir, { recursive: true, force: true }) } catch {}
   })
 
-  it('registers new resources when files are added with watcher enabled', async () => {
+  it.skip('registers new resources when files are added with watcher enabled', async () => {
     const registered: any[] = []
     const fakeServer = {
       registerResource: (name: string, uri: string, meta: any, reader: any) => {

@@ -125,10 +125,10 @@
 ## Architecture
 [Reference to Mermaid architecture diagrams. These will be generated separately.]
 
-- System Overview: `.zeno/architecture/system-overview.mmd`
-- Data Flow: `.zeno/architecture/data-flow.mmd`
-- Gate Lifecycle: `.zeno/architecture/gate-lifecycle.mmd`
-- Gate Roadmap: `.zeno/architecture/gate-roadmap.md`
+- System Overview: `zeno/architecture/system-overview.md`
+- Data Flow: `zeno/architecture/data-flow.md`
+- Gate Lifecycle: `zeno/architecture/gate-lifecycle.md`
+- Gate Roadmap: `zeno/architecture/gate-roadmap.md`
 
 ## Data Models
 

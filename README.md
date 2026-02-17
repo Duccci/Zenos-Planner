@@ -98,8 +98,7 @@ my-project/
 │   │   └── ...
 │   ├── gates/archive/          # Completed gates
 │   ├── proposals/              # Proposals organized by gate
-│   │   ├── gate-XX/            # Active proposals
-│   │   └── archive/            # Archived proposals (hash-named)
+│   │   └── gate-XX/            # Proposal records (pending/in_progress/completed/rejected)
 │   ├── requirements/           # README for requirements DB
 │   └── subprojects/            # Multi-repo detection artifacts
 ├── src/                        # Source code

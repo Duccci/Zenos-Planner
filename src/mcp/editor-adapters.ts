@@ -36,6 +36,33 @@ export function getVSCodeInstallUrl(): string {
   return `vscode:mcp/install?${encodedConfig}`
 }
 
+/**
+ * Validate that Zeno is properly installed
+ * Checks for:
+ * 1. bin/zeno.js exists
+ * 2. bin/mcp-server.js exists
+ * 3. src directory exists
+ */
+export function isZenoInstalled(projectRoot = process.cwd()): { valid: boolean; reason?: string } {
+  const zenoCliPath = join(projectRoot, 'bin', 'zeno.js')
+  const mcpServerPath = join(projectRoot, 'bin', 'mcp-server.js')
+  const srcPath = join(projectRoot, 'src')
+
+  if (!existsSync(zenoCliPath)) {
+    return { valid: false, reason: `Zeno CLI not found at ${zenoCliPath}` }
+  }
+
+  if (!existsSync(mcpServerPath)) {
+    return { valid: false, reason: `MCP server not found at ${mcpServerPath}` }
+  }
+
+  if (!existsSync(srcPath)) {
+    return { valid: false, reason: `Source directory not found at ${srcPath}` }
+  }
+
+  return { valid: true }
+}
+
 export function ensureWorkspaceMcp(projectRoot = process.cwd()): boolean {
   const vscodeDir = join(projectRoot, '.vscode')
   const target = join(vscodeDir, 'mcp.json')

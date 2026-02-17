@@ -59,9 +59,9 @@ describe('MCP Server', () => {
       const toolNames = registeredMessages.map((m: string) => m.replace('Registered MCP tool: ', '').replace('Registered MCP handler tool: ', ''))
 
       expect(toolNames.length).toBeGreaterThanOrEqual(12)
-      expect(toolNames).toContain('gates_list')
+      expect(toolNames).toContain('gates_action')
       expect(toolNames).toContain('req_action')
-      expect(toolNames).toContain('proposal_show')
+      expect(toolNames).toContain('proposal_action')
     })
 
     it('should have proper tool schemas', async () => {

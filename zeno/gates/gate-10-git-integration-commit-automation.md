@@ -71,7 +71,7 @@ Implements Git integration layer enabling approved proposals to be automatically
 ### Rollback Mechanism
 - [ ] Implement rollback for rejected proposals (revert worktree branch changes)
 - [ ] Create rollback audit trail (track what was reverted and why)
-- [ ] Preserve learnings (rejected proposal still available in archive)
+- [ ] Preserve learnings (rejected proposal metadata and rationale retained in proposal records)
 - [ ] Support partial rollback (revert some files, keep others)
 - [ ] Implement rollback safety checks (prevent accidental data loss)
 
@@ -207,7 +207,7 @@ This gate addresses execution and persistence requirements from project initiali
 - [ ] Pre-commit hooks execute quality checks before commit
 - [ ] Commit messages include proposal hash and structured format
 - [ ] Gate release tags created correctly on gate completion
-- [ ] Rollback reverts proposal changes while preserving proposal archive
+- [ ] Rollback reverts proposal changes while preserving proposal records and rejection context
 - [ ] Worktree expiration policy works (cleanup after configured time)
 - [ ] `zeno worktree list` shows all active worktrees
 - [ ] `zeno worktree prune` cleans up expired/dead worktrees

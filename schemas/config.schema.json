@@ -114,6 +114,44 @@
         }
       },
       "required": ["enabled", "proposalBump", "gateBump", "lifecycleBump"]
+    },
+    "architecture": {
+      "type": "object",
+      "description": "Architecture generation settings",
+      "properties": {
+        "complexity": {
+          "type": "object",
+          "description": "Complexity thresholds for diagram rendering and collapse behavior",
+          "properties": {
+            "maxMermaidNodes": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 0,
+              "description": "Maximum number of nodes for Mermaid rendering"
+            },
+            "maxMermaidEdges": {
+              "type": "integer",
+              "default": 8,
+              "minimum": 0,
+              "description": "Maximum number of edges for Mermaid rendering"
+            },
+            "nestingDepthMultiplier": {
+              "type": "number",
+              "default": 2,
+              "minimum": 0,
+              "description": "Multiplier applied to nesting depth when computing complexity score"
+            },
+            "svgCollapseThresholdBytes": {
+              "type": "integer",
+              "default": 50000,
+              "minimum": 0,
+              "description": "Byte-size threshold where rendered SVGs should be collapsed in documentation"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": [

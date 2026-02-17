@@ -27,6 +27,78 @@ Implements multi-tier agent orchestration and parallel execution enabling Zeno t
 3. **CrewAI + Python Subprocess Bridge** (Agent Orchestration): Hierarchical agent teams, inter-agent communication, task coordination, role-based specialization from agent manifest
 4. **Ollama Models** (Implementation Workers): Execute tasks on isolated worktrees, use local tools (file I/O, git, commands), report results
 
+## Dependency: Flexible Workflow Configuration (Solitary Proposal #w26021401)
+
+Gate 13 depends on the **Flexible Workflow Configuration System** (solitary proposal #w26021401) which provides critical infrastructure:
+
+### 1. Agent-Orchestrated Workflow Mode
+- Workflow configuration defines `workflowMode: 'agent-orchestrated'` mode
+- Gate 13 orchestrator operates within this mode context
+- Mode-specific rules control:
+  - Claude auto-approval of generated proposal specs (via `approval.autoApproveRules.byAgent`)
+  - Parallel vs. sequential task execution (via `concurrency: 'parallel'`)
+  - Worktree allocation per CrewAI agent (via `worktreeEnabled: true`)
+
+### 2. Strict Validation (Non-Negotiable)
+- Workflow configuration enforces **strict** validation for all modes (immutable)
+- Gate 13 guarantees validation on every agent task output:
+  - TypeScript strict mode: 0 errors (catches syntax errors)
+  - Code coverage: ≥90% (ensures tested code)
+  - Security: 0 CVEs (prevents vulnerability introduction)
+  - Linting: <0.01% error rate (enforces style)
+  - Tests: all passing (prevents broken builds)
+- This validates against **LLM hallucinations** from both Claude (planning) and Ollama agents (implementation)
+- Prevents orphaned code, incomplete tasks, or security violations
+
+### 3. Approval Rules Drive Orchestration
+- Workflow configuration defines approval strategy for agent-orchestrated mode:
+  ```json
+  "approval": {
+    "type": "orchestrator",
+    "autoApproveRules": {
+      "byAgent": true,      // Claude can auto-approve its own proposals
+      "priority": "must"    // Orchestrator only auto-approves 'must' priority tasks
+    }
+  }
+  ```
+- Gate 13 orchestrator uses these rules:
+  - Claude-generated proposals auto-approved (skip human approval bottleneck)
+  - Only 'must' priority tasks auto-merged (safety gate for 'should'/'could')
+  - Enables fast feedback loop without slowing on human approvals
+
+### 4. Worktree Decision Logic Enables Parallelization
+- Workflow configuration provides `shouldCreateWorktree()` logic:
+  - Agent-orchestrated mode: `true` if `concurrency: 'parallel'`
+  - Each CrewAI task gets isolated worktree (no file conflicts)
+  - Multiple agents work in parallel worktrees simultaneously
+  - Merge coordination sequences merges per dependency graph
+- Without this: orchestrator would need custom worktree logic (duplication)
+
+### 5. State Machine Consistency
+- Workflow configuration defines proposal state machine:
+  ```
+  pending → validate (STRICT) → approval → in_progress → completed
+  ```
+- Gate 13 follows this machine for all proposals:
+  - Validation failures block orchestration (safety)
+  - Approval rules determine transition timing
+  - No custom state logic needed in Gate 13
+
+### 6. Configuration-Driven Flexibility
+- Same orchestrator works for all workflow modes (inherited from config):
+  - Solo mode: Fast single-agent feedback (if scaled to support it)
+  - Team mode: Multi-developer coordination with worktrees
+  - Agent-orchestrated: CrewAI+Ollama with auto-approvals
+- Gate 13 doesn't need mode-aware logic—configuration handles it
+
+**Why This Matters for Gate 13**:
+Gate 13 becomes a clean *orchestration layer* that reads configuration and doesn't need to define approval rules, validation strictness, state transitions, or worktree logic. These are standardized infrastructure from the workflow configuration proposal, enabling:
+- Simpler Gate 13 implementation (no cross-cutting concerns)
+- Type-safe configuration (Zod schemas from workflow config)
+- Consistent behavior across all gates (config-driven)
+- Better testability (state machine and validation are decoupled)
+- Future modes (add new workflow modes without changing Gate 13)
+
 ## Objectives
 
 ### Zeno MCP Server: Planning & State Management
@@ -218,10 +290,13 @@ TypeScript Orchestrator → Zeno MCP Server
 
 ### What Was Completed Before This Gate
 
-Gate 01-12 established:
+**MVPs (Gates 01-12)**:
 - Full planning, execution, validation, approval, git integration, rescope, monitoring workflow
-- individual agent capabilities (gates, proposals, validation)
+- Individual agent capabilities (gates, proposals, validation)
 - Dashboard for visibility
+
+**Prerequisite (Solitary Proposal #w26021401)**:
+- **Flexible Workflow Configuration System**: Provides configuration-driven workflow modes (solo/team/agent-orchestrated), approval rules for orchestrator decision-making, strict validation enforcement (always), worktree decision logic, and proposal state machine infrastructure—all required for Gate 13 orchestrator implementation.
 
 ### What This Gate Enables
 
@@ -315,7 +390,22 @@ This gate addresses scalability and efficiency requirements from project initial
 - **Rationale**: Maximizes parallelization while respecting dependencies. Dependency graph drives ordering.
 - **Trade-offs**: Gained parallelization; added complexity in merge coordination
 
+### 7. Configuration-Driven Orchestration (via Flexible Workflow System)
+- **Choice**: Orchestrator inherits approval rules, validation strategy, state machine, and worktree logic from workflow configuration (solitary proposal #w26021401)
+- **Alternatives Considered**: Custom orchestration logic, hardcoded approval rules in Gate 13
+- **Rationale**: Workflow configuration provides standardized, reusable infrastructure for all workflow modes. Gate 13 delegates cross-cutting concerns to config rather than reimplementing. Simplifies orchestrator, enables mode-agnostic operation, improves testability.
+- **Trade-offs**: Gained separation of concerns, consistency across gates, configuration-driven flexibility; requires workflow config infrastructure to be implemented first (MVP prerequisite)
+
 ## Architecture & Dependencies
+
+### Workflow Configuration Integration (From Solitary Proposal #w26021401)
+- **Configuration Source**: `.zeno/config.json` with `workflowMode: 'agent-orchestrated'`
+- **Approval Rules**: Read `approval.autoApproveRules` for orchestrator decision-making (auto-approve by agent, by priority, or human-required)
+- **Concurrency Control**: Read `concurrency: 'parallel'` to enable/disable simultaneous agent execution
+- **Validation Strategy**: Inherit strict validation gates (non-negotiable for all modes)
+- **Worktree Management**: Use `shouldCreateWorktree()` function to determine isolation strategy
+- **State Machine**: Follow proposal state machine (pending → validation → approval → in_progress → completed)
+- **Type Safety**: Leverage Zod-validated configuration schema from workflow config
 
 ### Zeno Integration Layer
 - Expose existing MCP tools: `gates_action`, `proposal_action`
@@ -501,3 +591,21 @@ This gate addresses scalability and efficiency requirements from project initial
 - [ ] Performance acceptable: 4+ parallel agents without degradation
 - [ ] Documentation updated for orchestration workflow
 - [ ] Error messages are clear and actionable
+
+### Prerequisites & Dependencies
+
+#### MVP Prerequisite: Flexible Workflow Configuration System (Solitary Proposal #w26021401)
+Before starting Gate 13, the following must be complete:
+- [ ] Workflow configuration schema (workflowMode, validation, approval, concurrency)
+- [ ] Strict validation gates (TypeScript, coverage, security, linting, tests—always enforced)
+- [ ] Approval logic handlers (auto/required/orchestrator modes)
+- [ ] Worktree decision logic (shouldCreateWorktree function)
+- [ ] Proposal state machine (validates transitions for all modes)
+- [ ] All unit and integration tests passing for workflow config
+
+**Why**: Gate 13 orchestrator depends on configuration-driven approval rules, strict validation enforcement, state machine consistency, and worktree logic. These are not orchestration-specific—they're cross-cutting concerns needed by all gates. The workflow configuration system provides a single source of truth for all workflow behavior, reducing Gate 13 to a pure orchestration layer.
+
+#### Gate Dependencies
+- **Gate 05** (Architecture Diagrams): MCP reads architecture via `read_project_overview` tool
+- **Gate 06** (Multi-Repo Detection): Orchestrator works with mono/multi-repo structures
+- **Gate 07-12**: Full proposal + validation + approval + merge infrastructure

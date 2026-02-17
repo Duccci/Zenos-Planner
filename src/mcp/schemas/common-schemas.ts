@@ -23,17 +23,10 @@ export type GateStatus = z.infer<typeof GateStatusEnum>
  * Proposal status lifecycle:
  * - pending: Proposal generated, awaiting start
  * - in_progress: Implementation in progress
- * - completed: Implementation done, awaiting approval
- * - archived: Proposal completed and archived
+ * - completed: Implementation done and integrated at gate completion
  * - rejected: Proposal rejected during review
  */
-export const ProposalStatusEnum = z.enum([
-  'pending',
-  'in_progress',
-  'completed',
-  'archived',
-  'rejected',
-])
+export const ProposalStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected'])
 export type ProposalStatus = z.infer<typeof ProposalStatusEnum>
 
 /**

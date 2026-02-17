@@ -5,6 +5,12 @@
     "lib": ["ES2024"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "moduleSuffixes": [
+      ".ts",
+      ".tsx",
+      ".d.ts",
+      ""
+    ],
     
     /* Emit */
     "outDir": "./dist",

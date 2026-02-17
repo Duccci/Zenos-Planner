@@ -341,7 +341,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 | `project-overview.json` | Project metadata, gates, completion status | JSON | Single source of truth for project state, version-controlled |
 | `.zeno/gates/gate-XX-name.md` | Gate PRDs, objectives, requirements breakdown | Markdown | Human-readable gate specifications |
 | `zeno/proposals/gate-XX/<name>.md` | Implementation proposals | Markdown | Human-readable change documentation |
-| `zeno/proposals/archive/<hash>.md` | Completed proposals (immutable reference) | Markdown | Historical record with content-addressable reference |
+| `zeno/gates/archive/<gate-id>.md` | Completed gates with integrated proposal summaries | Markdown | Long-term historical record with gate-level traceability |
 | `zeno/architecture/*.md` | Architecture diagrams and design docs | Mermaid/DOT/SVG | Visual system design and relationships |
 | `.zeno/config.json` | Configuration settings | JSON | Project-specific configuration |
 
@@ -461,65 +461,19 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 
 ## Timeline (Order of Operations)
 
-### Gate 1: Core Infrastructure
-- [ ] Set up TypeScript project with strict mode
-- [ ] Implement CLI framework with Commander
-- [ ] Design and create SQLite schema with migrations
-- [ ] Implement file system utilities (read/write/ensure directories)
-- [ ] Create hash utilities (SHA-256, short hash, content-addressable)
-- [ ] Implement basic configuration management (zeno/.zeno/config.json)
-- [ ] Set up git integration utilities (simple-git wrapper)
-- [ ] Create project structure scaffolding
-- [ ] Implement logging and error handling
-- [ ] Write unit tests for utilities
+### Archived Gates (Completed)
 
-### Gate 2: Zeno Engine & Gate Generation
-- [ ] Implement iterative gate generation algorithm (decompose until end state reached)
-- [ ] Generate project-level requirements during init (cross-cutting concerns from end state)
-- [ ] Create gate template system with optional sections
-- [ ] Build LLM integration layer (command-based, no API keys)
-- [ ] Implement code analyzer for existing codebases (AST parsing)
-- [ ] Create dependency graph generator for existing code
-- [ ] Build code metrics calculator (coupling, cohesion, complexity)
-- [ ] Implement `zeno init` command with interactive prompts
-- [ ] Implement `zeno analyze` command for deep codebase analysis
-- [ ] Implement `zeno gates list` command
-- [ ] Implement `zeno gates show <gate-id>` command
-- [ ] Implement `zeno gates start <gate-id>` command (generates gate-specific requirements, sets status to in_progress)
-- [ ] Implement `zeno gates complete <gate-id>` command (sets status to completed, creates git tag)
-- [ ] Create gate confidence scoring system
-- [ ] Generate initial AGENTS.md for tool usage
-- [ ] Write integration tests for gate generation
+Gates 1-4 have been completed and archived. These foundational gates established:
+- Gate 1: Core Infrastructure (TypeScript, CLI, SQLite, utilities)
+- Gate 2: Zeno Engine & Gate Generation (gate generation algorithm, requirements, analysis, LLM integration)
+- Gate 3: Requirements & Database Layer (requirement storage, SQLite CRUD, hash registry)
+- Gate 4: Architecture & Mermaid Generation (diagram generation base)
 
-### Gate 2.5: MCP Server & LLM Tool Integration
-- [ ] Implement MCP server using `@modelcontextprotocol/sdk` with stdio transport
-- [ ] Define Zod schemas for all Zeno function inputs and outputs
-- [ ] Expose gate, requirement, proposal, and repository functions as MCP tools
-- [ ] Create function registry to centralize all Zeno operations
-- [ ] Refactor CLI commands to delegate to MCP function registry (thin wrapper pattern)
-- [ ] Implement structured error handling with context and recovery suggestions
-- [ ] Add MCP server health checks and diagnostics
-- [ ] Create Cursor and Claude integration setup guides
-- [ ] Write comprehensive tests for all MCP tools (90% coverage minimum)
-- [ ] Achieve 90% test coverage for MCP server module
+MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 implementation.
 
-### Gate 3: Requirements & Database Layer
-- [ ] Implement gate-specific requirement generation (decompose project requirements + gate objectives)
-- [ ] Create requirement decomposition algorithm (gate → requirements tree)
-- [ ] Support requirement inheritance from project-level and other gates
-- [ ] Support requirement transfer between gates (for rescope scenarios)
-- [ ] Build SQLite CRUD operations with better-sqlite3
-- [ ] Implement hash registry for content-addressable storage
-- [ ] Create dependency tracking system with confidence scores
-- [ ] Implement `zeno req list` command with filtering (--gate, --project flags)
-- [ ] Implement `zeno req show <hash>` command
-- [ ] Implement `zeno req deps <hash>` command for dependency visualization
-- [ ] Implement `zeno req status <hash> <status>` command (sets status: pending/implemented/tested)
-- [ ] Build PRD generator from template
-- [ ] Create requirement validation rules
-- [ ] Write tests for requirement generation and storage
+### Active MVP Gates (5-12)
 
-### Gate 4: Architecture & Mermaid Generation
+### Gate 5: Architecture & Diagram Generation
 - [ ] Implement Mermaid diagram generator base class
 - [ ] Create system architecture diagram generator (always generated)
 - [ ] Create data flow diagram generator (always generated)
@@ -539,7 +493,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Add architecture versioning (per gate)
 - [ ] Write tests for diagram generation
 
-### Gate 5: Multi-Repo & Subproject Detection
+### Gate 6: Multi-Repo & Subproject Detection
 - [ ] Implement repository boundary detection algorithm
 - [ ] Create coupling metrics calculator
 - [ ] Build domain boundary analyzer
@@ -553,7 +507,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Implement cross-repo dependency tracking
 - [ ] Write tests for repo detection
 
-### Gate 6: Proposal Generation & Management
+### Gate 7: Proposal Generation & Management
 - [ ] Create proposal template system
 - [ ] Implement proposal generator from requirements
 - [ ] Build change notice format (expands on spec-driven development concepts)
@@ -566,7 +520,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Add proposal status management
 - [ ] Write tests for proposal generation
 
-### Gate 7: Automated Validation & Quality Gates
+### Gate 8: Automated Validation & Quality Gates
 - [ ] Implement linting check integration (ESLint)
 - [ ] Implement type checking integration (TypeScript compiler API)
 - [ ] Implement test runner integration (Vitest)
@@ -580,7 +534,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Add validation result storage
 - [ ] Write tests for all validators
 
-### Gate 8: Human Approval & Rejection Workflow
+### Gate 9: Human Approval & Rejection Workflow
 - [ ] Implement human approval prompt system
 - [ ] Create approval status tracking
 - [ ] Build rejection feedback collection
@@ -592,79 +546,30 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Add approval notifications
 - [ ] Write tests for approval workflow
 
-### Gate 9: Git Integration & Commit Automation
+### Gate 10: Git Integration & Commit Automation
 - [ ] Implement pre-commit hook installer
 - [ ] Create commit message generator (structured format)
 - [ ] Build auto-commit on proposal approval
 - [ ] Implement gate release tagging
 - [ ] Create branch management for proposals
-- [ ] **Add git worktree management utilities** (`createWorktree`, `removeWorktree`, `listWorktrees`, `pruneExpiredWorktrees`)
-- [ ] **Update `zeno proposal start <hash>` to create isolated worktree and return path to agent** (MCP: `proposal_start`) 
-- [ ] **Update `zeno proposal approve <hash>` to merge worktree branch and cleanup** (MCP: `proposal_approve`) 
-- [ ] **Implement `zeno worktree` commands** (MCP tools implemented):
+- [ ] Add git worktree management utilities (`createWorktree`, `removeWorktree`, `listWorktrees`, `pruneExpiredWorktrees`)
+- [ ] Update `zeno proposal start <hash>` to create isolated worktree and return path to agent (MCP: `proposal_start`) 
+- [ ] Update `zeno proposal approve <hash>` to merge worktree branch and cleanup (MCP: `proposal_approve`) 
+- [ ] Implement `zeno worktree` commands (MCP tools):
   - [ ] `worktree list` (MCP: `worktree_list`)
   - [ ] `worktree prune` (MCP: `worktree_prune`)
   - [ ] `worktree remove` (MCP: `worktree_remove`)
   - [ ] `worktree merge` (MCP: `worktree_merge`)
-- [ ] **Configure worktree expiration and auto-cleanup policy** (`.zeno/config.json`)
-- [ ] **Implement merge sequencing logic** (coordinate dependent proposal merges, handle rebases)
-- [ ] **Add conflict detection** (analyze dependency graph, prevent parallel work on same files)
+- [ ] Configure worktree expiration and auto-cleanup policy (`.zeno/config.json`)
+- [ ] Implement merge sequencing logic (coordinate dependent proposal merges, handle rebases)
+- [ ] Add conflict detection (analyze dependency graph, prevent parallel work on same files)
 - [ ] Add rollback mechanism for rejected proposals
 - [ ] Implement commit validation (check pending approvals)
 - [ ] Build git status integration with Zeno status
-- [ ] **Update pre-commit hooks to work in worktree context**
+- [ ] Update pre-commit hooks to work in worktree context
 - [ ] Write tests for git operations (including worktree creation/cleanup/merge sequencing)
 
-### Phase 1: Worktree Foundation (Week 1-2, Parallel with Gate 9)
-- [ ] Implement worktree creation/deletion utilities
-- [ ] Add `/delegate` command to CLI for agent hand-offs
-- [ ] Setup session management (preserve conversation history)
-- [ ] Define hand-off protocol between local → background → cloud agents
-- [ ] Test local agent → background agent delegation
-- [ ] Configure `.zeno/config.json` for worktree settings (storage, max concurrent, expiration)
 
-### Phase 2: Background Agent Onboarding (Week 3-4, Parallel with Gates 3-5)
-- [ ] Onboard database-optimizer agent with worktree support
-- [ ] Onboard typescript-pro agent for parallel implementation
-- [ ] Onboard architect-reviewer agent for architecture reviews
-- [ ] Test 2-3 parallel proposals in isolated worktrees
-- [ ] Validate worktree isolation (no conflicts between agents)
-- [ ] Implement agent specialization tiers (Focused/Expert/PhD)
-
-### Phase 3: Cloud Agent Code Review (Week 5-6, Parallel with Gates 6-8)
-- [ ] Configure GitHub Copilot Coding Agent for PR review
-- [ ] Implement PR creation from worktree branches
-- [ ] Add quality gate validation (coverage, security, linting)
-- [ ] Setup auto-approval when all gates pass
-- [ ] Create PR review templates and comment patterns
-- [ ] Setup fallback to manual review for complex changes
-
-### Phase 4: Merge Orchestration (Week 7-8, Parallel with Gate 9 completion)
-- [ ] Implement merge sequencing algorithm (detect dependencies, merge order)
-- [ ] Add conflict detection (analyze dependency graph, identify conflicting files)
-- [ ] Implement smart rebase for dependent proposals
-- [ ] Automate worktree cleanup after successful merge
-- [ ] Test end-to-end workflow (3+ agents, parallel proposals, merge coordination)
-- [ ] Document approval workflow for human review
-
-### Phase 5: Monitoring & Optimization (Post-MVP, Parallel with Gates 11-12)
-- [ ] Setup agent status reporting via MCP tools
-- [ ] Add logging/audit trails for delegation flow
-- [ ] Implement backpressure (limit concurrent worktrees based on disk space)
-- [ ] Optimize context passing between agents (reduce hand-off overhead)
-- [ ] Document best practices and troubleshooting
-- [ ] Measure parallelization benefits (time savings analysis)
-
-
-### Gate 10: Git Integration & Commit Automation
-- [ ] Implement structured commit messages with configurable format
-- [ ] Build git tag creation for completed gates
-- [ ] Implement worktree lifecycle management (create, merge, prune, remove)
-- [ ] Build merge coordination for parallel proposals
-- [ ] Implement file-level conflict detection
-- [ ] Create `zeno worktree` CLI commands
-- [ ] Expose worktree MCP tools
-- [ ] Write tests for git integration module
 
 ### Gate 11: Rescope & Replan Engine
 - [ ] Implement rescope detection (PROJECT_PRD.md end-state diff)
@@ -683,6 +588,8 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - [ ] Expose `gate_summary`, `requirement_summary`, `proposal_summary` MCP tools
 - [ ] Implement status data aggregation from SQLite
 - [ ] Write tests for status module
+
+### Post-MVP Gates
 
 ### Gate 13: Subagent Orchestration & Parallel Execution (Post-MVP)
 - [ ] Subagent orchestration — deferred, needs refactoring/reconsideration

@@ -12,25 +12,10 @@ import { logger } from '../utils/logger.js'
 import type { ErrorCode } from './schemas/common-schemas.js'
 
 /**
- * @deprecated Use `ErrorCode` from `common-schemas.ts` instead.
- * Kept for backward compatibility during migration.
- */
-export enum McpErrorCode {
-  VALIDATION_FAILED = 'VALIDATION_ERROR',
-  NOT_FOUND = 'NOT_FOUND',
-  PERMISSION_DENIED = 'PERMISSION_DENIED',
-  INTERNAL_ERROR = 'INTERNAL_ERROR',
-  NETWORK_ERROR = 'NETWORK_ERROR',
-  TIMEOUT = 'COMMAND_FAILED',
-}
-
-/**
  * Structured error response for MCP
  */
 export interface McpError {
-  // Keep deprecated enum in the type for backwards compatibility — lint disabled where needed
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  code: ErrorCode | McpErrorCode
+  code: ErrorCode
   message: string
   context?: Record<string, unknown>
   suggestions?: string[]

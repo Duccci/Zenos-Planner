@@ -32,11 +32,35 @@ export async function validateGateReady(gateId: string): Promise<void> {
     })
   }
 
-  // Check if all proposals are archived
+  // Run artifact format validation for the gate (fast pre-archive check)
+  try {
+    const { ArtifactValidationService } = await import('../analysis/artifact-validation-service.js')
+    const svc = new ArtifactValidationService()
+    const v = await svc.validate({
+      artifactPath: gatePath,
+      artifactType: 'gate',
+      validationMode: 'format',
+    })
+    if (!v.passed) {
+      throw new ZenoError(`Gate ${gateId} failed format validation`, 'ARCHIVE_VALIDATION_FAILED', {
+        gateId,
+        errors: v.errors ?? [],
+        warnings: v.warnings ?? [],
+      })
+    }
+  } catch (err) {
+    // If validation service cannot be executed, surface as archive validation failure
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new ZenoError(`Gate ${gateId} validation error: ${msg}`, 'ARCHIVE_VALIDATION_FAILED', {
+      gateId,
+    })
+  }
+
+  // Check if all proposals are completed/integrated
   const proposalsDir = join(getZenoDir(), '..', 'proposals', gateId)
   if (existsSync(proposalsDir)) {
     // This is a simplified check - in practice, we'd need to check each proposal
-    // For now, assume if gate is completed, proposals are ready
+    // For now, assume if gate is completed, proposals are integration-ready
   }
 
   // Check if all requirements are tested
@@ -90,6 +114,29 @@ export async function validateProposalReady(
     throw new ZenoError(`Proposal ${hash} is not completed`, 'ARCHIVE_NOT_READY', {
       hash,
       reason: 'Proposal status is not completed',
+    })
+  }
+
+  // Run full artifact validation for proposals before archive
+  try {
+    const { ArtifactValidationService } = await import('../analysis/artifact-validation-service.js')
+    const svc = new ArtifactValidationService()
+    const v = await svc.validate({
+      artifactPath: proposalPath,
+      artifactType: 'proposal',
+      validationMode: 'all',
+    })
+    if (!v.passed) {
+      throw new ZenoError(`Proposal ${hash} failed validation`, 'ARCHIVE_VALIDATION_FAILED', {
+        hash,
+        errors: v.errors ?? [],
+        warnings: v.warnings ?? [],
+      })
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    throw new ZenoError(`Proposal ${hash} validation error: ${msg}`, 'ARCHIVE_VALIDATION_FAILED', {
+      hash,
     })
   }
 

@@ -74,26 +74,16 @@ zeno/proposals/
 │   ├── 2026-01-15-01-eslint-upgrade.md
 │   ├── 2026-01-20-01-refactor-auth.md
 │   └── 2026-02-01-01-documentation-updates.md
-└── archive/
-    ├── gate-01/
-    │   ├── #p010reinfra.md
-    │   └── #p010setup.md
-    └── solitary/
-        └── #s20260115eslint.md
 ```
 
 **Archival Process**
 
-- **Gate-tied proposals**: When gate is completed, move `zeno/proposals/gate-XX/XX-name.md` to `zeno/proposals/archive/gate-XX/` with naming convention `#hash.md`
-- **Solitary proposals - Archival with consolidation**: When solitary proposal is completed and archived:
-  1. Extract high-level implementation summary from the proposal (2-3 sentences of what was accomplished)
-  2. Add entry to `zeno/gates/archive/solitary.md` under the appropriate section with hash, title, and summary
-  3. Move completed proposal file `zeno/proposals/solitary/YYYY-MM-DD-XX-name.md` to `zeno/proposals/archive/solitary/` with naming convention `#hash.md`
-  4. Update `zeno/gates/archive/solitary.md` with completion date
+- **Gate-tied proposals**: Mark proposal `completed` and keep file in `zeno/proposals/gate-XX/` until gate completion.
+- **Gate completion**: Consolidate completed proposals into the gate archive artifact in `zeno/gates/archive/`.
+- **Solitary proposals**: Mark proposal `completed`; consolidate high-level summary into `zeno/gates/archive/solitary.md` when solitary work is finalized.
 
-- Archive preserves complete proposal history without cluttering active proposal directories
-- Active `zeno/proposals/solitary/` directory contains only pending/in_progress proposals
-- `zeno/gates/archive/solitary.md` serves as consolidated registry of completed solitary work with high-level summaries
+- Proposal files are working artifacts; long-term archival is gate-level only.
+- `zeno/gates/archive/solitary.md` is the long-term record for solitary work summaries.
 
 **Solitary Consolidation File Structure**
 

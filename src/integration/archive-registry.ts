@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 
 export function registerArchiveOps(registry: FunctionRegistry): void {
-  // Unified archive_action that dispatches to gate/proposal/batch implementations
+  // Unified archive_action that dispatches to gate/batch implementations
   registry.register(
     'archive_action',
     async (params) => {
@@ -25,30 +25,10 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
           return { success: true, data: result }
         }
 
-        case 'proposal': {
-          const payload = z
-            .object({
-              hash: z.string().regex(/^[a-z0-9]{8}$/),
-              completionNotes: z.string().optional(),
-            })
-            .parse(validated.payload)
-          const { archiveProposal } = await import('../core/archive-logic.js')
-          const result = await archiveProposal(payload.hash, payload.completionNotes)
-          return { success: true, data: result }
-        }
-
         case 'batch': {
           const payload = z
             .object({
-              artifacts: z.array(
-                z.union([
-                  z.object({ type: z.literal('gate'), gateId: z.string() }),
-                  z.object({
-                    type: z.literal('proposal'),
-                    hash: z.string().regex(/^[a-z0-9]{8}$/),
-                  }),
-                ])
-              ),
+              artifacts: z.array(z.object({ type: z.literal('gate'), gateId: z.string() })),
               completionNotes: z.string().optional(),
             })
             .parse(validated.payload)

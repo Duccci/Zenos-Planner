@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { createProjectStructure } from '../../src/scaffold/index.js'
+import { createProjectStructure, createGateDirectory } from '../../src/scaffold/index.js'
 import { ensureDir, fileExists, directoryExists, writeFile } from '../../src/utils/file.js'
 import { getDatabasePath } from '../../src/storage/database.js'
 import { closeDatabase } from '../../src/storage/database.js'
@@ -69,7 +69,6 @@ describe('Scaffolding', () => {
       expect(await directoryExists(join(testDir, 'zeno/gates'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/architecture'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/proposals'))).toBe(true)
-      expect(await directoryExists(join(testDir, 'zeno/proposals/archive'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/requirements'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/subprojects'))).toBe(true)
     })
@@ -132,6 +131,71 @@ describe('Scaffolding', () => {
       // The important thing is that scaffolding attempts initialization and doesn't fail
       // In real usage, database will be initialized on first use if not done during scaffolding
       expect(await directoryExists(join(testDir, 'zeno', '.zeno'))).toBe(true)
+    })
+  })
+
+  describe('createGateDirectory', () => {
+    beforeEach(async () => {
+      // Create the base project structure first
+      await createProjectStructure(testDir)
+    })
+
+    it('should create gate directory with gate- prefix', async () => {
+      const result = await createGateDirectory(testDir, '1')
+
+      expect(result).toBe('gate-01')
+      expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-01'))).toBe(true)
+    })
+
+    it('should create gate directory with numeric gate ID', async () => {
+      const result = await createGateDirectory(testDir, '5')
+
+      expect(result).toBe('gate-05')
+      expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-05'))).toBe(true)
+    })
+
+    it('should handle gate ID that already has gate- prefix', async () => {
+      const result = await createGateDirectory(testDir, 'gate-10')
+
+      expect(result).toBe('gate-10')
+      expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-10'))).toBe(true)
+    })
+
+    it('should return directory name when created', async () => {
+      // Create it first
+      const firstResult = await createGateDirectory(testDir, '2')
+      expect(firstResult).toBe('gate-02')
+
+      // Verify directory exists
+      const dirPath = join(testDir, 'zeno', 'proposals', 'gate-02')
+      expect(await directoryExists(dirPath)).toBe(true)
+    })
+
+    it('should use current working directory if no path provided', async () => {
+      const originalCwd = process.cwd()
+      try {
+        process.chdir(testDir)
+        const result = await createGateDirectory(undefined, '3')
+
+        expect(result).toBe('gate-03')
+        expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-03'))).toBe(true)
+      } finally {
+        process.chdir(originalCwd)
+      }
+    })
+
+    it('should handle large gate numbers', async () => {
+      const result = await createGateDirectory(testDir, '99')
+
+      expect(result).toBe('gate-99')
+      expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-99'))).toBe(true)
+    })
+
+    it('should handle single-digit gate IDs with padding', async () => {
+      const result = await createGateDirectory(testDir, '7')
+
+      expect(result).toBe('gate-07')
+      expect(await directoryExists(join(testDir, 'zeno', 'proposals', 'gate-07'))).toBe(true)
     })
   })
 })

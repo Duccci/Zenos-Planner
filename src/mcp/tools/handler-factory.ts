@@ -50,7 +50,7 @@ export function createSchemaValidatingHandler(
   registry: FunctionRegistry,
   functionName: string,
   outputSchema: ZodType
-) {
+): (args: Record<string, unknown>) => Promise<CallToolResult> {
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     try {
       // If caller provided a mock result (useful for tests and local simulation),
@@ -155,7 +155,10 @@ export function createSchemaValidatingHandler(
  * @example
  *   const handler = createBasicHandler(registry, 'gates_regenerate')
  */
-export function createBasicHandler(registry: FunctionRegistry, functionName: string) {
+export function createBasicHandler(
+  registry: FunctionRegistry,
+  functionName: string
+): (args: Record<string, unknown>) => Promise<CallToolResult> {
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     try {
       const result = await registry.invoke(functionName, args)

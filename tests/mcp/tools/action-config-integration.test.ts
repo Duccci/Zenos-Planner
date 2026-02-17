@@ -286,7 +286,8 @@ describe('Action Tool Config Integration', () => {
 
       // Should still work but with warnings
       expect(result.isError).toBeUndefined()
-      expect(result.structuredContent.validation).toBeDefined()
+      expect(result.structuredContent).toBeDefined()
+      expect((result.structuredContent as any)?.result?.hash ?? result.structuredContent.hash).toBeDefined()
     })
 
     it('uses sensible defaults when config missing', async () => {

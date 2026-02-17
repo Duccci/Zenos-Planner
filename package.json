@@ -49,6 +49,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "prebuild": "npm run clean",
+    "postinstall": "node scripts/setup-sqlite3.js",
     "prepare": "husky install"
   },
   "dependencies": {

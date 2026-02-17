@@ -8,6 +8,7 @@
  * Side effects:
  * - Bumps project version in zeno/.zeno/config.json (semver mapping)
  * - Syncs with git (commit + tag; optional push)
+ * - Updates PROJECT_PRD.md to reflect gate status changes
  */
 
 import type Database from 'better-sqlite3'
@@ -16,13 +17,17 @@ import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { syncWithGit } from '../utils/git.js'
-import { consolidateGateProposals, generateConsolidationMarkdown } from '../utils/gate-consolidation.js'
+import {
+  consolidateGateProposals,
+  generateConsolidationMarkdown,
+} from '../utils/gate-consolidation.js'
 import { readFile, writeFile, ensureDir } from '../utils/file.js'
-import { readdir, rename, unlink, rmdir } from 'node:fs/promises'
+import { readdir, unlink } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis } from './gate-generator.js'
+import { updateProjectPRDGates } from './prd-updater.js'
 
 function normalizeHash(input: string): string {
   const trimmed = input.trim()
@@ -69,7 +74,7 @@ function getVersioningSettings(config: Awaited<ReturnType<typeof loadConfig>>): 
   gateBump: VersionBump
   lifecycleBump: VersionBump
 } {
-  const versioning = config.versioning;
+  const versioning = config.versioning
   return {
     enabled: versioning.enabled,
     proposalBump: versioning.proposalBump as VersionBump,
@@ -78,7 +83,11 @@ function getVersioningSettings(config: Awaited<ReturnType<typeof loadConfig>>): 
   }
 }
 
-function getRequiredRow<T>(row: T | undefined, message: string, context: Record<string, unknown>): T {
+function getRequiredRow<T>(
+  row: T | undefined,
+  message: string,
+  context: Record<string, unknown>
+): T {
   if (!row) {
     throw new ValidationError(message, 'VALIDATION_NOT_FOUND', context)
   }
@@ -89,58 +98,67 @@ function getDb(projectRoot: string): Database.Database {
   try {
     return getDatabase(projectRoot)
   } catch (error) {
-    throw new DatabaseError('Failed to open database', 'DB_CONNECTION_FAILED', { projectRoot }, error as Error)
+    throw new DatabaseError(
+      'Failed to open database',
+      'DB_CONNECTION_FAILED',
+      { projectRoot },
+      error as Error
+    )
   }
 }
 
 /**
  * Update gate document objectives based on completed proposal
  */
-async function updateGateObjectivesFromProposal(projectRoot: string, gateId: string, proposalContent: string): Promise<void> {
+async function updateGateObjectivesFromProposal(
+  projectRoot: string,
+  gateId: string,
+  proposalContent: string
+): Promise<void> {
   const gatePath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
-  
+
   try {
     const gateContent = await readFile(gatePath)
-    
+
     // Extract proposal summary
     const summaryMatch = /## Summary\s*\n\n([\s\S]*?)\n\n---/.exec(proposalContent)
     const summary = summaryMatch?.[1]?.toLowerCase() ?? ''
-    
+
     // Extract proposal title
     const titleMatch = /# Proposal: (.+)/.exec(proposalContent)
     const title = titleMatch?.[1]?.toLowerCase() ?? ''
-    
+
     // Find objectives section
     const objectivesMatch = /## Objectives\s*\n\n([\s\S]*?)\n\n##/.exec(gateContent)
     if (!objectivesMatch?.[1]) return
-    
+
     const objectivesSection = objectivesMatch[1]
-    
+
     // Find unchecked objectives that match the proposal
     const updatedObjectives = objectivesSection.replace(
       /- \[ \] ([^\n]+)/g,
       (match, objective: string) => {
         const objLower = objective.toLowerCase()
-        
+
         // Check if objective keywords appear in proposal summary or title
         const keywords = objLower.split(/\s+/)
-        const matches = keywords.filter((keyword: string) => 
-          keyword.length > 3 && (summary.includes(keyword) || title.includes(keyword))
+        const matches = keywords.filter(
+          (keyword: string) =>
+            keyword.length > 3 && (summary.includes(keyword) || title.includes(keyword))
         )
-        
+
         // If significant matches found, mark as completed
         if (matches.length >= 2 || (matches.length >= 1 && objLower.includes('command'))) {
           return `- [x] ${objective}`
         }
-        
+
         return match
       }
     )
-    
+
     // Update gate content
     const newGateContent = gateContent.replace(objectivesSection, updatedObjectives)
     await writeFile(gatePath, newGateContent)
-    
   } catch (error) {
     // Gate file might not exist or be readable, skip silently
     logger.debug(`Could not update gate objectives for ${gateId}: ${String(error)}`)
@@ -168,7 +186,9 @@ export async function approveProposal(hashInput: string): Promise<{
          FROM proposals
          WHERE hash = ?`
       )
-      .get(proposalHash) as { id: string; gateId: string; title: string; status: string; requirement_id: string | null } | undefined,
+      .get(proposalHash) as
+      | { id: string; gateId: string; title: string; status: string; requirement_id: string | null }
+      | undefined,
     'Proposal not found',
     { hash: proposalHash }
   )
@@ -194,29 +214,38 @@ export async function approveProposal(hashInput: string): Promise<{
            implemented_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).run(proposalId)
-
-
   })
   tx(proposal.id)
 
-  // Move proposal file to completed with hash name
+  // Update proposal file metadata in place (no proposal archive directory)
   let proposalContent = ''
   try {
     const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gateId)
-    const completedDir = path.join(projectRoot, 'zeno', 'proposals', 'archive')
-    const gateArchiveDir = path.join(completedDir, proposal.gateId)
-    await ensureDir(gateArchiveDir)
-
-    // Find the proposal file in gate dir (assuming it's named with the hash or title)
     const files = await readdir(gateDir)
     for (const file of files) {
       if (file.endsWith('.md')) {
         const filePath = path.join(gateDir, file)
         const content = await readFile(filePath)
         if (content.includes(`**Hash**: #${proposalHash}`)) {
-          proposalContent = content
-          const dest = path.join(gateArchiveDir, `${proposalHash}.md`)
-          await rename(filePath, dest)
+          const completedAt = new Date().toISOString()
+          let updatedContent = content
+
+          if (/\*\*Status\*\*:\s*\w+/i.test(updatedContent)) {
+            updatedContent = updatedContent.replace(
+              /\*\*Status\*\*:\s*\w+/i,
+              '**Status**: completed'
+            )
+          }
+
+          if (!updatedContent.includes('**Implemented**:')) {
+            updatedContent = updatedContent.replace(
+              '**Status**: completed',
+              `**Status**: completed\n**Implemented**: ${completedAt}`
+            )
+          }
+
+          await writeFile(filePath, updatedContent)
+          proposalContent = updatedContent
           break
         }
       }
@@ -254,7 +283,10 @@ export interface CompleteGateOptions {
   push?: boolean
 }
 
-export async function completeGate(gateIdInput: string, options: CompleteGateOptions = {}): Promise<{
+export async function completeGate(
+  gateIdInput: string,
+  options: CompleteGateOptions = {}
+): Promise<{
   projectRoot: string
   gateId: string
   gateName: string
@@ -302,7 +334,6 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     ).run(id)
 
     // Update all requirements for this gate to tested
-
   })
   tx(gate.id)
 
@@ -322,7 +353,7 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     // Don't fail completion if analysis fails
   }
 
-  // Consolidate and archive proposals
+  // Consolidate proposals into gate archive
   try {
     const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
     const consolidation = await consolidateGateProposals(gateId, proposalsDir)
@@ -335,7 +366,7 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
       gateContent = await readFile(gatePrdPath)
     } catch {
       // If no PRD exists, create basic one
-      const dateStr: string = new Date().toISOString().split('T')[0] ?? '';
+      const dateStr: string = new Date().toISOString().split('T')[0] ?? ''
       gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
     }
 
@@ -358,49 +389,37 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
       logger.warn(`Failed to remove original gate PRD ${originalGatePath}: ${String(error)}`)
     }
 
-    // Move proposal files from completed to archive
-    const completedDir = path.join(proposalsDir, 'archive')
-    const gateArchiveDir = path.join(archiveDir, gateId)
-    await ensureDir(gateArchiveDir)
-
-    const completedGateDir = path.join(completedDir, gateId)
-    try {
-      const proposalFiles = await readdir(completedGateDir)
-      for (const file of proposalFiles) {
-        if (file.endsWith('.md')) {
-          const src = path.join(completedGateDir, file)
-          const dest = path.join(gateArchiveDir, file)
-          await rename(src, dest)
-        }
-      }
-      // Remove the empty gate directory
-      await rmdir(completedGateDir)
-    } catch (error) {
-      // If directory doesn't exist or other error, log but don't fail
-      logger.warn(`Failed to move proposal files for gate ${gateId}: ${String(error)}`)
-    }
-
     // Delete proposals from database after consolidation
     // First get proposal hashes for cleanup
-    const proposalRows = db.prepare('SELECT hash FROM proposals WHERE gate_id = ?').all(gate.id) as { hash: string }[]
-    const proposalHashes = proposalRows.map(row => row.hash)
-    
+    const proposalRows = db
+      .prepare('SELECT hash FROM proposals WHERE gate_id = ?')
+      .all(gate.id) as { hash: string }[]
+    const proposalHashes = proposalRows.map((row) => row.hash)
+
     // Delete dependencies involving these proposals
     if (proposalHashes.length > 0) {
       const placeholders = proposalHashes.map(() => '?').join(',')
-      db.prepare(`DELETE FROM dependencies WHERE source_entity_type = 'proposal' AND source_hash IN (${placeholders})`).run(...proposalHashes)
-      db.prepare(`DELETE FROM dependencies WHERE target_entity_type = 'proposal' AND target_hash IN (${placeholders})`).run(...proposalHashes)
-      
+      db.prepare(
+        `DELETE FROM dependencies WHERE source_entity_type = 'proposal' AND source_hash IN (${placeholders})`
+      ).run(...proposalHashes)
+      db.prepare(
+        `DELETE FROM dependencies WHERE target_entity_type = 'proposal' AND target_hash IN (${placeholders})`
+      ).run(...proposalHashes)
+
       // Delete from hash registry
-      db.prepare(`DELETE FROM hash_registry WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`).run(...proposalHashes)
-      
+      db.prepare(
+        `DELETE FROM hash_registry WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`
+      ).run(...proposalHashes)
+
       // Delete from state history
-      db.prepare(`DELETE FROM state_history WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`).run(...proposalHashes)
+      db.prepare(
+        `DELETE FROM state_history WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`
+      ).run(...proposalHashes)
     }
-    
+
     // Delete the proposals themselves
     db.prepare('DELETE FROM proposals WHERE gate_id = ?').run(gate.id)
-    
+
     // Clear proposal_hashes from the gate record
     db.prepare('UPDATE gates SET proposal_hashes = NULL WHERE id = ?').run(gate.id)
 
@@ -415,10 +434,22 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     } catch {
       // Dir doesn't exist or can't read
     }
-
   } catch (error) {
     logger.warn(`Failed to consolidate proposals for ${gateId}: ${String(error)}`)
     // Don't fail the completion if consolidation fails
+  }
+
+  // Update PROJECT_PRD.md to reflect gate status changes
+  // This ensures the PRD stays accurate whenever gates are archived.
+  // PRD updates should also be called:
+  //   - When new gates are created (via gate generation/initialization)
+  //   - When gates are regenerated/realigned (via rescope workflow)
+  // See prd-updater.ts for additional update functions.
+  try {
+    await updateProjectPRDGates(projectRoot)
+  } catch (error) {
+    logger.warn(`Failed to update PROJECT_PRD.md: ${String(error)}`)
+    // Don't fail the completion if PRD update fails
   }
 
   // Lifecycle completion detection: after marking this gate completed, if there
@@ -442,7 +473,9 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
   const git = getGitSettings(config)
   if (git.autoCommit) {
     const tagName = git.autoTag ? `v${newVersion}-${gateId}` : undefined
-    const tagMessage = git.autoTag ? `Gate ${gateId}: ${gate.name} (version ${newVersion})` : undefined
+    const tagMessage = git.autoTag
+      ? `Gate ${gateId}: ${gate.name} (version ${newVersion})`
+      : undefined
 
     await syncWithGit({
       commitMessage: `chore(gate): complete ${gateId} - ${gate.name}\n\nVersion: ${newVersion}\n`,
@@ -463,4 +496,3 @@ export async function completeGate(gateIdInput: string, options: CompleteGateOpt
     bump,
   }
 }
-

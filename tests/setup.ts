@@ -8,6 +8,9 @@
 // Extend Vitest's expect if needed
 // import { expect } from 'vitest'
 
+// Suppress non-error logging during tests (only show errors)
+process.env['ZENO_LOG_LEVEL'] = 'error'
+
 /**
  * Global test timeout (milliseconds)
  */

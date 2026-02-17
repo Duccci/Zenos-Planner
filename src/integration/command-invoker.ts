@@ -119,27 +119,53 @@ export function validateCommandArguments(
  * Build command string from function name and arguments
  */
 function buildCommandString(command: string, args: Record<string, unknown>): string {
-  // Convert function name to CLI command
   const cliCommand = functionNameToCliCommand(command)
+  const funcDef = functionRegistry.find((f) => f.name === command)
+  const positionalArgs: string[] = []
+  const optionArgs: string[] = []
+  const consumedParams = new Set<string>()
 
-  // Build argument string
-  const argParts: string[] = []
-
-  for (const [key, value] of Object.entries(args)) {
-    // Map parameter name to CLI-friendly name
-    const cliName = paramToCliName(key)
-
-    if (value === true) {
-      // Boolean flag
-      argParts.push(`--${cliName}`)
-    } else if (value !== null && value !== undefined) {
-      // Value parameter
-      const stringValue = String(value as string | number | boolean)
-      argParts.push(`--${cliName} "${stringValue.replace(/"/g, '\\"')}"`)
+  if (funcDef) {
+    for (const param of funcDef.parameters) {
+      const value = args[param.name]
+      if (value === undefined || value === null) {
+        continue
+      }
+      consumedParams.add(param.name)
+      if (param.required) {
+        positionalArgs.push(formatCliValue(value))
+      } else {
+        optionArgs.push(formatOption(param.name, value))
+      }
     }
   }
 
-  return `node bin/zeno.js ${cliCommand} ${argParts.join(' ')}`.trim()
+  for (const [key, value] of Object.entries(args)) {
+    if (consumedParams.has(key)) {
+      continue
+    }
+    if (value === undefined || value === null) {
+      continue
+    }
+    optionArgs.push(formatOption(key, value))
+  }
+
+  const parts = [...positionalArgs, ...optionArgs]
+  return `node bin/zeno.js ${cliCommand} ${parts.join(' ')}`.trim()
+}
+
+function formatCliValue(value: unknown): string {
+  const stringValue = String(value)
+  return `"${stringValue.replace(/"/g, '\\"')}"`
+}
+
+function formatOption(paramName: string, value: unknown): string {
+  const cliName = paramToCliName(paramName)
+  if (value === true) {
+    return `--${cliName}`
+  }
+  const stringValue = String(value)
+  return `--${cliName} "${stringValue.replace(/"/g, '\\"')}"`
 }
 
 /**

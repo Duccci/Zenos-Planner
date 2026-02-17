@@ -125,120 +125,29 @@ stateDiagram-v2
 
 ---
 
-## State Descriptions
+## States
 
-### Initialization Phase
-- **Initialized**: Project created with `zeno init`, end state defined
-- **ProjectReqsGenerated**: High-level project requirements extracted from end state (cross-cutting concerns, constraints)
-- **GatesGenerated**: Zeno's paradox algorithm generates gate sequence
-
-### Gate Execution Phase
-- **GateSelected**: User chooses next gate to work on
-- **AnalyzingCode**: Deep analysis of existing codebase (AST, metrics, dependencies)
-- **GeneratingGateRequirements**: Gate decomposed into specific requirements by:
-  - Inheriting applicable project-level requirements
-  - Generating new requirements from gate objectives
-  - Accepting transferred requirements from other gates (if rescoped)
-- **GeneratingArchitecture**: Diagrams created from requirements (Mermaid/DOT)
-- **DetectingRepos**: Repository boundaries detected using coupling metrics
-
-### Approval Checkpoints
-- **RepoApproval**: Human validates repository split recommendations
-  - Approved → Continue to proposals
-  - Rejected → Adjust boundaries and re-detect
-
-### Proposal Workflow
-- **GeneratingProposals**: Implementation proposals created from requirements
-- **AutomatedChecks**: Validation suite runs (lint, type, test, coverage, security)
-- **ChecksPassed/ChecksFailed**: Automated validation results
-- **HumanApproval**: Human reviews and approves/rejects proposals
-- **Approved/Rejected**: Human decision point
-
-### Implementation Phase
-- **Implementing**: LLM executes approved proposals
-- **Testing**: Test suite runs
-- **TestsPassed/TestsFailed**: Test results
-- **QualityGateCheck**: Final quality threshold validation
-- **QualityPassed/QualityFailed**: Quality gate results
-
-### Completion Phase
-- **CommitProposal**: Auto-commit with structured message
-- **GateComplete**: All proposals for gate finished
-- **ReleaseGate**: Git tag created for gate release
-- **NextGate**: Move to next gate
-- **ProjectComplete**: All gates finished
-
-### Adaptive Phase
-- **RescopeDetected**: End state changed mid-project
-- **RegeneratingGates**: Future gates regenerated from current position
-- **ReplanSubtasks**: Failure analysis and proposal regeneration
+- **Initialized → ProjectReqsGenerated → GatesGenerated**: Project created, requirements extracted from end state, gates generated via paradox algorithm
+- **GateSelected → AnalyzingCode / GeneratingGateRequirements**: User picks gate; code analysis runs if existing codebase, then gate requirements decomposed
+- **GeneratingArchitecture → DetectingRepos → RepoApproval**: Diagrams created, repo boundaries detected with confidence scores, human approves/rejects split
+- **GeneratingProposals → AutomatedChecks**: Proposals created from requirements, validated (lint/type/test/coverage/security)
+- **ChecksPassed → HumanApproval → Approved/Rejected**: Passing proposals presented for human review
+- **Implementing → Testing → QualityGateCheck**: LLM executes code, tests run, quality thresholds enforced (90% coverage, 0 vulns, <0.01% lint)
+- **CommitProposal → GateComplete → ReleaseGate**: Auto-commit, git tag on gate release
+- **RescopeDetected → RegeneratingGates**: End state changed mid-project, future gates regenerated
+- **ReplanSubtasks**: Universal recovery state — handles check failures, rejections, test failures, quality failures
 
 ---
 
-## Feedback Loops
+**Document Version**: 1.0.0  
+**Last Updated**: 2026-01-04  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+**Owner**: jamesonBatworker  
+**Reviewers**: jamesonBatworker
 
-### Automated Check Loop
-```
-GeneratingProposals → AutomatedChecks → ChecksFailed → ReplanSubtasks → GeneratingProposals
-```
-Handles validation failures without human intervention.
+### Change Log
 
-### Human Rejection Loop
-```
-HumanApproval → Rejected → ReplanSubtasks → GeneratingProposals → ... → HumanApproval
-```
-Incorporates human feedback into regenerated proposals.
-
-### Test Failure Loop
-```
-Testing → TestsFailed → ReplanSubtasks → GeneratingProposals → ... → Testing
-```
-Fixes implementation issues discovered during testing.
-
-### Quality Failure Loop
-```
-QualityGateCheck → QualityFailed → ReplanSubtasks → GeneratingProposals → ... → QualityGateCheck
-```
-Improves code quality to meet thresholds.
-
-### Rescope Loop
-```
-GateSelected → RescopeDetected → RegeneratingGates → GatesGenerated → GateSelected
-```
-Adapts to changing project goals.
-
----
-
-## Quality Thresholds (Non-Configurable in MVP)
-
-All proposals must meet these thresholds before human approval:
-
-- **Code Coverage**: 90% minimum
-- **Security Vulnerabilities**: 0 allowed
-- **Linting Error Rate**: <0.01% (1 error per 10,000 lines)
-- **Type Checking**: 0 TypeScript errors (strict mode)
-
----
-
-## Human Approval Gates
-
-Human approval required at:
-
-1. **Repository Boundaries**: Validate multi-repo split recommendations
-2. **Proposals**: Approve implementation approach before execution
-3. **Gate Completion**: Confirm gate release and tagging
-
----
-
-## Related Documentation
-
-- **System Overview**: `docs/architecture/system-overview.md` - Component architecture
-- **Data Flow**: `docs/architecture/data-flow.md` - End-to-end process
-- **Gate Roadmap**: `docs/architecture/gate-roadmap.md` - Gate roadmap
-- **Project PRD**: `docs/PROJECT_PRD.md` - Quality threshold rationale
-
----
-
-**Source**: `zeno/architecture/gate-lifecycle.md`  
-**Generated by**: Zeno's Planner
+| Version | Date | Summary | Author |
+|---------|------|---------|--------|
+| 1.0.0 | 2026-01-04 | Initial version | jamesonBatworker |
 

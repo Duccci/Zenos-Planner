@@ -62,6 +62,12 @@ High-level implementation: Comprehensive testing and documentation for MCP tools
 
 
 ### MCP Implementation - Error Handling, Git Safety, Solitary Archival (#s20260206safety)
+
+### Unified Artifact Validator (#a4f7b2e9)
+**Completed**: 2026-02-17
+
+Implemented a unified artifact validator (MCP tool `artifact_validate`) consolidating template, quality, and dependency validation across gates, proposals, and architecture diagrams. Added a lightweight ArtifactValidationService and MCP handler, integrated post-generation format checks and pre-archive full validation to catch issues before human approval, and added initial test stubs and type-check fixes.
+
 **Completed**: 2026-02-06
 
 High-level implementation: Implemented comprehensive safety features for MCP tools including unified error response format with 12 standardized error codes, git operation audit and blocking during apply phase, and completed solitary proposal archival workflow. All 59 safety tests pass with 95%+ coverage, ensuring production-ready error handling and preventing critical guardrail violations.

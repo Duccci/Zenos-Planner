@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { loadConfig } from '../utils/config.js'
 import { getZenoDir } from '../utils/config.js'
 import { consolidateGateProposals } from '../utils/gate-consolidation.js'
-import { validateGateReady, validateProposalReady } from './archive-validation.js'
+import { validateGateReady } from './archive-validation.js'
 import { prepareArchiveContent } from './archive-consolidation.js'
 import {
   getCurrentTimestamp,
@@ -25,71 +25,9 @@ import {
   performGitCommitAndPush,
 } from './archive-execution.js'
 import { logger } from '../utils/logger.js'
-import {
-  ArchiveGateOutput,
-  ArchiveProposalOutput,
-  ArchiveBatchOutput,
-} from '../mcp/schemas/archive-schemas.js'
+import { ArchiveGateOutput, ArchiveBatchOutput } from '../mcp/schemas/archive-schemas.js'
 
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
-
-/**
- * Extract a short (2-3 sentence) summary from proposal markdown content
- */
-function extractSummary(content: string): string | null {
-  if (!content) return null
-  // Try to find '## Summary' or '## Summary' header, else take first paragraph
-  const summaryMatch = /##+\s*Summary\s*\n([\s\S]*?)(?:\n##|\n#|$)/i.exec(content)
-  const raw = summaryMatch ? (summaryMatch[1] ?? '').trim() : null
-  const paragraph = raw ?? content.split('\n\n')[0]
-  if (!paragraph) return null
-  // Return first 2 sentences
-  const sentences = paragraph.replace(/\n/g, ' ').split(/(?<=[.!?])\s+/)
-  return sentences.slice(0, 2).join(' ').trim()
-}
-
-/**
- * Update or create the solitary consolidation file under zeno/gates/archive/solitary.md
- */
-async function updateSolitaryConsolidation(
-  hash: string,
-  title: string,
-  summary: string,
-  completedAt: string
-): Promise<void> {
-  const zenoDir = getZenoDir()
-  const archiveDir = join(zenoDir, 'gates', 'archive')
-  const filePath = join(archiveDir, 'solitary.md')
-  await mkdir(archiveDir, { recursive: true })
-  let existing = ''
-  try {
-    existing = await readFile(filePath, 'utf-8')
-  } catch {
-    existing = `# Solitary Proposal Archive\n\n` // create base
-  }
-
-  const entry = [
-    `### ${title} (${hash})`,
-    `**Completed**: ${completedAt}`,
-    '',
-    summary,
-    '',
-    '---',
-    '',
-  ].join('\n')
-
-  const updated = `${existing.trim()}\n\n${entry}`
-  await writeFile(filePath, updated)
-}
-
-/**
- * Determine whether a proposal is solitary (not tied to a gate).
- * Checks the proposals directory structure — solitary proposals live under
- * `zeno/proposals/solitary/`.
- */
-export function isProposalSolitary(type: string): boolean {
-  return type !== 'gate-tied'
-}
 
 // ============================================================================
 // ARCHIVE GATE ORCHESTRATOR
@@ -179,101 +117,6 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`
 }
 
 // ============================================================================
-// ARCHIVE PROPOSAL ORCHESTRATOR
-// ============================================================================
-
-/**
- * Archive a completed proposal
- *
- * Orchestrates:
- * 1. Validation via archive-validation module
- * 2. File operations (move to archive, update metadata)
- * 3. Git operations (commit and push)
- */
-export async function archiveProposal(
-  hash: string,
-  completionNotes?: string
-): Promise<ArchiveProposalOutput> {
-  logger.info(`Starting proposal archive for ${hash}`)
-
-  // Step 1: Validate using dedicated validation module
-  const { type, gateId, title } = await validateProposalReady(hash)
-
-  const config = await loadConfig()
-  const timestamp = getCurrentTimestamp()
-
-  // Step 2: Determine paths
-  const proposalsDir = join(getZenoDir(), '..', 'proposals')
-  let sourcePath: string
-  let archivePath: string
-
-  if (type === 'gate-tied' && gateId) {
-    sourcePath = join(proposalsDir, gateId, `${hash}.md`)
-    archivePath = join(proposalsDir, 'archive', gateId, `${hash}.md`)
-    await mkdir(join(proposalsDir, 'archive', gateId), { recursive: true })
-  } else {
-    sourcePath = join(proposalsDir, 'solitary', `${hash}.md`)
-    archivePath = join(proposalsDir, 'archive', 'solitary', `${hash}.md`)
-    await mkdir(join(proposalsDir, 'archive', 'solitary'), { recursive: true })
-  }
-
-  // Step 3: Read and update content
-  const content = await readFile(sourcePath, 'utf-8')
-  let updatedContent = content.replace(
-    /\*\*Status\*\*: completed/,
-    `**Status**: completed\n**Archived**: ${timestamp}\n**Archived By**: system`
-  )
-
-  if (completionNotes) {
-    updatedContent += `\n\n**Completion Notes**: ${completionNotes}`
-  }
-
-  updatedContent += '\n\n## Completion Summary\n\n'
-  updatedContent += `**Tasks Completed**: [Check content for task completion]\n`
-  updatedContent += `**Files Modified**: [Check git history]\n`
-  updatedContent += `**Commits**: [Check git history]\n`
-
-  // Step 4: Write to archive
-  await writeFile(archivePath, updatedContent)
-
-  // If solitary proposal, update consolidation index for solitary archives
-  if (isProposalSolitary(type)) {
-    try {
-      const summary = extractSummary(content) ?? completionNotes ?? ''
-      await updateSolitaryConsolidation(hash, title, summary, timestamp)
-    } catch (err) {
-      logger.warn(`Failed to update solitary consolidation for ${hash}: ${String(err)}`)
-    }
-  }
-
-  // Step 5: Git operations
-  const notes: string = completionNotes ?? ''
-  const commitMessage = `chore(${type === 'gate-tied' ? (gateId ?? 'unknown') : 'solitary'}): Archive proposal: ${title} (${hash})
-
-${notes.length > 0 ? `Notes: ${notes}` : ''}
-Archived ${type} proposal to ${archivePath}`
-
-  await performGitCommitAndPush({ commitMessage, files: [archivePath], remote: config.git?.remote })
-
-  const result: ArchiveProposalOutput = {
-    success: true,
-    hash,
-    title,
-    type,
-    gateId,
-    archivedAt: timestamp,
-    location: archivePath,
-    updatedRequirements: [],
-    unblockedProposals: [],
-    gateStatus: type === 'gate-tied' && gateId ? 'in_progress' : 'n/a',
-    summary: `Archived ${type} proposal ${hash}: ${title}`,
-  }
-
-  logger.info(`Proposal archive completed for ${hash}`)
-  return result
-}
-
-// ============================================================================
 // ARCHIVE BATCH ORCHESTRATOR
 // ============================================================================
 
@@ -284,30 +127,21 @@ Archived ${type} proposal to ${archivePath}`
  * continuing on error and reporting results for each artifact.
  */
 export async function archiveBatch(
-  artifacts: ({ type: 'gate'; gateId: string } | { type: 'proposal'; hash: string })[],
+  artifacts: { type: 'gate'; gateId: string }[],
   completionNotes?: string
 ): Promise<ArchiveBatchOutput> {
   logger.info(`Starting batch archive for ${String(artifacts.length)} artifacts`)
 
-  const results: (ArchiveGateOutput | ArchiveProposalOutput)[] = []
+  const results: ArchiveGateOutput[] = []
   let successCount = 0
 
   for (const artifact of artifacts) {
     try {
-      if (artifact.type === 'gate') {
-        const result = await archiveGate(artifact.gateId, completionNotes)
-        results.push(result)
-        successCount++
-      } else {
-        const result = await archiveProposal(artifact.hash, completionNotes)
-        results.push(result)
-        successCount++
-      }
+      const result = await archiveGate(artifact.gateId, completionNotes)
+      results.push(result)
+      successCount++
     } catch (error) {
-      logger.error(
-        `Failed to archive ${artifact.type} ${artifact.type === 'gate' ? artifact.gateId : artifact.hash}`,
-        error
-      )
+      logger.error(`Failed to archive gate ${artifact.gateId}`, error)
       // Continue with other artifacts
     }
   }

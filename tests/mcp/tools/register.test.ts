@@ -21,6 +21,6 @@ describe('MCP Tools Registration', () => {
     // Ensure at least one known handler-provided tool is registered
     expect(result).toContain('config_get')
     // There should be a reasonable number of handler tools
-    expect(result.length).toBeGreaterThanOrEqual(12)
+    expect(result.length).toBeGreaterThanOrEqual(11)
   })
 })

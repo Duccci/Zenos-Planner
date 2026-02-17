@@ -46,10 +46,8 @@ Implements architecture diagram generation with intelligent template selection b
 
 ### Architecture Commands & Integration
 - [ ] Implement `zeno arch generate` command (invokes LLM-driven generation via MCP template exposure)
-- [ ] Implement `zeno arch show <type>` command (display specific diagram from generated artifacts)
-- [ ] Implement architecture metadata scanner (parses `zeno/architecture/` folder to build runtime index)
-- [ ] Build architecture artifact storage conventions (organize diagrams in `zeno/architecture/`)
-- [ ] Implement gate structure change detection (triggers architecture review notification when gates change)
+- [ ] Implement `zeno arch show <type>` command (retrieves specific diagram from `zeno/architecture/`)
+- [ ] Implement gate structure change detection (notifies LLM via MCP when gates change, triggering architecture review)
 
 ### Diagram Selection (LLM-Driven via MCP)
 - [ ] Expose diagram type catalogue via MCP tool (available types, descriptions, when useful)
@@ -102,9 +100,8 @@ Gate 01-04 established:
 - Additional diagrams: sequence, component, package, deployment, network (LLM-selected per-gate via MCP)
 - LLM-driven content generation via MCP template exposure (strict format, flexible content)
 - LLM-driven diagram selection via MCP (no algorithmic complexity detection)
-- Architecture metadata via runtime folder scanning of `zeno/architecture/`
 - Gate PRD template integration with diagram metadata (name, type, order, dependencies)
-- Gate structure change detection triggering architecture review
+- Gate structure change detection triggering architecture review (LLM-driven propagation)
 - `zeno arch generate` command invoking LLM-driven generation
 - `zeno arch show <type>` command for diagram retrieval
 - `zeno setup graphviz` helper command
@@ -118,7 +115,6 @@ Gate 01-04 established:
 - Diagram animation or interactivity (static diagrams for documentation)
 - Metrics calculation or analysis (diagrams focus on structure, not metrics)
 - Application-level version tracking for diagrams (Git commit history is the version store)
-- Persistent metadata database for architecture artifacts (runtime folder scanning only)
 
 ## Requirements
 
@@ -174,24 +170,23 @@ This gate addresses core documentation requirements from project initialization:
 ### 6. Git-Based Diagram Versioning
 - **Choice**: Rely on Git commit history for versioning; no application-level version tracking
 - **Alternatives Considered**: SemVer per diagram, content-hash snapshots, database version table
-- **Rationale**: Diagrams are markdown files in `zeno/architecture/` already under Git version control. Adding application-level versioning duplicates what Git provides natively. `git log -- zeno/architecture/system-overview.md` gives full history. Architecture metadata tracks current state (which diagrams exist, their types, associated gates) but not version history.
+- **Rationale**: Diagrams are markdown files in `zeno/architecture/` already under Git version control. Adding application-level versioning duplicates what Git provides natively. `git log -- zeno/architecture/system-overview.md` gives full history.
 - **Trade-offs**: Gained simplicity; version queries require Git CLI access rather than database lookup
 
-### 8. Inline SVG Rendering for Complex Diagrams
+### 7. Inline SVG Rendering for Complex Diagrams
 - **Choice**: Graphviz DOT diagrams render to inline SVG embedded directly in markdown files
 - **Alternatives Considered**: External `.svg` files with image links, base64 data URIs, PNG images
 - **Rationale**: Inline SVG renders natively in both GitHub markdown preview and VSCode markdown preview without external file references. This keeps diagrams self-contained within their markdown artifact, avoids broken image links, and supports text search within diagram labels.
 - **Context bloat mitigation**: For diagrams exceeding a configurable size threshold, SVG is placed in a `<details>` collapse block with a summary description, keeping the markdown scannable while preserving the full diagram inline.
 - **Trade-offs**: Gained universal rendering support (GitHub + VSCode); larger markdown files for complex diagrams (mitigated by collapse blocks)
 
-### 9. LLM-Driven Diagram Authoring (Not Direct File Writes)
+### 8. LLM-Driven Diagram Authoring (Not Direct File Writes)
 - **Choice**: Diagram generation is LLM-driven through MCP tool interactions, not programmatic file writes
 - **Workflow**:
   1. MCP exposes architecture templates as resources (already built in Gate 03)
-  2. LLM reads template + project context (gates, requirements, existing architecture)
+  n  2. LLM reads template + project context (gates, requirements, existing architecture)
   3. LLM generates diagram content following template structure
   4. LLM writes diagram file through MCP file tools or CLI
-  5. Zeno metadata parser scans `zeno/architecture/` to update the architecture index
 - **Regeneration triggers**:
   - `zeno arch generate` CLI command invokes LLM-driven generation for all applicable diagrams
   - Gate structure changes (new gates, reordering, rescoping) trigger architecture review notification
@@ -199,18 +194,7 @@ This gate addresses core documentation requirements from project initialization:
 - **Existing diagram handling**: LLM receives existing diagrams as context when regenerating, enabling incremental updates rather than blind overwrites. The LLM decides whether changes are needed based on current project state vs. diagram content.
 - **Trade-offs**: Gained semantic understanding and contextual accuracy; generation requires LLM availability; non-deterministic output (mitigated by template structure enforcement)
 
-### 10. Architecture Metadata via Folder Scanning
-- **Choice**: Architecture metadata index is derived by scanning `zeno/architecture/` at runtime, not stored in a separate database
-- **Alternatives Considered**: SQLite metadata table, JSON manifest file, hardcoded registry
-- **Rationale**: Diagrams are the source of truth. Scanning the folder ensures metadata always reflects actual state without synchronization bugs. Metadata extraction parses frontmatter/headers from each markdown file to build the index (diagram type, associated gate, generated date, status).
-- **Index structure** (runtime, not persisted):
-  - Diagram type (system-overview, data-flow, sequence, etc.)
-  - Associated gate hash (if gate-specific)
-  - File path within `zeno/architecture/`
-  - Last modified timestamp (from filesystem)
-- **Trade-offs**: Gained simplicity and single source of truth; slightly slower than cached lookup (negligible for typical project sizes)
-
-### 11. Gate-Level Diagrams Scoped Per-Gate with Proposal Metadata
+### 9. Gate-Level Diagrams Scoped Per-Gate with Proposal Metadata
 - **Choice**: Conditional diagrams (sequence, component, package) are generated per-gate when that gate's complexity triggers them. Diagram names, ordering, and dependencies are defined in the gate template during gate generation.
 - **Gate template integration**:
   - Each gate PRD includes an `## Architecture Diagrams` section listing which diagrams apply to that gate
@@ -241,7 +225,6 @@ This gate addresses core documentation requirements from project initialization:
 ### Supporting Services
 - `DiagramSelector` - Determines which diagrams to generate (project type, complexity metrics)
 - `ComplexityAnalyzer` - Detects when gate-level and infrastructure diagrams needed
-- `ArchitectureMetadata` - Index of generated diagrams with versioning info
 
 ## Implementation Steps
 
@@ -253,11 +236,10 @@ This gate addresses core documentation requirements from project initialization:
 6. Add `## Architecture Diagrams` section to gate PRD template with ordering and dependency metadata
 7. Implement `zeno arch generate` command (LLM-driven via MCP)
 8. Implement `zeno arch show` command
-9. Build architecture metadata scanner (runtime folder parsing of `zeno/architecture/`)
-10. Implement gate structure change detection for architecture review triggers
-11. Implement inline SVG embedding with `<details>` collapse for large diagrams
-12. Write comprehensive tests (generators, rendering, selection logic, metadata scanning)
-13. Validate inline SVG rendering in GitHub and VSCode markdown preview
+9. Implement gate structure change detection for architecture review triggers (LLM-driven notification)
+10. Implement inline SVG embedding with `<details>` collapse for large diagrams
+11. Write comprehensive tests (generators, rendering, selection logic)
+12. Validate inline SVG rendering in GitHub and VSCode markdown preview
 
 ## Gate Completion Criteria
 
@@ -271,11 +253,10 @@ This gate addresses core documentation requirements from project initialization:
 - [ ] Gate PRD template includes `## Architecture Diagrams` section with diagram metadata (name, type, order)
 - [ ] `zeno arch generate` invokes LLM-driven generation through MCP template exposure
 - [ ] `zeno arch show <type>` retrieves and displays diagrams correctly
-- [ ] Architecture metadata scanner correctly indexes `zeno/architecture/` folder contents
-- [ ] Gate structure changes trigger architecture review notification
+- [ ] Gate structure changes trigger architecture review notification to LLM
 - [ ] Inline SVG renders correctly in both GitHub and VSCode markdown preview
 - [ ] Large SVG diagrams wrapped in `<details>` collapse blocks
-- [ ] Test coverage >=90% for diagram generation and selection modules
+- [ ] Test coverage >=90% for diagram generation, rendering, and selection modules
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Zero lint errors, zero type errors
 
@@ -293,8 +274,8 @@ This gate addresses core documentation requirements from project initialization:
 | Rendering Base Classes & Graphviz Integration | #p05g02rendbase0 | pending | Requires #p05g01complxcf0 |
 | Core Diagram Generators | #p05g03corediag0 | pending | Requires #p05g02rendbase0 |
 | Conditional Diagram Generators | #p05g04conddiag0 | pending | Requires #p05g02rendbase0, #p05g01complxcf0 |
-| Diagram Selection & Architecture Metadata | #p05g05selctmet0 | pending | Requires #p05g01complxcf0, #p05g03corediag0, #p05g04conddiag0 |
-| Gate Template Integration | #p05g06gatetmpl0 | pending | Requires #p05g05selctmet0 |
+| Diagram Selection Logic & Integration | #p05g05diagselec | pending | Requires #p05g01complxcf0, #p05g03corediag0, #p05g04conddiag0 |
+| Gate Template Integration | #p05g06gatetmpl0 | pending | Requires #p05g05diagselec |
 | CLI Commands & Function Registry Integration | #p05g07cliregint | pending | Requires #p05g02rendbase0..#p05g06gatetmpl0 |
 | Comprehensive Test Suite | #p05g08testsuite | pending | Requires all above |
 
@@ -302,25 +283,19 @@ This gate addresses core documentation requirements from project initialization:
 
 ```mermaid
 graph LR
-    p01["01 Complexity Analyzer"]
-    p02["02 Rendering Base Classes"] --> p01
-    p03["03 Core Diagram Generators"] --> p02
-    p04["04 Conditional Diagram Generators"] --> p02
-    p04 --> p01
-    p05["05 Diagram Selection & Metadata"] --> p01
-    p05 --> p03
-    p05 --> p04
-    p06["06 Gate Template Integration"] --> p05
-    p07["07 CLI Commands & Registry"] --> p02
-    p07 --> p03
-    p07 --> p04
-    p07 --> p05
-    p07 --> p06
-    p08["08 Comprehensive Tests"] --> p01
-    p08 --> p02
-    p08 --> p03
-    p08 --> p04
-    p08 --> p05
-    p08 --> p06
-    p08 --> p07
+    p01["01 Complexity Analyzer"] --> p02
+    p01 --> p04
+    p01 --> p05
+    p02["02 Rendering Base Classes"] --> p03
+    p02 --> p04
+    p02 --> p07
+    p03["03 Core Diagram Generators"] --> p05
+    p04["04 Conditional Diagram Generators"] --> p05
+    p05["05 Diagram Selection Logic"] --> p06
+    p05 --> p07
+    p06["06 Gate Template Integration"] --> p07
+    p03 --> p07
+    p04 --> p07
+    p07["07 CLI Commands & Registry"] --> p08
+    p08["08 Comprehensive Tests"]
 ```

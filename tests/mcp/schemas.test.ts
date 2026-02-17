@@ -35,7 +35,7 @@ describe('Common Schemas', () => {
       expect(() => common.ProposalStatusEnum.parse('pending')).not.toThrow()
       expect(() => common.ProposalStatusEnum.parse('in_progress')).not.toThrow()
       expect(() => common.ProposalStatusEnum.parse('completed')).not.toThrow()
-      expect(() => common.ProposalStatusEnum.parse('archived')).not.toThrow()
+      expect(() => common.ProposalStatusEnum.parse('archived')).toThrow()
       expect(() => common.ProposalStatusEnum.parse('rejected')).not.toThrow()
     })
   })

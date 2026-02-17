@@ -524,7 +524,7 @@ export const functionRegistry: FunctionDefinition[] = [
   },
   {
     name: 'template_get',
-    description: 'Get a template by name',
+    description: 'Get a template by name, optionally with metadata for LLM context injection',
     parameters: [
       {
         name: 'name',
@@ -532,23 +532,19 @@ export const functionRegistry: FunctionDefinition[] = [
         description: 'Template name to retrieve',
         required: true,
       },
-    ],
-    returnType: 'string',
-    examples: ['template_get("gate-prd-template") - Get template content'],
-  },
-  {
-    name: 'template_context',
-    description: 'Get template formatted for LLM context injection',
-    parameters: [
       {
-        name: 'name',
-        type: 'string',
-        description: 'Template name to retrieve',
-        required: true,
+        name: 'includeContext',
+        type: 'boolean',
+        description:
+          'When true, includes formatted context metadata for LLM injection (optional, defaults to false)',
+        required: false,
       },
     ],
     returnType: 'string',
-    examples: ['template_context("proposal-template") - Get template context for LLMs'],
+    examples: [
+      'template_get("gate-prd-template") - Get template content',
+      'template_get("proposal-template", true) - Get template with LLM context metadata',
+    ],
   },
   {
     name: 'loadAllTemplates',

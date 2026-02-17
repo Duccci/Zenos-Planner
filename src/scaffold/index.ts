@@ -15,7 +15,9 @@ import { initializeDatabase, getDatabasePath, closeDatabase } from '../storage/d
 /**
  * Create the complete .zeno directory structure
  */
-export async function createProjectStructure(projectRoot: string = process.cwd()): Promise<string[]> {
+export async function createProjectStructure(
+  projectRoot: string = process.cwd()
+): Promise<string[]> {
   const createdPaths: string[] = []
 
   try {
@@ -26,7 +28,6 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
       'zeno/gates',
       'zeno/architecture',
       'zeno/proposals',
-      'zeno/proposals/archive',
       'zeno/requirements',
       'zeno/subprojects',
     ]
@@ -70,17 +71,21 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
           } catch {
             // Ignore errors when closing (database might not be open)
           }
-          
+
           const initResult = await initializeDatabase(projectRoot)
           if (initResult.created) {
             createdPaths.push('zeno/.zeno/requirements.db')
-            logger.debug(`Database initialized: ${String(initResult.migrationsApplied)} migrations applied`)
+            logger.debug(
+              `Database initialized: ${String(initResult.migrationsApplied)} migrations applied`
+            )
           }
         } else {
           logger.debug('Migrations directory not found, database will be initialized on first use')
         }
       } catch (error) {
-        logger.warn(`Failed to initialize database: ${error instanceof Error ? error.message : String(error)}`)
+        logger.warn(
+          `Failed to initialize database: ${error instanceof Error ? error.message : String(error)}`
+        )
         // Don't fail scaffolding if database init fails - it can be initialized later
       }
     } else {
@@ -103,7 +108,10 @@ export async function createProjectStructure(projectRoot: string = process.cwd()
 /**
  * Create a gate-specific proposal directory if it doesn't exist
  */
-export async function createGateDirectory(projectRoot: string = process.cwd(), gateId: string): Promise<string | null> {
+export async function createGateDirectory(
+  projectRoot: string = process.cwd(),
+  gateId: string
+): Promise<string | null> {
   const normalizedGateId = gateId.startsWith('gate-') ? gateId : `gate-${gateId.padStart(2, '0')}`
   const gateDir = join(projectRoot, 'zeno', 'proposals', normalizedGateId)
 

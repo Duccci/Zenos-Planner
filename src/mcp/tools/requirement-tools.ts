@@ -1,18 +1,24 @@
 export const requirementToolDefinitions = [
   {
     name: 'req_action',
-    description: 'Unified requirement actions: list, show, deps, transfer',
+    description: `REQUIRED TOOL: Use req_action whenever you need to work with requirements—this is the ONLY way to query the requirements database.
+
+Actions: list (retrieve all requirements, optionally filter by gate), show (get requirement details by hash), deps (view requirement dependency graph), transfer (move requirement to different gate).
+
+Call this tool whenever: you need to see requirements, check a specific requirement's details, understand requirement relationships, or move requirements between gates.`,
     inputSchema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
           enum: ['list', 'show', 'deps', 'transfer'],
-          description: 'The requirement action to perform',
+          description:
+            'Action to perform: "list" (retrieve requirements), "show" (details for hash), "deps" (dependency graph), "transfer" (move to gate)',
         },
         payload: {
           type: 'object',
-          description: 'Action-specific payload',
+          description:
+            'Action-specific parameters. For list: {gateId?, type?, skip?, take?}. For show/deps: {hash}. For transfer: {hash, targetGateId}',
         },
       },
       required: ['action'],

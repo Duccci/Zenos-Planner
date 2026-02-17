@@ -81,7 +81,6 @@ export function registerMcpCommands(program: Command): void {
       }
     })
 
-  // Install helper for editors: writes mcp.json workspace file or user-level file
   mcpCommand
     .command('install')
     .description('Install MCP configuration and start the MCP server in the background')
@@ -89,9 +88,19 @@ export function registerMcpCommands(program: Command): void {
     .option('--dry-run', 'Do not modify files, only show actions')
     .action(async (opts: { editor: string; dryRun?: boolean }) => {
       try {
-        const { ensureWorkspaceMcp } = await import('../../mcp/editor-adapters.js')
+        const { ensureWorkspaceMcp, isZenoInstalled } = await import('../../mcp/editor-adapters.js')
 
         const projectRoot = process.cwd()
+
+        // Check if Zeno is installed first
+        const zeroInstallCheck = isZenoInstalled(projectRoot)
+        if (!zeroInstallCheck.valid) {
+          const reason = zeroInstallCheck.reason ?? 'Unknown reason'
+          logger.error(`Zeno is not properly installed: ${reason}`)
+          console.error(`Error: ${reason}`)
+          console.error('Please ensure Zeno is installed by running: npm install')
+          process.exit(1)
+        }
 
         if (opts.dryRun) {
           console.log('Dry run: actions that would be performed:')

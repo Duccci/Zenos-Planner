@@ -157,9 +157,9 @@ graph LR
 ### Architecture Diagrams
 [Specify which diagrams need updates and what changes are required.]
 
-- System Overview: `.zeno/architecture/system-overview.mmd` - [describe specific changes]
-- Data Flow: `.zeno/architecture/data-flow.mmd` - [describe specific changes]
-- Gate Roadmap: `.zeno/architecture/gate-roadmap.md` - [updated with this gate's position]
+- System Overview: `zeno/architecture/system-overview.md` - [describe specific changes]
+- Data Flow: `zeno/architecture/data-flow.md` - [describe specific changes]
+- Gate Roadmap: `zeno/architecture/gate-roadmap.md` - [updated with this gate's position]
 
 ### Integration Points
 [Describe how this gate's deliverables integrate with existing systems or modules.]
@@ -298,7 +298,7 @@ graph LR
 **Document Version**: [MAJOR.MINOR.PATCH]  
 **Last Updated**: [YYYY-MM-DD]  
 **Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Gate Owner**: [git.user.name]  
+**Owner**: [git.user.name]  
 **Reviewers**: [git.user.name]
 
 ### Change Log
@@ -308,8 +308,8 @@ graph LR
 | 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
 
 **Related Documents**:
-- Project PRD: `docs/PROJECT_PRD.md`
-- Previous Gate: `gates/gate-[XX-1]-[name].md`
-- Next Gate: `gates/gate-[XX+1]-[name].md`
-- Architecture: `docs/architecture/`
+- Project PRD: `zeno/PROJECT_PRD.md`
+- Previous Gate: `zeno/gates/gate-[XX-1]-[name].md`
+- Next Gate: `zeno/gates/gate-[XX+1]-[name].md`
+- Architecture: `zeno/architecture/`
 

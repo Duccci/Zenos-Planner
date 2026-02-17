@@ -181,7 +181,7 @@ describe('MCP Tool Performance', () => {
     const PERFORMANCE_BASELINE = {
       gates_list: 700,
       gates_show: 700,
-      req_action(list): 700,
+      req_action_list: 700,
       req_show_with_deps: 1000,
       proposal_list: 700,
       proposal_validate: 1000,

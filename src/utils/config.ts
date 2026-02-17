@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod'
+import type { ComplexityThresholds } from '../generation/diagram-types.js'
 import { dirname, join } from 'node:path'
 import { readJsonFile, writeJsonFile, fileExists, directoryExists, normalizePath } from './file.js'
 import { ConfigError } from './errors.js'
@@ -13,70 +14,91 @@ import { ConfigError } from './errors.js'
 /**
  * Zeno project configuration schema.
  */
-export const ZenoConfigSchema = z.object({
-  /** Project name (human-readable) */
-  projectName: z.string().min(1, 'Project name is required'),
+export const ZenoConfigSchema = z
+  .object({
+    /** Project name (human-readable) */
+    projectName: z.string().min(1, 'Project name is required'),
 
-  /** Project end state description */
-  endState: z.string().optional(),
+    /** Project end state description */
+    endState: z.string().optional(),
 
-  /** Project version (semver format) */
-  version: z.string().default('0.1.0'),
+    /** Project version (semver format) */
+    version: z.string().default('0.1.0'),
 
-  /** Quality thresholds (non-configurable in MVP, but stored for transparency) */
-  qualityThresholds: z
-    .object({
-      codeCoverage: z.number().min(0).max(100).default(90),
-      securityVulnerabilities: z.number().min(0).default(0),
-      lintingErrorRate: z.number().min(0).default(0.01),
-      typeCheckingErrors: z.number().min(0).default(0),
-    })
-    .default({
-      codeCoverage: 90,
-      securityVulnerabilities: 0,
-      lintingErrorRate: 0.01,
-      typeCheckingErrors: 0,
-    }),
+    /** Quality thresholds (non-configurable in MVP, but stored for transparency) */
+    qualityThresholds: z
+      .object({
+        codeCoverage: z.number().min(0).max(100).default(90),
+        securityVulnerabilities: z.number().min(0).default(0),
+        lintingErrorRate: z.number().min(0).default(0.01),
+        typeCheckingErrors: z.number().min(0).default(0),
+      })
+      .default({
+        codeCoverage: 90,
+        securityVulnerabilities: 0,
+        lintingErrorRate: 0.01,
+        typeCheckingErrors: 0,
+      }),
 
-  /** Hash algorithm used for internal registry */
-  hashAlgorithm: z.string().default('sha256'),
+    /** Hash algorithm used for internal registry */
+    hashAlgorithm: z.string().default('sha256'),
 
-  /** Hash length (number of chars stored/displayed) */
-  hashLength: z.number().int().positive().default(16),
+    /** Hash length (number of chars stored/displayed) */
+    hashLength: z.number().int().positive().default(16),
 
-  /** Git integration settings */
-  git: z
-    .object({
-      autoCommit: z.boolean().default(true),
-      autoTag: z.boolean().default(true),
-      autoPush: z.boolean().default(false),
-      remote: z.string().default('origin'),
-      commitFormat: z.string().default('feat(%s): %m'),
-    })
-    .optional(),
+    /** Git integration settings */
+    git: z
+      .object({
+        autoCommit: z.boolean().default(true),
+        autoTag: z.boolean().default(true),
+        autoPush: z.boolean().default(false),
+        remote: z.string().default('origin'),
+        commitFormat: z.string().default('feat(%s): %m'),
+      })
+      .optional(),
 
-  /** Project versioning settings (major/minor/patch mapping) */
-  versioning: z
-    .object({
-      /** When false, completion hooks do not bump version */
-      enabled: z.boolean().default(true),
+    /** Project versioning settings (major/minor/patch mapping) */
+    versioning: z
+      .object({
+        /** When false, completion hooks do not bump version */
+        enabled: z.boolean().default(true),
 
-      /** Which semver component to bump when a proposal is completed */
-      proposalBump: z.enum(['patch', 'minor', 'major']).default('patch'),
+        /** Which semver component to bump when a proposal is completed */
+        proposalBump: z.enum(['patch', 'minor', 'major']).default('patch'),
 
-      /** Which semver component to bump when a gate is completed (non-final) */
-      gateBump: z.enum(['patch', 'minor', 'major']).default('minor'),
+        /** Which semver component to bump when a gate is completed (non-final) */
+        gateBump: z.enum(['patch', 'minor', 'major']).default('minor'),
 
-      /** Which semver component to bump when full lifecycle completes */
-      lifecycleBump: z.enum(['patch', 'minor', 'major']).default('major'),
-    })
-    .default({
-      enabled: true,
-      proposalBump: 'patch',
-      gateBump: 'minor',
-      lifecycleBump: 'major',
-    }),
-}).loose()
+        /** Which semver component to bump when full lifecycle completes */
+        lifecycleBump: z.enum(['patch', 'minor', 'major']).default('major'),
+      })
+      .default({
+        enabled: true,
+        proposalBump: 'patch',
+        gateBump: 'minor',
+        lifecycleBump: 'major',
+      }),
+
+    /** Architecture generation settings */
+    architecture: z
+      .object({
+        complexity: z
+          .object({
+            maxMermaidNodes: z.number().int().min(0).default(5),
+            maxMermaidEdges: z.number().int().min(0).default(8),
+            nestingDepthMultiplier: z.number().min(0).default(2),
+            svgCollapseThresholdBytes: z.number().int().min(0).default(50000),
+          })
+          .default({
+            maxMermaidNodes: 5,
+            maxMermaidEdges: 8,
+            nestingDepthMultiplier: 2,
+            svgCollapseThresholdBytes: 50000,
+          }),
+      })
+      .optional(),
+  })
+  .loose()
 
 /** TypeScript type inferred from schema */
 export type ZenoConfig = z.infer<typeof ZenoConfigSchema>
@@ -89,23 +111,29 @@ export const ProjectOverviewSchema = z.object({
   totalGatesPlanned: z.number(),
   endState: z.string(),
   startState: z.string().nullable(),
-  completedGates: z.array(z.object({
-    sequence: z.number(),
-    name: z.string(),
-    hash: z.string(),
-    completedAt: z.string(),
-  })),
-  currentGateInfo: z.object({
-    sequence: z.number(),
-    name: z.string(),
-    hash: z.string(),
-    estimatedComplexity: z.string(),
-  }).nullable(),
-  upcomingGates: z.array(z.object({
-    sequence: z.number(),
-    name: z.string(),
-    estimatedComplexity: z.string(),
-  })),
+  completedGates: z.array(
+    z.object({
+      sequence: z.number(),
+      name: z.string(),
+      hash: z.string(),
+      completedAt: z.string(),
+    })
+  ),
+  currentGateInfo: z
+    .object({
+      sequence: z.number(),
+      name: z.string(),
+      hash: z.string(),
+      estimatedComplexity: z.string(),
+    })
+    .nullable(),
+  upcomingGates: z.array(
+    z.object({
+      sequence: z.number(),
+      name: z.string(),
+      estimatedComplexity: z.string(),
+    })
+  ),
   architecture: z.object({
     layers: z.array(z.string()),
     keyDependencies: z.record(z.string(), z.string()),
@@ -198,6 +226,14 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
       gateBump: 'minor',
       lifecycleBump: 'major',
     },
+    architecture: {
+      complexity: {
+        maxMermaidNodes: 5,
+        maxMermaidEdges: 8,
+        nestingDepthMultiplier: 2,
+        svgCollapseThresholdBytes: 50000,
+      },
+    },
   }
 }
 
@@ -211,11 +247,9 @@ export async function loadConfig(projectRoot: string = process.cwd()): Promise<Z
   const configPath = getConfigPath(projectRoot)
 
   if (!fileExists(configPath)) {
-    throw new ConfigError(
-      `Configuration file not found: ${configPath}`,
-      'CONFIG_NOT_FOUND',
-      { path: configPath }
-    )
+    throw new ConfigError(`Configuration file not found: ${configPath}`, 'CONFIG_NOT_FOUND', {
+      path: configPath,
+    })
   }
 
   try {
@@ -238,17 +272,18 @@ export async function loadConfig(projectRoot: string = process.cwd()): Promise<Z
  * @param projectRoot - Project root directory (default: process.cwd())
  * @throws ConfigError if config is invalid or save fails
  */
-export async function saveConfig(config: ZenoConfig, projectRoot: string = process.cwd()): Promise<void> {
+export async function saveConfig(
+  config: ZenoConfig,
+  projectRoot: string = process.cwd()
+): Promise<void> {
   const configPath = getConfigPath(projectRoot)
 
   // Validate before saving
   const result = ZenoConfigSchema.safeParse(config)
   if (!result.success) {
-    throw new ConfigError(
-      'Invalid configuration',
-      'CONFIG_VALIDATION_FAILED',
-      { errors: result.error.issues }
-    )
+    throw new ConfigError('Invalid configuration', 'CONFIG_VALIDATION_FAILED', {
+      errors: result.error.issues,
+    })
   }
 
   try {
@@ -260,6 +295,36 @@ export async function saveConfig(config: ZenoConfig, projectRoot: string = proce
       { path: configPath },
       error instanceof Error ? error : undefined
     )
+  }
+}
+
+/**
+ * Get complexity thresholds merged with defaults.
+ * Falls back to hard-coded defaults when configuration is absent or invalid.
+ */
+export async function getComplexityThresholds(
+  projectRoot: string = process.cwd()
+): Promise<ComplexityThresholds> {
+  const defaults: ComplexityThresholds = {
+    maxMermaidNodes: 5,
+    maxMermaidEdges: 8,
+    nestingDepthMultiplier: 2,
+    svgCollapseThresholdBytes: 50000,
+  }
+
+  try {
+    const cfg = await loadConfig(projectRoot)
+    const complexity = cfg.architecture?.complexity
+
+    return {
+      maxMermaidNodes: complexity?.maxMermaidNodes ?? defaults.maxMermaidNodes,
+      maxMermaidEdges: complexity?.maxMermaidEdges ?? defaults.maxMermaidEdges,
+      nestingDepthMultiplier: complexity?.nestingDepthMultiplier ?? defaults.nestingDepthMultiplier,
+      svgCollapseThresholdBytes:
+        complexity?.svgCollapseThresholdBytes ?? defaults.svgCollapseThresholdBytes,
+    }
+  } catch {
+    return defaults
   }
 }
 
@@ -288,7 +353,9 @@ export function getProjectOverviewPath(projectRoot: string = process.cwd()): str
  * @returns Project overview data
  * @throws ConfigError if file doesn't exist or is invalid
  */
-export async function readProjectOverview(projectRoot: string = process.cwd()): Promise<ProjectOverview> {
+export async function readProjectOverview(
+  projectRoot: string = process.cwd()
+): Promise<ProjectOverview> {
   const overviewPath = getProjectOverviewPath(projectRoot)
 
   if (!fileExists(overviewPath)) {
@@ -304,11 +371,10 @@ export async function readProjectOverview(projectRoot: string = process.cwd()): 
 
     const result = ProjectOverviewSchema.safeParse(data)
     if (!result.success) {
-      throw new ConfigError(
-        'Invalid project overview format',
-        'PROJECT_OVERVIEW_INVALID',
-        { errors: result.error.issues, path: overviewPath }
-      )
+      throw new ConfigError('Invalid project overview format', 'PROJECT_OVERVIEW_INVALID', {
+        errors: result.error.issues,
+        path: overviewPath,
+      })
     }
 
     return result.data
@@ -324,4 +390,3 @@ export async function readProjectOverview(projectRoot: string = process.cwd()): 
     )
   }
 }
-

@@ -11,12 +11,7 @@ export const templateToolDefinitions = [
   },
   {
     name: 'template_get',
-    description: 'Get template content with metadata',
-    inputSchema: z.any(),
-  },
-  {
-    name: 'template_context',
-    description: 'Prepare template context for LLM',
+    description: 'Get template content with optional contextual metadata for LLM',
     inputSchema: z.any(),
   },
 ]
@@ -49,6 +44,7 @@ export function templateHandlers(
 
     template_get: async (args: Record<string, unknown>): Promise<CallToolResult> => {
       const nameVal = args['name']
+      const includeContextVal = args['includeContext']
       if (typeof nameVal !== 'string' || nameVal.length === 0) {
         return {
           content: [{ type: 'text', text: 'Error: template name is required' }],
@@ -58,6 +54,7 @@ export function templateHandlers(
 
       try {
         const name = nameVal
+        const includeContext = includeContextVal === true || includeContextVal === 'true'
         const artifact = await discovery.getArtifact('template', name)
         if (!artifact) {
           const payload = {
@@ -72,48 +69,14 @@ export function templateHandlers(
           }
         }
         const artifactStr = JSON.stringify(artifact, null, 2)
+        if (includeContext) {
+          const context = `Name: ${name}\nArtifact: ${artifactStr}`
+          return {
+            content: [{ type: 'text', text: context }],
+            structuredContent: { context, artifact },
+          }
+        }
         return { content: [{ type: 'text', text: artifactStr }], structuredContent: { artifact } }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
-        return {
-          content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-          structuredContent: { error: payload },
-          isError: true,
-        }
-      }
-    },
-
-    template_context: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-      const nameVal = args['name']
-      if (typeof nameVal !== 'string' || nameVal.length === 0) {
-        return {
-          content: [{ type: 'text', text: 'Error: template name is required' }],
-          isError: true,
-        }
-      }
-
-      try {
-        const name = nameVal
-        const artifact = await discovery.getArtifact('template', name)
-        if (!artifact) {
-          const payload = {
-            code: 'NOT_FOUND',
-            message: `Template not found: ${name}`,
-            timestamp: new Date().toISOString(),
-          }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-            structuredContent: { error: payload },
-            isError: true,
-          }
-        }
-        const artifactStr = JSON.stringify(artifact, null, 2)
-        const context = `Name: ${name}\nArtifact: ${artifactStr}`
-        return {
-          content: [{ type: 'text', text: context }],
-          structuredContent: { context, artifact },
-        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createMcpError, mcpErrorToToolResult, handleToolError, McpErrorCode } from '../../src/mcp/error-handler.js'
+import { createMcpError, mcpErrorToToolResult, handleToolError } from '../../src/mcp/error-handler.js'
 
 vi.mock('../../src/utils/logger.js', () => ({
   logger: {
@@ -17,7 +17,7 @@ describe('MCP Error Handler', () => {
     const err = new Error('Resource not found: gate-01')
     const res = createMcpError(err, { id: 'gate-01' })
 
-    expect(res.code).toBe(McpErrorCode.NOT_FOUND)
+    expect(res.code).toBe('NOT_FOUND')
     expect(res.message).toBe(err.message)
     expect(res.suggestions).toEqual(expect.arrayContaining([expect.stringContaining('Check if the requested resource exists')]))
     expect(res.context).toEqual({ id: 'gate-01' })
@@ -27,14 +27,14 @@ describe('MCP Error Handler', () => {
     const err = new Error('Validation failed: missing field')
     const res = createMcpError(err)
 
-    expect(res.code).toBe(McpErrorCode.VALIDATION_FAILED)
+    expect(res.code).toBe('VALIDATION_ERROR')
     expect(res.suggestions).toEqual(expect.arrayContaining([expect.stringContaining('Check the input parameters')]))
   })
 
   it('handles non-Error input as internal error with unknown message', () => {
     const res = createMcpError('some string error' as unknown)
 
-    expect(res.code).toBe(McpErrorCode.INTERNAL_ERROR)
+    expect(res.code).toBe('INTERNAL_ERROR')
     expect(res.message).toBe('Unknown error occurred')
   })
 

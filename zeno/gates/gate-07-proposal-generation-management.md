@@ -38,8 +38,8 @@ Implements proposal generation and management system that decomposes gate-specif
 - [ ] Implement proposal storage system (markdown files in `zeno/proposals/gate-XX/`)
 - [ ] Build proposal-to-requirement mapping (know which requirements each proposal addresses)
 - [ ] Implement proposal status tracking (pending, in_progress, completed, rejected)
-- [ ] Create proposal archival system (completed proposals moved to `zeno/proposals/archive/`)
-- [ ] Build immutable proposal references (hash-based archival)
+- [ ] Ensure completed proposals remain in gate proposal directories with immutable hash references
+- [ ] Integrate completed proposal summaries into gate archival artifacts on gate completion
 
 ### Proposal Dependency Tracking
 - [ ] Implement proposal dependency analysis (which proposals depend on others)
@@ -84,7 +84,7 @@ Gate 01-06 established:
 - Proposal template system with markdown structure
 - Proposal generation from gate requirements
 - Specification changes recorded as RFC 2119-compliant requirement updates in SQLite
-- Proposal storage in `zeno/proposals/gate-XX/` and `zeno/proposals/archive/`
+- Proposal storage in `zeno/proposals/gate-XX/`
 - Proposal-to-requirement mapping
 - Proposal dependency analysis and sequencing
 - `zeno proposal list`, `zeno proposal show`, `zeno proposal start` commands
@@ -105,12 +105,12 @@ Gate 01-06 established:
 2. **Requirement Traceability** — Each proposal traceable back to originating requirement(s)
 3. **Dependency Understanding** — Proposal dependencies visible for proper sequencing
 4. **RFC 2119 Specifications** — Design decisions recorded as structured requirements using RFC 2119 keywords
-5. **Proposal Immutability** — Completed proposals archived with hash-based references
+5. **Proposal Immutability** — Completed proposals retain hash-based references and are integrated into gate archives
 
 ## Technical Decisions
 
 ### 1. Markdown-Based Proposal Storage
-- **Choice**: Store proposals as markdown files, archive to `zeno/proposals/archive/`
+- **Choice**: Store proposals as markdown files within gate proposal directories and keep completion metadata in place
 - **Alternatives Considered**: Proposals in SQLite, YAML format
 - **Rationale**: Markdown is human-readable, version-controllable, integrates with Git.
 
@@ -124,12 +124,13 @@ Gate 01-06 established:
 - **Choice**: Build dependency graph from proposal-requirement mappings and explicit cross-proposal dependencies
 - **Rationale**: Enables parallelization detection and proper sequencing.
 
-### 4. Solitary vs Gate-Tied Proposal Archival
-- **Choice**: Gate-tied proposals maintain individual archive copies per gate; solitary proposals consolidate into single registry (`zeno/gates/archive/solitary.md`)
-- **Rationale**: Gate-tied proposals are milestone-driven and state-coupled (require requirement synchronization, gate completion detection, dependency notifications). Solitary proposals are cross-cutting improvements (no parent gate, no per-gate state management). Consolidation at proposal level (solitary) vs gate completion level (gate-tied) reflects their different lifecycles.
-- **Requirements Tracking**: Only gate-tied proposals perform requirement status updates (mandatory per-gate requirement fulfillment). Solitary proposals have no requirement tracking; they are tracked only in the consolidation registry.
-- **Filename Conventions**: Solitary: `#s<hash>` prefix; Gate-Tied: `#p<gate><hash>` prefix. Hash-based references ensure immutable content-addressable storage for both types.
-- **Context Reduction**: Consolidation strategy (registry vs individual archives) balances context efficiency with historical traceability.
+### 4. Gate-Centric Historical Retention
+### 4. Gate-Centric Historical Archival
+- **Choice**: Gate artifacts are the sole long-term archive target; proposals are completed in place and summarized in gate archives
+- **Rationale**: Proposals are execution-scoped working artifacts, while gates are milestone records. Gate-centric archival removes duplicate storage and preserves milestone-level traceability.
+- **Requirements Tracking**: Proposal completion updates requirement progress; gate completion finalizes tested state and archival integration.
+- **Hash References**: Proposal hashes remain stable for dependency tracking, while gate archive artifacts provide long-term reference.
+- **Context Reduction**: Single archival surface (gates) reduces lifecycle complexity and avoids parallel archive hierarchies.
 
 ## Implementation Steps
 
@@ -153,7 +154,7 @@ Gate 01-06 established:
 - [ ] Design decisions recorded as RFC 2119 requirement updates in SQLite
 - [ ] Proposal status transitions (pending → in_progress) work correctly
 - [ ] Proposals stored and retrieved from markdown files with full metadata
-- [ ] Proposal archival correctly moves completed proposals with hash-based references
+- [ ] Gate completion integrates completed proposal summaries into gate archival artifacts
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for proposal module
 - [ ] Zero lint errors, zero type errors

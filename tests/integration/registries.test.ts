@@ -6,7 +6,6 @@ import { registerRequirementsOps } from '../../src/integration/requirements-regi
 import { registerArchiveOps } from '../../src/integration/archive-registry.js'
 import { registerConfigOps } from '../../src/integration/config-registry.js'
 import { registerTemplateOps } from '../../src/integration/template-registry.js'
-import { registerWorkflowOps } from '../../src/integration/workflow-registry.js'
 import { registerRepositoryOps, registerArchitectureOps, registerAnalysisOps } from '../../src/integration/schema-registry.js'
 
 describe('Domain Registries', () => {
@@ -48,12 +47,10 @@ describe('Domain Registries', () => {
     expect(registry.get('template_get')).toBeDefined()
   })
 
-  it('registers workflow and archive functions', () => {
+  it('registers archive functions', () => {
     const registry = new FunctionRegistry()
-    registerWorkflowOps(registry)
     registerArchiveOps(registry)
 
-    expect(registry.get('generateProposals')).toBeDefined()
     expect(registry.get('archive_action')).toBeDefined()
   })
 

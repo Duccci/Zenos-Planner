@@ -150,4 +150,120 @@ code
     expect(result.totalBlankLines).toBe(0);
     expect(result.totalCommentLines).toBe(0);
   });
+
+  it('handles string literals with comment-like content', async () => {
+    const content = `const str = "// not a comment";
+const another = '/* also not */'`;
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(2);
+    expect(result.codeLines).toBe(2);
+    expect(result.commentLines).toBe(0);
+  });
+
+  it('handles template literals with comment-like content', async () => {
+    const content = 'const tpl = `// not comment`;';
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(1);
+    expect(result.codeLines).toBe(1);
+    expect(result.commentLines).toBe(0);
+  });
+
+  it('handles inline comments mixed with code', async () => {
+    const content = `const x = 5; // assign
+const y = 10; /* also assign */
+console.log(x); // log`;
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(3);
+    expect(result.codeLines).toBe(3);
+    expect(result.commentLines).toBe(0); // inline comments count as code lines that contain comments
+  });
+
+  it('handles nested block comments', async () => {
+    const content = `/* outer
+/* inner */
+outer */
+code`;
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(4);
+    // Nested comments might be handled differently
+    expect(result.codeLines).toBeGreaterThan(0);
+  });
+
+  it('handles file with only whitespace', async () => {
+    const content = '   \n\t\n   ';
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(3);
+    expect(result.blankLines).toBe(3);
+    expect(result.codeLines).toBe(0);
+  });
+
+  it('handles single-line files properly', async () => {
+    const content = 'single line of code';
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(1);
+    expect(result.codeLines).toBe(1);
+  });
+
+  it('handles file with only comments', async () => {
+    const content = `// comment 1
+// comment 2
+/* comment 3 */`;
+
+    const filePath = path.join(tempDir, 'test.ts');
+    await fs.writeFile(filePath, content);
+
+    const result = await countLines(filePath);
+
+    expect(result.totalLines).toBe(3);
+    expect(result.codeLines).toBeGreaterThanOrEqual(0);
+    expect(result.commentLines).toBeGreaterThan(0);
+  });
+
+  it('calculates aggregate metrics correctly', async () => {
+    const file1 = path.join(tempDir, 'file1.ts');
+    await fs.writeFile(file1, `code1
+//comment
+code2`);
+
+    const file2 = path.join(tempDir, 'file2.ts');
+    await fs.writeFile(file2, `function test() {
+  return 42;
+}`);
+
+    const result = await countLOCMetrics([file1, file2]);
+
+    expect(result.files.size).toBe(2);
+    expect(result.totalLines).toBeGreaterThan(0);
+    expect(result.totalCodeLines).toBeGreaterThan(0);
+  });
 });

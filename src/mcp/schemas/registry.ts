@@ -3,6 +3,10 @@ import { GatesActionInputSchema, GatesActionOutputSchema } from './gates-action-
 import { ProposalActionInputSchema, ProposalActionOutputSchema } from './proposal-action-schemas.js'
 import { ReqActionInputSchema, ReqActionOutputSchema } from './req-action-schemas.js'
 import { ArchiveActionInputSchema, ArchiveActionOutputSchema } from './archive-schemas.js'
+import {
+  RepositoryActionInputSchema,
+  RepositoryActionOutputSchema,
+} from './repository-action-schemas.js'
 import { ConfigGetOutputSchema } from './config-schemas.js'
 
 /**
@@ -12,18 +16,30 @@ import { ConfigGetOutputSchema } from './config-schemas.js'
 export const ToolRegistry = {
   gates: {
     toolName: 'gates_action',
-    actions: ['list', 'show', 'create', 'start', 'complete', 'regenerate'] as const,
+    actions: ['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate'] as const,
     inputSchema: GatesActionInputSchema,
     outputSchema: GatesActionOutputSchema,
-    description: 'Unified gate lifecycle: list, show, create, start, complete, regenerate',
+    description:
+      'REQUIRED: Use gates_action to manage project gates. Actions: list (all gates), show (by gateId), create (new), generate (from requirements), start (pending→in_progress), complete (→completed), regenerate (after rescope).',
   },
 
   proposals: {
     toolName: 'proposal_action',
-    actions: ['list', 'show', 'create', 'validate', 'approve', 'reject', 'start'] as const,
+    actions: [
+      'list',
+      'show',
+      'create',
+      'generate',
+      'validate',
+      'approve',
+      'reject',
+      'start',
+      'progress',
+    ] as const,
     inputSchema: ProposalActionInputSchema,
     outputSchema: ProposalActionOutputSchema,
-    description: 'Unified proposal lifecycle and management',
+    description:
+      'REQUIRED: Use proposal_action to manage implementation proposals. Actions: list (by gate), show (by hash), create (new for gate), generate (from gate PRD), validate (run checks), approve (merge), reject (with reason), start (create worktree), progress (update task during implementation).',
   },
 
   requirements: {
@@ -31,15 +47,26 @@ export const ToolRegistry = {
     actions: ['list', 'show', 'deps', 'transfer'] as const,
     inputSchema: ReqActionInputSchema,
     outputSchema: ReqActionOutputSchema,
-    description: 'Unified requirement actions: list, show, deps, transfer',
+    description:
+      'REQUIRED: Use req_action to query the requirements database. Actions: list (all/by gate), show (details by hash), deps (dependency graph), transfer (move to different gate). Call this whenever you need requirement info.',
+  },
+
+  repositories: {
+    toolName: 'repos_action',
+    actions: ['list', 'detect', 'deps', 'adjust'] as const,
+    inputSchema: RepositoryActionInputSchema,
+    outputSchema: RepositoryActionOutputSchema,
+    description:
+      'REQUIRED: Use repos_action for repository management and analysis. Actions: list (view detected repositories), detect (re-run boundary detection), deps (view dependency graph), adjust (manually adjust boundaries).',
   },
 
   archives: {
     toolName: 'archive_action',
-    actions: ['gate', 'proposal', 'batch'] as const,
+    actions: ['gate', 'batch'] as const,
     inputSchema: ArchiveActionInputSchema,
     outputSchema: ArchiveActionOutputSchema,
-    description: 'Unified archive actions: gate, proposal, batch',
+    description:
+      'REQUIRED: Use archive_action to finalize completed gate work. Actions: gate (archive completed gate), batch (multiple gates).',
   },
 
   config: {
@@ -47,7 +74,8 @@ export const ToolRegistry = {
     actions: ['get'] as const,
     inputSchema: z.object({}).optional(),
     outputSchema: ConfigGetOutputSchema,
-    description: 'Get configuration and quality thresholds',
+    description:
+      'REQUIRED: Use config_get to retrieve quality thresholds and project configuration.',
   },
 } as const
 

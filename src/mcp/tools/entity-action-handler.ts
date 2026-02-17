@@ -41,7 +41,7 @@ export interface EntityActionConfig<T extends string> {
 export function createEntityActionHandler<T extends string>(
   config: EntityActionConfig<T>,
   registry?: FunctionRegistry
-) {
+): (args: Record<string, unknown>) => Promise<CallToolResult> {
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     if (!registry) return createNotImplementedHandler(`${config.entity} action requires registry`)
 

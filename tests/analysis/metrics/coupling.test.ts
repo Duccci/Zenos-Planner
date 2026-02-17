@@ -214,4 +214,134 @@ describe('calculateCoupling', () => {
       `${projectRoot}/local.ts`,
     ]);
   });
+
+  it('calculates coupling for circular dependencies', () => {
+    const modules = new Map<string, Module>([
+      [`${projectRoot}/a.ts`, {
+        filePath: `${projectRoot}/a.ts`,
+        relativePath: 'a.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { 
+          imports: [{ source: './b', names: ['b'], isDefault: false, isDynamic: false }], 
+          exports: [], 
+          reexports: [] 
+        },
+        linesOfCode: 10,
+      }],
+      [`${projectRoot}/b.ts`, {
+        filePath: `${projectRoot}/b.ts`,
+        relativePath: 'b.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { 
+          imports: [{ source: './a', names: ['a'], isDefault: false, isDynamic: false }], 
+          exports: [], 
+          reexports: [] 
+        },
+        linesOfCode: 10,
+      }],
+    ]);
+
+    const result = calculateCoupling(modules);
+
+    // Both have instability = 0.5 (1 dependency, 1 dependent)
+    expect(result.modules.get(`${projectRoot}/a.ts`)!.afferent).toBe(1);
+    expect(result.modules.get(`${projectRoot}/a.ts`)!.efferent).toBe(1);
+    expect(result.modules.get(`${projectRoot}/a.ts`)!.instability).toBe(0.5);
+
+    expect(result.modules.get(`${projectRoot}/b.ts`)!.afferent).toBe(1);
+    expect(result.modules.get(`${projectRoot}/b.ts`)!.efferent).toBe(1);
+    expect(result.modules.get(`${projectRoot}/b.ts`)!.instability).toBe(0.5);
+  });
+
+  it('calculates coupling with reexports', () => {
+    const modules = new Map<string, Module>([
+      [`${projectRoot}/index.ts`, {
+        filePath: `${projectRoot}/index.ts`,
+        relativePath: 'index.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { 
+          imports: [{ source: './util', names: ['util'], isDefault: false, isDynamic: false }],
+          exports: [], 
+          reexports: []
+        },
+        linesOfCode: 5,
+      }],
+      [`${projectRoot}/util.ts`, {
+        filePath: `${projectRoot}/util.ts`,
+        relativePath: 'util.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 10,
+      }],
+    ]);
+
+    const result = calculateCoupling(modules);
+
+    expect(result.modules.get(`${projectRoot}/index.ts`)!.efferent).toBe(1);
+    expect(result.modules.get(`${projectRoot}/util.ts`)!.afferent).toBe(1);
+  });
+
+  it('handles empty modules map', () => {
+    const modules = new Map<string, Module>();
+    const result = calculateCoupling(modules);
+
+    expect(result.modules.size).toBe(0);
+    expect(result.averageInstability).toBe(0);
+    expect(result.highCoupling).toEqual([]);
+  });
+
+  it('detects high instability threshold correctly', () => {
+    const modules = new Map<string, Module>([
+      [`${projectRoot}/unstable.ts`, {
+        filePath: `${projectRoot}/unstable.ts`,
+        relativePath: 'unstable.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { 
+          imports: [
+            { source: './a', names: ['a'], isDefault: false, isDynamic: false },
+            { source: './b', names: ['b'], isDefault: false, isDynamic: false },
+            { source: './c', names: ['c'], isDefault: false, isDynamic: false },
+          ], 
+          exports: [], 
+          reexports: [] 
+        },
+        linesOfCode: 10,
+      }],
+      [`${projectRoot}/a.ts`, {
+        filePath: `${projectRoot}/a.ts`,
+        relativePath: 'a.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 10,
+      }],
+      [`${projectRoot}/b.ts`, {
+        filePath: `${projectRoot}/b.ts`,
+        relativePath: 'b.ts', 
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 10,
+      }],
+      [`${projectRoot}/c.ts`, {
+        filePath: `${projectRoot}/c.ts`,
+        relativePath: 'c.ts',
+        extension: '.ts',
+        ast: {} as any,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 10,
+      }],
+    ]);
+
+    const result = calculateCoupling(modules);
+    
+    // unstable.ts has instability = 1.0 (3 dependencies, 0 dependents)
+    expect(result.modules.get(`${projectRoot}/unstable.ts`)!.instability).toBe(1.0);
+    expect(result.highCoupling.some(m => m.filePath === `${projectRoot}/unstable.ts`)).toBe(true);
+  });
 });

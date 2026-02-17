@@ -40,7 +40,7 @@ zeno/
 ├── proposals/
 │   ├── gate-XX/<name>.md       # Active proposals by gate
 │   ├── solitary/<name>.md      # Out-of-gate proposals
-│   └── archive/                # Archived proposals (hash-named)
+│   └── (no long-term archive; proposals are consolidated into gates)
 ├── requirements/               # README for DB access
 └── subprojects/                # Multi-repo detection artifacts
 ```
@@ -86,7 +86,7 @@ Gate roadmap shows gate-level structure only; detailed features are in gate-spec
 
 ### Proposals (`proposals/gate-XX/<name>.md`)
 
-Active proposals organized by gate. Archived proposals stored as `proposals/archive/<hash>.md`. Each proposal contains: title, hash, gate, tasks (checkbox list), files affected, dependencies, and acceptance criteria.
+Active proposals organized by gate. Completed proposals remain in place until gate completion, where they are consolidated into gate archive artifacts under `gates/archive/`. Each proposal contains: title, hash, gate, tasks (checkbox list), files affected, dependencies, and acceptance criteria.
 
 ### Commits & Traceability
 

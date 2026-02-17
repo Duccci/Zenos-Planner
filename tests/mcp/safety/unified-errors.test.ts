@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ErrorCodeEnum, ErrorResponseSchema, ErrorContextSchema } from '../../../src/mcp/schemas/common-schemas.js'
-import { createMcpError, McpErrorCode, handleToolError } from '../../../src/mcp/error-handler.js'
+import { createMcpError, handleToolError } from '../../../src/mcp/error-handler.js'
 
 describe('unified error format', () => {
   describe('ErrorCodeEnum', () => {

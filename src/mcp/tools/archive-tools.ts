@@ -18,13 +18,17 @@ import {
 export const archiveToolDefinitions = [
   {
     name: 'archive_action',
-    description: 'Unified archive actions: gate, proposal, batch',
+    description: `REQUIRED TOOL: Use archive_action to finalize completed gate work.
+
+Actions: gate (archive completed gate), batch (archive multiple completed gates at once).
+
+Call this tool when: a gate is complete and needs archival, or you need to archive multiple completed gates.`,
     inputSchema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['gate', 'proposal', 'batch'],
+          enum: ['gate', 'batch'],
           description: 'The archive action to perform',
         },
         payload: {
@@ -45,13 +49,12 @@ export function archiveHandlers(
   const archiveActionHandler = createEntityActionHandler(
     {
       entity: 'archive',
-      actions: ['gate', 'proposal', 'batch'] as const,
+      actions: ['gate', 'batch'] as const,
       inputSchema: ArchiveActionInputSchema,
       outputSchema: ArchiveActionOutputSchema,
       actionOutputSchema: getArchiveActionOutputSchema,
       actionHandlers: {
         gate: async (payload, r) => r.invoke('archive_action', { action: 'gate', payload }),
-        proposal: async (payload, r) => r.invoke('archive_action', { action: 'proposal', payload }),
         batch: async (payload, r) => r.invoke('archive_action', { action: 'batch', payload }),
       },
     },

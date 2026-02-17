@@ -89,33 +89,16 @@ describe('completions: completeGate and approveProposal flows', () => {
     const findMod = await import('../../src/utils/config.js')
     vi.spyOn(findMod, 'findProjectRoot').mockReturnValue(projectRoot)
 
-    // mock initialize and provide stub DB
-    const gateRow = { id: 'gate-01', name: 'Test Gate', status: 'pending' }
-    const stubPrepare = vi.fn().mockImplementation((q: string) => {
-      const normalized = q.replace(/\s+/g, ' ').toLowerCase()
-      if (normalized.includes('from gates') && normalized.includes('where id')) {
-        return { get: (id: string) => (id === 'gate-01' ? gateRow : undefined) }
-      }
-      if (normalized.includes("count(*)")) {
-        return { get: () => ({ count: 0 }) }
-      }
-      if (normalized.includes('select hash from proposals where gate_id')) {
-        return { all: () => [] }
-      }
-      // generic runner
-      return { run: () => undefined, all: () => [] }
-    })
-
-    const dbMock = await import('../../src/storage/database.js')
-    // configure mock to return stub DB for this test
-    ;(dbMock as any).__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
-
-    try {
-      // mock analyzers and regenerators
-      const analyzer = await import('../../src/core/write-time-analyzer.js')
+    // Setup all mocks BEFORE importing the module under test
+    const analyzer = await import('../../src/core/write-time-analyzer.js')
     vi.spyOn(analyzer, 'analyzeGateChanges').mockResolvedValue(undefined as any)
+    
     const generator = await import('../../src/core/gate-generator.js')
     vi.spyOn(generator, 'regenerateGatesWithAnalysis').mockResolvedValue({ originalGates: [], suggestedGates: [], changes: [], reasoning: '' } as any)
+
+    // mock PRD updater to avoid reading PROJECT_PRD.md
+    const prdUpdater = await import('../../src/core/prd-updater.js')
+    vi.spyOn(prdUpdater, 'updateProjectPRDGates').mockResolvedValue(undefined as any)
 
     // mock consolidation and file ops
     const consolidation = await import('../../src/utils/gate-consolidation.js')
@@ -123,7 +106,7 @@ describe('completions: completeGate and approveProposal flows', () => {
     vi.spyOn(consolidation, 'generateConsolidationMarkdown').mockReturnValue('MD')
 
     const fileMod = await import('../../src/utils/file.js')
-    vi.spyOn(fileMod, 'readFile').mockRejectedValue(new Error('no file'))
+    vi.spyOn(fileMod, 'readFile').mockResolvedValue('# Mock content\n' as any)
     vi.spyOn(fileMod, 'writeFile').mockResolvedValue(undefined as any)
     vi.spyOn(fileMod, 'ensureDir').mockResolvedValue(undefined as any)
 
@@ -151,19 +134,41 @@ describe('completions: completeGate and approveProposal flows', () => {
     const versionMod = await import('../../src/utils/version.js')
     vi.spyOn(versionMod, 'bumpSemver').mockImplementation((v: string) => '2.0.0' as any)
 
+    // NOW import the module under test after all mocks are set up
     const mod = await import('../../src/core/completions.ts')
 
-    const res = await mod.completeGate('gate-1', { push: true })
+    // mock database state
+    const gateRow = { id: 'gate-01', name: 'Test Gate', status: 'pending' }
+    const stubPrepare = vi.fn().mockImplementation((q: string) => {
+      const normalized = q.replace(/\s+/g, ' ').toLowerCase()
+      if (normalized.includes('from gates') && normalized.includes('where id')) {
+        return { get: (id: string) => (id === 'gate-01' ? gateRow : undefined) }
+      }
+      if (normalized.includes("count(*)")) {
+        return { get: () => ({ count: 0 }) }
+      }
+      if (normalized.includes('select hash from proposals where gate_id')) {
+        return { all: () => [] }
+      }
+      // generic runner
+      return { run: () => undefined, all: () => [] }
+    })
 
-    expect(res.bump).toBe('major')
-    expect(res.gateId).toBe('gate-01')
-    expect(saveSpy).toHaveBeenCalled()
-    expect(syncSpy).toHaveBeenCalled()
+    const dbMock = await import('../../src/storage/database.js')
+    ;(dbMock as any).__setMockDbState({ getStub: { prepare: stubPrepare, transaction: (fn: any) => (...args: any[]) => fn(...args) } })
 
-    // check that syncWithGit was called with autoPush true (because options.push === true)
-    const calledWith = syncSpy.mock.calls[0][0] as any
-    expect(calledWith.autoPush).toBe(true)
-    
+    try {
+      const res = await mod.completeGate('gate-1', { push: true })
+
+      expect(res.bump).toBe('major')
+      expect(res.gateId).toBe('gate-01')
+      expect(saveSpy).toHaveBeenCalled()
+      expect(syncSpy).toHaveBeenCalled()
+
+      // check that syncWithGit was called with autoPush true (because options.push === true)
+      const calledWith = syncSpy.mock.calls[0][0] as any
+      expect(calledWith.autoPush).toBe(true)
+      
     } finally {
       const dbMock = await import('../../src/storage/database.js')
       if (dbMock && (dbMock as any).__setMockDbState) (dbMock as any).__setMockDbState({})
@@ -199,6 +204,13 @@ describe('completions: completeGate and approveProposal flows', () => {
     try {
       const fileMod = await import('../../src/utils/file.js')
       vi.spyOn(fileMod, 'ensureDir').mockResolvedValue(undefined as any)
+      vi.spyOn(fileMod, 'readFile').mockImplementation(async (path: string) => {
+        if (path.endsWith('something.md')) {
+          return `# Proposal: Add feature\n\n**Hash**: #abc\n\n## Summary\n\nThis adds a new command` 
+        }
+        throw new Error('no file')
+      })
+      vi.spyOn(fileMod, 'writeFile').mockResolvedValue(undefined as any)
 
       vi.mock('node:fs/promises', () => ({
         readdir: vi.fn(async (p: string) => {
@@ -210,13 +222,6 @@ describe('completions: completeGate and approveProposal flows', () => {
         unlink: vi.fn().mockResolvedValue(undefined),
         mkdir: vi.fn().mockResolvedValue(undefined)
       }))
-
-      const readSpy = vi.spyOn(fileMod, 'readFile').mockImplementation(async (p: string) => {
-        if (p.endsWith('something.md')) {
-          return `# Proposal: Add feature\n\n**Hash**: #abc\n\n## Summary\n\nThis adds a new command` 
-        }
-        return ''
-      })
 
       const { rename: renameSpy } = await import('node:fs/promises')
 

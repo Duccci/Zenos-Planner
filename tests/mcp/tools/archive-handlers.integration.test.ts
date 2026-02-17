@@ -21,23 +21,6 @@ describe('Archive Handlers (integration)', () => {
     expect(ok.data.action).toBe('gate')
   })
 
-  it('parses and validates archive proposal output', async () => {
-    const mockData = { success: true, hash: 'abc12345', title: 'Title', type: 'gate-tied', gateId: 'gate-01', archivedAt: new Date().toISOString(), location: 'zeno/proposals/archive/gate-01/abc12345.md', updatedRequirements: [], unblockedProposals: [], gateStatus: 'in_progress', summary: 'Archived proposal' }
-    const fakeRegistry: any = {
-      invoke: () =>({ success: true, data: mockData })
-    }
-
-    const handlers = archiveHandlers(fakeRegistry)
-    const res = await handlers.archive_action({ action: 'proposal', payload: { hash: 'abc12345' } })
-
-    expect(res).toBeDefined()
-    expect(res.isError).toBeUndefined()
-    const ok = ArchiveActionOutputSchema.safeParse(res.structuredContent)
-    if (!ok.success) console.error('Archive action proposal schema errors:', JSON.stringify(ok.error.format(), null, 2), 'structured:', JSON.stringify(res.structuredContent, null, 2))
-    expect(ok.success).toBe(true)
-    expect(ok.data.action).toBe('proposal')
-  })
-
   it('parses and validates archive batch output', async () => {
     const mockData = { success: true, archivedCount: 0, results: [], summary: 'ok' }
     const fakeRegistry: any = {
@@ -45,7 +28,7 @@ describe('Archive Handlers (integration)', () => {
     }
 
     const handlers = archiveHandlers(fakeRegistry)
-    const res = await handlers.archive_action({ action: 'batch', payload: { artifacts: [] } })
+    const res = await handlers.archive_action({ action: 'batch', payload: { artifacts: [{ type: 'gate', gateId: 'gate-01' }] } })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()

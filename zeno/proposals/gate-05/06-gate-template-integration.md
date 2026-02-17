@@ -1,15 +1,22 @@
 # Proposal: Gate Template Integration
 
-**Hash**: #p05g06gatetmpl0
-**Gate**: gate-05 - Architecture & Diagram Generation
-**Status**: pending
-**Created**: 2026-02-09
+**Hash**: #p05g06gatetmpl0  
+**Gate**: #g05archdiag - Architecture & Diagram Generation  
+**Requirement**: Automatic Diagram Generation, Smart Diagram Selection  
+**Status**: pending  
+**Created**: 2026-02-13
 
 ---
 
 ## Summary
 
-Extends the gate PRD template with structured diagram metadata in the existing `### Architecture Diagrams` section, enabling per-gate diagram planning with names, types, ordering, and inter-diagram dependencies. Integrates this metadata into the gate generation algorithm so diagram plans are produced alongside requirements at gate creation time.
+Integrates architecture diagram metadata into the gate PRD template and gate generation flow. Adds an `## Architecture Diagrams` section to the gate PRD template listing applicable diagrams with name, type, and order. Implements gate structure change detection that notifies the LLM via MCP when gates are created, reordered, or rescoped, triggering architecture review.
+
+---
+
+## Single-Phase Requirement
+
+All work in this proposal is independent and parallelizable. No multi-phase sequencing.
 
 ---
 
@@ -17,60 +24,71 @@ Extends the gate PRD template with structured diagram metadata in the existing `
 
 ### Why This Change
 
-Technical Decision 11 specifies that diagram names, ordering, and dependencies are defined in the gate template during gate generation. The existing gate template already has a placeholder `### Architecture Diagrams` section (line 147 of `gate-prd-template.md`), but it lacks structured metadata for parallelization and subagent tasking. This proposal upgrades that section into a machine-readable format that supports concurrent diagram generation and prepares for Gate 12 (Subagent Orchestration).
+Gate PRDs need to declare which architecture diagrams apply to each gate, enabling the LLM to generate them alongside requirements. Gate structure changes (adding, removing, reordering gates) must propagate to architecture artifacts so diagrams stay current. This proposal connects the gate generation flow to the diagram system.
 
 ### Dependencies
 
 | Hash | Type | Description |
 |------|------|-------------|
-| #p05g05selctmet0 | requires | Provides DiagramSelector that determines which diagrams are planned for each gate |
+| #p05g05diagselec | requires | Diagram catalogue and selection logic for populating gate template diagram section |
 
 ---
 
 ## Tasks
 
-### Task 1: Update Gate PRD Template Architecture Diagrams Section
+### Task 1: Add Architecture Diagrams Section to Gate PRD Template
 
-**File(s)**: `templates/md-templates/gate-prd-template.md`
+**File(s)**: `templates/md-templates/gate-prd-template.md`  
 **Action**: modify
 
-Replace the current `### Architecture Diagrams` section (lines 147-152) with a structured format containing a markdown table with columns: Diagram Name, Type (from the diagram type enum), Order (integer for sequencing), Dependencies (comma-separated diagram names that must complete first), and Status (pending/generated/skipped). Add a comment block explaining the parallelization semantics: diagrams with no dependencies can be generated concurrently, diagrams with dependencies must wait. Keep the existing guidance text but add the structured table and usage instructions.
+Add an `## Architecture Diagrams` section between the existing `## Requirements` and `## Technical Decisions` sections. The section contains a table with columns: `Name` (diagram display name), `Type` (DiagramType value), `Order` (integer for generation sequence), `Status` (pending/generated). Include a placeholder comment instructing the LLM to populate this section based on the diagram catalogue. Add a note that core diagrams (system-overview, data-flow, gate-lifecycle, gate-roadmap, context) are always included, and conditional diagrams should be selected based on the gate's scope.
 
 **Acceptance**:
-- [ ] `### Architecture Diagrams` section contains a structured markdown table
-- [ ] Table includes columns: Diagram Name, Type, Order, Dependencies, Status
-- [ ] Comment block explains parallelization semantics
-- [ ] Backward-compatible with existing gate PRDs (new section is additive)
+- [ ] Template includes `## Architecture Diagrams` section
+- [ ] Table structure has Name, Type, Order, Status columns
+- [ ] Instructional comment present for LLM guidance
+- [ ] Core diagrams listed as always-included
+- [ ] Section positioned between Requirements and Technical Decisions
 
----
+### Task 2: Update Gate Generation to Include Diagram Metadata
 
-### Task 2: Integrate Diagram Metadata into Gate Generation
-
-**File(s)**: `src/core/proposal-writer.ts`
+**File(s)**: `src/generation/gate-writer.ts`  
 **Action**: modify
 
-Modify the gate PRD generation logic to populate the `### Architecture Diagrams` table when generating new gates. Use the `DiagramSelector` to determine which diagrams apply to the gate being generated. For core diagrams, always include entries. For conditional diagrams, include entries only when the selector determines the gate's complexity warrants them. Set initial status to `pending` for all entries. Compute ordering by placing independent diagrams first and dependent diagrams after their prerequisites.
+Extend the gate writing logic to populate the `## Architecture Diagrams` section when generating a gate PRD. Always include the five core diagram entries with sequential order numbers. Leave conditional diagram rows empty with a comment that the LLM will select additional diagrams via `arch_select` MCP tool during gate start. The gate writer reads diagram names from the `DIAGRAM_CATALOGUE` constant.
 
 **Acceptance**:
-- [ ] New gate PRDs include populated Architecture Diagrams table
-- [ ] Core diagrams always present with correct metadata
-- [ ] Conditional diagrams included based on DiagramSelector results
-- [ ] Ordering reflects dependency relationships
-- [ ] All entries have initial status `pending`
+- [ ] Generated gate PRDs include Architecture Diagrams section
+- [ ] Five core diagrams pre-populated in the table
+- [ ] Conditional diagram slots left for LLM selection
+- [ ] Order numbers assigned sequentially
 
----
+### Task 3: Implement Gate Structure Change Detection
 
-### Task 3: Add Diagram Metadata Types
+**File(s)**: `src/generation/gate-change-detector.ts`  
+**Action**: create
 
-**File(s)**: `src/generation/types.ts`
+Implement `GateChangeDetector` class with: `detectChanges(previousGates: GateMetadata[], currentGates: GateMetadata[]): GateChangeEvent[]` that compares gate lists and produces change events for: `gate_added`, `gate_removed`, `gate_reordered`, `gate_rescoped`. Define `GateChangeEvent` interface with: `type`, `gateHash`, `gateName`, `details` (human-readable description). Implement `shouldTriggerArchReview(events: GateChangeEvent[]): boolean` that returns `true` if any event type warrants architecture diagram review (all types except minor metadata changes).
+
+**Acceptance**:
+- [ ] Detects gate additions correctly
+- [ ] Detects gate removals correctly
+- [ ] Detects gate reordering correctly
+- [ ] `shouldTriggerArchReview()` returns true for structural changes
+- [ ] Change events include descriptive details
+
+### Task 4: Integrate Change Detection into Gate Lifecycle
+
+**File(s)**: `src/core/gate-generation.ts`  
 **Action**: modify
 
-Add `GateDiagramEntry` interface with fields: `name` (string), `type` (DiagramType union), `order` (number), `dependencies` (string array of diagram names), `status` ('pending' | 'generated' | 'skipped'). Add `GateDiagramPlan` interface containing `gateId` (string), `gateHash` (string), and `diagrams` (GateDiagramEntry array). These types support both the template generation and the runtime orchestration.
+After gate generation or gate completion, invoke `GateChangeDetector.detectChanges()` to compare the previous gate list (from `project-overview.json`) with the newly generated list. If `shouldTriggerArchReview()` returns `true`, emit an architecture review notification via the MCP notification mechanism (or log a structured message that the MCP server can surface to the LLM). The notification includes the change events and a suggestion to run `arch_generate`.
 
 **Acceptance**:
-- [ ] `GateDiagramEntry` interface exported with all specified fields
-- [ ] `GateDiagramPlan` interface exported with gateId, gateHash, and diagrams
-- [ ] Types consistent with existing patterns in the file
+- [ ] Gate generation triggers change detection
+- [ ] Architecture review notification emitted for structural changes
+- [ ] Notification includes change event details
+- [ ] Non-structural changes do not trigger notification
 
 ---
 
@@ -78,30 +96,33 @@ Add `GateDiagramEntry` interface with fields: `name` (string), `type` (DiagramTy
 
 | File | Action | Description |
 |------|--------|-------------|
-| `templates/md-templates/gate-prd-template.md` | modify | Upgrade Architecture Diagrams section with structured table |
-| `src/core/proposal-writer.ts` | modify | Populate diagram metadata during gate generation |
-| `src/generation/types.ts` | modify | Add GateDiagramEntry and GateDiagramPlan types |
+| `templates/md-templates/gate-prd-template.md` | modify | Add Architecture Diagrams section to gate PRD template |
+| `src/generation/gate-writer.ts` | modify | Populate diagram section during gate PRD generation |
+| `src/generation/gate-change-detector.ts` | create | Gate structure change detection and architecture review triggers |
+| `src/core/gate-generation.ts` | modify | Integrate change detection into gate lifecycle |
 
 ---
 
 ## Implementation Notes
 
-The ordering algorithm should use topological sort on diagram dependencies to produce valid execution order. Independent diagrams (no dependencies) share the same order level and can be generated in parallel. This is explicitly designed to enable Gate 12 (Subagent Orchestration) to assign independent diagram generation tasks to concurrent agents.
+- Gate change detection compares gate hashes and sequence numbers. A change in the hash set indicates adds/removes; a change in ordering indicates resequencing.
+- The architecture review notification is informational — the LLM decides whether to act on it by calling `arch_generate`.
+- The gate PRD template change is backward-compatible: existing gate PRDs without the section remain valid.
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: Revert `templates/md-templates/gate-prd-template.md` to current state. Revert additions to `src/core/proposal-writer.ts` and `src/generation/types.ts`.
+**If rejected or failed**: Revert `templates/md-templates/gate-prd-template.md` and `src/generation/gate-writer.ts`. Delete `src/generation/gate-change-detector.ts`. Revert `src/core/gate-generation.ts`.
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: 2026-02-09
-**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Document Version**: 1.0.0  
+**Last Updated**: 2026-02-13  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
 
 ### Change Log
 
 | Version | Date | Summary | Author |
 |---------|------|---------|--------|
-| 1.0.0 | 2026-02-09 | Initial version | Zeno |
+| 1.0.0 | 2026-02-13 | Initial version | Copilot |

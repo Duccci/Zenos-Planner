@@ -11,10 +11,10 @@ describe('Template Handlers (unit)', () => {
     expect(String(res.structuredContent?.artifact?.content || '')).toContain('# Gate [XX]: [Gate Name]')
   })
 
-  it('template_context returns content on success', async () => {
+  it('template_get with includeContext returns formatted context', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'context-body' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_context({ name: 'gate-prd-template' })
+    const res = await handlers.template_get({ name: 'gate-prd-template', includeContext: true })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
     expect(String(res.structuredContent?.context || '')).toContain('Name: gate-prd-template')

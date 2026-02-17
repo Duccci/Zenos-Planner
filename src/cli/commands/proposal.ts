@@ -20,7 +20,7 @@ function normalizeHash(input: string): string {
 
 interface ProposalRecord {
   id: string
-  gate_id: string
+  gate_id: string | null
   title: string
   status: string
   hash: string
@@ -93,26 +93,19 @@ async function readProposalFile(
   proposal: ProposalRecord
 ): Promise<string | null> {
   try {
-    const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gate_id || 'solitary')
-    logger.debug(`Searching for proposal files in: ${gateDir}`)
+    const gateFolder = proposal.gate_id ?? 'solitary'
+    const gateDir = path.join(projectRoot, 'zeno', 'proposals', gateFolder)
     const files = await readdir(gateDir)
-    logger.debug(`Found ${String(files.length)} files in ${gateDir}`)
 
     for (const file of files) {
       if (file.endsWith('.md')) {
         const filePath = path.join(gateDir, file)
         const content = await readFile(filePath)
-        // Robust hash matching: allow optional leading '#' and word boundary to avoid false matches
-        const hashRegex = new RegExp(`#?${proposal.hash}\\b`, 'i')
-        if (hashRegex.test(content) || content.includes(proposal.hash)) {
-          logger.debug(`Found proposal match in file: ${filePath}`)
+        if (content.includes(`#${proposal.hash}`)) {
           return content
-        } else {
-          logger.debug(`No hash match in file: ${filePath}`)
         }
       }
     }
-    logger.debug(`Proposal not found in ${gateDir} after checking ${String(files.length)} files`)
   } catch (error) {
     logger.debug(`Could not read proposal file: ${String(error)}`)
   }
@@ -152,8 +145,7 @@ export function registerProposalCommands(program: Command): void {
               ? 'REJECTED'
               : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
-        const gateLabel = proposal.gate_id
-        logger.info(`  Gate: ${gateLabel}, Created: ${proposal.created_at}`)
+        logger.info(`  Gate: ${proposal.gate_id ?? 'solitary'}, Created: ${proposal.created_at}`)
       }
     })
 
@@ -170,8 +162,7 @@ export function registerProposalCommands(program: Command): void {
 
       logger.info(`\n# Proposal: ${proposal.title}`)
       logger.info(`**Hash**: #${proposal.hash}`)
-      const gateLabel = proposal.gate_id
-      logger.info(`**Gate**: ${gateLabel}`)
+      logger.info(`**Gate**: ${proposal.gate_id ?? 'solitary'}`)
       logger.info(`**Status**: ${proposal.status}`)
       logger.info(`**Created**: ${proposal.created_at}`)
       if (proposal.approved_at) {
@@ -214,7 +205,7 @@ export function registerProposalCommands(program: Command): void {
         .slice(0, 16)
 
       // Destination folder: zeno/proposals/<gate-id|solitary>
-      const gateId = options.gate ?? null
+      const gateId = options.gate
       const dir = gateId
         ? path.join(projectRoot, 'zeno', 'proposals', gateId)
         : path.join(projectRoot, 'zeno', 'proposals', 'solitary')
@@ -259,6 +250,29 @@ export function registerProposalCommands(program: Command): void {
           'INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
         ).run(id, gateId ?? null, title, 'pending', hash)
         logger.info(`Proposal created: #${hash} -> ${filePath}`)
+
+        // Post-generation format validation (fast)
+        try {
+          const { ArtifactValidationService } =
+            await import('../../analysis/artifact-validation-service.js')
+          const svc = new ArtifactValidationService()
+          const validation = await svc.validate({
+            artifactPath: filePath,
+            artifactType: 'proposal',
+            validationMode: 'format',
+          })
+          if (!validation.passed) {
+            logger.warn('Post-generation format validation found issues:')
+            for (const e of validation.errors ?? []) logger.warn(` - ${e}`)
+            logger.info(
+              'Please address these issues before approval. Run `zeno proposal validate <hash>` for detailed checks.'
+            )
+          } else {
+            logger.info('Post-generation format validation passed.')
+          }
+        } catch (err) {
+          logger.debug(`Artifact validation failed to run: ${String(err)}`)
+        }
       } catch (error) {
         logger.error(`Failed to register proposal in database: ${String(error)}`)
         return
@@ -314,8 +328,8 @@ export function registerProposalCommands(program: Command): void {
       const strict = Boolean(options.strict)
 
       const proposal = db
-        .prepare('SELECT id, title FROM proposals WHERE hash = ?')
-        .get(normalizedHash) as { id: string; title: string } | undefined
+        .prepare('SELECT id, gate_id, title FROM proposals WHERE hash = ?')
+        .get(normalizedHash) as { id: string; gate_id: string | null; title: string } | undefined
 
       if (!proposal) {
         logger.error(`Proposal not found: ${hash}`)
@@ -334,8 +348,14 @@ export function registerProposalCommands(program: Command): void {
       // Lightweight proposal file checks (warnings become errors in --strict mode)
       const warnings: string[] = []
       try {
-        const fullProposal = getProposalDetails(hash)
-        const content = fullProposal ? await readProposalFile(projectRoot, fullProposal) : null
+        const content = await readProposalFile(projectRoot, {
+          id: proposal.id,
+          gate_id: proposal.gate_id,
+          title: proposal.title,
+          status: 'pending',
+          hash: normalizedHash,
+          created_at: '',
+        })
         if (!content) {
           warnings.push(
             'Could not read proposal file or proposal markdown is missing. Ensure the proposal includes an up-to-date `## Completion Summary` before approval.'
@@ -347,15 +367,13 @@ export function registerProposalCommands(program: Command): void {
           }
 
           const tasksCompletedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
-          // Count checked boxes only within the Completion Summary section to avoid matching checklist items elsewhere
-          const completionSection = content.split('## Completion Summary')[1] ?? ''
-          const checkedBoxes = (completionSection.match(/- \[[xX]\]/g) ?? []).length
+          const checkedBoxes = (content.match(/- \[[xX]\]/g) ?? []).length
           if (tasksCompletedMatch) {
             const completed = parseInt(tasksCompletedMatch[1] ?? '0', 10)
             const total = parseInt(tasksCompletedMatch[2] ?? '0', 10)
             if (completed !== checkedBoxes) {
               warnings.push(
-                `**Tasks Completed** shows ${String(completed)}/${String(total)} but ${String(checkedBoxes)} acceptance items are checked within the Completion Summary.`
+                `**Tasks Completed** shows ${String(completed)}/${String(total)} but ${String(checkedBoxes)} acceptance items are checked.`
               )
             }
           } else if (hasCompletion) {

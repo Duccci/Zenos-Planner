@@ -12,6 +12,9 @@ export * from './config-schemas.js'
 export * from './common-schemas.js'
 export * from './analysis-schemas.js'
 export * from './workflow-schemas.js'
+export * from './architecture-action-schemas.js'
+export * from './git-trace-schemas.js'
+export * from './repository-action-schemas.js'
 // Note: repository-schemas exports DependencyEdge which conflicts with requirement-schemas
 // Import directly from './repository-schemas.js' when needed in specific modules
 export * from './worktree-schemas.js'

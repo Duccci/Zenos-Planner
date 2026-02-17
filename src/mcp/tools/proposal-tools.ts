@@ -1,13 +1,16 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import {
-  ProposalListInputSchema,
-  ProposalShowInputSchema,
-  ProposalValidateInputSchema,
-  ProposalApproveInputSchema,
-  ProposalRejectInputSchema,
-  ProposalStartInputSchema,
+  ProposalListOutputSchema,
+  ProposalDetailSchema,
+  ProposalValidateOutputSchema,
+  ProposalApproveOutputSchema,
+  ProposalRejectOutputSchema,
+  ProposalStartOutputSchema,
 } from '../schemas/proposal-schemas.js'
-import { ProposalCreateInputSchema } from '../schemas/proposal-create-schemas.js'
+import {
+  ProposalGenerateOutputSchema,
+  ProposalUpdateProgressOutputSchema,
+} from '../schemas/workflow-schemas.js'
 import { ProposalActionInputSchema } from '../schemas/proposal-action-schemas.js'
 import {
   validateApplyPhase,
@@ -19,7 +22,7 @@ import { validateQuality, type QualityValidationContext } from '../validators/qu
  * Unified proposal action tool definition.
  * Consolidates all proposal lifecycle operations into a single action-based entrypoint.
  *
- * Actions: list, show, create, validate, approve, reject, start
+ * Actions: list, show, create, generate, validate, approve, reject, start, progress
  *
  * Example usage:
  * ```json
@@ -38,68 +41,19 @@ import { validateQuality, type QualityValidationContext } from '../validators/qu
 export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
-    description:
-      'Unified proposal lifecycle: list, show, create, validate, approve, reject, start with guardrails',
-    inputSchema: ProposalActionInputSchema,
-  },
-]
+    description: `REQUIRED TOOL: Use proposal_action for ALL proposal operations—this is the ONLY way to manage proposals.
 
-/**
- * Legacy individual tool definitions (deprecated - use proposal_action instead).
- * Kept for backward compatibility during transition.
- */
-export const legacyProposalToolDefinitions = [
-  {
-    name: 'proposal_list',
-    description: 'List proposals by gate or status',
-    inputSchema: ProposalListInputSchema,
-  },
-  {
-    name: 'proposal_show',
-    description: 'Show proposal details',
-    inputSchema: ProposalShowInputSchema,
-  },
-  {
-    name: 'proposal_create',
-    description: 'Create proposal with tasks and affected files',
-    inputSchema: ProposalCreateInputSchema,
-  },
-  {
-    name: 'proposal_validate',
-    description: 'Validate proposal structure and dependencies',
-    inputSchema: ProposalValidateInputSchema,
-  },
-  {
-    name: 'proposal_approve',
-    description: 'Approve proposal (state change only, no git)',
-    inputSchema: ProposalApproveInputSchema,
-  },
-  {
-    name: 'proposal_reject',
-    description: 'Reject proposal with reason',
-    inputSchema: ProposalRejectInputSchema,
-  },
-  {
-    name: 'proposal_start',
-    description: 'Start working on approved proposal (state change only)',
-    inputSchema: ProposalStartInputSchema,
+Actions: list (see proposals by gate), show (get proposal details by hash), create (new proposal from requirements), generate (generate from gate PRD), validate (run quality checks), approve (review & merge), reject (with feedback), start (create isolated worktree), progress (update task during implementation).
+
+Call this tool whenever: you need to manage proposals, create implementation plans, validate proposals, or check proposal details.`,
+    inputSchema: ProposalActionInputSchema,
   },
 ]
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import {
-  ProposalListOutputSchema,
-  ProposalDetailSchema,
-  ProposalValidateOutputSchema,
-  ProposalApproveOutputSchema,
-  ProposalRejectOutputSchema,
-  ProposalStartOutputSchema,
-} from '../schemas/proposal-schemas.js'
-
 import { ProposalCreateOutputSchema } from '../schemas/proposal-create-schemas.js'
 import { ProposalActionOutputSchema } from '../schemas/proposal-action-schemas.js'
-import { createSchemaValidatingHandler } from './handler-factory.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 
 /**
@@ -109,55 +63,24 @@ import { createEntityActionHandler } from './entity-action-handler.js'
 export function proposalHandlers(
   registry: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  // Individual handlers for legacy compatibility
-  const handlers = {
-    proposal_list: createSchemaValidatingHandler(
-      registry,
-      'proposal_list',
-      ProposalListOutputSchema
-    ),
-    proposal_show: createSchemaValidatingHandler(registry, 'proposal_show', ProposalDetailSchema),
-    proposal_create: createSchemaValidatingHandler(
-      registry,
-      'proposal_create',
-      ProposalCreateOutputSchema
-    ),
-    proposal_validate: createSchemaValidatingHandler(
-      registry,
-      'proposal_validate',
-      ProposalValidateOutputSchema
-    ),
-    proposal_approve: createSchemaValidatingHandler(
-      registry,
-      'proposal_approve',
-      ProposalApproveOutputSchema
-    ),
-    proposal_reject: createSchemaValidatingHandler(
-      registry,
-      'proposal_reject',
-      ProposalRejectOutputSchema
-    ),
-    proposal_start: createSchemaValidatingHandler(
-      registry,
-      'proposal_start',
-      ProposalStartOutputSchema
-    ),
-  }
-
-  /**
-   * Run validators for proposal actions that change state.
-   * Returns combined validation results from all applicable validators.
-   */
-
   /**
    * Unified action dispatcher for proposal lifecycle operations.
    * Validates action and payload, then delegates to appropriate handler.
    */
-  // Replace inline dispatcher with generic entity action handler
   const proposalActionHandler = createEntityActionHandler(
     {
       entity: 'proposal',
-      actions: ['list', 'show', 'create', 'validate', 'approve', 'reject', 'start'] as const,
+      actions: [
+        'list',
+        'show',
+        'create',
+        'generate',
+        'validate',
+        'approve',
+        'reject',
+        'start',
+        'progress',
+      ] as const,
       inputSchema: ProposalActionInputSchema,
       outputSchema: ProposalActionOutputSchema,
       actionOutputSchema(action) {
@@ -168,6 +91,8 @@ export function proposalHandlers(
             return ProposalDetailSchema
           case 'create':
             return ProposalCreateOutputSchema
+          case 'generate':
+            return ProposalGenerateOutputSchema
           case 'validate':
             return ProposalValidateOutputSchema
           case 'approve':
@@ -176,16 +101,20 @@ export function proposalHandlers(
             return ProposalRejectOutputSchema
           case 'start':
             return ProposalStartOutputSchema
+          case 'progress':
+            return ProposalUpdateProgressOutputSchema
         }
       },
       actionHandlers: {
         list: async (payload, r) => r.invoke('proposal_list', payload),
         show: async (payload, r) => r.invoke('proposal_show', payload),
         create: async (payload, r) => r.invoke('proposal_create', payload),
+        generate: async (payload, r) => r.invoke('generateProposals', payload),
         validate: async (payload, r) => r.invoke('proposal_validate', payload),
         approve: async (payload, r) => r.invoke('proposal_approve', payload),
         reject: async (payload, r) => r.invoke('proposal_reject', payload),
         start: async (payload, r) => r.invoke('proposal_start', payload),
+        progress: async (payload, r) => r.invoke('updateProposalProgress', payload),
       },
 
       validators: {
@@ -297,7 +226,6 @@ export function proposalHandlers(
   )
 
   return {
-    ...handlers,
     proposal_action: proposalActionHandler,
   }
 }

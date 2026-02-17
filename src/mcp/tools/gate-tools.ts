@@ -1,12 +1,4 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string, @typescript-eslint/no-unnecessary-condition */
-import {
-  GatesListInputSchema,
-  GatesShowInputSchema,
-  GatesStartInputSchema,
-  GatesCompleteInputSchema,
-  GatesRegenerateInputSchema,
-} from '../schemas/gate-schemas.js'
-import { GateCreateInputSchema } from '../schemas/gate-create-schemas.js'
 import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
 import {
   validateDependencies,
@@ -18,50 +10,17 @@ import { validateQuality, type QualityValidationContext } from '../validators/qu
  * Unified gate action tool definition.
  * Consolidates all gate lifecycle operations into a single action-based entrypoint.
  *
- * Actions: list, show, create, start, complete, regenerate
+ * Actions: list, show, create, generate, start, complete, regenerate
  */
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    description:
-      'Unified gate lifecycle: list, show, create, start, complete, regenerate with guardrails',
-    inputSchema: GatesActionInputSchema,
-  },
-]
+    description: `REQUIRED TOOL: Use gates_action for ALL gate operations—this is the ONLY way to manage gates.
 
-/**
- * Legacy individual gate tool definitions (deprecated - use gates_action instead).
- */
-export const legacyGateToolDefinitions = [
-  {
-    name: 'gates_list',
-    description: 'List project gates with optional status filter',
-    inputSchema: GatesListInputSchema,
-  },
-  {
-    name: 'gates_show',
-    description: 'Show gate details by ID',
-    inputSchema: GatesShowInputSchema,
-  },
-  {
-    name: 'gate_create',
-    description: 'Create a new gate with PRD and roadmap updates',
-    inputSchema: GateCreateInputSchema,
-  },
-  {
-    name: 'gates_start',
-    description: 'Transition gate to in_progress',
-    inputSchema: GatesStartInputSchema,
-  },
-  {
-    name: 'gates_complete',
-    description: 'Complete a gate with optional notes',
-    inputSchema: GatesCompleteInputSchema,
-  },
-  {
-    name: 'gates_regenerate',
-    description: 'Regenerate future gates',
-    inputSchema: GatesRegenerateInputSchema,
+Actions: list (see all gates, filter by status), show (get gate details by gateId), create (create new gate), generate (generate gates from requirements), start (transition to in_progress), complete (finish gate), regenerate (update roadmap after rescope).
+
+Call this tool whenever: you need to see gates, check gate status/details, start/complete a gate, or manage the roadmap.`,
+    inputSchema: GatesActionInputSchema,
   },
 ]
 
@@ -74,42 +33,18 @@ import {
   GatesCompleteOutputSchema,
   GatesRegenerateOutputSchema,
 } from '../schemas/gate-schemas.js'
-
 import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
+import { GateGenerateOutputSchema } from '../schemas/workflow-schemas.js'
 import { GatesActionOutputSchema } from '../schemas/gates-action-schemas.js'
-import {
-  createSchemaValidatingHandler,
-  parseJsonSafe,
-  createNotImplementedHandler,
-} from './handler-factory.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 
 export function gateHandlers(
   _registry?: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  const listHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gates_list', GatesListOutputSchema)
-    : undefined
-  const showHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gates_show', GateDetailSchema)
-    : undefined
-  const createHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gate_create', GateCreateOutputSchema)
-    : undefined
-  const startHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gates_start', GatesStartOutputSchema)
-    : undefined
-  const completeHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gates_complete', GatesCompleteOutputSchema)
-    : undefined
-  const regenHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'gates_regenerate', GatesRegenerateOutputSchema)
-    : undefined
-
   const gateActionHandler = createEntityActionHandler(
     {
       entity: 'gate',
-      actions: ['list', 'show', 'create', 'start', 'complete', 'regenerate'] as const,
+      actions: ['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate'] as const,
       inputSchema: GatesActionInputSchema,
       outputSchema: GatesActionOutputSchema,
       actionOutputSchema(action) {
@@ -120,6 +55,8 @@ export function gateHandlers(
             return GateDetailSchema
           case 'create':
             return GateCreateOutputSchema
+          case 'generate':
+            return GateGenerateOutputSchema
           case 'start':
             return GatesStartOutputSchema
           case 'complete':
@@ -132,6 +69,7 @@ export function gateHandlers(
         list: async (payload, r) => r.invoke('gates_list', payload),
         show: async (payload, r) => r.invoke('gates_show', payload),
         create: async (payload, r) => r.invoke('gate_create', payload),
+        generate: async (payload, r) => r.invoke('generateGates', payload),
         start: async (payload, r) => r.invoke('gates_start', payload),
         complete: async (payload, r) => r.invoke('gates_complete', payload),
         regenerate: async (payload, r) => r.invoke('gates_regenerate', payload),
@@ -277,176 +215,6 @@ export function gateHandlers(
   )
 
   return {
-    async gates_list(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GatesListOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!listHandler) return createNotImplementedHandler('Gates list not implemented yet.')
-      return listHandler(args)
-    },
-
-    async gates_show(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GateDetailSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!showHandler) return createNotImplementedHandler('Gate details not implemented yet.')
-      return showHandler(args)
-    },
-
-    async gate_create(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GateCreateOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!createHandler) return createNotImplementedHandler('Gate creation not implemented yet.')
-      return createHandler(args)
-    },
-
-    async gates_start(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const rawObj = raw as Record<string, unknown>
-        if (typeof raw === 'object' && rawObj['success'] === false) {
-          const errObj = rawObj['error'] as Record<string, unknown> | undefined
-          const rawCode = errObj?.['code']
-          const code = (typeof rawCode === 'string' ? rawCode : '').toLowerCase()
-          const msg = (errObj?.['message'] as string | undefined) ?? String(rawObj['error'])
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ error: code || msg }, null, 2) }],
-            isError: true,
-          }
-        }
-
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GatesStartOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!startHandler) return createNotImplementedHandler('Gate start not implemented yet.')
-      return startHandler(args)
-    },
-
-    async gates_complete(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const rawObj = raw as Record<string, unknown>
-        if (typeof raw === 'object' && rawObj['success'] === false) {
-          return {
-            content: [{ type: 'text', text: JSON.stringify(rawObj['error'] ?? {}, null, 2) }],
-            isError: true,
-          }
-        }
-
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GatesCompleteOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!completeHandler)
-        return createNotImplementedHandler('Gate completion not implemented yet.')
-      return completeHandler(args)
-    },
-
-    async gates_regenerate(args: Record<string, unknown>): Promise<CallToolResult> {
-      const raw = args['mockResult'] ?? null
-      if (raw !== null) {
-        const parsed = parseJsonSafe(raw)
-        if (parsed) {
-          const ok = GatesRegenerateOutputSchema.safeParse(parsed)
-          if (ok.success)
-            return {
-              content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
-              structuredContent: ok.data,
-            }
-        }
-
-        return {
-          content: [{ type: 'text', text: typeof raw === 'string' ? raw : JSON.stringify(raw) }],
-          structuredContent: { output: typeof raw === 'string' ? raw : JSON.stringify(raw) },
-        }
-      }
-
-      if (!regenHandler) return createNotImplementedHandler('Gates regenerate not implemented yet.')
-      return regenHandler(args)
-    },
-
-    /**
-     * Unified action dispatcher for gate lifecycle operations.
-     * Validates action and payload, then delegates to appropriate handler.
-     */
-
-    // Unified action dispatcher (generic)
     gates_action: gateActionHandler,
-
-    /**
-     * Unified action dispatcher for gate lifecycle operations.
-     * Validates action and payload, then delegates to appropriate handler.
-     */
   }
 }

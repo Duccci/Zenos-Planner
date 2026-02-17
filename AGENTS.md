@@ -25,7 +25,7 @@ A detailed implementation plan for a set of requirements within a gate. Each pro
 - Status (pending → in_progress → completed or rejected)
 - Hash reference (#a3f9c2d1) for content-addressable tracking
 
-Proposals are stored as Markdown files in `zeno/proposals/gate-XX/` during development. When approved and merged, they're archived to `zeno/proposals/archive/<hash>.md` with content-addressable hashing. Proposals may be rejected by humans with feedback; rejection triggers replan with error context.
+Proposals are stored as Markdown files in `zeno/proposals/gate-XX/` during development and completion. Completed proposals remain in place with status metadata and are integrated into gate archive artifacts when the parent gate is completed. Proposals may be rejected by humans with feedback; rejection triggers replan with error context.
 
 **Requirement**
 A specific, measurable capability or constraint that must be satisfied. Requirements have:
@@ -318,7 +318,7 @@ Use Git history to trace work back to Zeno artifacts (requirements, proposals, g
 | Gate PRDs | `zeno/gates/gate-XX-name.md` |
 | Requirements database | `zeno/.zeno/requirements.db` |
 | Proposals (active) | `zeno/proposals/gate-XX/<name>.md` |
-| Proposals (completed) | `zeno/proposals/archive/<hash>.md` |
+| Gates (completed archive) | `zeno/gates/archive/<gate-id>.md` |
 | Configuration | `zeno/.zeno/config.json` |
 
 ## Zeno vs Traditional Spec Systems

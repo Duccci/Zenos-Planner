@@ -1,9 +1,8 @@
-# Gate Roadmap Diagram
+# Gate Roadmap
 
-**Purpose**: Gate roadmap showing parallel relationships and gate dependencies
-
+**Purpose**: Gate sequence, dependencies, and parallel work opportunities  
 **Generated**: 2026-01-04  
-**Last Updated**: 2026-01-31  
+**Last Updated**: 2026-02-13  
 **Status**: Approved
 
 ---
@@ -58,88 +57,35 @@ graph TB
 
 ---
 
-## Description
+## Sequencing
 
-The gate roadmap displays the MVP gate sequence (Gates 05-12) plus two deferred post-MVP gates (13-14). Gates 01-04 are archived as completed.
+**Parallel Gates**: 5 & 6 (Architecture + Multi-Repo, post-Gate 4); 8 & 9 (Validation + Approval, post-Gate 7)  
+**Critical Path**: G1 → G2 → G2.5 → G3 → G4 → G5/6 → G7 → G8/9 → G10 → G11 → G12
 
-**Gate Summary:**
-- **Gates 1-4**: Core Infrastructure, Zeno Engine, MCP Server, Requirements DB, Solitary (Completed/Archived)
-- **Gates 5-6**: Architecture & Multi-Repo (diagrams, LLM-driven boundary detection) - **Parallel**
-- **Gate 7**: Proposal Generation & Management (RFC 2119 requirement updates in SQLite)
-- **Gates 8-9**: Validation & Approval (agent-driven quality checks and human review) - **Parallel**
-- **Gate 10**: Git Integration & Worktree Automation (commit automation, isolated parallel development)
-- **Gate 11**: Rescope & Replan Engine (handle mid-project scope changes)
-- **Gate 12**: Status & Reporting (MCP status tools and `zeno status` CLI)
-- **Gate 13**: Subagent Orchestration & Parallel Execution (post-MVP)
-- **Gate 14**: Documentation Cleanup (post-MVP)
-
-**Key Architectural Insights:**
-- Gates 1-4 established infrastructure and core data structures (archived)
-- Gates 5-10 implement full execution pipeline (generation → validation → approval → commit)
-- Gates 11-12 add rescope adaptability and status reporting
-- Gate 13 (subagent orchestration) is deferred to post-MVP for reconsideration
-- Multiple parallel opportunities (Gates 5-6, 8-9) enable concurrent development
+- **Gates 1-4**: Core Infrastructure, Zeno Engine, MCP Server, Requirements DB, Solitary (Completed)
+- **Gates 5-6**: Architecture diagrams + Multi-Repo detection (parallel, independent)
+- **Gate 7**: Proposal Generation (depends on 5+6)
+- **Gates 8-9**: Validation + Approval workflows (parallel, post-Gate 7)
+- **Gate 10**: Git Integration (depends on 8+9)
+- **Gate 11**: Rescope & Replan Engine
+- **Gate 12**: Status & Reporting
+- **Gates 13-14**: Subagent Orchestration + Documentation (post-MVP, deferred)
 
 ---
 
-## Parallel Gates
+**Document Version**: 1.2.0  
+**Last Updated**: 2026-02-13  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+**Owner**: jamesonBatworker  
+**Reviewers**: jamesonBatworker
 
-Gates that can be worked on simultaneously (independent execution paths):
+### Change Log
 
-### Gates 5 & 6 (Post-Gate 4)
-- **Gate 5**: Architecture & Diagram Generation (Mermaid/Graphviz, LLM-driven selection via MCP)
-- **Gate 6**: Multi-Repo & Subproject Detection (LLM-driven boundary recommendation)
-
-These gates are independent and can proceed in parallel after Gate 4 completes. Both require database and requirements API but have no direct dependencies on each other.
-
-### Gates 8 & 9 (Post-Gate 7)
-- **Gate 8**: Automated Validation & Quality Gates (shell-based tool invocation + agent-driven assessment)
-- **Gate 9**: Human Approval & Rejection Workflow (approve/reject with feedback + MCP exposure)
-
-Validation and approval workflows are independent systems. Validation feeds into approval but both can be developed simultaneously after Gate 7 provides proposal structure.
-
----
-
-## Gate Dependencies & Critical Path
-
-**Critical Path** (longest sequential chain):
-Gate 1 → Gate 2 → Gate 2.5 → Gate 3 → Gate 4 → Gate 5/6 → Gate 7 → Gate 8/9 → Gate 10 → Gate 11 → Gate 12
-
-This path determines minimum project timeline. Parallel opportunities (Gates 5-6, 8-9) can reduce overall time but don't affect critical path.
-
-**Key Dependency Notes:**
-- **Gate 2.5** enables: All downstream gates via MCP tool interface (LLM-native execution)
-- **Gate 4 (Solitary)** consolidated MCP tooling as a prerequisite for execution pipeline
-- **Gate 7** depends on: Gates 5-6 (proposal generation needs architecture diagrams and repository structure)
-- **Gate 10** depends on: Gates 8-9 (git automation depends on validated, approved proposals)
-- **Gate 11** depends on: Gate 10 (rescoping needs git history for impact analysis)
-- **Gate 12** depends on: Gate 11 (status reporting surfaces rescope state)
-
----
-
-## Related Documentation
-
-- **Project PRD**: `zeno/PROJECT_PRD.md` - Complete project specification
-- **Individual Gate PRDs**: `zeno/gates/gate-XX-name.md` - Detailed requirements per gate
-  - `gate-05-architecture-diagram-generation.md` - Mermaid & Graphviz rendering
-  - `gate-06-multi-repo-subproject-detection.md` - LLM-driven boundary detection
-  - `gate-07-proposal-generation-management.md` - RFC 2119 requirement updates
-  - `gate-08-automated-validation-quality-gates.md` - Agent-driven quality checks
-  - `gate-09-human-approval-rejection-workflow.md` - Approval process and feedback
-  - `gate-10-git-integration-commit-automation.md` - Worktree management and merging
-  - `gate-11-rescope-replan-engine.md` - Scope change handling
-  - `gate-12-status-reporting.md` - MCP status tools and CLI reporting
-  - `gate-13-subagent-orchestration-parallel-execution.md` - Multi-agent coordination (post-MVP)
-  - `gate-14-documentation-polish.md` - Documentation cleanup (post-MVP)
-- **Archived Gates**: `zeno/gates/archive/` - Completed gates (01-04, solitary)
-- **AGENTS.md**: AI agent instructions (root level and project-specific)
-- **Architecture Diagrams**: `zeno/architecture/*.md` - System design diagrams
-
----
-
-**Source**: `zeno/architecture/gate-roadmap.md`  
-**Generated by**: Zeno's Planner  
-**Last Updated**: 2026-02-13
+| Version | Date | Summary | Author |
+|---------|------|---------|--------|
+| 1.0.0 | 2026-01-04 | Initial version | jamesonBatworker |
+| 1.1.0 | 2026-01-31 | Added Gate 2.5, solitary gate, updated statuses | jamesonBatworker |
+| 1.2.0 | 2026-02-13 | Aligned to slim template format | jamesonBatworker |
 
 
 
