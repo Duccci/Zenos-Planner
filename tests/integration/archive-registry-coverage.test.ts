@@ -29,7 +29,7 @@ describe('archive-registry coverage', () => {
 
     // invoke() wraps the function return in { success, data }
     expect(result.success).toBe(true)
-    expect(result.data).toEqual({ success: true, data: { archived: true, gateId: 'gate-01' } })
+    expect(result.data).toEqual({ archived: true, gateId: 'gate-01' })
   })
 
   it('should handle gate action with empty payload defaults', async () => {
@@ -55,7 +55,7 @@ describe('archive-registry coverage', () => {
     }) as { success: boolean; data: unknown }
 
     expect(result.success).toBe(true)
-    expect(result.data).toEqual({ success: true, data: { archived: true, count: 2 } })
+    expect(result.data).toEqual({ archived: true, count: 2 })
   })
 
   it('should handle unknown action', async () => {

@@ -25,7 +25,12 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
       switch (validated.action) {
         case 'list': {
           const payload = z
-            .object({ gateId: z.string().optional(), project: z.boolean().optional() })
+            .object({
+              gateId: z.string().optional(),
+              project: z.boolean().optional(),
+              skip: z.number().int().min(0).default(0),
+              take: z.number().int().min(1).max(100).default(50),
+            })
             .parse(validated.payload ?? {})
 
           if (payload.project) {
@@ -40,12 +45,18 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
                 parentId: r.parentId,
                 projectId: r.projectId,
               })),
+              pagination: {
+                total: reqs.length,
+                skip: 0,
+                take: Math.max(reqs.length, 1),
+                hasMore: false,
+              },
             }
           }
 
           // Use buildRequirementGraph which returns nodes as a Map<string, DependencyNode>
           const graph = storage.buildRequirementGraph(payload.gateId)
-          const requirements = Array.from(graph.nodes.values()).map((n) => ({
+          const allRequirements = Array.from(graph.nodes.values()).map((n) => ({
             hash: n.hash,
             description: n.title,
             type: n.type,
@@ -53,8 +64,18 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             gateId: n.gateId ?? null,
             parentId: n.parent ?? null,
           }))
+          const total = allRequirements.length
+          const paged = allRequirements.slice(payload.skip, payload.skip + payload.take)
 
-          return { requirements }
+          return {
+            requirements: paged,
+            pagination: {
+              total,
+              skip: payload.skip,
+              take: payload.take,
+              hasMore: payload.skip + payload.take < total,
+            },
+          }
         }
 
         case 'show': {

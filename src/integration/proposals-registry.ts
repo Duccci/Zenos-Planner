@@ -18,13 +18,54 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .object({
           gateId: z.string().optional(),
           status: z.string().optional(),
+          skip: z.number().int().min(0).default(0),
+          take: z.number().int().min(1).max(100).default(50),
         })
         .parse(params)
-      const result = await invokeCommand('proposal_list', validated)
-      if (!result.success) {
-        throw new Error(result.error)
+
+      const db = (await import('../storage/database.js')).getDatabase()
+
+      let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at FROM proposals'
+      const conditions: string[] = []
+      const queryParams: (string | null)[] = []
+
+      if (validated.gateId) {
+        conditions.push('gate_id LIKE ?')
+        queryParams.push(`%${validated.gateId}%`)
       }
-      return result
+      if (validated.status) {
+        conditions.push('status = ?')
+        queryParams.push(validated.status)
+      }
+      if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ')
+      }
+      query += ' ORDER BY created_at DESC'
+
+      const allRows = db.prepare(query).all(...queryParams) as Record<string, unknown>[]
+      const total = allRows.length
+      const paged = allRows.slice(validated.skip, validated.skip + validated.take)
+
+      return {
+        proposals: paged.map((row) => ({
+          hash: (row['hash'] as string) ?? '',
+          title: (row['title'] as string) ?? '',
+          description: (row['description'] as string) ?? undefined,
+          status: (row['status'] as string) ?? 'pending',
+          gateId: (row['gate_id'] as string) ?? '',
+          tasksCompleted: 0,
+          totalTasks: 0,
+          created: (row['created_at'] as string) ?? '',
+          updated: null,
+          completedAt: (row['approved_at'] as string) ?? null,
+        })),
+        pagination: {
+          total,
+          skip: validated.skip,
+          take: validated.take,
+          hasMore: validated.skip + validated.take < total,
+        },
+      }
     },
     {
       description: 'List proposals, optionally filtered by gate or status',
@@ -42,10 +83,12 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           required: false,
         },
       ],
-      returnType: 'Proposal[]',
+      returnType: 'ProposalListOutput',
       schema: z.object({
         gateId: z.string().optional(),
         status: z.string().optional(),
+        skip: z.number().int().min(0).default(0),
+        take: z.number().int().min(1).max(100).default(50),
       }),
     }
   )
@@ -54,11 +97,58 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     'proposal_show',
     async (params) => {
       const validated = z.object({ hash: z.string() }).parse(params)
-      const result = await invokeCommand('proposal_show', validated)
-      if (!result.success) {
-        throw new Error(result.error)
+
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedHash = validated.hash.startsWith('#')
+        ? validated.hash.slice(1)
+        : validated.hash
+
+      const proposal = db
+        .prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?')
+        .get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
+
+      if (!proposal) {
+        throw new Error(`Proposal not found: ${validated.hash}`)
       }
-      return result
+
+      // Parse JSON fields safely
+      let filesAffected: string[] = []
+      try {
+        if (proposal['files_affected']) {
+          filesAffected = JSON.parse(proposal['files_affected'] as string) as string[]
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+
+      let deps: string[] = []
+      try {
+        if (proposal['dependencies']) {
+          deps = JSON.parse(proposal['dependencies'] as string) as string[]
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+
+      return {
+        hash: (proposal['hash'] as string) ?? '',
+        title: (proposal['title'] as string) ?? '',
+        description: (proposal['summary'] as string) ?? (proposal['title'] as string) ?? '',
+        status: (proposal['status'] as string) ?? 'pending',
+        gateId: (proposal['gate_id'] as string) ?? '',
+        summary: (proposal['summary'] as string) ?? undefined,
+        context: undefined,
+        tasks: [],
+        dependencies:
+          deps.length > 0 ? deps.map((d) => ({ hash: d, type: 'depends_on' as const })) : undefined,
+        files:
+          filesAffected.length > 0
+            ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
+            : undefined,
+        created: (proposal['created_at'] as string) ?? '',
+        updated: null,
+        completedAt: (proposal['approved_at'] as string) ?? null,
+      }
     },
     {
       description: 'Show detailed information about a specific proposal',
@@ -70,7 +160,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           required: true,
         },
       ],
-      returnType: 'ProposalDetails',
+      returnType: 'ProposalDetail',
       schema: z.object({
         hash: z.string().min(1, 'Hash is required'),
       }),

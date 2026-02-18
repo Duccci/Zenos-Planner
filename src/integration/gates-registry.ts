@@ -56,12 +56,34 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         }
       }
 
-      return { success: true, data: gates }
+      return {
+        gates: gates.map((g) => ({
+          id: g['id'] as string,
+          name: g['name'] as string,
+          description: g['description'] as string,
+          sequence: g['sequence'] as number,
+          status: g['status'] as string,
+          type: g['type'] as string,
+          created: g['created_at'] as string,
+          started: g['started_at'] as string | null,
+          completed: g['completed_at'] as string | null,
+          proposalCount: 0,
+          completedProposalCount: 0,
+          requirementCount: 0,
+          testedRequirementCount: 0,
+        })),
+        pagination: {
+          total: gates.length,
+          skip: 0,
+          take: Math.max(gates.length, 1),
+          hasMore: false,
+        },
+      }
     },
     {
       description: 'List all gates in the project with their status',
       parameters: [],
-      returnType: 'Gate[]',
+      returnType: 'GatesListOutput',
       schema: z.object({}),
     }
   )
@@ -92,32 +114,20 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         throw new Error(`Gate not found: ${validated.gateId}`)
       }
 
-      const reqCount = db
-        .prepare('SELECT COUNT(*) as count FROM requirements WHERE gate_id = ?')
-        .get(gate['id']) as { count?: number } | undefined
-      const proposalCount = db
-        .prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?')
-        .get(gate['id']) as { count?: number } | undefined
-
-      const dependencies = db
-        .prepare(
-          `
-      SELECT g.id, g.name, g.status
-      FROM gates g
-      JOIN dependencies d ON d.target_hash = g.hash
-      WHERE d.source_hash = ? AND d.type = 'requires'
-    `
-        )
-        .all(gate['hash'])
-
-      const detail = {
-        ...gate,
-        requirements: reqCount?.count ?? 0,
-        proposals: proposalCount?.count ?? 0,
-        dependencies,
+      return {
+        id: gate['id'] as string,
+        name: gate['name'] as string,
+        description: gate['description'] as string,
+        sequence: gate['sequence'] as number,
+        status: gate['status'] as string,
+        type: gate['type'] as string,
+        objectives: [],
+        requirements: [],
+        proposals: [],
+        created: gate['created_at'] as string,
+        started: gate['started_at'] as string | null,
+        completed: gate['completed_at'] as string | null,
       }
-
-      return { success: true, data: detail }
     },
     {
       description: 'Show detailed information about a specific gate',

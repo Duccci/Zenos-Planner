@@ -22,7 +22,7 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
             .parse(validated.payload ?? {})
           const { archiveGate } = await import('../core/archive-logic.js')
           const result = await archiveGate(payload.gateId, payload.completionNotes)
-          return { success: true, data: result }
+          return result
         }
 
         case 'batch': {
@@ -34,7 +34,7 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
             .parse(validated.payload)
           const { archiveBatch } = await import('../core/archive-logic.js')
           const result = await archiveBatch(payload.artifacts, payload.completionNotes)
-          return { success: true, data: result }
+          return result
         }
 
         default:

@@ -46,7 +46,9 @@ describe('gates-registry coverage', () => {
 
       const result = await registry.invoke('gates_list', {}) as { success: boolean; data: unknown }
       expect(result.success).toBe(true)
-      expect(result.data).toEqual({ success: true, data: gates })
+      const data = result.data as { gates: unknown[]; pagination: unknown }
+      expect(data.gates).toHaveLength(2)
+      expect(data.pagination).toBeDefined()
     })
 
     it('should fall back to archive files when DB empty', async () => {
@@ -63,12 +65,9 @@ describe('gates-registry coverage', () => {
       const gate = { id: 'gate-01', name: 'Setup', hash: 'h1', status: 'completed' }
       const getOne = vi.fn()
         .mockReturnValueOnce(gate) // gate lookup
-        .mockReturnValueOnce({ count: 3 }) // req count
-        .mockReturnValueOnce({ count: 2 }) // proposal count
 
       mockPrepare.mockReturnValue({
         get: getOne,
-        all: vi.fn().mockReturnValue([]), // dependencies
       })
 
       const result = await registry.invoke('gates_show', { gateId: 'gate-01' }) as { success: boolean; data: unknown }
@@ -79,12 +78,9 @@ describe('gates-registry coverage', () => {
       const gate = { id: 'gate-01', name: 'Setup', hash: 'h1', status: 'completed' }
       const getOne = vi.fn()
         .mockReturnValueOnce(gate)
-        .mockReturnValueOnce({ count: 0 })
-        .mockReturnValueOnce({ count: 0 })
 
       mockPrepare.mockReturnValue({
         get: getOne,
-        all: vi.fn().mockReturnValue([]),
       })
 
       await registry.invoke('gates_show', { gateId: '1' })
@@ -105,12 +101,9 @@ describe('gates-registry coverage', () => {
       const getOne = vi.fn()
         .mockReturnValueOnce(undefined) // not found by id
         .mockReturnValueOnce(gate) // found by name
-        .mockReturnValueOnce({ count: 0 })
-        .mockReturnValueOnce({ count: 0 })
 
       mockPrepare.mockReturnValue({
         get: getOne,
-        all: vi.fn().mockReturnValue([]),
       })
 
       const result = await registry.invoke('gates_show', { gateId: 'Setup' }) as { success: boolean }
