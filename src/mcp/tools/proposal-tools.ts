@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any */
 import {
   ProposalListOutputSchema,
   ProposalDetailSchema,
@@ -17,6 +16,7 @@ import {
   type ApplyPhaseValidationContext,
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
+import { type ZenoConfig, getDefaultConfig } from '../../utils/config.js'
 
 /**
  * Unified proposal action tool definition.
@@ -139,10 +139,10 @@ export function proposalHandlers(
 
             const configResult = await r.invoke('config_get', {})
 
-            let config: any
+            let config: ZenoConfig
 
             if (configResult.success) {
-              config = configResult.data
+              config = configResult.data as ZenoConfig
             } else {
               const { getDefaultConfig } = await import('../../utils/config.js')
               const cfgErrMsg =
@@ -182,12 +182,11 @@ export function proposalHandlers(
 
             const configResult = await r.invoke('config_get', {})
 
-            let config: any
+            let config: ZenoConfig
 
             if (configResult.success) {
-              config = configResult.data as any
+              config = configResult.data as ZenoConfig
             } else {
-              const { getDefaultConfig } = await import('../../utils/config.js')
               const cfgErrMsg =
                 'error' in configResult ? configResult.error.message : 'unknown error'
               allWarnings.push(

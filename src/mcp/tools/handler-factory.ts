@@ -14,7 +14,6 @@
  */
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access */
 import type { ZodType } from 'zod'
 import type { FunctionErrorResponse } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -221,9 +220,9 @@ export function extractMockResult(args: unknown): unknown {
     args &&
     typeof args === 'object' &&
     'mockResult' in args &&
-    (args as any).mockResult !== undefined
+    (args as Record<string, unknown>)['mockResult'] !== undefined
   ) {
-    return (args as any).mockResult
+    return (args as Record<string, unknown>)['mockResult']
   }
   return null
 }

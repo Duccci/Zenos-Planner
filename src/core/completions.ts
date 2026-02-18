@@ -25,6 +25,7 @@ import { readFile, writeFile, ensureDir } from '../utils/file.js'
 import { readdir, unlink } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
+import { stripAnsi } from '../utils/ansi-strip.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
@@ -165,7 +166,15 @@ async function updateGateObjectivesFromProposal(
   }
 }
 
-export async function approveProposal(hashInput: string): Promise<{
+export interface ApproveProposalOptions {
+  /** Approver identity recorded in DB and proposal file metadata. Defaults to undefined (no approver recorded). */
+  approver?: string
+}
+
+export async function approveProposal(
+  hashInput: string,
+  options: ApproveProposalOptions = {}
+): Promise<{
   projectRoot: string
   proposalHash: string
   gateId: string
@@ -176,6 +185,13 @@ export async function approveProposal(hashInput: string): Promise<{
   const projectRoot = requireProjectRoot()
   await initializeDatabase(projectRoot)
   const db = getDb(projectRoot)
+
+  // Ensure approved_by column exists (added by this proposal; idempotent)
+  try {
+    db.prepare('ALTER TABLE proposals ADD COLUMN approved_by TEXT').run()
+  } catch {
+    // Column already exists — ignore
+  }
 
   const proposalHash = normalizeHash(hashInput)
 
@@ -211,9 +227,10 @@ export async function approveProposal(hashInput: string): Promise<{
       `UPDATE proposals
        SET status = 'completed',
            approved_at = CURRENT_TIMESTAMP,
-           implemented_at = CURRENT_TIMESTAMP
+           implemented_at = CURRENT_TIMESTAMP,
+           approved_by = ?
        WHERE id = ?`
-    ).run(proposalId)
+    ).run(options.approver ?? null, proposalId)
   })
   tx(proposal.id)
 
@@ -241,6 +258,13 @@ export async function approveProposal(hashInput: string): Promise<{
             updatedContent = updatedContent.replace(
               '**Status**: completed',
               `**Status**: completed\n**Implemented**: ${completedAt}`
+            )
+          }
+
+          if (options.approver && !updatedContent.includes('**Approved By**:')) {
+            updatedContent = updatedContent.replace(
+              '**Status**: completed',
+              `**Status**: completed\n**Approved By**: ${options.approver}`
             )
           }
 
@@ -474,11 +498,13 @@ export async function completeGate(
   if (git.autoCommit) {
     const tagName = git.autoTag ? `v${newVersion}-${gateId}` : undefined
     const tagMessage = git.autoTag
-      ? `Gate ${gateId}: ${gate.name} (version ${newVersion})`
+      ? stripAnsi(`Gate ${gateId}: ${gate.name} (version ${newVersion})`)
       : undefined
 
     await syncWithGit({
-      commitMessage: `chore(gate): complete ${gateId} - ${gate.name}\n\nVersion: ${newVersion}\n`,
+      commitMessage: stripAnsi(
+        `chore(gate): complete ${gateId} - ${gate.name}\n\nVersion: ${newVersion}\n`
+      ),
       tagName,
       tagMessage,
       autoPush: options.push ?? git.autoPush,

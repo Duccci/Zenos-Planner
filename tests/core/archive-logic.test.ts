@@ -14,6 +14,7 @@ vi.mock('node:fs/promises', () => ({
 vi.mock('../../src/utils/config.js', () => ({
   loadConfig: vi.fn(),
   getZenoDir: vi.fn(),
+  findProjectRoot: vi.fn(),
 }));
 
 vi.mock('../../src/utils/gate-consolidation.js', () => ({
@@ -37,6 +38,10 @@ vi.mock('../../src/core/archive-execution.js', () => ({
 
 vi.mock('../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('../../src/core/metrics-capture.js', () => ({
+  captureMetricsSnapshot: vi.fn(),
 }));
 
 import { archiveGate, archiveBatch } from '../../src/core/archive-logic.js';

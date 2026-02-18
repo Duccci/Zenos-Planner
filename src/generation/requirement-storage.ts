@@ -278,6 +278,69 @@ export class RequirementStorage {
   }
 
   /**
+   * Search requirements by keyword across description and acceptance criteria
+   */
+  searchRequirements(
+    query: string,
+    opts: { gateId?: string; type?: string; skip?: number; take?: number } = {}
+  ): { requirements: Requirement[]; total: number } {
+    try {
+      const { gateId, type, skip = 0, take = 50 } = opts
+      const like = `%${query}%`
+      const params: unknown[] = [like, like]
+
+      let sql = `
+        SELECT id, project_id, gate_id, parent_id, type, priority,
+               description, acceptance_criteria, hash, created_at
+        FROM requirements
+        WHERE (description LIKE ? OR acceptance_criteria LIKE ?)
+      `
+
+      if (gateId) {
+        sql += ' AND gate_id = ?'
+        params.push(gateId)
+      }
+      if (type) {
+        sql += ' AND type = ?'
+        params.push(type)
+      }
+
+      // Count total matches before pagination
+      const countStmt = this.db.prepare(`SELECT COUNT(*) as cnt FROM (${sql})`)
+      const { cnt } = countStmt.get(...params) as { cnt: number }
+
+      sql += ' ORDER BY created_at LIMIT ? OFFSET ?'
+      params.push(take, skip)
+
+      const rows = this.db.prepare(sql).all(...params) as RequirementRow[]
+
+      return {
+        requirements: rows.map((row) => ({
+          id: row.id,
+          projectId: row.project_id,
+          gateId: row.gate_id,
+          parentId: row.parent_id,
+          type: row.type as RequirementType,
+          priority: row.priority as RequirementPriority,
+          description: row.description,
+          acceptanceCriteria: row.acceptance_criteria ?? undefined,
+          hash: row.hash,
+          createdAt: new Date(row.created_at),
+        })),
+        total: cnt,
+      }
+    } catch (err: unknown) {
+      const e: Error = err instanceof Error ? err : new Error(String(err))
+      throw new DatabaseError(
+        'Failed to search requirements',
+        'DB_REQUIREMENTS_SEARCH_FAILED',
+        { query },
+        e
+      )
+    }
+  }
+
+  /**
    * Get all project-level requirements (gate_id is null)
    */
   getProjectRequirements(projectId?: string): Requirement[] {

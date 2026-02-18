@@ -115,12 +115,47 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           return result
         }
 
+        case 'search': {
+          const payload = z
+            .object({
+              query: z.string().min(1),
+              gateId: z.string().optional(),
+              type: z.string().optional(),
+              skip: z.number().int().min(0).default(0),
+              take: z.number().int().min(1).max(100).default(50),
+            })
+            .parse(validated.payload)
+          const { requirements, total } = storage.searchRequirements(payload.query, {
+            gateId: payload.gateId,
+            type: payload.type,
+            skip: payload.skip,
+            take: payload.take,
+          })
+          return {
+            requirements: requirements.map((r) => ({
+              hash: r.hash,
+              description: r.description,
+              type: r.type,
+              priority: r.priority,
+              gateId: r.gateId,
+              parentId: r.parentId,
+            })),
+            total,
+            pagination: {
+              skip: payload.skip,
+              take: payload.take,
+              total,
+              hasMore: payload.skip + payload.take < total,
+            },
+          }
+        }
+
         default:
           throw new Error(`Unknown req_action: ${validated.action}`)
       }
     },
     {
-      description: 'Unified requirement action (list|show|deps|transfer)',
+      description: 'Unified requirement action (list|show|deps|transfer|search)',
       parameters: [
         { name: 'action', type: 'string', description: 'Action to perform', required: true },
         {

@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { execSync, spawn } from 'node:child_process'
 import { getZenoDir } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
@@ -93,4 +93,29 @@ export function stopServer(projectRoot: string = process.cwd()): boolean {
   // Clean up PID file regardless
   removePid(projectRoot)
   return true
+}
+
+/**
+ * Spawn the MCP server as a detached background process.
+ * Resolves after a short stabilisation delay if no startup error occurs,
+ * or rejects immediately if the child process emits an 'error' event.
+ */
+export function spawnServerBackground(projectRoot: string = process.cwd()): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const child = spawn(process.execPath, [join(import.meta.dirname, '../../bin/mcp-server.js')], {
+      cwd: projectRoot,
+      detached: true,
+      stdio: 'ignore',
+    })
+
+    child.on('error', (err) => {
+      reject(err)
+    })
+    child.unref()
+
+    // Give the process a moment to fail at startup before we resolve
+    setTimeout(() => {
+      resolve()
+    }, 200)
+  })
 }

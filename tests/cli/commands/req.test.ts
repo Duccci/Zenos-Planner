@@ -45,7 +45,7 @@ describe('Requirements Commands', () => {
 
   it('req list should call registry with gate filter and display results', async () => {
     const registry: Partial<FunctionRegistry> = {
-      invoke: vi.fn().mockResolvedValue({ success: true, output: { requirements: [{ hash: 'r#1', type: 'functional', title: 'Req One', gateId: 'gate-01' }] } }),
+      invoke: vi.fn().mockResolvedValue({ success: true, data: { requirements: [{ hash: 'r#1', type: 'functional', title: 'Req One', gateId: 'gate-01' }] } }),
       register: vi.fn(),
       list: vi.fn().mockReturnValue([]),
       get: vi.fn(),
@@ -186,4 +186,167 @@ describe('Requirements Commands', () => {
     expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'transfer', payload: { hash: 'r#1', gateId: 'gate-04' } })
     expect(logger.info).toHaveBeenCalledWith('Requirement r#1 transferred to gate gate-04')
   })
+
+  it('req search should call search with query and options', async () => {
+    const searchOut = { success: true, data: { requirements: [{ hash: 'r#1', description: 'Test req' }] } }
+
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue(searchOut),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'search', 'performance', '--gate', 'gate-01', '--type', 'functional'])
+
+    const payload = {
+      query: 'performance',
+      gateId: 'gate-01',
+      type: 'functional',
+      skip: 0,
+      take: 50
+    }
+    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'search', payload })
+    expect(logger.info).toHaveBeenCalled()
+  })
+
+  it('req search with pagination options', async () => {
+    const searchOut = { success: true, data: { requirements: [] } }
+
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue(searchOut),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'search', 'test', '--skip', '10', '--take', '25'])
+
+    expect(registry.invoke).toHaveBeenCalledWith('req_action', { 
+      action: 'search', 
+      payload: { query: 'test', skip: 10, take: 25 }
+    })
+  })
+
+  it('req list should handle error', async () => {
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: 'Database error' }),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'list'])
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to list requirements:', 'Database error')
+  })
+
+  it('req show should handle error', async () => {
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: 'Not found' }),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'show', 'r#missing'])
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to show requirement:', 'Not found')
+  })
+
+  it('req deps should handle error', async () => {
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: 'Graph generation failed' }),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'deps', 'r#1'])
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to get dependencies:', 'Graph generation failed')
+  })
+
+  it('req transfer should handle error', async () => {
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: 'Transfer failed' }),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'transfer', 'r#1', 'gate-02'])
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to transfer requirement:', 'Transfer failed')
+  })
+
+  it('req list should handle exception', async () => {
+    const registry: Partial<FunctionRegistry> = {
+      invoke: vi.fn().mockRejectedValue(new Error('Connection error')),
+      register: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+      get: vi.fn(),
+      getByCategory: vi.fn()
+    }
+
+    const mod = await import('../../../src/integration/function-implementations.js')
+    vi.mocked(mod.getGlobalRegistry).mockReturnValue(registry as FunctionRegistry)
+
+    const program = new Command()
+    program.exitOverride()
+    registerReqCommands(program)
+
+    await program.parseAsync(['node', 'test', 'req', 'list'])
+
+    expect(logger.error).toHaveBeenCalledWith('Error listing requirements:', expect.any(Error))
+  })
 })
+

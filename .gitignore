@@ -41,3 +41,8 @@ tmp/
 temp/
 *.temp
 .local/
+
+# Transient SQLite artifacts
+*.db.backup
+*.db-wal
+*.db-shm

@@ -18,6 +18,7 @@ export * from './repository-action-schemas.js'
 // Note: repository-schemas exports DependencyEdge which conflicts with requirement-schemas
 // Import directly from './repository-schemas.js' when needed in specific modules
 export * from './worktree-schemas.js'
+export * from './artifact-validation-schemas.js'
 
 // Registry imports and exports
 import { ToolRegistry, type ToolRegistryType } from './registry.js'
@@ -32,5 +33,5 @@ export function getToolSchema(
 
 // Utility to get actions for an entity
 export function getToolActions(entity: keyof typeof ToolRegistry): string[] {
-  return ToolRegistry[entity].actions as unknown as string[]
+  return [...ToolRegistry[entity].actions] as string[]
 }

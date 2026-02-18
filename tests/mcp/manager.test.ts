@@ -8,6 +8,7 @@ vi.mock('../../src/utils/config.js', () => ({
 vi.mock('../../src/utils/logger.js', () => ({
   logger: {
     debug: vi.fn(),
+    info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
   },
@@ -22,6 +23,7 @@ vi.mock('node:fs', () => ({
 
 vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
+  execSync: vi.fn(),
 }))
 
 describe('MCP Manager', () => {
@@ -103,6 +105,94 @@ describe('MCP Manager', () => {
     // reset fs mocks
     vi.mocked(fs.existsSync).mockReset()
     vi.mocked(fs.readFileSync).mockReset()
+  })
+
+  describe('stopServer', () => {
+    // stopServer calls readPid/isProcessRunning/removePid internally via direct
+    // function references, so we must mock the underlying fs calls rather than
+    // spying on the re-exported helpers.
+
+    it('returns false when no PID file', async () => {
+      const fs = await import('node:fs')
+      vi.mocked(fs.existsSync).mockReturnValueOnce(false)
+      expect(manager.stopServer('/project')).toBe(false)
+    })
+
+    it('removes stale PID and returns false when process not running', async () => {
+      const fs = await import('node:fs')
+      // readPid: existsSync true, readFileSync returns pid
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+      vi.mocked(fs.readFileSync).mockReturnValueOnce('99999\n')
+      // isProcessRunning: process.kill throws
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => { throw new Error('ESRCH') })
+      // removePid: existsSync true
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+
+      try {
+        expect(manager.stopServer('/project')).toBe(false)
+        expect(vi.mocked(fs.unlinkSync)).toHaveBeenCalled()
+      } finally {
+        killSpy.mockRestore()
+      }
+    })
+
+    it('stops running process on win32 via taskkill', async () => {
+      const fs = await import('node:fs')
+      const cp = await import('node:child_process')
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+      vi.mocked(fs.readFileSync).mockReturnValueOnce('12345\n')
+      vi.spyOn(process, 'kill').mockImplementation(() => undefined as never) // process running
+      // removePid existsSync
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+
+      const originalPlatformDesc = Object.getOwnPropertyDescriptor(process, 'platform')
+      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true })
+      try {
+        expect(manager.stopServer('/project')).toBe(true)
+        expect(vi.mocked(cp.execSync)).toHaveBeenCalledWith(
+          expect.stringContaining('taskkill'),
+          expect.anything()
+        )
+      } finally {
+        if (originalPlatformDesc) Object.defineProperty(process, 'platform', originalPlatformDesc)
+      }
+    })
+
+    it('sends SIGTERM on non-win32', async () => {
+      const fs = await import('node:fs')
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+      vi.mocked(fs.readFileSync).mockReturnValueOnce('12345\n')
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => undefined as never)
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+
+      const originalPlatformDesc = Object.getOwnPropertyDescriptor(process, 'platform')
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+      try {
+        expect(manager.stopServer('/project')).toBe(true)
+        expect(killSpy).toHaveBeenCalledWith(12345, 'SIGTERM')
+      } finally {
+        if (originalPlatformDesc) Object.defineProperty(process, 'platform', originalPlatformDesc)
+      }
+    })
+
+    it('handles kill failure gracefully', async () => {
+      const fs = await import('node:fs')
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+      vi.mocked(fs.readFileSync).mockReturnValueOnce('12345\n')
+      // isProcessRunning: first call succeeds (process exists)
+      const killSpy = vi.spyOn(process, 'kill')
+      killSpy.mockImplementationOnce(() => undefined as never) // isProcessRunning check
+      killSpy.mockImplementationOnce(() => { throw new Error('EPERM') }) // actual kill
+      vi.mocked(fs.existsSync).mockReturnValueOnce(true)
+
+      const originalPlatformDesc = Object.getOwnPropertyDescriptor(process, 'platform')
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+      try {
+        expect(manager.stopServer('/project')).toBe(true)
+      } finally {
+        if (originalPlatformDesc) Object.defineProperty(process, 'platform', originalPlatformDesc)
+      }
+    })
   })
 
   it.skip('spawnServerBackground resolves on success and rejects on spawn error', async () => {

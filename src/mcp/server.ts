@@ -26,7 +26,7 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
 ## Database Access via MCP Tools
 
 **All database queries must use MCP tools, not custom scripts:**
-- Use \`req_action\` tool to query requirements (list, show, deps, transfer)
+- Use \`req_action\` tool to query requirements (list, show, deps, transfer, search)
 - Use \`gates_action\` tool to manage gates (list, show, create, start, complete)
 - Use \`proposal_action\` tool to work with proposals
 

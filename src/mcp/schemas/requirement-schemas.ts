@@ -5,7 +5,7 @@ import {
   GateIdSchema,
   TimestampSchema,
   OptionalTimestampSchema,
-  PaginationMetadataSchema
+  PaginationMetadataSchema,
 } from './common-schemas.js'
 
 /**
@@ -20,7 +20,7 @@ export const ReqListInputSchema = z.object({
   gateId: GateIdSchema.optional(),
   type: RequirementTypeEnum.optional(),
   skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50)
+  take: z.number().int().min(1).max(100).default(50),
 })
 export type ReqListInput = z.infer<typeof ReqListInputSchema>
 
@@ -33,13 +33,13 @@ export const RequirementSummarySchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).optional(),
   created: TimestampSchema,
   updated: OptionalTimestampSchema,
-  testedAt: OptionalTimestampSchema
+  testedAt: OptionalTimestampSchema,
 })
 export type RequirementSummary = z.infer<typeof RequirementSummarySchema>
 
 export const ReqListOutputSchema = z.object({
   requirements: z.array(RequirementSummarySchema),
-  pagination: PaginationMetadataSchema
+  pagination: PaginationMetadataSchema,
 })
 export type ReqListOutput = z.infer<typeof ReqListOutputSchema>
 
@@ -48,7 +48,7 @@ export type ReqListOutput = z.infer<typeof ReqListOutputSchema>
 // ============================================================================
 
 export const ReqShowInputSchema = z.object({
-  hash: RequirementHashSchema
+  hash: RequirementHashSchema,
 })
 export type ReqShowInput = z.infer<typeof ReqShowInputSchema>
 
@@ -59,25 +59,39 @@ export const RequirementDetailSchema = z.object({
   type: RequirementTypeEnum,
   gateId: GateIdSchema,
   priority: z.enum(['low', 'medium', 'high']).optional(),
-  acceptance: z.array(z.object({
-    criteria: z.string(),
-    completed: z.boolean()
-  })).optional(),
-  parentRequirement: z.object({
-    hash: RequirementHashSchema,
-    title: z.string()
-  }).optional(),
-  childRequirements: z.array(z.object({
-    hash: RequirementHashSchema,
-    title: z.string()
-  })).optional(),
-  relatedProposals: z.array(z.object({
-    hash: z.string(),
-    title: z.string()
-  })).optional(),
+  acceptance: z
+    .array(
+      z.object({
+        criteria: z.string(),
+        completed: z.boolean(),
+      })
+    )
+    .optional(),
+  parentRequirement: z
+    .object({
+      hash: RequirementHashSchema,
+      title: z.string(),
+    })
+    .optional(),
+  childRequirements: z
+    .array(
+      z.object({
+        hash: RequirementHashSchema,
+        title: z.string(),
+      })
+    )
+    .optional(),
+  relatedProposals: z
+    .array(
+      z.object({
+        hash: z.string(),
+        title: z.string(),
+      })
+    )
+    .optional(),
   created: TimestampSchema,
   updated: OptionalTimestampSchema,
-  testedAt: OptionalTimestampSchema
+  testedAt: OptionalTimestampSchema,
 })
 export type RequirementDetail = z.infer<typeof RequirementDetailSchema>
 
@@ -86,7 +100,7 @@ export type RequirementDetail = z.infer<typeof RequirementDetailSchema>
 // ============================================================================
 
 export const ReqDepsInputSchema = z.object({
-  hash: RequirementHashSchema
+  hash: RequirementHashSchema,
 })
 export type ReqDepsInput = z.infer<typeof ReqDepsInputSchema>
 
@@ -94,14 +108,14 @@ export const DependencyNodeSchema = z.object({
   hash: RequirementHashSchema,
   title: z.string(),
   type: RequirementTypeEnum,
-  gateId: GateIdSchema
+  gateId: GateIdSchema,
 })
 export type DependencyNode = z.infer<typeof DependencyNodeSchema>
 
 export const DependencyEdgeSchema = z.object({
   from: RequirementHashSchema,
   to: RequirementHashSchema,
-  type: z.enum(['blocks', 'depends_on', 'related_to'])
+  type: z.enum(['blocks', 'depends_on', 'related_to']),
 })
 export type DependencyEdge = z.infer<typeof DependencyEdgeSchema>
 
@@ -110,7 +124,7 @@ export const DependencyGraphSchema = z.object({
   nodes: z.array(DependencyNodeSchema),
   edges: z.array(DependencyEdgeSchema),
   blocking: z.array(RequirementHashSchema).optional(),
-  blockedBy: z.array(RequirementHashSchema).optional()
+  blockedBy: z.array(RequirementHashSchema).optional(),
 })
 export type DependencyGraph = z.infer<typeof DependencyGraphSchema>
 
@@ -121,7 +135,7 @@ export type DependencyGraph = z.infer<typeof DependencyGraphSchema>
 export const ReqTransferInputSchema = z.object({
   hash: RequirementHashSchema,
   targetGateId: GateIdSchema,
-  reason: z.string().optional()
+  reason: z.string().optional(),
 })
 export type ReqTransferInput = z.infer<typeof ReqTransferInputSchema>
 
@@ -130,9 +144,29 @@ export const ReqTransferOutputSchema = z.object({
   previousGateId: GateIdSchema,
   newGateId: GateIdSchema,
   transferredAt: TimestampSchema,
-  affectedProposals: z.array(z.string()).optional()
+  affectedProposals: z.array(z.string()).optional(),
 })
 export type ReqTransferOutput = z.infer<typeof ReqTransferOutputSchema>
+
+// ============================================================================
+// REQ_SEARCH - Full-text search across description and acceptance criteria
+// ============================================================================
+
+export const ReqSearchInputSchema = z.object({
+  query: z.string().min(1),
+  gateId: GateIdSchema.optional(),
+  type: RequirementTypeEnum.optional(),
+  skip: z.number().int().min(0).default(0),
+  take: z.number().int().min(1).max(100).default(50),
+})
+export type ReqSearchInput = z.infer<typeof ReqSearchInputSchema>
+
+export const ReqSearchOutputSchema = z.object({
+  requirements: z.array(RequirementSummarySchema),
+  total: z.number().int().min(0),
+  pagination: PaginationMetadataSchema,
+})
+export type ReqSearchOutput = z.infer<typeof ReqSearchOutputSchema>
 
 // ============================================================================
 // ERROR RESPONSES
@@ -143,12 +177,10 @@ export const RequirementNotFoundErrorSchema = z.object({
   message: z.string(),
   context: z.object({
     resourceType: z.literal('requirement'),
-    resourceId: RequirementHashSchema
-  })
+    resourceId: RequirementHashSchema,
+  }),
 })
 export type RequirementNotFoundError = z.infer<typeof RequirementNotFoundErrorSchema>
-
-
 
 export const DependencyBlockedErrorSchema = z.object({
   code: z.literal('DEPENDENCY_BLOCKED'),
@@ -156,7 +188,7 @@ export const DependencyBlockedErrorSchema = z.object({
   context: z.object({
     requirementHash: RequirementHashSchema,
     blockedBy: z.array(RequirementHashSchema),
-    suggestion: z.string().optional()
-  })
+    suggestion: z.string().optional(),
+  }),
 })
 export type DependencyBlockedError = z.infer<typeof DependencyBlockedErrorSchema>

@@ -1,12 +1,8 @@
 import { z } from 'zod'
 import {
-  ReposListInputSchema,
   ReposListOutputSchema,
-  ReposDetectInputSchema,
   ReposDetectOutputSchema,
-  ReposDepInputSchema,
   RepositoryDependencyGraphSchema,
-  ReposAdjustInputSchema,
   ReposAdjustOutputSchema,
 } from './repository-schemas.js'
 
@@ -20,26 +16,56 @@ import {
 // ============================================================================
 
 /**
- * Repository action input with action discriminant
+ * Flat, self-documenting input schema for the repos_action tool.
+ *
+ * action required for all calls:
+ *   list    — list detected repositories; optional: type, skip, take
+ *   detect  — re-run boundary detection; optional: reanalyzeCrossRepo
+ *   deps    — view dependency graph; optional: repositoryId
+ *   adjust  — manually adjust boundaries; required: adjustments
  */
-export const RepositoryActionInputSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('list'),
-    payload: ReposListInputSchema,
-  }),
-  z.object({
-    action: z.literal('detect'),
-    payload: ReposDetectInputSchema,
-  }),
-  z.object({
-    action: z.literal('deps'),
-    payload: ReposDepInputSchema,
-  }),
-  z.object({
-    action: z.literal('adjust'),
-    payload: ReposAdjustInputSchema,
-  }),
-])
+export const RepositoryActionInputSchema = z.object({
+  action: z
+    .enum(['list', 'detect', 'deps', 'adjust'])
+    .optional()
+    .describe(
+      'Action to perform. ' +
+        'list=view detected repositories (optional: type filter). ' +
+        'detect=re-run boundary detection (optional: reanalyzeCrossRepo). ' +
+        'deps=view dependency graph (optional: repositoryId). ' +
+        'adjust=manually adjust boundaries (needs: adjustments array).'
+    ),
+
+  // --- list filters ---
+  type: z
+    .enum(['service', 'library', 'tool', 'app'])
+    .optional()
+    .describe('Filter repositories by type (list)'),
+  skip: z.number().int().min(0).optional().describe('Pagination offset (list, default 0)'),
+  take: z.number().int().min(1).max(100).optional().describe('Page size (list, default 50)'),
+
+  // --- detect fields ---
+  reanalyzeCrossRepo: z
+    .boolean()
+    .optional()
+    .describe('Re-analyse cross-repo coupling (detect, default false)'),
+
+  // --- deps fields ---
+  repositoryId: z.string().optional().describe('Scope dependency graph to this repo (deps)'),
+
+  // --- adjust fields ---
+  adjustments: z
+    .array(
+      z.object({
+        repositoryId: z.string(),
+        type: z.enum(['add', 'remove', 'reclassify']),
+        newType: z.enum(['service', 'library', 'tool', 'app']).optional(),
+        reason: z.string().optional(),
+      })
+    )
+    .optional()
+    .describe('Boundary adjustments to apply (adjust action)'),
+})
 
 export type RepositoryActionInput = z.infer<typeof RepositoryActionInputSchema>
 

@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string, @typescript-eslint/no-unnecessary-condition */
 import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
 import {
   validateDependencies,
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
+import { type ZenoConfig, getDefaultConfig } from '../../utils/config.js'
 
 /**
  * Unified gate action tool definition.
@@ -97,7 +97,7 @@ export function gateHandlers(
                 const allGates = gatesResult.data as Record<string, unknown>[]
                 const allNodes = new Map<
                   string,
-                  { hash: string; dependencies: unknown[]; gateId: string; gateSequence: number }
+                  { hash: string; dependencies: string[]; gateId: string; gateSequence: number }
                 >()
 
                 allGates.forEach((gate) => {
@@ -113,10 +113,10 @@ export function gateHandlers(
                   })
                 })
 
-                const payloadGateId = String(_payload?.['gateId'] ?? '')
-                const payloadDeps = Array.isArray(_payload?.['dependencies'])
-                  ? (_payload?.['dependencies'] as string[])
-                  : []
+                const rawGateId = _payload?.['gateId']
+                const payloadGateId = typeof rawGateId === 'string' ? rawGateId : ''
+                const rawDeps = _payload?.['dependencies']
+                const payloadDeps = Array.isArray(rawDeps) ? (rawDeps as string[]) : []
                 const newNode = {
                   hash: payloadGateId,
                   dependencies: payloadDeps,
@@ -125,8 +125,8 @@ export function gateHandlers(
                 }
 
                 const dependencyContext: DependencyValidationContext = {
-                  node: newNode as Parameters<typeof validateDependencies>[0]['node'],
-                  allNodes: allNodes as Parameters<typeof validateDependencies>[0]['allNodes'],
+                  node: newNode,
+                  allNodes: allNodes,
                 }
 
                 const dependencyResult = validateDependencies(dependencyContext)
@@ -150,22 +150,15 @@ export function gateHandlers(
             const allWarnings: string[] = []
 
             const configResult = await r.invoke('config_get', {})
-            let config: Record<string, unknown>
+            let config: ZenoConfig
 
             if (configResult.success) {
-              config = configResult.data as Record<string, unknown>
+              config = configResult.data as ZenoConfig
             } else {
               allWarnings.push(
                 `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
               )
-              config = {
-                qualityThresholds: {
-                  codeCoverage: 90,
-                  typeCheckingErrors: 0,
-                  lintingErrorRate: 0.01,
-                  securityVulnerabilities: 0,
-                },
-              }
+              config = getDefaultConfig('unknown')
             }
 
             let qualityMetrics = {
@@ -178,14 +171,18 @@ export function gateHandlers(
             try {
               const completeResult = await r.invoke('gates_complete', _payload)
 
-              if (completeResult.success && (completeResult.data as any).summary?.qualityMetrics) {
-                const actualMetrics = (completeResult.data as any).summary.qualityMetrics
+              const completeData = (completeResult as { success: boolean; data?: unknown }).data as
+                | Record<string, unknown>
+                | undefined
+              const summary = completeData?.['summary'] as Record<string, unknown> | undefined
+              if (completeResult.success && summary?.['qualityMetrics']) {
+                const actualMetrics = summary['qualityMetrics'] as Record<string, unknown>
 
                 qualityMetrics = {
-                  coverage: actualMetrics.testCoverage,
-                  typeErrors: actualMetrics.typeErrors,
-                  lintErrors: actualMetrics.lintErrors,
-                  securityIssues: actualMetrics.securityIssues,
+                  coverage: actualMetrics['testCoverage'] as number,
+                  typeErrors: actualMetrics['typeErrors'] as number,
+                  lintErrors: actualMetrics['lintErrors'] as number,
+                  securityIssues: actualMetrics['securityIssues'] as number,
                 }
               }
             } catch (e) {
@@ -194,7 +191,7 @@ export function gateHandlers(
 
             const qualityContext: QualityValidationContext = {
               metrics: qualityMetrics,
-              config: config as Parameters<typeof validateQuality>[0]['config'],
+              config,
               strict: true,
             }
 

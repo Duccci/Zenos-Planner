@@ -248,5 +248,40 @@ describe('config utilities', () => {
     })
   })
 
+  describe('workflowMode', () => {
+    it('accepts solo workflowMode', () => {
+      const config = { projectName: 'Test', workflowMode: 'solo' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.workflowMode).toBe('solo')
+      }
+    })
+
+    it('accepts team workflowMode', () => {
+      const config = { projectName: 'Test', workflowMode: 'team' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.workflowMode).toBe('team')
+      }
+    })
+
+    it('rejects invalid workflowMode value', () => {
+      const config = { projectName: 'Test', workflowMode: 'foo' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(false)
+    })
+
+    it('defaults workflowMode to solo when not provided (backward compat)', () => {
+      const config = { projectName: 'Test' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.workflowMode).toBe('solo')
+      }
+    })
+  })
+
 })
 

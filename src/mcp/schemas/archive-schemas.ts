@@ -84,16 +84,38 @@ export type ArchiveNotReadyError = z.infer<typeof ArchiveNotReadyErrorSchema>
 // UNIFIED ARCHIVE ACTION SCHEMAS
 // ============================================================================
 
-export const ArchiveActionInputSchema = z.discriminatedUnion('action', [
-  z.object({
-    action: z.literal('gate'),
-    payload: ArchiveGateInputSchema,
-  }),
-  z.object({
-    action: z.literal('batch'),
-    payload: ArchiveBatchInputSchema,
-  }),
-])
+/**
+ * Flat, self-documenting input schema for the archive_action tool.
+ *
+ * action required for all calls:
+ *   gate   — archive a completed gate; required: gateId; optional: completionNotes
+ *   batch  — archive multiple completed gates; required: artifacts
+ */
+export const ArchiveActionInputSchema = z.object({
+  action: z
+    .enum(['gate', 'batch'])
+    .optional()
+    .describe(
+      'Action to perform. ' +
+        'gate=archive a completed gate (needs: gateId; optional: completionNotes). ' +
+        'batch=archive multiple gates at once (needs: artifacts array of {type, gateId}).'
+    ),
+
+  // --- gate fields ---
+  gateId: z.string().optional().describe('Gate ID to archive e.g. "gate-01" (gate action)'),
+  completionNotes: z.string().optional().describe('Summary notes for the archive (gate/batch)'),
+
+  // --- batch fields ---
+  artifacts: z
+    .array(
+      z.object({
+        type: z.literal('gate'),
+        gateId: z.string().describe('Gate ID to archive'),
+      })
+    )
+    .optional()
+    .describe('Array of artifacts to archive (batch action)'),
+})
 
 export type ArchiveActionInput = z.infer<typeof ArchiveActionInputSchema>
 
@@ -123,11 +145,13 @@ export const ArchiveActionOutputSchema = z.discriminatedUnion('action', [
 export type ArchiveActionOutput = z.infer<typeof ArchiveActionOutputSchema>
 
 // Helper function to get output schema for a specific action
-export function getArchiveActionOutputSchema(action: ArchiveActionInput['action']): z.ZodType {
+export function getArchiveActionOutputSchema(action: string): z.ZodType {
   switch (action) {
     case 'gate':
       return ArchiveGateOutputSchema
     case 'batch':
       return ArchiveBatchOutputSchema
+    default:
+      return z.unknown()
   }
 }

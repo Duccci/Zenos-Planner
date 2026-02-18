@@ -79,6 +79,14 @@ export const ZenoConfigSchema = z
         lifecycleBump: 'major',
       }),
 
+    /**
+     * Workflow mode controlling approval behaviour.
+     * - 'solo': `zeno proposal approve` skips the interactive prompt; quality gates still enforced.
+     * - 'team': explicit human confirmation required in addition to quality gates.
+     * Defaults to 'solo' for backward compatibility with configs created before this field existed.
+     */
+    workflowMode: z.enum(['solo', 'team']).default('solo'),
+
     /** Architecture generation settings */
     architecture: z
       .object({
@@ -226,6 +234,7 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
       gateBump: 'minor',
       lifecycleBump: 'major',
     },
+    workflowMode: 'solo',
     architecture: {
       complexity: {
         maxMermaidNodes: 5,

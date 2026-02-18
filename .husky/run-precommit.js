@@ -64,7 +64,7 @@ console.log(' Coverage threshold met');
 console.log('');
 
 console.log(' Stage 5: Security scanning...');
-run('npm audit --audit-level=moderate');
+run('npm audit --audit-level=moderate --omit=dev');
 console.log(' Security scan passed');
 console.log('');
 

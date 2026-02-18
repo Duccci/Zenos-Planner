@@ -8,7 +8,7 @@ import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { approveProposal } from '../../core/completions.js'
 import { getDatabase } from '../../storage/database.js'
-import { findProjectRoot } from '../../utils/config.js'
+import { findProjectRoot, loadConfig } from '../../utils/config.js'
 import { readFile } from '../../utils/file.js'
 import { readdir } from 'node:fs/promises'
 import path from 'path'
@@ -425,10 +425,59 @@ export function registerProposalCommands(program: Command): void {
       'Approve proposal (status: in_progress -> completed). Git commits occur at gate completion.'
     )
     .action(async (hash: string) => {
-      const result = await approveProposal(hash)
-      logger.info(`Proposal completed: #${result.proposalHash}`)
-      logger.info(`Gate: ${result.gateId}`)
-      logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
+      const projectRoot = findProjectRoot(process.cwd())
+      if (!projectRoot) {
+        logger.error('Not a Zeno project')
+        process.exit(1)
+      }
+
+      const config = await loadConfig(projectRoot)
+      const workflowMode = config.workflowMode
+      if (workflowMode === 'solo') {
+        // Solo mode: skip interactive prompt, enforce quality thresholds
+        const qt = config.qualityThresholds
+        const qualityErrors: string[] = []
+
+        if (qt.codeCoverage < 90) {
+          qualityErrors.push(`Code coverage ${String(qt.codeCoverage)}% is below required 90%`)
+        }
+        if (qt.securityVulnerabilities > 0) {
+          qualityErrors.push(
+            `${String(qt.securityVulnerabilities)} security vulnerabilities detected (must be 0)`
+          )
+        }
+        if (qt.lintingErrorRate >= 0.01) {
+          qualityErrors.push(
+            `Linting error rate ${String(qt.lintingErrorRate)} exceeds allowed 0.01%`
+          )
+        }
+        if (qt.typeCheckingErrors > 0) {
+          qualityErrors.push(
+            `${String(qt.typeCheckingErrors)} TypeScript type errors detected (must be 0)`
+          )
+        }
+
+        if (qualityErrors.length > 0) {
+          logger.error('Auto-approval blocked: quality gate failures:')
+          for (const err of qualityErrors) {
+            logger.error(` - ${err}`)
+          }
+          process.exit(1)
+          return
+        }
+
+        const result = await approveProposal(hash, { approver: 'solo-auto' })
+        logger.info(`auto-approved (solo mode)`)
+        logger.info(`Proposal completed: #${result.proposalHash}`)
+        logger.info(`Gate: ${result.gateId}`)
+        logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
+      } else {
+        // Team mode: preserve existing explicit confirmation behaviour
+        const result = await approveProposal(hash)
+        logger.info(`Proposal completed: #${result.proposalHash}`)
+        logger.info(`Gate: ${result.gateId}`)
+        logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
+      }
     })
 
   proposalCmd

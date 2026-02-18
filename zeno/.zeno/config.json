@@ -1,6 +1,7 @@
 {
   "projectName": "Zenos-Planner",
   "version": "0.2.0",
+  "workflowMode": "solo",
   "qualityThresholds": {
     "codeCoverage": 90,
     "securityVulnerabilities": 0,

@@ -46,41 +46,55 @@ export function createEntityActionHandler<T extends string>(
     if (!registry) return createNotImplementedHandler(`${config.entity} action requires registry`)
 
     try {
-      const validated = config.inputSchema.parse(args) as { action: T; payload: unknown }
+      const validated = config.inputSchema.parse(args) as { action?: T } & Record<string, unknown>
+
+      // Return usage guidance when no action is provided
+      if (!validated.action) {
+        const usage = {
+          error: 'action is required',
+          tool: `${config.entity}_action`,
+          availableActions: config.actions,
+          usage: `Call this tool with { "action": "<one of the above>" } plus any required fields for that action. Check the tool's input schema description for per-action field requirements.`,
+        }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(usage, null, 2) }],
+          structuredContent: usage,
+          isError: true,
+        }
+      }
+
+      const action = validated.action
 
       // If caller provided a mock result, validate against per-action schema
-      const mock = handleMockResult(args, config.actionOutputSchema(validated.action))
+      const mock = handleMockResult(args, config.actionOutputSchema(action))
       if (mock) return mock
 
       // Validate action
-      if (!config.actions.includes(validated.action)) {
-        throw new Error(`Unknown ${config.entity} action: ${validated.action}`)
+      if (!config.actions.includes(action)) {
+        throw new Error(`Unknown ${config.entity} action: ${action}`)
       }
 
+      // Args without the `action` discriminator passed as the payload to handlers
+      const { action: _action, ...payload } = validated
+
       // Run validators if provided
-      if (config.validators?.[validated.action] !== undefined) {
-        const vFactory = config.validators[validated.action]
+      if (config.validators?.[action] !== undefined) {
+        const vFactory = config.validators[action]
         if (vFactory) {
-          const validators = vFactory(
-            validated.payload as Record<string, unknown> | undefined,
-            registry
-          )
+          const validators = vFactory(payload as Record<string, unknown>, registry)
           const validationResults = await runValidators(validators)
 
           if (!validationResults.allowed) {
-            return formatValidationError(validationResults, validated.action)
+            return formatValidationError(validationResults, action)
           }
         }
       }
 
       // Invoke action handler
-      const handler = config.actionHandlers[validated.action]
-      if (!handler) throw new Error(`Handler for action ${validated.action} not found`)
+      const handler = config.actionHandlers[action]
+      if (!handler) throw new Error(`Handler for action ${action} not found`)
 
-      const invokeResult = await handler(
-        validated.payload as Record<string, unknown> | undefined,
-        registry
-      )
+      const invokeResult = await handler(payload as Record<string, unknown>, registry)
 
       if (!invokeResult.success) {
         const err = invokeResult.error
@@ -94,7 +108,7 @@ export function createEntityActionHandler<T extends string>(
       }
 
       const output = {
-        action: validated.action,
+        action: action,
         result: invokeResult.data as Record<string, unknown>,
       }
 

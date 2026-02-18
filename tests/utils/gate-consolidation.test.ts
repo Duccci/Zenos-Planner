@@ -69,4 +69,82 @@ describe('Gate Consolidation Utilities', () => {
     expect(md).toContain('| Hash | Description |')
     expect(md).toContain('**Quality Metrics**:')
   })
+
+  it('generateConsolidationMarkdown handles all-empty consolidation (else branches)', () => {
+    const empty = {
+      requirementsFulfilled: [],
+      lessonsLearned: [],
+      nextDependencies: [],
+      highLevelDelta: {
+        summary: '',
+        artifactsCreated: [],
+        qualityMetrics: { totalCoverage: '0%', totalFiles: 0, totalTasks: 0 },
+      },
+    }
+
+    const md = generateConsolidationMarkdown(empty as any)
+    expect(md).toContain('*No requirements tracked in proposals.*')
+    expect(md).toContain('*No implementation notes captured.*')
+    expect(md).toContain('*No downstream dependencies identified.*')
+    expect(md).toContain('*No artifacts tracked.*')
+    expect(md).toContain('*No summary available.*')
+  })
+
+  it('parseProposal handles minimal/empty proposal content', async () => {
+    const { readFile } = await import('../../src/utils/file.js')
+    vi.mocked(readFile).mockResolvedValueOnce('# Minimal doc\nNo structured fields here.\n')
+
+    const res = await parseProposal('zeno/proposals/archive/empty.md')
+    expect(res.hash).toBe('')
+    expect(res.title).toBe('')
+    expect(res.requirements).toEqual([])
+    expect(res.summary).toBe('')
+    expect(res.dependencies.blocks).toEqual([])
+    expect(res.dependencies.requires).toEqual([])
+    expect(res.implementationNotes).toBe('')
+    expect(res.completionSummary.tasksCompleted).toBe('')
+    expect(res.completionSummary.filesModified).toBe(0)
+  })
+
+  it('consolidateGateProposals handles directory with subdirectories', async () => {
+    const { readFile } = await import('../../src/utils/file.js')
+    const { readdir } = await import('node:fs/promises')
+
+    const subDirEntry = { name: 'subdir', isFile: () => false, isDirectory: () => true } as any
+    const subFileEntry = { name: 'p.md', isFile: () => true, isDirectory: () => false } as any
+
+    const content = `# Proposal: Sub\n**Hash**: #sub1\n**Requirement**: #r1\n**Gate**: gate-2\n\n## Summary\nSummary sub\n---\n\n## Completion Summary\n**Tasks Completed**: 1/2\n**Files Modified**: 1\n**Test Coverage**: 80%\n\n### Artifacts Created\n- sub-art\n\n### Quality Metrics\nCoverage: 80%\nSecurity: 0\nLint errors: 0\nType errors: 0\n`
+
+    // First readdir returns subdir, second readdir (inside subdir) returns file
+    vi.mocked(readdir)
+      .mockResolvedValueOnce([subDirEntry] as any)
+      .mockResolvedValueOnce([subFileEntry] as any)
+    vi.mocked(readFile).mockResolvedValue(content)
+
+    const result = await consolidateGateProposals('gate-02', 'zeno/proposals')
+    expect(result.highLevelDelta.qualityMetrics.totalCoverage).toContain('%')
+  })
+
+  it('consolidateGateProposals returns empty when no proposals match gate', async () => {
+    const { readFile } = await import('../../src/utils/file.js')
+    const { readdir } = await import('node:fs/promises')
+
+    const content = `# Proposal: Other\n**Hash**: #o1\n**Gate**: gate-9\n\n## Summary\nOther gate\n---\n`
+
+    vi.mocked(readdir).mockResolvedValueOnce([{ name: 'o.md', isFile: () => true, isDirectory: () => false } as any] as any)
+    vi.mocked(readFile).mockResolvedValue(content)
+
+    const result = await consolidateGateProposals('gate-01', 'zeno/proposals')
+    expect(result.requirementsFulfilled).toEqual([])
+    expect(result.lessonsLearned).toEqual([])
+    expect(result.highLevelDelta.qualityMetrics.totalCoverage).toBe('0%')
+  })
+
+  it('consolidateGateProposals handles readdir error gracefully', async () => {
+    const { readdir } = await import('node:fs/promises')
+    vi.mocked(readdir).mockRejectedValueOnce(new Error('ENOENT'))
+
+    const result = await consolidateGateProposals('gate-01', 'nonexistent')
+    expect(result.requirementsFulfilled).toEqual([])
+  })
 })

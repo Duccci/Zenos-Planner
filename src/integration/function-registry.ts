@@ -298,6 +298,7 @@ export const functionRegistry: FunctionDefinition[] = [
       'req_action({ action: "list", payload: { gateId: "gate-02" } }) - List requirements',
       'req_action({ action: "show", payload: { hash: "#a3f9c2d1" } }) - Show requirement details',
       'req_action({ action: "transfer", payload: { hash: "#a3f9c2d1", gateId: "gate-04" } }) - Transfer requirement',
+      'req_action({ action: "search", payload: { query: "authentication", gateId: "gate-02" } }) - Search requirements',
     ],
   },
   {

@@ -48,7 +48,7 @@ export const ToolRegistry = {
     inputSchema: ReqActionInputSchema,
     outputSchema: ReqActionOutputSchema,
     description:
-      'REQUIRED: Use req_action to query the requirements database. Actions: list (all/by gate), show (details by hash), deps (dependency graph), transfer (move to different gate). Call this whenever you need requirement info.',
+      'REQUIRED: Use req_action to query the requirements database. Actions: list (all/by gate), show (details by hash), deps (dependency graph), transfer (move to different gate), search (full-text keyword search). Call this whenever you need requirement info.',
   },
 
   repositories: {

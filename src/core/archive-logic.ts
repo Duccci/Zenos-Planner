@@ -25,7 +25,9 @@ import {
   performGitCommitAndPush,
 } from './archive-execution.js'
 import { logger } from '../utils/logger.js'
+import { stripAnsi } from '../utils/ansi-strip.js'
 import { ArchiveGateOutput, ArchiveBatchOutput } from '../mcp/schemas/archive-schemas.js'
+import { captureMetricsSnapshot } from './metrics-capture.js'
 
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
 
@@ -82,11 +84,11 @@ export async function archiveGate(
   // Step 7: Git operations
   const tagName = createTagName(gateId, gateName)
 
-  const commitMessage = `chore(${gateId}): Archive gate: ${gateName}
+  const commitMessage = stripAnsi(`chore(${gateId}): Archive gate: ${gateName}
 
 Consolidated ${String(consolidation.requirementsFulfilled.length)} requirements fulfilled
 ${String(consolidation.nextDependencies.length)} next dependencies identified
-${completionNotes ? `Notes: ${completionNotes}` : ''}`
+${completionNotes ? `Notes: ${completionNotes}` : ''}`)
 
   await performGitCommitAndPush({
     tagName,
@@ -95,7 +97,10 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`
     remote: config.git?.remote,
   })
 
-  // Step 8: Calculate dependencies
+  // Step 8: Capture metrics snapshot (non-fatal)
+  await captureMetricsSnapshot(gateId)
+
+  // Step 9: Calculate dependencies
   const nextGateId = calculateNextGateId(gateId)
 
   const result: ArchiveGateOutput = {

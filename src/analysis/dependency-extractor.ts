@@ -3,22 +3,30 @@
  * Identifies imports, exports, and re-exports from parsed code
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any,
-   @typescript-eslint/no-unsafe-call,
-   @typescript-eslint/no-unsafe-member-access,
-   @typescript-eslint/no-unsafe-argument,
-   @typescript-eslint/no-unsafe-assignment,
-   @typescript-eslint/no-unsafe-return,
-   @typescript-eslint/restrict-template-expressions */
+import type { NodePath } from '@babel/traverse'
+import type {
+  ImportDeclaration,
+  CallExpression,
+  ExportNamedDeclaration,
+  ExportDefaultDeclaration,
+  ImportSpecifier,
+  ImportDefaultSpecifier,
+  ImportNamespaceSpecifier,
+  VariableDeclarator,
+} from '@babel/types'
 
 // Babel traverse typing is complex, use lazy loading
-let traverse: any = null
+type TraverseFn = (ast: object, visitors: Record<string, unknown>) => void
+let traverse: TraverseFn | null = null
 
-function getTraverse(): any {
+function getTraverse(): TraverseFn {
   if (!traverse) {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const traverseModule = require('@babel/traverse')
-    traverse = traverseModule.default ?? traverseModule
+    const traverseModule = require('@babel/traverse') as { default?: TraverseFn } | TraverseFn
+    traverse =
+      typeof traverseModule === 'function'
+        ? traverseModule
+        : (traverseModule as { default: TraverseFn }).default
   }
   return traverse
 }
@@ -47,38 +55,47 @@ export function extractDependencies(
     return { imports, exports, reexports }
   }
 
-  getTraverse()(ast as any, {
-    ImportDeclaration(nodePath: any) {
+  getTraverse()(ast, {
+    ImportDeclaration(nodePath: NodePath<ImportDeclaration>) {
       const source = nodePath.node.source.value
-      const names = nodePath.node.specifiers.map((spec: any) => {
-        if (spec.type === 'ImportSpecifier') {
-          return spec.imported.name
+      const names: string[] = []
+      for (const spec of nodePath.node.specifiers) {
+        switch (spec.type) {
+          case 'ImportSpecifier': {
+            const imp = spec.imported
+            names.push(imp.type === 'Identifier' ? imp.name : imp.value)
+            break
+          }
+          case 'ImportDefaultSpecifier':
+            names.push(spec.local.name)
+            break
+          case 'ImportNamespaceSpecifier':
+            names.push('*')
+            break
+          default:
+            names.push('unknown')
         }
-        if (spec.type === 'ImportDefaultSpecifier') {
-          return spec.local.name
-        }
-        if (spec.type === 'ImportNamespaceSpecifier') {
-          return '*'
-        }
-        return 'unknown'
-      })
+      }
 
       const importKey = `${source}:${names.join(',')}`
       if (!seenImports.has(importKey)) {
         imports.push({
           source,
           names,
-          isDefault: nodePath.node.specifiers.some((s: any) => s.type === 'ImportDefaultSpecifier'),
+          isDefault: nodePath.node.specifiers.some(
+            (s: ImportSpecifier | ImportDefaultSpecifier | ImportNamespaceSpecifier) =>
+              s.type === 'ImportDefaultSpecifier'
+          ),
           isDynamic: false,
         })
         seenImports.add(importKey)
       }
     },
 
-    CallExpression(nodePath: any) {
-      if (nodePath.node.callee.type === 'Import' && nodePath.node.arguments.length > 0) {
+    CallExpression(nodePath: NodePath<CallExpression>) {
+      if (nodePath.node.callee.type === 'Import') {
         const arg = nodePath.node.arguments[0]
-        if (arg.type === 'StringLiteral') {
+        if (arg?.type === 'StringLiteral') {
           imports.push({
             source: arg.value,
             names: ['dynamic'],
@@ -89,42 +106,41 @@ export function extractDependencies(
       }
     },
 
-    ExportNamedDeclaration(nodePath: any) {
-      if (nodePath.node.declaration) {
-        if (nodePath.node.declaration.type === 'VariableDeclaration') {
-          nodePath.node.declaration.declarations.forEach((decl: any) => {
-            if (decl.id.type === 'Identifier') {
-              exports.push(decl.id.name)
-            }
-          })
-        } else if (nodePath.node.declaration.type === 'FunctionDeclaration') {
-          if (nodePath.node.declaration.id) {
-            exports.push(nodePath.node.declaration.id.name)
+    ExportNamedDeclaration(nodePath: NodePath<ExportNamedDeclaration>) {
+      const decl = nodePath.node.declaration
+      if (decl?.type === 'VariableDeclaration') {
+        decl.declarations.forEach((d: VariableDeclarator) => {
+          if (d.id.type === 'Identifier') {
+            exports.push(d.id.name)
           }
-        } else if (nodePath.node.declaration.type === 'ClassDeclaration') {
-          if (nodePath.node.declaration.id) {
-            exports.push(nodePath.node.declaration.id.name)
-          }
+        })
+      } else if (decl?.type === 'FunctionDeclaration') {
+        if (decl.id) {
+          exports.push(decl.id.name)
+        }
+      } else if (decl?.type === 'ClassDeclaration') {
+        if (decl.id) {
+          exports.push(decl.id.name)
         }
       }
 
-      if (nodePath.node.specifiers) {
-        nodePath.node.specifiers.forEach((spec: any) => {
-          if (spec.type === 'ExportSpecifier') {
-            exports.push(spec.exported.name)
-          }
-        })
-      }
+      const specifiers = nodePath.node.specifiers
+      specifiers.forEach((spec) => {
+        if (spec.type === 'ExportSpecifier') {
+          const exp = spec.exported
+          exports.push(exp.type === 'Identifier' ? exp.name : exp.value)
+        }
+      })
 
       if (nodePath.node.source) {
         const source = nodePath.node.source.value
-        const names =
-          nodePath.node.specifiers?.map((spec: any) => {
-            if (spec.type === 'ExportSpecifier') {
-              return spec.exported.name
-            }
-            return 'unknown'
-          }) ?? []
+        const names = nodePath.node.specifiers.map((spec) => {
+          if (spec.type === 'ExportSpecifier') {
+            const exp = spec.exported
+            return exp.type === 'Identifier' ? exp.name : exp.value
+          }
+          return 'unknown'
+        })
 
         reexports.push({
           source,
@@ -135,25 +151,17 @@ export function extractDependencies(
       }
     },
 
-    ExportDefaultDeclaration(nodePath: any) {
-      const declType = nodePath.node.declaration.type
-      if (
-        declType === 'Identifier' ||
-        declType === 'FunctionDeclaration' ||
-        declType === 'ClassDeclaration'
-      ) {
-        exports.push('default')
-      } else {
-        exports.push('default')
-      }
+    ExportDefaultDeclaration(_nodePath: NodePath<ExportDefaultDeclaration>) {
+      exports.push('default')
     },
 
-    VariableDeclarator(nodePath: any) {
-      const callArg = nodePath.node.init?.arguments?.[0]
+    VariableDeclarator(nodePath: NodePath<VariableDeclarator>) {
+      const init = nodePath.node.init
+      const callArg = init?.type === 'CallExpression' ? init.arguments[0] : undefined
       if (
-        nodePath.node.init?.type === 'CallExpression' &&
-        nodePath.node.init.callee?.type === 'Identifier' &&
-        nodePath.node.init.callee.name === 'require' &&
+        init?.type === 'CallExpression' &&
+        init.callee.type === 'Identifier' &&
+        init.callee.name === 'require' &&
         callArg?.type === 'StringLiteral'
       ) {
         let name = 'module'

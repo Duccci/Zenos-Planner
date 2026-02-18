@@ -1,39 +1,101 @@
 /**
  * Gates Action Schemas
  *
- * Unified action-based tool for gate lifecycle operations.
- * Uses discriminated unions for LLM-friendly action dispatch.
+ * Flat, self-documenting input schema for the gates_action tool.
+ * All fields are optional top-level properties so LLMs can call this tool
+ * with any subset of args and the handler decides what is required per action.
+ * An empty call ({}) passes validation and the handler returns usage guidance.
  */
 
 import { z } from 'zod'
 import {
-  GatesListInputSchema,
   GatesListOutputSchema,
-  GatesShowInputSchema,
   GateDetailSchema,
-  GatesStartInputSchema,
   GatesStartOutputSchema,
-  GatesCompleteInputSchema,
   GatesCompleteOutputSchema,
-  GatesRegenerateInputSchema,
   GatesRegenerateOutputSchema,
 } from './gate-schemas.js'
-import { GateCreateInputSchema, GateCreateOutputSchema } from './gate-create-schemas.js'
-import { GateGenerateInputSchema, GateGenerateOutputSchema } from './workflow-schemas.js'
+import { GateCreateOutputSchema } from './gate-create-schemas.js'
+import { GateGenerateOutputSchema } from './workflow-schemas.js'
 
 /**
- * Discriminated union for gate action inputs
- * Each action has its own payload schema
+ * Flat input schema for the gates_action tool.
+ *
+ * action required for all calls:
+ *   list       — list gates; optional: status, skip, take
+ *   show       — get gate details; required: gateId
+ *   create     — create a new gate; required: gateId, name, type, sequence, objectives; optional: dependencies, description
+ *   generate   — generate gates from requirements; optional: mode, anchorGateId, templateName, requirementsPerGate
+ *   start      — transition gate to in_progress; required: gateId; optional: notes
+ *   complete   — mark gate completed; required: gateId; optional: completionNotes, approvalDate
+ *   regenerate — regenerate gate sequence; optional: fromGateId, mode
  */
-export const GatesActionInputSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('list'), payload: GatesListInputSchema }),
-  z.object({ action: z.literal('show'), payload: GatesShowInputSchema }),
-  z.object({ action: z.literal('create'), payload: GateCreateInputSchema }),
-  z.object({ action: z.literal('generate'), payload: GateGenerateInputSchema }),
-  z.object({ action: z.literal('start'), payload: GatesStartInputSchema }),
-  z.object({ action: z.literal('complete'), payload: GatesCompleteInputSchema }),
-  z.object({ action: z.literal('regenerate'), payload: GatesRegenerateInputSchema }),
-])
+export const GatesActionInputSchema = z.object({
+  action: z
+    .enum(['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate'])
+    .optional()
+    .describe(
+      'Action to perform. ' +
+        'list=show all gates (optional: status filter). ' +
+        'show=get gate details (needs: gateId). ' +
+        'create=new gate (needs: gateId, name, type, sequence, objectives). ' +
+        'generate=generate from requirements (optional: mode, anchorGateId). ' +
+        'start=begin gate work, pending→in_progress (needs: gateId). ' +
+        'complete=finish gate (needs: gateId). ' +
+        'regenerate=rebuild future gates after rescope (optional: fromGateId, mode).'
+    ),
+
+  // --- shared identifier ---
+  gateId: z
+    .string()
+    .optional()
+    .describe('Gate ID e.g. "gate-01" (show/create/start/complete/regenerate)'),
+
+  // --- list filters ---
+  status: z
+    .enum(['pending', 'in_progress', 'completed', 'archived'])
+    .optional()
+    .describe('Filter gates by status (list action)'),
+  skip: z.number().int().min(0).optional().describe('Pagination offset (list, default 0)'),
+  take: z.number().int().min(1).max(100).optional().describe('Page size (list, default 50)'),
+
+  // --- create fields ---
+  name: z.string().optional().describe('Human-readable gate name (create)'),
+  type: z.enum(['feature', 'quality', 'rescope']).optional().describe('Gate type (create)'),
+  sequence: z.number().int().min(1).optional().describe('Gate sequence number (create)'),
+  dependencies: z
+    .array(z.string())
+    .optional()
+    .describe('Gate IDs that must complete first (create)'),
+  objectives: z.array(z.string()).optional().describe('Goals the gate must achieve (create)'),
+  description: z.string().optional().describe('Optional gate description (create)'),
+
+  // --- generate fields ---
+  mode: z
+    .enum(['new', 'rebaseline', 'single', 'full', 'partial', 'check'])
+    .optional()
+    .describe(
+      'Generation/regeneration mode (generate: new|rebaseline|single; regenerate: full|partial|check)'
+    ),
+  anchorGateId: z.string().optional().describe('Gate to anchor generation from (generate)'),
+  templateName: z
+    .string()
+    .optional()
+    .describe('Template name (generate, default: gate-prd-template)'),
+  requirementsPerGate: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe('Max requirements per gate (generate, default 5)'),
+
+  // --- start/complete/regenerate fields ---
+  notes: z.string().optional().describe('Optional notes (start)'),
+  completionNotes: z.string().optional().describe('Completion summary notes (complete)'),
+  approvalDate: z.string().optional().describe('ISO timestamp of approval (complete)'),
+  fromGateId: z.string().optional().describe('Regenerate from this gate forward (regenerate)'),
+})
 
 export type GatesActionInput = z.infer<typeof GatesActionInputSchema>
 
@@ -89,30 +151,3 @@ export const GatesActionOutputSchema = z.discriminatedUnion('action', [
 ])
 
 export type GatesActionOutput = z.infer<typeof GatesActionOutputSchema>
-
-/**
- * Type guards for gate actions
- */
-export const isGatesListAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'list' }> => input.action === 'list'
-
-export const isGatesShowAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'show' }> => input.action === 'show'
-
-export const isGatesCreateAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'create' }> => input.action === 'create'
-
-export const isGatesStartAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'start' }> => input.action === 'start'
-
-export const isGatesCompleteAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'complete' }> => input.action === 'complete'
-
-export const isGatesRegenerateAction = (
-  input: GatesActionInput
-): input is Extract<GatesActionInput, { action: 'regenerate' }> => input.action === 'regenerate'

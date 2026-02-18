@@ -4,11 +4,11 @@
  * Commands for querying and managing requirements.
  * Database presence equals approval; progress tracked via Git.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unnecessary-condition, @typescript-eslint/restrict-template-expressions, @typescript-eslint/no-unsafe-assignment */
 
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { getGlobalRegistry } from '../../integration/function-implementations.js'
+import type { RequirementSummary } from '../../mcp/schemas/requirement-schemas.js'
 
 /**
  * Register requirements commands
@@ -34,11 +34,12 @@ export function registerReqCommands(program: Command): void {
         }
         const result = await registry.invoke('req_action', { action: 'list', payload: params })
         if (result.success) {
-          const requirements = ((result.data as any)?.requirements as any[]) || []
-          logger.info(`Requirements (${requirements.length}):`)
+          const data = result.data as { requirements?: RequirementSummary[] }
+          const requirements = data.requirements ?? []
+          logger.info(`Requirements (${String(requirements.length)}):`)
           for (const req of requirements) {
-            const gateInfo = req.gateId ? ` [${req.gateId as string}]` : ' [project]'
-            logger.info(`  ${req.hash as string}: ${req.description as string}${gateInfo}`)
+            const gateInfo = req.gateId ? ` [${req.gateId}]` : ' [project]'
+            logger.info(`  ${req.hash}: ${req.description ?? ''}${gateInfo}`)
           }
         } else {
           logger.error('Failed to list requirements:', result.error)
@@ -56,17 +57,28 @@ export function registerReqCommands(program: Command): void {
         const registry = getGlobalRegistry()
         const result = await registry.invoke('req_action', { action: 'show', payload: { hash } })
         if (result.success) {
-          const req = (result.data as any)?.requirement
-          if (req) {
-            logger.info(`Requirement: ${req.hash as string}`)
-            logger.info(`Description: ${req.description as string}`)
-            logger.info(`Type: ${req.type as string}`)
-            logger.info(`Priority: ${req.priority as string}`)
-            logger.info(`Project: ${req.projectId as string}`)
-            if (req.gateId) logger.info(`Gate: ${req.gateId as string}`)
-            if (req.parentId) logger.info(`Parent: ${req.parentId as string}`)
-            if (req.acceptanceCriteria)
-              logger.info(`Acceptance: ${req.acceptanceCriteria as string}`)
+          const data = result.data as {
+            requirement?: {
+              hash?: string
+              description?: string
+              type?: string
+              priority?: string
+              projectId?: string
+              gateId?: string
+              parentId?: string
+              acceptanceCriteria?: string
+            }
+          }
+          const req = data.requirement
+          if (req?.hash) {
+            logger.info(`Requirement: ${req.hash}`)
+            logger.info(`Description: ${req.description ?? ''}`)
+            logger.info(`Type: ${req.type ?? ''}`)
+            logger.info(`Priority: ${req.priority ?? ''}`)
+            logger.info(`Project: ${req.projectId ?? ''}`)
+            if (req.gateId) logger.info(`Gate: ${req.gateId}`)
+            if (req.parentId) logger.info(`Parent: ${req.parentId}`)
+            if (req.acceptanceCriteria) logger.info(`Acceptance: ${req.acceptanceCriteria}`)
           } else {
             logger.error('Requirement not found')
           }
@@ -86,7 +98,7 @@ export function registerReqCommands(program: Command): void {
         const registry = getGlobalRegistry()
         const result = await registry.invoke('req_action', { action: 'deps', payload: { hash } })
         if (result.success) {
-          const graph = (result.data as { graph?: unknown })?.graph
+          const graph = (result.data as { graph?: unknown }).graph
           if (graph) {
             logger.info(`Dependency graph for ${hash}:`)
             // Simple text representation
@@ -121,4 +133,50 @@ export function registerReqCommands(program: Command): void {
         logger.error('Error transferring requirement:', error)
       }
     })
+
+  reqCmd
+    .command('search <query>')
+    .description('Search requirements by keyword')
+    .option('--gate <gate-id>', 'Filter by gate')
+    .option('--type <type>', 'Filter by requirement type')
+    .option('--skip <n>', 'Pagination offset', '0')
+    .option('--take <n>', 'Page size (max 100)', '50')
+    .action(
+      async (
+        query: string,
+        options: { gate?: string; type?: string; skip?: string; take?: string }
+      ) => {
+        try {
+          const registry = getGlobalRegistry()
+          const result = await registry.invoke('req_action', {
+            action: 'search',
+            payload: {
+              query,
+              gateId: options.gate,
+              type: options.type,
+              skip: options.skip ? parseInt(options.skip, 10) : 0,
+              take: options.take ? parseInt(options.take, 10) : 50,
+            },
+          })
+          if (result.success) {
+            const data = result.data as
+              | { requirements?: RequirementSummary[]; total?: number }
+              | undefined
+            const requirements = data?.requirements ?? []
+            const total = data?.total ?? requirements.length
+            logger.info(
+              `Search results for "${query}" (${String(requirements.length)}/${String(total)}):`
+            )
+            for (const req of requirements) {
+              const gateInfo = req.gateId ? ` [${req.gateId}]` : ' [project]'
+              logger.info(`  ${req.hash}: ${req.description ?? ''}${gateInfo}`)
+            }
+          } else {
+            logger.error('Failed to search requirements:', result.error)
+          }
+        } catch (error) {
+          logger.error('Error searching requirements:', error)
+        }
+      }
+    )
 }

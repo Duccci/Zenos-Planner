@@ -1,48 +1,134 @@
 /**
  * Proposal Action Schemas
  *
- * Unified action-based tool for proposal lifecycle operations.
- * Uses discriminated unions for LLM-friendly action dispatch.
+ * Flat, self-documenting input schema for the proposal_action tool.
+ * All fields are optional top-level properties so LLMs can call this tool
+ * with any subset of args and the handler decides what is required per action.
+ * An empty call ({}) passes validation and the handler returns usage guidance.
  */
 
 import { z } from 'zod'
 import {
-  ProposalListInputSchema,
   ProposalListOutputSchema,
-  ProposalShowInputSchema,
   ProposalDetailSchema,
-  ProposalValidateInputSchema,
   ProposalValidateOutputSchema,
-  ProposalApproveInputSchema,
   ProposalApproveOutputSchema,
-  ProposalRejectInputSchema,
   ProposalRejectOutputSchema,
-  ProposalStartInputSchema,
   ProposalStartOutputSchema,
 } from './proposal-schemas.js'
-import { ProposalCreateInputSchema, ProposalCreateOutputSchema } from './proposal-create-schemas.js'
+import { ProposalCreateOutputSchema } from './proposal-create-schemas.js'
 import {
-  ProposalGenerateInputSchema,
   ProposalGenerateOutputSchema,
-  ProposalUpdateProgressInputSchema,
   ProposalUpdateProgressOutputSchema,
 } from './workflow-schemas.js'
 
 /**
- * Discriminated union for proposal action inputs
- * Each action has its own payload schema
+ * Flat input schema for the proposal_action tool.
+ *
+ * action required for all calls:
+ *   list      — list proposals; optional: gateId, status, skip, take
+ *   show      — get proposal details; required: hash
+ *   create    — new proposal; required: title, summary, tasks; optional: gateId, solitary, filesAffected, context, dependencies
+ *   generate  — generate proposals from gate PRD; required: gateId; optional: templateName, outputDir
+ *   validate  — run quality checks on a proposal; required: hash; optional: strict
+ *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
+ *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy
+ *   start     — create isolated worktree; required: hash; optional: startedBy
+ *   progress  — update task completion; required: hash, taskIndex, completed; optional: notes
  */
-export const ProposalActionInputSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('list'), payload: ProposalListInputSchema }),
-  z.object({ action: z.literal('show'), payload: ProposalShowInputSchema }),
-  z.object({ action: z.literal('create'), payload: ProposalCreateInputSchema }),
-  z.object({ action: z.literal('generate'), payload: ProposalGenerateInputSchema }),
-  z.object({ action: z.literal('validate'), payload: ProposalValidateInputSchema }),
-  z.object({ action: z.literal('approve'), payload: ProposalApproveInputSchema }),
-  z.object({ action: z.literal('reject'), payload: ProposalRejectInputSchema }),
-  z.object({ action: z.literal('start'), payload: ProposalStartInputSchema }),
-  z.object({ action: z.literal('progress'), payload: ProposalUpdateProgressInputSchema }),
-])
+export const ProposalActionInputSchema = z.object({
+  action: z
+    .enum([
+      'list',
+      'show',
+      'create',
+      'generate',
+      'validate',
+      'approve',
+      'reject',
+      'start',
+      'progress',
+    ])
+    .optional()
+    .describe(
+      'Action to perform. ' +
+        'list=show proposals (filter by gateId/status). ' +
+        'show=get proposal details (needs: hash). ' +
+        'create=new proposal (needs: title, summary, tasks; optional: gateId, filesAffected). ' +
+        'generate=generate from gate PRD (needs: gateId). ' +
+        'validate=run quality checks (needs: hash). ' +
+        'approve=merge proposal (needs: hash). ' +
+        'reject=reject with feedback (needs: hash, rejectionReason). ' +
+        'start=create worktree for implementation (needs: hash). ' +
+        'progress=update task status (needs: hash, taskIndex, completed).'
+    ),
+
+  // --- list filters ---
+  status: z
+    .enum(['pending', 'in_progress', 'completed', 'archived', 'rejected'])
+    .optional()
+    .describe('Filter proposals by status (list action)'),
+  skip: z.number().int().min(0).optional().describe('Pagination offset (list action, default 0)'),
+  take: z.number().int().min(1).max(100).optional().describe('Page size (list action, default 50)'),
+
+  // --- shared identifier ---
+  hash: z
+    .string()
+    .optional()
+    .describe('Proposal hash (show/validate/approve/reject/start/progress)'),
+  gateId: z.string().optional().describe('Gate ID e.g. "gate-01" (list filter, create, generate)'),
+
+  // --- create fields ---
+  title: z.string().optional().describe('Proposal title (create)'),
+  summary: z.string().optional().describe('Short 2-3 sentence summary (create)'),
+  solitary: z.boolean().optional().describe('True if not tied to a gate (create)'),
+  tasks: z
+    .array(
+      z.object({
+        description: z.string().describe('Task description'),
+        acceptanceCriteria: z.array(z.string()).optional().describe('Testable acceptance criteria'),
+      })
+    )
+    .optional()
+    .describe('Implementation tasks with acceptance criteria (create)'),
+  filesAffected: z
+    .array(z.string())
+    .optional()
+    .describe('File paths this proposal will change (create)'),
+  context: z.string().optional().describe('Additional context or rationale (create)'),
+  dependencies: z.array(z.string()).optional().describe('Proposal hashes this depends on (create)'),
+
+  // --- generate fields ---
+  templateName: z
+    .string()
+    .optional()
+    .describe('Template name for generation (generate, default: proposal-template)'),
+  outputDir: z.string().optional().describe('Output directory override (generate)'),
+
+  // --- validate fields ---
+  strict: z.boolean().optional().describe('Enable strict validation mode (validate)'),
+
+  // --- approve fields ---
+  approverNotes: z.string().optional().describe('Optional notes from approver (approve)'),
+  approvedBy: z.string().optional().describe('Approver identifier (approve)'),
+
+  // --- reject fields ---
+  rejectionReason: z.string().optional().describe('Required reason for rejection (reject)'),
+  rejectedBy: z.string().optional().describe('Rejector identifier (reject)'),
+
+  // --- start fields ---
+  startedBy: z.string().optional().describe('Implementer identifier (start)'),
+
+  // --- progress fields ---
+  taskIndex: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .describe('Zero-based task index to update (progress)'),
+  completed: z.boolean().optional().describe('Whether the task is completed (progress)'),
+  notes: z.string().optional().describe('Implementation notes for the task (progress)'),
+})
 
 export type ProposalActionInput = z.infer<typeof ProposalActionInputSchema>
 
@@ -108,34 +194,3 @@ export const ProposalActionOutputSchema = z.discriminatedUnion('action', [
 ])
 
 export type ProposalActionOutput = z.infer<typeof ProposalActionOutputSchema>
-
-/**
- * Type guards for proposal actions
- */
-export const isProposalListAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'list' }> => input.action === 'list'
-
-export const isProposalShowAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'show' }> => input.action === 'show'
-
-export const isProposalCreateAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'create' }> => input.action === 'create'
-
-export const isProposalValidateAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'validate' }> => input.action === 'validate'
-
-export const isProposalApproveAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'approve' }> => input.action === 'approve'
-
-export const isProposalRejectAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'reject' }> => input.action === 'reject'
-
-export const isProposalStartAction = (
-  input: ProposalActionInput
-): input is Extract<ProposalActionInput, { action: 'start' }> => input.action === 'start'

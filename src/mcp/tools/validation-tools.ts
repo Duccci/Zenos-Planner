@@ -1,15 +1,10 @@
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { z } from 'zod'
 import { handleMockResult, handleError } from './handler-factory.js'
-
-const ValidationArgsSchema = z.object({
-  artifactPath: z.string().optional(),
-  artifactHash: z.string().optional(),
-  artifactType: z.enum(['gate', 'proposal', 'architecture']),
-  validationMode: z.enum(['format', 'quality', 'all']).optional(),
-  outputFormat: z.enum(['text', 'json']).optional(),
-})
+import {
+  ArtifactValidateInputSchema,
+  ArtifactValidateOutputSchema,
+} from '../schemas/artifact-validation-schemas.js'
 
 export const validationToolDefinitions = [
   {
@@ -35,12 +30,12 @@ export function validationHandlers(
   return {
     async artifact_validate(args: Record<string, unknown>): Promise<CallToolResult> {
       // Allow tests to provide a mock result
-      const mock = handleMockResult(args, z.any())
+      const mock = handleMockResult(args, ArtifactValidateOutputSchema)
       if (mock) return mock
 
       try {
         const { artifactPath, artifactHash, artifactType, validationMode, outputFormat } =
-          ValidationArgsSchema.parse(args)
+          ArtifactValidateInputSchema.parse(args)
         const { ArtifactValidationService } =
           await import('../../analysis/artifact-validation-service.js')
         const svc = new ArtifactValidationService()
@@ -54,7 +49,12 @@ export function validationHandlers(
         if (outputFormat === 'json') {
           return {
             content: [{ type: 'text', text: JSON.stringify(res, null, 2) }],
-            structuredContent: res as unknown as Record<string, unknown>,
+            structuredContent: {
+              passed: res.passed,
+              errors: res.errors,
+              warnings: res.warnings,
+              details: res.details,
+            },
           }
         }
 

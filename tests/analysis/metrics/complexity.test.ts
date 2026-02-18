@@ -554,4 +554,3 @@ describe('calculateComplexityMetrics', () => {
     expect(result.modules.get('test.ts')!.functions[0].complexity).toBeGreaterThan(2);
   });
 });
-});

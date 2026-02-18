@@ -124,3 +124,118 @@ describe('Proposal validate command', () => {
     expect(writeFile).toHaveBeenCalledTimes(2)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Approve command tests
+// ---------------------------------------------------------------------------
+
+vi.mock('../../../src/core/completions.js', () => ({
+  approveProposal: vi.fn(),
+}))
+
+vi.mock('../../../src/utils/config.js', () => ({
+  findProjectRoot: vi.fn().mockReturnValue('project-root'),
+  loadConfig: vi.fn(),
+}))
+
+describe('Proposal approve command', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  async function buildProgram() {
+    const { registerProposalCommands } = await import('../../../src/cli/commands/proposal.js')
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+    return program
+  }
+
+  it('solo mode: auto-approves when quality thresholds pass', async () => {
+    const { loadConfig } = await import('../../../src/utils/config.js')
+    const { approveProposal } = await import('../../../src/core/completions.js')
+    const { logger } = await import('../../../src/utils/logger.js')
+
+    vi.mocked(loadConfig).mockResolvedValue({
+      projectName: 'Test',
+      workflowMode: 'solo',
+      qualityThresholds: {
+        codeCoverage: 90,
+        securityVulnerabilities: 0,
+        lintingErrorRate: 0,
+        typeCheckingErrors: 0,
+      },
+    } as never)
+    vi.mocked(approveProposal).mockResolvedValue({
+      projectRoot: 'project-root',
+      proposalHash: 'abc123',
+      gateId: 'gate-01',
+      title: 'Test',
+      previousVersion: '0.1.0',
+      newVersion: '0.1.0',
+    })
+
+    const program = await buildProgram()
+    await program.parseAsync(['node', 'test', 'proposal', 'approve', '#abc123'])
+
+    expect(approveProposal).toHaveBeenCalledWith('#abc123', { approver: 'solo-auto' })
+    expect(logger.info).toHaveBeenCalledWith('auto-approved (solo mode)')
+  })
+
+  it('solo mode: blocks approval when quality gate fails', async () => {
+    const { loadConfig } = await import('../../../src/utils/config.js')
+    const { approveProposal } = await import('../../../src/core/completions.js')
+
+    vi.mocked(loadConfig).mockResolvedValue({
+      projectName: 'Test',
+      workflowMode: 'solo',
+      qualityThresholds: {
+        codeCoverage: 80, // below 90%
+        securityVulnerabilities: 0,
+        lintingErrorRate: 0,
+        typeCheckingErrors: 0,
+      },
+    } as never)
+
+    // Prevent process.exit(1) from killing the test runner
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
+
+    const program = await buildProgram()
+    await program.parseAsync(['node', 'test', 'proposal', 'approve', '#abc123'])
+
+    expect(approveProposal).not.toHaveBeenCalled()
+    expect(exitSpy).toHaveBeenCalledWith(1)
+
+    exitSpy.mockRestore()
+  })
+
+  it('team mode: calls approveProposal without approver (existing behaviour)', async () => {
+    const { loadConfig } = await import('../../../src/utils/config.js')
+    const { approveProposal } = await import('../../../src/core/completions.js')
+
+    vi.mocked(loadConfig).mockResolvedValue({
+      projectName: 'Test',
+      workflowMode: 'team',
+      qualityThresholds: {
+        codeCoverage: 90,
+        securityVulnerabilities: 0,
+        lintingErrorRate: 0,
+        typeCheckingErrors: 0,
+      },
+    } as never)
+    vi.mocked(approveProposal).mockResolvedValue({
+      projectRoot: 'project-root',
+      proposalHash: 'abc123',
+      gateId: 'gate-01',
+      title: 'Test',
+      previousVersion: '0.1.0',
+      newVersion: '0.1.0',
+    })
+
+    const program = await buildProgram()
+    await program.parseAsync(['node', 'test', 'proposal', 'approve', '#abc123'])
+
+    // Team mode calls without approver option
+    expect(approveProposal).toHaveBeenCalledWith('#abc123')
+  })
+})
