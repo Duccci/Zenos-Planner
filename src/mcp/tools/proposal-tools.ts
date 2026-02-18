@@ -103,6 +103,8 @@ export function proposalHandlers(
             return ProposalStartOutputSchema
           case 'progress':
             return ProposalUpdateProgressOutputSchema
+          default:
+            throw new Error(`Unknown proposal action: ${action as string}`)
         }
       },
       actionHandlers: {

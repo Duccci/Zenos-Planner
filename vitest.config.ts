@@ -12,7 +12,7 @@ export default defineConfig({
     onConsoleLog: () => false,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      reporter: ['text', 'json'],
       include: ['src/**/*.ts'],
       exclude: [
         'src/**/*.d.ts',

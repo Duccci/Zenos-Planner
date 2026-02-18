@@ -35,7 +35,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
             .sort()
           const archivedGates = archiveFiles.map((file, index) => {
             const match = /^(gate-\d+)/.exec(file)
-            const gateId = match?.[1] ?? `gate-${String(index)}`
+            const gateId = match?.[1] ?? `gate-${String(index).padStart(2, '0')}`
+            const now = new Date().toISOString()
             return {
               id: gateId,
               project_id: 'archived',
@@ -48,25 +49,26 @@ export function registerGatesOps(registry: FunctionRegistry): void {
               status: 'completed',
               type: 'feature',
               hash: `archived-${gateId}`,
-              created_at: '',
-              completed_at: '',
+              created_at: now,
+              completed_at: now,
             }
           })
           gates = archivedGates
         }
       }
 
+      const now = new Date().toISOString()
       return {
         gates: gates.map((g) => ({
           id: g['id'] as string,
           name: g['name'] as string,
-          description: g['description'] as string,
+          description: (g['description'] as string | null) ?? 'No description',
           sequence: g['sequence'] as number,
           status: g['status'] as string,
           type: g['type'] as string,
-          created: g['created_at'] as string,
-          started: g['started_at'] as string | null,
-          completed: g['completed_at'] as string | null,
+          created: (g['created_at'] as string | null) ?? now,
+          started: (g['started_at'] as string | null) ?? null,
+          completed: (g['completed_at'] as string | null) ?? null,
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
@@ -114,19 +116,20 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         throw new Error(`Gate not found: ${validated.gateId}`)
       }
 
+      const now = new Date().toISOString()
       return {
         id: gate['id'] as string,
         name: gate['name'] as string,
-        description: gate['description'] as string,
+        description: (gate['description'] as string | null) ?? 'No description',
         sequence: gate['sequence'] as number,
         status: gate['status'] as string,
         type: gate['type'] as string,
         objectives: [],
         requirements: [],
         proposals: [],
-        created: gate['created_at'] as string,
-        started: gate['started_at'] as string | null,
-        completed: gate['completed_at'] as string | null,
+        created: (gate['created_at'] as string | null) ?? now,
+        started: (gate['started_at'] as string | null) ?? null,
+        completed: (gate['completed_at'] as string | null) ?? null,
       }
     },
     {

@@ -63,6 +63,8 @@ export function gateHandlers(
             return GatesCompleteOutputSchema
           case 'regenerate':
             return GatesRegenerateOutputSchema
+          default:
+            throw new Error(`Unknown gate action: ${action as string}`)
         }
       },
       actionHandlers: {
