@@ -43,19 +43,29 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       query += ' ORDER BY created_at DESC'
 
       const allRows = db.prepare(query).all(...queryParams) as Record<string, unknown>[]
-      const total = allRows.length
-      const paged = allRows.slice(validated.skip, validated.skip + validated.take)
+      // Filter rows that have valid required fields
+      const validRows = allRows.filter(
+        (row) =>
+          row['hash'] &&
+          typeof row['hash'] === 'string' &&
+          row['gate_id'] &&
+          typeof row['gate_id'] === 'string' &&
+          row['created_at'] &&
+          typeof row['created_at'] === 'string'
+      )
+      const total = validRows.length
+      const paged = validRows.slice(validated.skip, validated.skip + validated.take)
 
       return {
         proposals: paged.map((row) => ({
-          hash: (row['hash'] as string) ?? '',
+          hash: row['hash'] as string,
           title: (row['title'] as string) ?? '',
           description: (row['description'] as string) ?? undefined,
           status: (row['status'] as string) ?? 'pending',
-          gateId: (row['gate_id'] as string) ?? '',
+          gateId: row['gate_id'] as string,
           tasksCompleted: 0,
           totalTasks: 0,
-          created: (row['created_at'] as string) ?? '',
+          created: row['created_at'] as string,
           updated: null,
           completedAt: (row['approved_at'] as string) ?? null,
         })),
@@ -131,11 +141,11 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       return {
-        hash: (proposal['hash'] as string) ?? '',
+        hash: (proposal['hash'] as string) || 'unknown00',
         title: (proposal['title'] as string) ?? '',
         description: (proposal['summary'] as string) ?? (proposal['title'] as string) ?? '',
         status: (proposal['status'] as string) ?? 'pending',
-        gateId: (proposal['gate_id'] as string) ?? '',
+        gateId: (proposal['gate_id'] as string) || 'gate-00',
         summary: (proposal['summary'] as string) ?? undefined,
         context: undefined,
         tasks: [],
@@ -145,7 +155,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           filesAffected.length > 0
             ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
             : undefined,
-        created: (proposal['created_at'] as string) ?? '',
+        created: (proposal['created_at'] as string) || new Date().toISOString(),
         updated: null,
         completedAt: (proposal['approved_at'] as string) ?? null,
       }

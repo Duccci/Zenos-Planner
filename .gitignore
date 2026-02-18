@@ -46,3 +46,6 @@ temp/
 *.db.backup
 *.db-wal
 *.db-shm
+
+# Runtime files
+zeno/.zeno/mcp.pid
