@@ -44,7 +44,7 @@ export function repositoryHandlers(
           case 'adjust':
             return ReposAdjustOutputSchema
           default:
-            throw new Error(`Unknown repository action: ${action as string}`)
+            throw new Error(`Unknown repository action: ${String(action)}`)
         }
       },
       actionHandlers: {
