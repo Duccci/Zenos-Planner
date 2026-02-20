@@ -6,12 +6,27 @@ const projectRoot = process.cwd()
 
 describe('Artifact Discovery Service', () => {
   const service = createDiscoveryService(projectRoot)
+  const missingService = createDiscoveryService('/nonexistent/path')
 
   describe('getTemplates', () => {
-    it('should return templates array', async () => {
+    it('should return templates array with required fields', async () => {
       const templates = await service.getTemplates()
       expect(Array.isArray(templates)).toBe(true)
       expect(templates.length).toBeGreaterThan(0)
+      for (const t of templates) {
+        expect(t).toHaveProperty('name')
+        expect(t).toHaveProperty('shortName')
+        expect(t).toHaveProperty('path')
+        expect(t).toHaveProperty('description')
+        expect(t).toHaveProperty('category')
+        expect(['markdown', 'architecture']).toContain(t.category)
+      }
+    })
+
+    it('should return empty array for missing templates directory', async () => {
+      const templates = await missingService.getTemplates()
+      expect(Array.isArray(templates)).toBe(true)
+      expect(templates.length).toBe(0)
     })
   })
 
@@ -20,19 +35,46 @@ describe('Artifact Discovery Service', () => {
       const agents = await service.getAgents()
       expect(Array.isArray(agents)).toBe(true)
     })
+
+    it('should return empty array for missing agents manifest', async () => {
+      const agents = await missingService.getAgents()
+      expect(Array.isArray(agents)).toBe(true)
+      expect(agents.length).toBe(0)
+    })
   })
 
   describe('getGates', () => {
-    it('should return gates array', async () => {
+    it('should return gates array sorted by sequence', async () => {
       const gates = await service.getGates()
       expect(Array.isArray(gates)).toBe(true)
+      for (let i = 1; i < gates.length; i++) {
+        expect(gates[i].sequence).toBeGreaterThan(gates[i - 1].sequence)
+      }
+    })
+
+    it('should return empty array for missing gates directory', async () => {
+      const gates = await missingService.getGates()
+      expect(Array.isArray(gates)).toBe(true)
+      expect(gates.length).toBe(0)
     })
   })
 
   describe('getProposals', () => {
-    it('should return proposals array', async () => {
+    it('should return proposals array with valid types and statuses', async () => {
       const proposals = await service.getProposals()
       expect(Array.isArray(proposals)).toBe(true)
+      for (const p of proposals) {
+        expect(p).toHaveProperty('hash')
+        expect(p).toHaveProperty('title')
+        expect(['gate-specific', 'solitary']).toContain(p.type)
+        expect(['pending', 'in_progress', 'completed', 'rejected']).toContain(p.status)
+      }
+    })
+
+    it('should return empty array for missing proposals directory', async () => {
+      const proposals = await missingService.getProposals()
+      expect(Array.isArray(proposals)).toBe(true)
+      expect(proposals.length).toBe(0)
     })
   })
 

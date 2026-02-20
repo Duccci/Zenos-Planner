@@ -125,6 +125,7 @@ export const ProjectOverviewSchema = z.object({
       name: z.string(),
       hash: z.string(),
       completedAt: z.string(),
+      status: z.string().optional(),
     })
   ),
   currentGateInfo: z
@@ -133,6 +134,7 @@ export const ProjectOverviewSchema = z.object({
       name: z.string(),
       hash: z.string(),
       estimatedComplexity: z.string(),
+      status: z.string().optional(),
     })
     .nullable(),
   upcomingGates: z.array(
@@ -149,6 +151,21 @@ export const ProjectOverviewSchema = z.object({
 })
 
 export type ProjectOverview = z.infer<typeof ProjectOverviewSchema>
+
+/**
+ * Unified gate summary derived from project-overview.json.
+ * Provides a consistent view regardless of gate lifecycle stage.
+ */
+export interface GateSummary {
+  id: string
+  sequence: number
+  name: string
+  /** Derived: 'completed' | 'in_progress' | 'pending' */
+  status: 'completed' | 'in_progress' | 'pending'
+  hash: string
+  completedAt: string | null
+  estimatedComplexity?: string
+}
 
 /** Zeno directory name */
 const ZENO_DIR = join('zeno', '.zeno')
@@ -182,22 +199,19 @@ export function getConfigPath(projectRoot: string = process.cwd()): string {
  */
 export function findProjectRoot(startDir: string = process.cwd()): string | null {
   let currentDir = normalizePath(startDir)
-  const rootDrive = currentDir.split('/')[0]
-  const root = process.platform === 'win32' ? (rootDrive ? `${rootDrive}/` : '/') : '/'
 
-  while (currentDir !== root) {
+  // Traverse up until we either find a .zeno directory or reach the filesystem root.
+  // Using dirname() termination (parent === currentDir) is cross-platform and handles
+  // both Unix '/' roots and Windows drive roots (e.g. 'C:/') without platform detection.
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  while (true) {
     const zenoDir = join(currentDir, ZENO_DIR)
     if (directoryExists(zenoDir)) {
       return currentDir
     }
-    const parent = dirname(currentDir)
-    if (parent === currentDir) break
+    const parent = normalizePath(dirname(currentDir))
+    if (parent === currentDir) break // reached filesystem root
     currentDir = parent
-  }
-
-  // Check root directory
-  if (directoryExists(join(root, ZENO_DIR))) {
-    return root
   }
 
   return null
@@ -398,4 +412,81 @@ export async function readProjectOverview(
       error instanceof Error ? error : undefined
     )
   }
+}
+
+/**
+ * Save project overview to zeno/.zeno/project-overview.json.
+ * @param overview - Project overview data to save
+ * @param projectRoot - Project root directory (default: process.cwd())
+ * @throws ConfigError if save fails
+ */
+export async function saveProjectOverview(
+  overview: ProjectOverview,
+  projectRoot: string = process.cwd()
+): Promise<void> {
+  const overviewPath = getProjectOverviewPath(projectRoot)
+  try {
+    await writeJsonFile(overviewPath, overview)
+  } catch (error) {
+    throw new ConfigError(
+      `Failed to save project overview: ${overviewPath}`,
+      'PROJECT_OVERVIEW_WRITE_FAILED',
+      { path: overviewPath },
+      error instanceof Error ? error : undefined
+    )
+  }
+}
+
+/**
+ * Derive the full gate list from a ProjectOverview.
+ * Returns completed, current (active/pending), and upcoming gates in sequence order.
+ * Status is derived:
+ *   - completedGates → 'completed'
+ *   - currentGateInfo where overview.currentGate is set → 'in_progress'
+ *   - currentGateInfo where overview.currentGate is null → 'pending'
+ *   - upcomingGates → 'pending'
+ */
+export function getGatesFromOverview(overview: ProjectOverview): GateSummary[] {
+  const gates: GateSummary[] = []
+
+  for (const g of overview.completedGates) {
+    gates.push({
+      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
+      sequence: g.sequence,
+      name: g.name,
+      status: 'completed',
+      hash: g.hash,
+      completedAt: g.completedAt,
+    })
+  }
+
+  if (overview.currentGateInfo) {
+    const isActive = overview.currentGate !== null
+    const gateId =
+      overview.currentGate ??
+      `gate-${overview.currentGateInfo.sequence.toString().padStart(2, '0')}`
+    gates.push({
+      id: gateId,
+      sequence: overview.currentGateInfo.sequence,
+      name: overview.currentGateInfo.name,
+      status: isActive ? 'in_progress' : 'pending',
+      hash: overview.currentGateInfo.hash,
+      completedAt: null,
+      estimatedComplexity: overview.currentGateInfo.estimatedComplexity,
+    })
+  }
+
+  for (const g of overview.upcomingGates) {
+    gates.push({
+      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
+      sequence: g.sequence,
+      name: g.name,
+      status: 'pending',
+      hash: '',
+      completedAt: null,
+      estimatedComplexity: g.estimatedComplexity,
+    })
+  }
+
+  return gates.sort((a, b) => a.sequence - b.sequence)
 }

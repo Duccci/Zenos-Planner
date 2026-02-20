@@ -5,6 +5,9 @@
  * Rejects unrelated refactoring or scope expansion.
  */
 
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
+
 export interface ScopeValidationContext {
   /** Files declared in proposal's "Files Affected" */
   filesAffected: string[]
@@ -12,12 +15,6 @@ export interface ScopeValidationContext {
   filesModified: string[]
   /** Allow test file additions (default: true) */
   allowTestFiles?: boolean
-}
-
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
 }
 
 /**
@@ -28,10 +25,8 @@ function validateExplicitPaths(filesAffected: string[]): string[] {
   const errors: string[] = []
   for (const entry of filesAffected) {
     if (entry.includes('*')) {
-      errors.push(
-        `Wildcard not allowed in Files Affected: "${entry}". List each file explicitly.`
-      )
-    } else if (entry.endsWith('/') || (!entry.includes('.') && !entry.includes('/'))) {
+      errors.push(`Wildcard not allowed in Files Affected: "${entry}". List each file explicitly.`)
+    } else if (entry.endsWith('/')) {
       errors.push(
         `Directory reference not allowed in Files Affected: "${entry}". Use explicit file paths.`
       )
@@ -56,22 +51,21 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
   const normalizedAffected = context.filesAffected.map((f) => f.replace(/\\/g, '/').toLowerCase())
   const normalizedModified = context.filesModified.map((f) => f.replace(/\\/g, '/').toLowerCase())
 
-  // Check each modified file
+  // Check each modified file (exact path match after normalization)
   for (const modifiedFile of normalizedModified) {
-    const isInScope = normalizedAffected.some(
-      (affectedFile) => modifiedFile.includes(affectedFile) || affectedFile.includes(modifiedFile)
-    )
+    const isInScope = normalizedAffected.includes(modifiedFile)
 
     // Allow test files if flag is set
-    const isTestFile = modifiedFile.includes('.test.') || modifiedFile.includes('/tests/')
+    const isTestFile =
+      modifiedFile.includes('.test.') ||
+      modifiedFile.includes('.spec.') ||
+      modifiedFile.includes('/tests/')
 
     if (!isInScope) {
       if (isTestFile && allowTestFiles) {
         // Test files are allowed but should be warned about if not declared
-        if (!context.filesAffected.some((f) => f.includes('test'))) {
-          warnings.push(
-            `Test file modified but not listed in Files Affected: ${modifiedFile}`
-          )
+        if (!normalizedAffected.some((f) => f.includes('test'))) {
+          warnings.push(`Test file modified but not listed in Files Affected: ${modifiedFile}`)
         }
       } else {
         errors.push(
@@ -84,14 +78,10 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
 
   // Warn if declared files weren't actually modified
   for (const affectedFile of normalizedAffected) {
-    const wasModified = normalizedModified.some(
-      (modifiedFile) => modifiedFile.includes(affectedFile) || affectedFile.includes(modifiedFile)
-    )
+    const wasModified = normalizedModified.includes(affectedFile)
 
     if (!wasModified) {
-      warnings.push(
-        `File declared in "Files Affected" but not modified: ${affectedFile}`
-      )
+      warnings.push(`File declared in "Files Affected" but not modified: ${affectedFile}`)
     }
   }
 

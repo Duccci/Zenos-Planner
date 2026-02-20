@@ -2,74 +2,83 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { FunctionRegistry } from '../../src/integration/function-registry.js'
 import { registerRequirementsOps } from '../../src/integration/requirements-registry.js'
 
+// Module-level mock functions - mock-prefixed names are accessible in vi.mock factories
+const mockGetProjectRequirements = vi.fn().mockReturnValue([
+  {
+    hash: 'proj-req-1',
+    description: 'Project requirement 1',
+    type: 'functional',
+    priority: 'must',
+    gateId: null,
+    parentId: null,
+    projectId: 'project-1',
+  },
+])
+const mockBuildRequirementGraph = vi.fn().mockReturnValue({
+  nodes: new Map([
+    [
+      'gate-req-1',
+      {
+        hash: 'gate-req-1',
+        title: 'Gate requirement 1',
+        type: 'functional',
+        priority: 'should',
+        gateId: 'gate-01',
+        parent: null,
+      },
+    ],
+  ]),
+  edges: [],
+})
+const mockGetRequirementByHash = vi.fn().mockReturnValue({
+  hash: 'test-hash',
+  description: 'Test requirement',
+  type: 'functional',
+  priority: 'must',
+  gateId: 'gate-01',
+  parentId: null,
+  projectId: 'project-1',
+  acceptanceCriteria: ['Criteria 1', 'Criteria 2'],
+  createdAt: new Date('2026-01-01'),
+})
+const mockGetRequirementChildren = vi
+  .fn()
+  .mockReturnValue([{ hash: 'child-1', description: 'Child requirement 1' }])
+const mockGetRequirementAncestors = vi
+  .fn()
+  .mockReturnValue([{ hash: 'parent-1', description: 'Parent requirement' }])
+const mockTransferRequirement = vi.fn().mockReturnValue({
+  hash: 'test-hash',
+  previousGateId: 'gate-01',
+  newGateId: 'gate-02',
+  transferredAt: new Date().toISOString(),
+  affectedProposals: [],
+})
+const mockSearchRequirements = vi.fn().mockReturnValue({
+  requirements: [
+    {
+      hash: 'search-result-1',
+      description: 'Search result 1',
+      type: 'functional',
+      priority: 'must',
+      gateId: 'gate-01',
+      parentId: null,
+    },
+  ],
+  total: 1,
+})
+
 vi.mock('../../src/generation/requirement-storage.js', () => {
   return {
-    RequirementStorage: vi.fn().mockImplementation(() => ({
-      getProjectRequirements: vi.fn().mockReturnValue([
-        {
-          hash: 'proj-req-1',
-          description: 'Project requirement 1',
-          type: 'functional',
-          priority: 'must',
-          gateId: null,
-          parentId: null,
-          projectId: 'project-1',
-        },
-      ]),
-      buildRequirementGraph: vi.fn().mockReturnValue({
-        nodes: new Map([
-          [
-            'gate-req-1',
-            {
-              hash: 'gate-req-1',
-              title: 'Gate requirement 1',
-              type: 'functional',
-              priority: 'should',
-              gateId: 'gate-01',
-              parent: null,
-            },
-          ],
-        ]),
-        edges: [],
-      }),
-      getRequirementByHash: vi.fn().mockReturnValue({
-        hash: 'test-hash',
-        description: 'Test requirement',
-        type: 'functional',
-        priority: 'must',
-        gateId: 'gate-01',
-        parentId: null,
-        projectId: 'project-1',
-        acceptanceCriteria: ['Criteria 1', 'Criteria 2'],
-        createdAt: new Date('2026-01-01'),
-      }),
-      getRequirementChildren: vi
-        .fn()
-        .mockReturnValue([{ hash: 'child-1', description: 'Child requirement 1' }]),
-      getRequirementAncestors: vi
-        .fn()
-        .mockReturnValue([{ hash: 'parent-1', description: 'Parent requirement' }]),
-      transferRequirement: vi.fn().mockReturnValue({
-        hash: 'test-hash',
-        previousGateId: 'gate-01',
-        newGateId: 'gate-02',
-        transferredAt: new Date().toISOString(),
-        affectedProposals: [],
-      }),
-      searchRequirements: vi.fn().mockReturnValue({
-        requirements: [
-          {
-            hash: 'search-result-1',
-            description: 'Search result 1',
-            type: 'functional',
-            priority: 'must',
-            gateId: 'gate-01',
-            parentId: null,
-          },
-        ],
-        total: 1,
-      }),
-    })),
+    RequirementStorage: function MockRequirementStorage() {
+      this.getProjectRequirements = mockGetProjectRequirements
+      this.buildRequirementGraph = mockBuildRequirementGraph
+      this.getRequirementByHash = mockGetRequirementByHash
+      this.getRequirementChildren = mockGetRequirementChildren
+      this.getRequirementAncestors = mockGetRequirementAncestors
+      this.transferRequirement = mockTransferRequirement
+      this.searchRequirements = mockSearchRequirements
+    },
   }
 })
 

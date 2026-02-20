@@ -1,20 +1,29 @@
 /**
  * Quality Validator
  *
- * Validates quality metrics against configured thresholds:
- * - Code coverage >= threshold
- * - Type errors == 0
- * - Lint errors < threshold
- * - Security vulnerabilities == 0
+ * Validates quality metrics against the target project's configured thresholds.
+ * Metrics must be provided by the target project's quality checks
+ * (e.g., test coverage reports, linting output).
+ *
+ * Thresholds are loaded directly from the target project's zeno/.zeno/config.json
+ * via projectRoot. An explicit `config` may be passed instead (e.g., in tests).
+ * Zeno does NOT invoke quality checks; the target project is responsible
+ * for running and reporting its own quality metrics.
  */
 
-import { ZenoConfig } from '../../utils/config.js'
+import {
+  findProjectRoot,
+  loadConfig,
+  getDefaultConfig,
+  type ZenoConfig,
+} from '../../utils/config.js'
+import { logger } from '../../utils/logger.js'
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
 
 export interface QualityMetrics {
   /** Code coverage percentage (0-100) */
   coverage?: number
-  /** Number of type checking errors */
-  typeErrors?: number
   /** Number of linting errors */
   lintErrors?: number
   /** Number of security vulnerabilities */
@@ -24,95 +33,109 @@ export interface QualityMetrics {
 }
 
 export interface QualityValidationContext {
-  /** Quality metrics to validate */
+  /** Quality metrics from the target project */
   metrics: QualityMetrics
-  /** Project configuration with thresholds */
-  config: ZenoConfig
-  /** Whether to treat warnings as errors (strict mode) */
-  strict?: boolean
-}
-
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
+  /**
+   * Root directory of the target project.
+   * The validator loads zeno/.zeno/config.json from this path to read
+   * the project's configured quality thresholds.
+   * Walks up from cwd when omitted.
+   * Ignored when `config` is provided directly.
+   */
+  projectRoot?: string
+  /**
+   * Explicit config override — skips disk load entirely.
+   * Primarily used in tests or when the config is already loaded by the caller.
+   * In production flows, omit this and let the validator load from `projectRoot`.
+   */
+  config?: ZenoConfig
 }
 
 /**
- * Validate quality metrics against configured thresholds.
- * Uses config_get() thresholds instead of hard-coded values.
+ * Validate quality metrics against the target project's configured thresholds.
+ *
+ * Resolution order for thresholds:
+ * 1. `context.config` (explicit override) — used as-is, no file I/O
+ * 2. `context.projectRoot` — loads zeno/.zeno/config.json from that directory
+ * 3. cwd walk — `findProjectRoot()` walks up from cwd looking for zeno/.zeno/
+ *
+ * If config cannot be loaded (file missing), warns and falls back to PRD defaults
+ * (90% coverage, 0 vulns, <0.01% lint) so validation still blocks bad code.
+ *
+ * Quality validation is REQUIRED for proposal approval. If metrics
+ * don't meet thresholds, approval is blocked and the LLM must fix
+ * the underlying code issues.
  */
-export function validateQuality(context: QualityValidationContext): ValidationResult {
+export async function validateQuality(
+  context: QualityValidationContext
+): Promise<ValidationResult> {
   const errors: string[] = []
   const warnings: string[] = []
-  const { metrics, strict = false } = context
+  const { metrics } = context
 
-  // Quality thresholds are provided by ZenoConfig and have defaults
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const thresholds = context.config.qualityThresholds || {
-    codeCoverage: 90,
-    lintingErrorRate: 0.01,
-    typeScriptStrictMode: true,
-    securityVulnerabilities: 0,
+  // Resolve quality thresholds — explicit config takes priority
+  // Initialize with defaults to ensure thresholds is always defined
+  let thresholds = getDefaultConfig('unknown').qualityThresholds
+
+  if (context.config?.qualityThresholds) {
+    thresholds = context.config.qualityThresholds
+  } else {
+    // Load from the target project's zeno/.zeno/config.json
+    const projectRoot = context.projectRoot ?? findProjectRoot() ?? '.'
+    const root = findProjectRoot(projectRoot) ?? projectRoot
+
+    try {
+      const config = await loadConfig(root)
+      thresholds = config.qualityThresholds
+    } catch (err) {
+      logger.warn('Could not load target project config; using PRD default thresholds', {
+        projectRoot: root,
+        error: String(err),
+      })
+      warnings.push(
+        `Could not load project config from ${root}/zeno/.zeno/config.json — ` +
+          `using default thresholds (coverage ≥90%, lint <0.01%, security 0).`
+      )
+    }
   }
 
-  // Rule 1: Code coverage must meet threshold
+  // Rule 1: Code coverage must meet threshold (blocking)
   if (metrics.coverage !== undefined) {
     if (metrics.coverage < thresholds.codeCoverage) {
-      const message =
+      errors.push(
         `Code coverage ${metrics.coverage.toFixed(1)}% is below threshold ${String(thresholds.codeCoverage)}%. ` +
-        `Increase test coverage to meet quality standards.`
-
-      if (strict) {
-        errors.push(message)
-      } else {
-        warnings.push(message)
-      }
+          `Increase test coverage to meet quality requirements.`
+      )
     }
   } else {
     warnings.push('Code coverage not measured. Run tests with coverage reporting.')
   }
 
-  // Rule 2: Type errors must be zero
-  if (metrics.typeErrors !== undefined) {
-    if (metrics.typeErrors > thresholds.typeCheckingErrors) {
-      errors.push(
-        `Type checking errors (${String(metrics.typeErrors)}) exceed threshold ${String(thresholds.typeCheckingErrors)}. ` +
-          `Fix all type errors before proceeding.`
-      )
-    }
-  }
-
-  // Rule 3: Lint errors must be below threshold (rate-based)
+  // Rule 2: Lint errors must be below threshold (rate-based, blocking)
   if (metrics.lintErrors !== undefined && metrics.totalLines !== undefined) {
     const lintErrorRate = metrics.lintErrors / metrics.totalLines
     if (lintErrorRate > thresholds.lintingErrorRate) {
-      const message =
+      errors.push(
         `Lint error rate (${(lintErrorRate * 100).toFixed(2)}%) exceeds threshold ` +
-        `(${(thresholds.lintingErrorRate * 100).toFixed(2)}%). ` +
-        `Fix linting issues to improve code quality.`
-
-      if (strict) {
-        errors.push(message)
-      } else {
-        warnings.push(message)
-      }
+          `(${(thresholds.lintingErrorRate * 100).toFixed(2)}%). ` +
+          `Fix linting issues to improve code quality.`
+      )
     }
   } else if (metrics.lintErrors !== undefined) {
     // Fall back to absolute count if total lines not provided
     if (metrics.lintErrors > 10) {
-      warnings.push(
-        `${String(metrics.lintErrors)} linting errors found. Consider reducing to improve code quality.`
+      errors.push(
+        `${String(metrics.lintErrors)} linting errors found. Reduce to meet quality standards.`
       )
     }
   }
 
-  // Rule 4: Security vulnerabilities must be zero
+  // Rule 3: Security vulnerabilities must be zero (blocking)
   if (metrics.securityIssues !== undefined) {
     if (metrics.securityIssues > thresholds.securityVulnerabilities) {
       errors.push(
         `Security vulnerabilities (${String(metrics.securityIssues)}) exceed threshold ${String(thresholds.securityVulnerabilities)}. ` +
-          `Fix all security issues before proceeding. Run security scans and address findings.`
+          `Fix all security issues before proceeding.`
       )
     }
   }

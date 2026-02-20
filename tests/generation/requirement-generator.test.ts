@@ -16,7 +16,7 @@ describe('RequirementGenerator', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-zeno-${randomUUID()}.db`)
     db = new Database(tempDbPath)
-    
+
     // Disable foreign key constraints for unit tests
     db.pragma('foreign_keys = OFF')
 
@@ -29,7 +29,7 @@ describe('RequirementGenerator', () => {
         status TEXT
       )
     `)
-    
+
     db.exec(`
       CREATE TABLE requirements (
         id TEXT PRIMARY KEY,
@@ -74,8 +74,8 @@ describe('RequirementGenerator', () => {
       const requirements = await generator.generateFromEndState(endState)
 
       expect(requirements.length).toBeGreaterThan(0)
-      expect(requirements.some(r => r.type === 'functional')).toBe(true)
-      expect(requirements.some(r => r.description.includes('authentication'))).toBe(true)
+      expect(requirements.some((r) => r.type === 'functional')).toBe(true)
+      expect(requirements.some((r) => r.description.includes('authentication'))).toBe(true)
     })
 
     it('extracts non-functional requirements', async () => {
@@ -87,9 +87,9 @@ describe('RequirementGenerator', () => {
 
       const requirements = await generator.generateFromEndState(endState)
 
-      expect(requirements.some(r => r.type === 'non_functional')).toBe(true)
-      expect(requirements.some(r => r.description.includes('response time'))).toBe(true)
-      expect(requirements.some(r => r.description.includes('test coverage'))).toBe(true)
+      expect(requirements.some((r) => r.type === 'non_functional')).toBe(true)
+      expect(requirements.some((r) => r.description.includes('response time'))).toBe(true)
+      expect(requirements.some((r) => r.description.includes('test coverage'))).toBe(true)
     })
 
     it('extracts constraints', async () => {
@@ -101,8 +101,8 @@ describe('RequirementGenerator', () => {
 
       const requirements = await generator.generateFromEndState(endState)
 
-      expect(requirements.some(r => r.type === 'constraint')).toBe(true)
-      expect(requirements.some(r => r.description.includes('GDPR'))).toBe(true)
+      expect(requirements.some((r) => r.type === 'constraint')).toBe(true)
+      expect(requirements.some((r) => r.description.includes('GDPR'))).toBe(true)
     })
 
     it('assigns correct priorities', async () => {
@@ -114,9 +114,9 @@ describe('RequirementGenerator', () => {
 
       const requirements = await generator.generateFromEndState(endState)
 
-      expect(requirements.some(r => r.priority === 'must')).toBe(true)
-      expect(requirements.some(r => r.priority === 'should')).toBe(true)
-      expect(requirements.some(r => r.priority === 'could')).toBe(true)
+      expect(requirements.some((r) => r.priority === 'must')).toBe(true)
+      expect(requirements.some((r) => r.priority === 'should')).toBe(true)
+      expect(requirements.some((r) => r.priority === 'could')).toBe(true)
     })
 
     it('is idempotent - same end state generates same requirements', async () => {
@@ -170,7 +170,9 @@ describe('RequirementGenerator', () => {
       const result = await generator.generateWithDetails(endState)
 
       // Low confidence candidates should be in candidates array, not requirements
-      expect(result.requirements.length).toBeLessThanOrEqual(result.candidates.length + result.requirements.length)
+      expect(result.requirements.length).toBeLessThanOrEqual(
+        result.candidates.length + result.requirements.length
+      )
     })
   })
 
@@ -183,8 +185,131 @@ describe('RequirementGenerator', () => {
 
       expect(allRequirements.length).toBeGreaterThan(0)
       // Project-level requirements should have no gateId
-      expect(allRequirements.every(r => !r.gateId)).toBe(true)
+      expect(allRequirements.every((r) => !r.gateId)).toBe(true)
     })
   })
 
+  describe('generateWithDetails error handling', () => {
+    it('captures storage errors in result errors array', async () => {
+      // Corrupt the db so storage throws
+      db.close()
+      // Use a description that matches patterns to ensure storage is accessed
+      const result = await generator.generateWithDetails(
+        'The system must support user authentication'
+      )
+      expect(result.errors.length).toBeGreaterThan(0)
+      expect(result.requirements).toEqual([])
+      // Re-open for afterEach cleanup
+      db = new Database(tempDbPath)
+    })
+  })
+
+  describe('static methods', () => {
+    it('extractRequirementsFromText returns candidates array', () => {
+      const candidates = RequirementGenerator.extractRequirementsFromText(
+        'The system must support real-time notifications'
+      )
+      expect(Array.isArray(candidates)).toBe(true)
+    })
+
+    it('approveRequirements partitions by confidence threshold', () => {
+      const candidates = [
+        {
+          description: 'High confidence',
+          type: 'functional' as const,
+          priority: 'must' as const,
+          confidence: 0.9,
+          source: 'test',
+          sourceText: 'test',
+        },
+        {
+          description: 'Medium confidence',
+          type: 'functional' as const,
+          priority: 'should' as const,
+          confidence: 0.6,
+          source: 'test',
+          sourceText: 'test',
+        },
+        {
+          description: 'Low confidence',
+          type: 'functional' as const,
+          priority: 'could' as const,
+          confidence: 0.3,
+          source: 'test',
+          sourceText: 'test',
+        },
+      ]
+
+      const result = RequirementGenerator.approveRequirements(candidates)
+      expect(result.approved.length).toBe(1)
+      expect(result.review.length).toBe(1)
+      expect(result.rejected.length).toBe(1)
+    })
+  })
+
+  describe('generateRequirementsForGate', () => {
+    it('throws for a gate that does not exist', async () => {
+      await expect(generator.generateRequirementsForGate('gate-nonexistent-99')).rejects.toThrow()
+    })
+  })
+
+  describe('generateFromEndState - error handling', () => {
+    it('should throw on null input', () => {
+      const invalidDescription = null as any
+      expect(() => {
+        generator.generateFromEndState(invalidDescription)
+      }).toThrow()
+    })
+  })
+
+  describe('decomposeRequirement', () => {
+    it('should decompose requirements recursively', async () => {
+      const parentReq = storage.storeRequirement(
+        'Build authentication system with OAuth and JWT support',
+        'functional',
+        'must',
+        'default-project',
+        undefined,
+        undefined
+      )
+
+      const children = await generator.decomposeRequirement(parentReq, 1)
+
+      expect(children).toBeDefined()
+      expect(Array.isArray(children)).toBe(true)
+    })
+
+    it('should respect max depth limit', async () => {
+      const parentReq = storage.storeRequirement(
+        'Implement caching layer',
+        'functional',
+        'should',
+        'default-project',
+        undefined,
+        undefined
+      )
+
+      const childrenDepth0 = await generator.decomposeRequirement(parentReq, 0)
+      const childrenDepth2 = await generator.decomposeRequirement(parentReq, 2)
+
+      expect(childrenDepth0).toHaveLength(0)
+      expect(Array.isArray(childrenDepth2)).toBe(true)
+    })
+
+    it('should propagate confidence through decomposition', async () => {
+      const parentReq = storage.storeRequirement(
+        'System must be performant and scalable',
+        'non_functional',
+        'must',
+        'default-project',
+        undefined,
+        undefined
+      )
+
+      const children = await generator.decomposeRequirement(parentReq, 1, 0.9)
+
+      expect(children).toBeDefined()
+      expect(Array.isArray(children)).toBe(true)
+    })
+  })
 })

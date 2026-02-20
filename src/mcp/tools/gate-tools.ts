@@ -4,7 +4,6 @@ import {
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
-import { type ZenoConfig, getDefaultConfig } from '../../utils/config.js'
 
 /**
  * Unified gate action tool definition.
@@ -151,21 +150,8 @@ export function gateHandlers(
             const allErrors: string[] = []
             const allWarnings: string[] = []
 
-            const configResult = await r.invoke('config_get', {})
-            let config: ZenoConfig
-
-            if (configResult.success) {
-              config = configResult.data as ZenoConfig
-            } else {
-              allWarnings.push(
-                `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
-              )
-              config = getDefaultConfig('unknown')
-            }
-
             let qualityMetrics = {
               coverage: 95,
-              typeErrors: 0,
               lintErrors: 2,
               securityIssues: 0,
             }
@@ -182,7 +168,6 @@ export function gateHandlers(
 
                 qualityMetrics = {
                   coverage: actualMetrics['testCoverage'] as number,
-                  typeErrors: actualMetrics['typeErrors'] as number,
                   lintErrors: actualMetrics['lintErrors'] as number,
                   securityIssues: actualMetrics['securityIssues'] as number,
                 }
@@ -193,11 +178,9 @@ export function gateHandlers(
 
             const qualityContext: QualityValidationContext = {
               metrics: qualityMetrics,
-              config,
-              strict: true,
             }
 
-            const qualityResult = validateQuality(qualityContext)
+            const qualityResult = await validateQuality(qualityContext)
             allErrors.push(...(qualityResult.errors ?? []))
             allWarnings.push(...(qualityResult.warnings ?? []))
 

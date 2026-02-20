@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@modelcontextprotocol/sdk/server/mcp.js', () => ({
-  McpServer: vi.fn().mockImplementation(() => ({ connect: vi.fn(), close: vi.fn() })),
+  McpServer: function MockMcpServer() {
+    this.connect = vi.fn()
+    this.close = vi.fn()
+    this.tool = vi.fn()
+  },
 }))
 
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({

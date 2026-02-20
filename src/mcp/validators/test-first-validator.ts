@@ -58,11 +58,8 @@ export interface TestFirstValidationContext {
   gateProposals?: ProposalGateSibling[]
 }
 
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
-}
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
 
 // ---------------------------------------------------------------------------
 // Per-proposal role checks

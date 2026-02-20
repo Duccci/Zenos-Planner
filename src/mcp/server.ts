@@ -82,6 +82,16 @@ export async function main(): Promise<void> {
     logger.info('Starting Zeno MCP server...')
     logger.info(`Workspace: ${workspacePath}`)
 
+    // Ensure DB is initialised and proposal files are synced before handling any
+    // MCP tool requests. This is the MCP entry point which previously skipped
+    // initializeDatabase, leaving existing proposals invisible until a write ran.
+    try {
+      const { initializeDatabase } = await import('../storage/database.js')
+      await initializeDatabase(workspacePath)
+    } catch (err) {
+      logger.warn('Database initialization warning (non-fatal):', err)
+    }
+
     const server = await createMcpServer(workspacePath)
     const transport = new StdioServerTransport()
 

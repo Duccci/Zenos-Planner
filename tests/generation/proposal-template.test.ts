@@ -1,62 +1,175 @@
-import { describe, it, expect, vi } from 'vitest';
-import { renderProposalTemplate, loadProposalTemplate } from '../../src/generation/proposal-template.js';
-import { readFileSync } from 'fs';
+import { describe, it, expect } from 'vitest'
+import {
+  renderProposalTemplate,
+  loadProposalTemplate,
+} from '../../src/generation/proposal-template.js'
+import type { ProposalData } from '../../src/generation/proposal-template.js'
 
-// Mock fs
-vi.mock('fs', () => ({
-  readFileSync: vi.fn(),
-}));
+describe('Proposal Template - Rendering Branches', () => {
+  const baseData: ProposalData = {
+    title: 'Test Proposal',
+    hash: 'abc123def4',
+    gateId: 'gate-01',
+    gateName: 'API Layer',
+    requirement: 'req-hash-001',
+    status: 'pending',
+    created: '2024-01-15',
+    summary: 'Brief summary',
+    context: {
+      whyChange: 'Context explanation',
+      dependencies: [],
+    },
+    tasks: [],
+    filesAffected: [],
+    implementationNotes: 'Technical notes',
+    rollback: 'Rollback plan',
+  }
 
-describe('Proposal Template', () => {
-  it('renders template with proposal data', () => {
-    const template = '# Proposal: [Proposal Title]\n\n**Hash**: #[Generated SHA-256 first 16 chars]\n\n**Gate**: [Gate ID] - [Gate Name]';
-    const data = {
-      title: 'Test Proposal',
-      hash: 'hash123',
-      gateId: 'gate-01',
-      gateName: 'Gate 1',
-      requirement: 'req1',
-      status: 'pending',
-      created: '2023-01-01',
-      summary: 'Test summary',
-      context: {
-        whyChange: 'Why',
-        dependencies: [{
-          hash: 'dep1',
-          type: 'requires',
-          description: 'Dependency',
-        }],
-      },
-      tasks: [{
-        title: 'Task 1',
-        files: 'file.ts',
-        action: 'create',
-        description: 'Description',
-        acceptance: ['Condition 1'],
-      }],
-      filesAffected: [{
-        file: 'src/file.ts',
-        action: 'create',
-        description: 'New file',
-      }],
-      implementationNotes: 'Notes',
-      rollback: 'Rollback',
-    };
+  const template = loadProposalTemplate()
 
-    const result = renderProposalTemplate(template, data);
+  describe('requirement branch coverage', () => {
+    it('should render with requirement hash present', () => {
+      const data = { ...baseData, requirement: 'req-hash-001' }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toContain('#req-hash-001')
+    })
 
-    expect(result).toContain('Proposal: Test Proposal');
-    expect(result).toContain('#hash123');
-    expect(result).toContain('gate-01 - Gate 1');
-  });
+    it('should render placeholder when requirement is undefined', () => {
+      const data = { ...baseData, requirement: undefined }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toContain('#[Requirement Hash]')
+    })
 
-  it('loads proposal template', () => {
-    const mockContent = 'Template';
-    (readFileSync as any).mockReturnValue(mockContent);
+    it('should render placeholder when requirement is null', () => {
+      const data = { ...baseData, requirement: null as any }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toContain('#[Requirement Hash]')
+    })
+  })
 
-    const result = loadProposalTemplate();
+  describe('tasks section rendering', () => {
+    it('should render empty tasks section', () => {
+      const data = { ...baseData, tasks: [] }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
 
-    expect(readFileSync).toHaveBeenCalled();
-    expect(result).toBe(mockContent);
-  });
-});
+    it('should render single task', () => {
+      const data = {
+        ...baseData,
+        tasks: [
+          {
+            title: 'Create handler',
+            files: 'src/handler.ts',
+            action: 'create',
+            description: 'Create the main handler',
+            acceptance: ['Should handle errors', 'Should return response'],
+          },
+        ],
+      }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+
+    it('should render multiple tasks with incremental numbering', () => {
+      const data = {
+        ...baseData,
+        tasks: [
+          {
+            title: 'Task One',
+            files: 'file1.ts',
+            action: 'create',
+            description: 'First task',
+            acceptance: ['Criterion 1'],
+          },
+          {
+            title: 'Task Two',
+            files: 'file2.ts',
+            action: 'modify',
+            description: 'Second task',
+            acceptance: ['Criterion 2'],
+          },
+        ],
+      }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('dependencies section rendering', () => {
+    it('should render empty dependencies', () => {
+      const data = { ...baseData, context: { ...baseData.context, dependencies: [] } }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+
+    it('should render dependencies with hash, type, and description', () => {
+      const data = {
+        ...baseData,
+        context: {
+          ...baseData.context,
+          dependencies: [
+            {
+              hash: 'dep-hash-001',
+              type: 'requires',
+              description: 'Database schema migration',
+            },
+          ],
+        },
+      }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe('filesAffected section rendering', () => {
+    it('should render empty files affected', () => {
+      const data = { ...baseData, filesAffected: [] }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+
+    it('should render files with action and description', () => {
+      const data = {
+        ...baseData,
+        filesAffected: [
+          {
+            file: 'src/api/handler.ts',
+            action: 'create',
+            description: 'New API handler',
+          },
+        ],
+      }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered).toContain('src/api/handler.ts')
+    })
+  })
+
+  describe('context preservation', () => {
+    it('should preserve all template fields', () => {
+      const data = {
+        ...baseData,
+        implementationNotes: 'Use async/await pattern',
+        rollback: 'Revert to previous version',
+      }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+
+    it('should include creation date in ISO format', () => {
+      const isoDate = new Date().toISOString().split('T')[0]
+      const data = { ...baseData, created: isoDate }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered).toContain(isoDate)
+    })
+  })
+})

@@ -23,7 +23,10 @@
       "Bash(taskkill /F /IM node.exe:*)",
       "Bash(powershell:*)",
       "Bash(git -C \"c:\\\\Users\\\\Owner\\\\Documents\\\\GitHub\\\\Zenos-Planner\" log --all --diff-filter=A --name-only --format=\"\" -- nul)",
-      "Bash(cmd /c \"echo test > nul\")"
+      "Bash(cmd /c \"echo test > nul\")",
+      "Bash(npm test:*)",
+      "Bash(node_modules/.bin/tsc:*)",
+      "Bash(./node_modules/.bin/tsc:*)"
     ]
   },
   "outputStyle": "taming-AI"

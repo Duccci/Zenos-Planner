@@ -73,7 +73,9 @@ describe('MCP Manager', () => {
     expect(manager.isProcessRunning(1)).toBe(true)
 
     // failure
-    vi.spyOn(process, 'kill').mockImplementation(() => { throw new Error('no such process') })
+    vi.spyOn(process, 'kill').mockImplementation(() => {
+      throw new Error('no such process')
+    })
     expect(manager.isProcessRunning(99999)).toBe(false)
 
     // restore
@@ -124,7 +126,9 @@ describe('MCP Manager', () => {
       vi.mocked(fs.existsSync).mockReturnValueOnce(true)
       vi.mocked(fs.readFileSync).mockReturnValueOnce('99999\n')
       // isProcessRunning: process.kill throws
-      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => { throw new Error('ESRCH') })
+      const killSpy = vi.spyOn(process, 'kill').mockImplementation(() => {
+        throw new Error('ESRCH')
+      })
       // removePid: existsSync true
       vi.mocked(fs.existsSync).mockReturnValueOnce(true)
 
@@ -182,7 +186,9 @@ describe('MCP Manager', () => {
       // isProcessRunning: first call succeeds (process exists)
       const killSpy = vi.spyOn(process, 'kill')
       killSpy.mockImplementationOnce(() => undefined as never) // isProcessRunning check
-      killSpy.mockImplementationOnce(() => { throw new Error('EPERM') }) // actual kill
+      killSpy.mockImplementationOnce(() => {
+        throw new Error('EPERM')
+      }) // actual kill
       vi.mocked(fs.existsSync).mockReturnValueOnce(true)
 
       const originalPlatformDesc = Object.getOwnPropertyDescriptor(process, 'platform')
@@ -195,12 +201,14 @@ describe('MCP Manager', () => {
     })
   })
 
-  it.skip('spawnServerBackground resolves on success and rejects on spawn error', async () => {
+  it('spawnServerBackground resolves on success and rejects on spawn error', async () => {
     const cp = await import('node:child_process')
 
     // Success case: spawn returns child with on/unref but no error triggered
     const fakeChildSuccess = {
-      on: (ev: string, cb: (e?: unknown) => void) => { /* store if needed */ },
+      on: (ev: string, cb: (e?: unknown) => void) => {
+        /* store if needed */
+      },
       unref: () => undefined,
     }
     vi.mocked(cp.spawn).mockReturnValueOnce(fakeChildSuccess as unknown as any)
@@ -214,7 +222,9 @@ describe('MCP Manager', () => {
 
     // Error case: spawn returns child and emits error immediately
     const fakeChildError = {
-      on: (ev: string, cb: (e?: unknown) => void) => { if (ev === 'error') cb(new Error('spawn failed')) },
+      on: (ev: string, cb: (e?: unknown) => void) => {
+        if (ev === 'error') cb(new Error('spawn failed'))
+      },
       unref: () => undefined,
     }
     vi.mocked(cp.spawn).mockReturnValueOnce(fakeChildError as unknown as any)

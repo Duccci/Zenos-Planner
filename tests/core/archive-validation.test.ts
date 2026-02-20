@@ -97,4 +97,74 @@ describe('archive-validation', () => {
       code: 'ARCHIVE_VALIDATION_FAILED',
     })
   })
+
+  it('validateGateReady throws ARCHIVE_VALIDATION_FAILED when artifact validation returns !passed', async () => {
+    const gateFile = join(gatesDir, 'gate-02.md')
+    writeFileSync(gateFile, '# Gate 02\n\n**Status**: completed\n')
+
+    // Mock ArtifactValidationService to return passed=false
+    vi.doMock('../../src/analysis/artifact-validation-service.js', () => ({
+      ArtifactValidationService: class {
+        validate = vi
+          .fn()
+          .mockResolvedValue({ passed: false, errors: ['missing required section'] })
+      },
+    }))
+
+    const { validateGateReady } = await import('../../src/core/archive-validation.js')
+    await expect(validateGateReady('gate-02')).rejects.toMatchObject({
+      code: 'ARCHIVE_VALIDATION_FAILED',
+    })
+  })
+
+  it('validateProposalReady resolves with gate-tied type when proposal in gate subdirectory', async () => {
+    // Create a gate-01 entry (no-dot name) in gatesDir so it appears in readdir filter
+    writeFileSync(join(gatesDir, 'gate-01'), '')
+
+    // Create gate-tied proposal file
+    const gatePropDir = join(proposalsDir, 'gate-01')
+    mkdirSync(gatePropDir, { recursive: true })
+    const proposalFile = join(gatePropDir, 'abc123.md')
+    writeFileSync(
+      proposalFile,
+      '# Proposal: My Feature\n\n**Status**: completed\n**Title**: My Feature\n'
+    )
+
+    // Mock ArtifactValidationService to return passed=true
+    vi.doMock('../../src/analysis/artifact-validation-service.js', () => ({
+      ArtifactValidationService: class {
+        validate = vi.fn().mockResolvedValue({ passed: true })
+      },
+    }))
+
+    const { validateProposalReady } = await import('../../src/core/archive-validation.js')
+    const result = await validateProposalReady('abc123')
+    expect(result.type).toBe('gate-tied')
+    expect(result.gateId).toBe('gate-01')
+  })
+
+  it('validateProposalReady throws ARCHIVE_VALIDATION_FAILED when gate-tied proposal validation fails', async () => {
+    // Create a gate-01 entry in gatesDir
+    writeFileSync(join(gatesDir, 'gate-03'), '')
+
+    const gatePropDir = join(proposalsDir, 'gate-03')
+    mkdirSync(gatePropDir, { recursive: true })
+    const proposalFile = join(gatePropDir, 'failhash.md')
+    writeFileSync(
+      proposalFile,
+      '# Proposal: Bad One\n\n**Status**: completed\n**Title**: Bad One\n'
+    )
+
+    // Mock ArtifactValidationService to return passed=false
+    vi.doMock('../../src/analysis/artifact-validation-service.js', () => ({
+      ArtifactValidationService: class {
+        validate = vi.fn().mockResolvedValue({ passed: false, errors: ['invalid structure'] })
+      },
+    }))
+
+    const { validateProposalReady } = await import('../../src/core/archive-validation.js')
+    await expect(validateProposalReady('failhash')).rejects.toMatchObject({
+      code: 'ARCHIVE_VALIDATION_FAILED',
+    })
+  })
 })

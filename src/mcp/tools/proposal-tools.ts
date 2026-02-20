@@ -16,7 +16,7 @@ import {
   type ApplyPhaseValidationContext,
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
-import { type ZenoConfig, getDefaultConfig } from '../../utils/config.js'
+import { type ZenoConfig } from '../../utils/config.js'
 
 /**
  * Unified proposal action tool definition.
@@ -177,40 +177,22 @@ export function proposalHandlers(
             }
           },
         ],
-        approve: (_payload, r) => [
+        approve: (_payload, _r) => [
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []
 
-            const configResult = await r.invoke('config_get', {})
-
-            let config: ZenoConfig
-
-            if (configResult.success) {
-              config = configResult.data as ZenoConfig
-            } else {
-              const cfgErrMsg =
-                'error' in configResult ? configResult.error.message : 'unknown error'
-              allWarnings.push(
-                `Failed to retrieve config: ${cfgErrMsg}. Using default quality thresholds.`
-              )
-              config = getDefaultConfig('unknown')
-            }
-
             const qualityMetrics = {
               coverage: 95,
-              typeErrors: 0,
               lintErrors: 2,
               securityIssues: 0,
             }
 
             const qualityContext: QualityValidationContext = {
               metrics: qualityMetrics,
-              config,
-              strict: false,
             }
 
-            const qualityResult = validateQuality(qualityContext)
+            const qualityResult = await validateQuality(qualityContext)
             allErrors.push(...(qualityResult.errors ?? []))
             allWarnings.push(...(qualityResult.warnings ?? []))
 

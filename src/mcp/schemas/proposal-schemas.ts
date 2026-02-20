@@ -107,7 +107,6 @@ export type ProposalDetail = z.infer<typeof ProposalDetailSchema>
 
 export const ProposalValidateInputSchema = z.object({
   hash: ProposalHashSchema,
-  strict: z.boolean().optional(),
 })
 export type ProposalValidateInput = z.infer<typeof ProposalValidateInputSchema>
 

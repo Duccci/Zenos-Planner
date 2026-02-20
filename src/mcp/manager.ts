@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { writeFileSync, unlinkSync, existsSync, readFileSync } from 'node:fs'
-import { execSync, spawn } from 'node:child_process'
+import { spawn, execSync } from 'node:child_process'
 import { getZenoDir } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
@@ -78,14 +78,13 @@ export function stopServer(projectRoot: string = process.cwd()): boolean {
 
   try {
     if (process.platform === 'win32') {
-      // On Windows, SIGTERM via process.kill is unreliable for node processes.
-      // Use taskkill which sends WM_CLOSE followed by TerminateProcess.
-      execSync(`taskkill /PID ${String(pid)} /T /F`, { stdio: 'ignore' })
-      logger.info(`Terminated MCP server via taskkill (PID ${String(pid)})`)
+      // On Windows, use taskkill for reliable process termination
+      execSync(`taskkill /F /PID ${String(pid)}`, { stdio: 'pipe' })
     } else {
+      // process.kill() is cross-platform in Node.js >=10 for non-Windows
       process.kill(pid, 'SIGTERM')
-      logger.info(`Sent SIGTERM to MCP server (PID ${String(pid)})`)
     }
+    logger.info(`Sent SIGTERM to MCP server (PID ${String(pid)})`)
   } catch (err) {
     logger.warn(`Failed to stop PID ${String(pid)}`, err)
   }

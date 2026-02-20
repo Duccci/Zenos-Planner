@@ -1,6 +1,7 @@
 # Zeno's Planner
 
 ## Overview
+
 Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human "vibe coding" by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.
 
 The tool bridges the gap between high-level project vision and detailed implementation by decomposing projects into: Gates → Architecture → Requirements → Subprojects → Proposals, with comprehensive dependency tracking and multi-repository support for large-scale solutions.
@@ -8,30 +9,35 @@ The tool bridges the gap between high-level project vision and detailed implemen
 ## Key Technical Decisions
 
 ### 1. Technology Stack
+
 - **Choice**: TypeScript (strict mode), Node.js >= 24.0.0, SQLite (better-sqlite3), Mermaid + Graphviz (DOT/SVG), Commander.js, Zod, Vitest
 - **Alternatives Considered**: JavaScript (no types), PostgreSQL (client-server), Draw.io (binary diagrams), Yargs (CLI), Joi (validation), Jest (testing)
 - **Rationale**: Lightweight, LLM-friendly, cross-platform, rich ecosystem. TypeScript provides type safety without runtime overhead. SQLite requires no server setup. Mermaid supports simple diagrams with minimal blocks; Graphviz DOT/SVG covers complex diagrams with higher visual fidelity.
 - **Trade-offs**: Gained simplicity and portability; lost some advanced database features and GUI diagram editing.
 
 ### 2. Iterative Gate Generation
+
 - **Choice**: Gates generated through iterative decomposition inspired by Zeno's dichotomy paradox concept. Each gate represents concrete deliverables that move the project closer to completion. Progress is evaluated dynamically based on actual work completed rather than predetermined percentages.
 - **Alternatives Considered**: Fixed percentage milestones, Fibonacci sequence progression, user-defined milestones, story point estimation
 - **Rationale**: Natural decomposition that adapts to actual complexity, manageable chunks that emerge from project analysis, always making measurable progress. Zeno's paradox serves as a conceptual framework to help humans understand the approach, but percentages are not used in the tool's functionality.
 - **Trade-offs**: Gained adaptive structure and ability to respond to discovered complexity; lost rigid predictability but gained realistic progress tracking.
 
 ### 2a. Two-Level Requirement Generation
+
 - **Choice**: Requirements generated at two levels: (1) high-level project requirements during `zeno init`, and (2) gate-specific requirements when `zeno gates start` is called. Gate requirements can inherit from, reference, or decompose project requirements.
 - **Alternatives Considered**: All requirements at init, requirements only at gate start, manual requirement definition
 - **Rationale**: Project-level requirements capture cross-cutting concerns and constraints visible from the end state (e.g., "must support offline mode", "90% test coverage"). Gate-level requirements are specific, actionable items derived from project requirements and gate objectives. This separation enables requirement reuse across gates and supports rescoping without losing project-level constraints.
 - **Trade-offs**: Gained requirement reuse and clearer separation of concerns; added complexity in tracking parent-child relationships between requirement levels.
 
 ### 3. Hash-Based References
+
 - **Choice**: SHA-256 (first 16 chars) for content-addressable storage (e.g., `#a3f9c2d1` instead of `/long/path/to/file`)
 - **Alternatives Considered**: Full file paths, UUIDs, sequential IDs, Git commit SHAs
 - **Rationale**: Reduces LLM context size by 50%+, enables dependency tracking across repos, provides immutable references, content-based addressing prevents stale references
 - **Trade-offs**: Gained context efficiency and immutability; lost human readability of references.
 
 ### 4. Minimalist Database Schema: Requirements + Repositories
+
 - **Choice**: SQLite with exactly 2 core tables: `requirements` (hierarchical, supports spec-driven development) and `repositories` (multi-repo support for Gate 5)
 - **Alternatives Considered**: Monolithic database (12+ tables), multiple databases, pure file-based storage
 - **Rationale**: Lightweight MVP focused on core concerns. Project metadata lives in `project-overview.json` (version-controlled, human-readable). Gate metadata also in `project-overview.json`. Proposals stored as Markdown files in `zeno/proposals/`. State history tracked via Git commits. This eliminates scope creep while preserving queryability where it matters: requirement hierarchies and multi-repo support.
@@ -39,43 +45,60 @@ The tool bridges the gap between high-level project vision and detailed implemen
 - **Approval by Presence**: Requirements in database are implicitly approved. Changes only occur via gate refactors or proposal updates, tracked through Git history.
 - **Trade-offs**: Gained simplicity and reduced maintenance burden; database validates schema on startup, ensuring consistency. Lost some query complexity but gained clarity in what matters: requirements relationships and repository boundaries.
 
+### 4.1. Refined Scope Reduction: 4-Table Consensus Schema
+
+- **Choice**: Keep `proposals` table for hash-based lookup efficiency; remove `gates` and `proposal_dependencies` tables. Final schema: `requirements`, `repositories`, `proposals`, `metrics_snapshots`.
+- **Rationale for Keeping Proposals Table**: Frequent hash-based lookups in operational commands (`proposal start`, `proposal validate`, `proposal approve`) benefit from database indexing. Proposals outnumber gates significantly, making database indexing more valuable than file scanning.
+- **Rationale for Removing Gates Table**: Gates data is already stored in `project-overview.json` (version-controlled, human-readable, single source of truth). Maintaining this data in both database and JSON creates duplication and divergence risk. Gates are accessed sequentially or by ID (not by hash), eliminating the performance benefit of database indexing.
+- **Rationale for Removing proposal_dependencies Table**: Dependencies are implicit in proposal references (e.g., "requires: #hash"). Creating a separate table creates redundant storage. If dependency queries are required, parse proposal markdown files on-demand using helper functions.
+- **Rationale for Keeping metrics_snapshots Table**: Provides lightweight historical baseline at gate completion for trend analysis and performance tracking without storing per-module detail.
+- **Implementation**: Migration 005 documents schema consolidation. Code updated to ignore `gates` and `proposal_dependencies` tables; consuming code reads gates from `project-overview.json` and derives dependencies from proposal references.
+- **Trade-offs**: Gained alignment with minimalist design principle; improved data consistency by eliminating duplication. Removed 2 tables while keeping the one providing operational value.
+
 ### 5. Gate Roadmap Diagram Purpose
+
 - **Choice**: Gate roadmap diagram displays gates and their parallel relationships, showing project roadmap structure
 - **Alternatives Considered**: Feature-level detail, flat sequential diagram, Gantt-style timeline
 - **Rationale**: Focus on high-level gate structure and dependencies. Parallel gates indicate work that can proceed simultaneously. Detailed features belong in gate-specific PRDs, not the roadmap overview.
 - **Trade-offs**: Gained clarity and reduced visual clutter; lost detailed feature visibility in single diagram (features documented elsewhere).
 
 ### 6. Quality Thresholds (Non-Configurable in MVP)
+
 - **Choice**: Code Coverage: 90%, Security Vulnerabilities: 0, Linting Error Rate: <0.01%
 - **Alternatives Considered**: Configurable thresholds per project, industry standard 80% coverage, warning-only mode
 - **Rationale**: Enforce high quality, prevent technical debt accumulation, reduce LLM hallucinations by catching errors early. Fixed thresholds simplify MVP.
 - **Trade-offs**: Gained consistency and quality enforcement; lost flexibility for different project types.
 
 ### 7. Multi-Repo Support
+
 - **Choice**: Automatic detection based on coupling metrics (afferent/efferent), domain boundaries (bounded contexts), module size (LOC, complexity), confidence scoring (0.0-1.0)
 - **Alternatives Considered**: Manual repo definition, monorepo-only, heuristics-based (directory structure)
 - **Rationale**: Support large-scale projects, proper separation of concerns. Metrics-based approach is objective and repeatable. Confidence scoring allows human override.
 - **Trade-offs**: Gained scalability and architectural guidance; added complexity in analysis phase.
 
 ### 8. Human-in-the-Loop
+
 - **Choice**: Approval required at gate generation, repo boundaries, proposals, and gate completion
 - **Alternatives Considered**: Fully automated (no approval), approval only at gate boundaries, approval per file change
 - **Rationale**: Maintain control, catch issues early, learn and adapt. Balances automation with oversight. Prevents runaway LLM execution.
 - **Trade-offs**: Gained safety and control; added manual intervention points that slow down workflow.
 
 ### 9. AGENTS.md Generation
+
 - **Choice**: Automatically generate AGENTS.md files that provide AI agents with context on how to read project artifacts, specs, diagrams, and requirements
 - **Alternatives Considered**: Manual documentation, README only, inline comments in artifacts
 - **Rationale**: AI coding assistants need structured guidance on artifact conventions, file locations, and how to interpret project-specific formats. AGENTS.md serves as a "how to read this codebase" guide for LLMs, reducing context confusion and improving code generation quality.
 - **Trade-offs**: Gained AI-friendly onboarding and reduced misinterpretation; added another file to maintain (though auto-generated).
 
 ### 10. Intelligent Architecture Diagram Selection
+
 - **Choice**: Generate architecture diagrams selectively based on target project type, complexity, and gate requirements rather than generating all diagram types for every project
 - **Alternatives Considered**: Generate all 10 diagram types for every project, manual diagram selection only, no diagrams
 - **Rationale**: Different project types need different documentation (CLI tools don't need network diagrams, libraries don't need deployment diagrams). Reduces documentation overhead while ensuring critical diagrams are created. Core diagrams (system overview, data flow, context, gate roadmap, gate lifecycle) always generated. Gate-level diagrams (sequence, component, package) generated when complexity detected. Infrastructure diagrams (deployment, network) generated for deployment gates.
 - **Trade-offs**: Gained focused documentation without clutter; added complexity to diagram generation logic requiring project type detection.
 
 ### 11. Hybrid Diagram Rendering: Mermaid for Simple Diagrams, Prerendered DOT/SVG for Complex Models
+
 - **Choice**: Use Mermaid for simple diagrams with minimal blocks (low visual density). Use prerendered DOT diagrams rendered to SVG using Graphviz for complex architecture diagrams to improve rendering quality, reduce context bloat, and handle complex models more effectively.
 - **Alternatives Considered**: Mermaid for all diagrams, DOT/PNG for all diagrams, Draw.io, manually created PNG images, D3.js visualization
 - **Rationale**: Mermaid excels at simple diagrams and remains text-based (version-controllable), but struggles with complex models containing many elements, nested relationships, and fine-grained styling. Prerendered DOT SVG images provide superior rendering quality, better visual hierarchy for complex systems, and reduce markdown context when models exceed 5 elements. SVG is vector-based, scalable, web-native, and typically smaller than PNG. DOT (Graphviz) is a stable, standardized language with excellent support for complex directed graphs.
@@ -87,12 +110,14 @@ The tool bridges the gap between high-level project vision and detailed implemen
 > **POST-MVP** — This decision describes the long-term vision. Subagent orchestration is deferred beyond MVP (Gates 05-12). See Gate 13 for tracking.
 
 **Choice**: Zeno orchestrates work through four-stage agent delegation with specialized agents in both planning and implementation:
+
 1. **Planning Agents** (specialized decomposition): Expert Tier and PhD Tier agents selected from `agents/expert-agents/` submodule based on gate type and required expertise
 2. **Local Agent** (interactive orchestration): Coordinates specialized planning agents, finalizes dispatch plan, allocates worktrees
 3. **Background Agents** (parallel implementation): Domain-specialized agents from `agents/expert-agents/` and `agents/pipeline-agents/` develop on isolated git worktrees
 4. **Cloud Agent** (code review): Create PR, add review comments, validate quality gates
 
 **Delegation Flow**:
+
 ```
 Planning Agents (Specialized Gate Analysis)
     ↓ Hand off planning insights (MCP: agent_delegate)
@@ -106,6 +131,7 @@ Merge Orchestration & Worktree Cleanup
 ```
 
 **How It Works**:
+
 - **Planning Phase (Specialized)**:
   - Expert Tier agents read gate PRD and requirements, decompose into proposals
   - PhD Tier agents (from `agents/expert-agents/`) analyze system impact, cross-gate dependencies, architectural constraints
@@ -117,11 +143,13 @@ Merge Orchestration & Worktree Cleanup
 - **Merge Phase**: Orchestrator coordinates merges with conflict detection/resolution; auto-cleanup deletes worktrees
 
 **Agent Specialization Tiers** (see `agents/TIER-CLASSIFICATION.md` for complete agent list):
+
 - **Focused Tier** (~500 tokens): Limited scope, specific validators for bounded tasks (testing, coverage analysis, linting checks) — **Implementation Phase**
 - **Expert Tier** (~1500 tokens): Domain depth, cross-module coordination, specialized knowledge areas (from `agents/expert-agents/` submodule categories) — **Planning & Implementation Phases**
 - **PhD Tier** (~3000 tokens): Novel problems, architectural decisions, complex integrations, system-wide analysis (from `agents/expert-agents/` highest-tier experts) — **Planning Phase**
 
 **Planning Phase Agent Selection**:
+
 - Agent assignments determined dynamically from `agents/agent-manifest.json` by querying for:
   - Tier: Expert or PhD (based on gate complexity)
   - Category: Match gate focus area (e.g., `development-architecture`, `data-intelligence`, `security-compliance`)
@@ -131,18 +159,21 @@ Merge Orchestration & Worktree Cleanup
 - All agent selections recorded in `.zeno/config.json` planning.agents array with manifest references
 
 **Gate-to-Agent Mapping Example** (Validation Gate - Quality Focused):
+
 - Planning: Expert Tier agent from `agents/expert-agents/quality-assurance/` or similar
 - Implementation: Focused Tier agents for testing, coverage analysis, compliance checking
 - Worktrees: 1 per validation batch (quality checks run on all proposals via MCP: `proposal_validate`)
 - Parallelization: All quality checks run in parallel
 
 **Gate-to-Agent Mapping Example** (Complex API/Integration Gate):
+
 - Planning: PhD Tier agent from `agents/expert-agents/api-standards/` or `communication-protocols/`, Expert Tier system architect
 - Implementation: Expert Tier agents from backend/architecture categories, Focused Tier test validators
 - Worktrees: 3-4 per proposal (one per independent component)
 - Parallelization: Core logic, integration, tests developed in parallel with dependency-based sequencing
 
 **MCP Tools Available**:
+
 - **Planning Phase**: No MCP tools required (specialized planning agents work synchronously, report decomposition insights)
 - `proposal_start`: Create worktree for proposal (MCP: `proposal_start`)
 - `proposal_approve`: Approve + merge worktree (MCP: `proposal_approve`)
@@ -161,6 +192,7 @@ Merge Orchestration & Worktree Cleanup
 **Choice**: Use `git worktree` to create isolated working directories for independent proposals and gates, eliminating branch switching overhead and enabling 4+ agents to work simultaneously without interference.
 
 **How It Works**:
+
 - Each proposal/gate gets dedicated worktree with independent branch: `feature/{gate_id}-{proposal_hash}`
 - Worktrees stored in `.local/worktrees/{proposal-hash}/` (transient, not version-controlled)
 - Orchestrator creates worktrees on-demand and manages merge ordering to prevent conflicts
@@ -169,6 +201,7 @@ Merge Orchestration & Worktree Cleanup
 - On approval: Orchestrator merges worktree branch to main and auto-cleanup
 
 **Storage Structure**:
+
 ```
 .local/
   worktrees/
@@ -183,6 +216,7 @@ Merge Orchestration & Worktree Cleanup
 ```
 
 **Lifecycle**:
+
 1. **Create** (`zeno proposal start <hash>`, MCP: `proposal_start`): Create worktree, return path to agent
 2. **Develop** (Agent): Work in isolated directory, no branch switching
 3. **Validate** (Agent): Run `zeno proposal validate` in worktree; returns quality check results
@@ -191,12 +225,14 @@ Merge Orchestration & Worktree Cleanup
 6. **Cleanup** (Auto, MCP: `worktree_prune`, `worktree_remove`): Delete worktree after merge; if approval rejected, mark worktree for cleanup but preserve for rework
 
 **Conflict Detection and Prevention**:
+
 - Orchestrator pre-analyzes proposal dependency graph to identify which proposals modify same files
 - Conflict detection: If parallel proposals affect same files, serialize (enforce sequential merge order)
 - Conflict resolution: Smart rebase strategy for dependent proposals; human intervention if complex merges
 - Worktree pruning: `zeno worktree prune` removes orphaned worktrees; periodic auto-pruning prevents disk bloat
 
 **MCP Tools Implemented**:
+
 - `worktree_list`: List active/orphaned worktrees with disk usage tracking
 - `worktree_prune`: Remove expired or orphaned worktrees with optional dry-run
 - `worktree_remove`: Manually delete specific worktree with force option
@@ -205,14 +241,16 @@ Merge Orchestration & Worktree Cleanup
 - `proposal_approve` (enhanced): Merge worktree branch on approval
 
 **Integration Points**:
+
 - Gate 5 (Multi-Repo): Worktrees support multi-repo scenarios (one worktree per repo + proposal)
 - Gate 9 (Git Integration): Worktree creation/deletion, merge automation, conflict detection
 - Gate 10 (Git Integration): Worktree creation/deletion, merge automation, conflict detection
 - Post-MVP (Subagent Orchestration): Allocate worktrees per independent proposal/gate; orchestrator manages lifecycle
 
 **Impact**:
+
 - Reduces gate completion time by 40-60% through parallelization (agents no longer wait for peer merges)
-- Eliminates branch switching overhead (~5-10s per switch per agent) 
+- Eliminates branch switching overhead (~5-10s per switch per agent)
 - Prevents serialization points: all independent proposals work in parallel
 - Improves code quality: each agent has full isolated build/test environment
 
@@ -221,6 +259,7 @@ Merge Orchestration & Worktree Cleanup
 **Trade-offs**: Gained true parallelization and isolated development; added disk space overhead (partial clones per worktree), added complexity to orchestrator merge coordination, requires robust cleanup strategy. Mitigation: auto-cleanup on approval, periodic pruning, disk space monitoring, `zeno worktree` commands for manual management.
 
 ## Architecture Principles
+
 1. **Lightweight**: No heavy frameworks, minimal dependencies. Keep the tool fast and portable.
 2. **LLM-Driven Execution**: All Zeno operations are invoked by AI agents during workflow execution. The CLI serves as the interface through which LLMs call functions, not as a human-facing command line tool. Humans interact by providing prompts and approvals; LLMs execute the actual commands.
 3. **Human-in-the-Loop**: Approval gates at key decision points. Human judgment validates AI decisions. Humans approve/reject; LLMs execute.
@@ -235,6 +274,7 @@ Merge Orchestration & Worktree Cleanup
 Zeno is designed for AI agents to invoke all operations during workflow execution. The "CLI commands" are functions that LLMs call, not commands humans type.
 
 **Execution Flow:**
+
 1. Human provides a prompt or instruction to the LLM
 2. LLM reads Zeno artifacts (AGENTS.md, gate PRDs, proposals)
 3. LLM invokes Zeno functions to query state, update status, and validate work
@@ -243,18 +283,19 @@ Zeno is designed for AI agents to invoke all operations during workflow executio
 
 **LLM-Invoked Functions:**
 
-| Category | Function | Status Transition | When LLM Invokes |
-|----------|----------|-------------------|------------------|
-| Gates | `zeno gates start <id>` | pending -> in_progress | Starting work on a gate |
-| Gates | `zeno gates complete <id>` | in_progress -> completed | All gate requirements tested |
-| Requirements | `zeno req status <hash> implemented` | pending -> implemented | Code written for requirement |
-| Requirements | `zeno req status <hash> tested` | implemented -> tested | Tests pass for requirement |
-| Proposals | `zeno proposal start <hash>` | pending -> in_progress | Beginning implementation |
-| Proposals | `zeno proposal validate <hash>` | (runs checks) | Before requesting approval |
-| Proposals | `zeno proposal approve <hash>` | in_progress -> completed | Human approved (LLM records) |
-| Proposals | `zeno proposal reject <hash>` | -> rejected | Human rejected (LLM records) |
+| Category     | Function                             | Status Transition        | When LLM Invokes             |
+| ------------ | ------------------------------------ | ------------------------ | ---------------------------- |
+| Gates        | `zeno gates start <id>`              | pending -> in_progress   | Starting work on a gate      |
+| Gates        | `zeno gates complete <id>`           | in_progress -> completed | All gate requirements tested |
+| Requirements | `zeno req status <hash> implemented` | pending -> implemented   | Code written for requirement |
+| Requirements | `zeno req status <hash> tested`      | implemented -> tested    | Tests pass for requirement   |
+| Proposals    | `zeno proposal start <hash>`         | pending -> in_progress   | Beginning implementation     |
+| Proposals    | `zeno proposal validate <hash>`      | (runs checks)            | Before requesting approval   |
+| Proposals    | `zeno proposal approve <hash>`       | in_progress -> completed | Human approved (LLM records) |
+| Proposals    | `zeno proposal reject <hash>`        | -> rejected              | Human rejected (LLM records) |
 
 **Human-Only Actions:**
+
 - Provide initial project description and end state
 - Review and approve/reject gate generation
 - Review and approve/reject proposals
@@ -262,6 +303,7 @@ Zeno is designed for AI agents to invoke all operations during workflow executio
 - Provide feedback on rejections
 
 **LLM Responsibilities:**
+
 - Invoke all Zeno functions to manage workflow state
 - Update entity statuses as work progresses
 - Run validation before requesting human approval
@@ -271,6 +313,7 @@ Zeno is designed for AI agents to invoke all operations during workflow executio
 - Monitor subagent progress through Zeno status queries and consolidate results
 
 **Subagent Orchestration with Git Worktrees:**
+
 - Orchestrating agent analyzes proposal dependency graph to identify parallel work items
 - Creates isolated git worktree for each independent proposal/gate (stored in `.local/worktrees/{hash}/`)
 - Dispatches subagents with worktree path; each agent works in isolation without branch switching
@@ -321,39 +364,53 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 
 ## Storage Architecture
 
-### Database Schema (SQLite, 2 Core Tables)
+### Database Schema (SQLite, 4 Core Tables - Minimalist Design)
 
-| Table | Purpose | Fields |
-|-------|---------|--------|
-| **requirements** | Hierarchical requirements and project specifications supporting spec-driven development | `id`, `parent_id`, `type` (functional/non_functional/constraint), `priority`, `level` (project/gate), `source` (generated/inherited/transferred), `title`, `description`, `acceptance_criteria`, `hash`, `created_at`, `updated_at` |
-| **repositories** | Multi-repository support for distributed systems (Gate 5+) | `id`, `name`, `path`, `type` (main/service/library/tool), `hash`, `metadata`, `created_at` |
+**Final Schema (Post-Scope-Reduction Decision 4.1):**
+
+| Table                 | Purpose                                                           | Fields                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **requirements**      | Hierarchical requirements and project specifications              | `id`, `parent_id`, `type` (functional/non_functional/constraint), `priority`, `description`, `acceptance_criteria`, `hash`, `created_at`                                                                  |
+| **repositories**      | Multi-repository support for distributed systems                  | `id`, `name`, `path`, `type` (main/service/library/tool), `hash`, `metadata`, `created_at`                                                                                                                |
+| **proposals**         | Proposal metadata with hash-based lookup (operational efficiency) | `id`, `gate_id`, `title`, `status`, `hash`, `created_at`, `updated_at`, `approved_at`                                                                                                                     |
+| **metrics_snapshots** | Lightweight aggregate metrics at gate archive time                | `gate_id`, `file_count`, `total_loc`, `code_lines`, `blank_lines`, `comment_lines`, `avg_instability`, `high_coupling_count`, `max_complexity`, `graph_nodes`, `graph_edges`, `cycle_count`, `created_at` |
+
+**NOT IN DATABASE (File-Based, Version-Controlled per Technical Decision 4):**
+
+- **gates**: Stored in `project-overview.json` (single source of truth for project state)
+- **proposal_dependencies**: Derived from proposal references, no separate source of truth (per minimalist principle)
 
 **Key Design Decisions:**
-- No `status` field on requirements—presence in database = approved. Changes tracked via Git.
+
+- No `status` field on requirements—presence in database = approved
 - Unified requirements format for traditional requirements and specs (OpenAPI, GraphQL, Protobuf, etc.)
-- No separate proposal table—proposals stored as Markdown files, workflow tracked through Git commits
-- No users table—Git already tracks authorship and attribution
+- Proposals table justified by frequent hash-based lookups in operational commands (`start`, `validate`, `approve`)
+- Gates remain in `project-overview.json` to preserve version-controlled, human-readable single source of truth
+- Dependencies are implicit in proposal references; no separate tracking table needed
+- `metrics_snapshots` provides lightweight historical baseline at gate completion (useful for trend analysis)
 
 ### File Storage
 
-| Location | Content | Format | Rationale |
-|----------|---------|--------|-----------|
-| `project-overview.json` | Project metadata, gates, completion status | JSON | Single source of truth for project state, version-controlled |
-| `.zeno/gates/gate-XX-name.md` | Gate PRDs, objectives, requirements breakdown | Markdown | Human-readable gate specifications |
-| `zeno/proposals/gate-XX/<name>.md` | Implementation proposals | Markdown | Human-readable change documentation |
-| `zeno/gates/archive/<gate-id>.md` | Completed gates with integrated proposal summaries | Markdown | Long-term historical record with gate-level traceability |
-| `zeno/architecture/*.md` | Architecture diagrams and design docs | Mermaid/DOT/SVG | Visual system design and relationships |
-| `.zeno/config.json` | Configuration settings | JSON | Project-specific configuration |
+| Location                           | Content                                            | Format          | Rationale                                                    |
+| ---------------------------------- | -------------------------------------------------- | --------------- | ------------------------------------------------------------ |
+| `project-overview.json`            | Project metadata, gates, completion status         | JSON            | Single source of truth for project state, version-controlled |
+| `.zeno/gates/gate-XX-name.md`      | Gate PRDs, objectives, requirements breakdown      | Markdown        | Human-readable gate specifications                           |
+| `zeno/proposals/gate-XX/<name>.md` | Implementation proposals                           | Markdown        | Human-readable change documentation                          |
+| `zeno/gates/archive/<gate-id>.md`  | Completed gates with integrated proposal summaries | Markdown        | Long-term historical record with gate-level traceability     |
+| `zeno/architecture/*.md`           | Architecture diagrams and design docs              | Mermaid/DOT/SVG | Visual system design and relationships                       |
+| `.zeno/config.json`                | Configuration settings                             | JSON            | Project-specific configuration                               |
 
 ### State History & Audit Trail
 
 **Method**: Git commit history + structured commit messages
+
 - Proposal approval/rejection: Tracked via Git commits with proposal hash in message
 - Requirement implementation: Tracked via proposal commit and requirement hash reference
 - Architecture changes: Committed with rationale in message
 - Gate completion: Tracked via Git tag (e.g., `gate-03-requirements-database-layer`)
 
-**Advantages**: 
+**Advantages**:
+
 - Version control provides immutable audit trail
 - Human-readable diffs show what changed and why
 - No separate audit table to maintain
@@ -362,6 +419,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 ## Project Dependencies
 
 ### External Dependencies
+
 - **Node.js >= 24.0.0** - Runtime environment
 - **better-sqlite3** - SQLite database operations (native bindings)
 - **commander** - CLI framework for command parsing
@@ -385,6 +443,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **graphviz** - DOT diagram rendering to PNG/SVG for complex architecture models\n- **git** - Worktree management for isolated parallel development
 
 ### Internal Dependencies
+
 - **zeno-engine** - Core gate generation algorithm for iterative decomposition
 - **code-analyzer** - Deep codebase analysis (AST, dependencies, metrics)
 - **gate-manager** - Gate lifecycle management and state tracking
@@ -404,6 +463,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **subagent-orchestrator** - Subagent creation and coordination via Cursor workflows with worktree-based parallelization (post-MVP)
 
 ### Infrastructure Requirements
+
 - **SQLite 3.x** - Requirements database (no server required)
 - **Git 2.x** - Version control integration
 - **Node.js native modules** - For better-sqlite3 compilation
@@ -416,18 +476,21 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 ### Primary Users
 
 **As a solo developer working on a large project**
+
 - I want to describe my end goal and have Zeno generate a roadmap so that I don't get overwhelmed by scope
 - I want automated quality checks before commits so that I maintain high code quality without manual verification
 - I want to track dependencies across modules so that I avoid breaking changes
 - I want to rescope my project mid-development so that I can adapt to changing requirements
 
 **As a tech lead managing multiple repositories**
+
 - I want automatic repository boundary detection so that I can maintain proper separation of concerns
 - I want dependency graphs across repos so that I can visualize system architecture
 - I want hash-based references so that my LLM can navigate large codebases efficiently
 - I want gate-based releases so that I can coordinate deployments across services
 
 **As an AI coding assistant (LLM)**
+
 - I want to invoke Zeno functions during workflow execution so that I can manage gates, requirements, and proposals programmatically
 - I want structured requirements with hashes so that I can reference specific items without full file paths
 - I want dependency information so that I can avoid conflicts when generating code
@@ -441,6 +504,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **I want the orchestrator to manage merge ordering and conflict detection so that I can focus on implementation while safety is automated**
 
 **As a project stakeholder**
+
 - I want visual architecture diagrams so that I can understand system design
 - I want gate-based progress tracking so that I can see project status at a glance
 - I want human approval gates so that I maintain control over major decisions
@@ -464,6 +528,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 ### Archived Gates (Completed)
 
 Gates 1-4 have been completed and archived. These foundational gates established:
+
 - Gate 1: Core Infrastructure (TypeScript, CLI, SQLite, utilities)
 - Gate 2: Zeno Engine & Gate Generation (gate generation algorithm, requirements, analysis, LLM integration)
 - Gate 3: Requirements & Database Layer (requirement storage, SQLite CRUD, hash registry)
@@ -474,6 +539,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 ### Active MVP Gates (5-12)
 
 ### Gate 5: Architecture & Diagram Generation
+
 - [ ] Implement Mermaid diagram generator base class
 - [ ] Create system architecture diagram generator (always generated)
 - [ ] Create data flow diagram generator (always generated)
@@ -494,6 +560,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for diagram generation
 
 ### Gate 6: Multi-Repo & Subproject Detection
+
 - [ ] Implement repository boundary detection algorithm
 - [ ] Create coupling metrics calculator
 - [ ] Build domain boundary analyzer
@@ -508,6 +575,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for repo detection
 
 ### Gate 7: Proposal Generation & Management
+
 - [ ] Create proposal template system
 - [ ] Implement proposal generator from requirements
 - [ ] Build change notice format (expands on spec-driven development concepts)
@@ -521,6 +589,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for proposal generation
 
 ### Gate 8: Automated Validation & Quality Gates
+
 - [ ] Implement linting check integration (ESLint)
 - [ ] Implement type checking integration (TypeScript compiler API)
 - [ ] Implement test runner integration (Vitest)
@@ -535,6 +604,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for all validators
 
 ### Gate 9: Human Approval & Rejection Workflow
+
 - [ ] Implement human approval prompt system
 - [ ] Create approval status tracking
 - [ ] Build rejection feedback collection
@@ -547,14 +617,15 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for approval workflow
 
 ### Gate 10: Git Integration & Commit Automation
+
 - [ ] Implement pre-commit hook installer
 - [ ] Create commit message generator (structured format)
 - [ ] Build auto-commit on proposal approval
 - [ ] Implement gate release tagging
 - [ ] Create branch management for proposals
 - [ ] Add git worktree management utilities (`createWorktree`, `removeWorktree`, `listWorktrees`, `pruneExpiredWorktrees`)
-- [ ] Update `zeno proposal start <hash>` to create isolated worktree and return path to agent (MCP: `proposal_start`) 
-- [ ] Update `zeno proposal approve <hash>` to merge worktree branch and cleanup (MCP: `proposal_approve`) 
+- [ ] Update `zeno proposal start <hash>` to create isolated worktree and return path to agent (MCP: `proposal_start`)
+- [ ] Update `zeno proposal approve <hash>` to merge worktree branch and cleanup (MCP: `proposal_approve`)
 - [ ] Implement `zeno worktree` commands (MCP tools):
   - [ ] `worktree list` (MCP: `worktree_list`)
   - [ ] `worktree prune` (MCP: `worktree_prune`)
@@ -569,9 +640,8 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Update pre-commit hooks to work in worktree context
 - [ ] Write tests for git operations (including worktree creation/cleanup/merge sequencing)
 
-
-
 ### Gate 11: Rescope & Replan Engine
+
 - [ ] Implement rescope detection (PROJECT_PRD.md end-state diff)
 - [ ] Create rescope gate generator (immutable, type: rescope)
 - [ ] Build rescope impact analysis (affected gates and requirements)
@@ -583,6 +653,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 - [ ] Write tests for rescope module
 
 ### Gate 12: Status & Reporting
+
 - [ ] Implement `zeno status` CLI command (text summary)
 - [ ] Expose `project_status` MCP tool (structured project overview)
 - [ ] Expose `gate_summary`, `requirement_summary`, `proposal_summary` MCP tools
@@ -592,10 +663,12 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 ### Post-MVP Gates
 
 ### Gate 13: Subagent Orchestration & Parallel Execution (Post-MVP)
+
 - [ ] Subagent orchestration — deferred, needs refactoring/reconsideration
 - [ ] See gate-13-subagent-orchestration-parallel-execution.md
 
 ### Gate 14: Documentation Cleanup (Post-MVP)
+
 - [ ] README.md accuracy pass
 - [ ] CLI/MCP command reference audit
 - [ ] AGENTS.md updates
@@ -606,6 +679,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 ## Open Questions
 
 ### Technical Decisions
+
 - [ ] Should we support multiple LLM providers simultaneously (e.g., Claude for architecture, GPT-4 for code)?
 - [ ] How should we handle very large codebases (>1M LOC) during initial analysis?
 - [ ] Should we implement incremental analysis or always full re-analysis?
@@ -616,6 +690,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - [ ] How does Zeno expand beyond traditional spec systems for comprehensive project management?
 
 ### Product Decisions
+
 - [ ] Should gates be editable after generation, or regenerate-only?
 - [ ] How verbose should progress reporting be (minimal, normal, verbose modes)?
 - [ ] Should we support team collaboration (multiple users approving)?
@@ -626,6 +701,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - [ ] What's the onboarding experience for new users?
 
 ### Blockers & Dependencies
+
 - [ ] Need to validate better-sqlite3 works on all target platforms (Windows, Mac, Linux)
 - [ ] Need to confirm LLM command execution works in Cursor terminal
 - [ ] Need to test AST parsing performance on large codebases
@@ -636,11 +712,13 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - [ ] Need to confirm no API keys required for all LLM integrations
 
 ### Concerns
+
 - [ ] **LLM-generated timelines are inherently inaccurate**: LLMs cannot reliably estimate implementation time. Zeno addresses this by providing actionable milestones (gates) rather than timeline-based planning. Progress is measured by gate completion, not elapsed time.
 
 ## Risk Mitigation
 
 ### Technical Risks
+
 1. **AST parsing performance on large codebases**
    - Impact: High
    - Probability: Medium
@@ -678,6 +756,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
    - Fallback: Disable worktree parallelization, fall back to sequential branch switching
 
 ### Process Risks
+
 1. **Scope creep**
    - Impact: Medium
    - Probability: High
@@ -693,6 +772,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 ## Success Criteria
 
 ### Technical Metrics
+
 - Successfully analyze an existing codebase of 100k+ LOC in under 5 minutes
 - Maintain code coverage at 90%+ across all modules
 - Zero security vulnerabilities in dependencies and production code
@@ -701,6 +781,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - Rescope operation completes in under 30 seconds for typical projects
 
 ### Functional Metrics
+
 - Generate meaningful gates with 80%+ user approval rate (measured via feedback)
 - Automated checks catch 95%+ of issues before human review
 - Dependency tracking prevents 100% of file conflicts in multi-repo scenarios
@@ -710,6 +791,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - Gate completion time reduced by 30%+ compared to unstructured development
 
 ### User Experience Metrics
+
 - Clear error messages for all failure cases (user comprehension validated)
 - Responsive CLI with commands completing in <2 seconds
 - Intuitive command structure (measured by time to first successful operation)
@@ -718,7 +800,9 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 - User reports improved project clarity and reduced scope creep (survey feedback)
 
 ## Requirements Database
+
 SQLite database path for detailed requirements and specifications:
+
 - Database: `zeno/.zeno/requirements.db`
 - Query: `SELECT * FROM requirements WHERE project_id = '[project_id]'`
 - Schema: See "Schema" section above for complete table definitions
@@ -726,9 +810,11 @@ SQLite database path for detailed requirements and specifications:
 - Migrations: Versioned schema migrations in `src/storage/migrations/`
 
 ## Architecture
+
 Architecture documentation with embedded Mermaid diagrams generated based on target project needs:
 
 **Core Diagrams (Generated for All Projects)**:
+
 - System Overview: `zeno/architecture/system-overview.md` - Component relationships and module structure
 - Data Flow: `zeno/architecture/data-flow.md` - End-to-end data processing paths
 - Gate Roadmap Diagram: `zeno/architecture/gate-roadmap.md` - Gate roadmap with parallel relationships
@@ -736,15 +822,18 @@ Architecture documentation with embedded Mermaid diagrams generated based on tar
 - Context Diagram: `zeno/architecture/context.md` - System boundary and external dependencies
 
 **Gate-Level Diagrams (Generated When Needed)**:
+
 - Sequence Diagram: `zeno/architecture/sequence-[use-case].md` - Temporal interactions for complex workflows
 - Component Diagram: `zeno/architecture/component-[name].md` - Detailed module structure for complex components
 - Package Diagram: `zeno/architecture/packages.md` - Code organization and module dependencies
 
 **Infrastructure Diagrams (Generated for Deployment Gates)**:
+
 - Deployment Diagram: `zeno/architecture/deployment.md` - Runtime infrastructure and deployment architecture
 - Network Diagram: `zeno/architecture/network.md` - Network topology and communication patterns (when applicable)
 
 **Note**: Zeno intelligently selects which diagrams to generate based on:
+
 - Target project type (CLI tool, web app, microservices, library)
 - Gate requirements (feature gates vs. deployment gates)
 - Complexity indicators (number of modules, external dependencies, infrastructure needs)
@@ -757,6 +846,7 @@ Each architecture document includes the diagram source, description, and related
 ### Data Models
 
 #### User
+
 ```
 id: TEXT (UUID, primary key)
 git_email: TEXT (unique, not null, from git config user.email)
@@ -764,42 +854,31 @@ git_name: TEXT (from git config user.name)
 created_at: TIMESTAMP
 last_seen_at: TIMESTAMP
 ```
+
 **Rationale**: Normalizes user identity for StateHistory audit trails and Proposal approvals. Derived automatically from git configuration; no manual user management required. Single source of truth prevents inconsistencies like "alice@example.com" vs "Alice".
 
 #### Project
+
 ```
 id: TEXT (UUID, primary key)
 name: TEXT (not null)
 description: TEXT
 start_state: TEXT (JSON, existing codebase analysis)
 end_state: TEXT (not null, natural language goal)
-current_gate_id: TEXT (foreign key to gates)
 created_at: TIMESTAMP
 updated_at: TIMESTAMP
 ```
-**Rationale**: Exactly one per Zeno-managed workspace. Stores session state (`current_gate_id`) and expensive-to-compute `start_state` analysis. Serves as the foreign key anchor for gates and repositories.
 
-#### Gate
-```
-id: TEXT (UUID, primary key)
-project_id: TEXT (foreign key, not null)
-sequence: INTEGER (not null, 1-based)
-name: TEXT (not null)
-description: TEXT
-status: ENUM('pending', 'in_progress', 'completed', 'rejected')
-type: ENUM('feature', 'quality', 'rescope')
-completion_description: TEXT (description of work completed at this gate)
-proposal_hashes: JSON (array of proposal hash references, populated after proposal generation)
-depends_on: JSON (array of gate IDs this gate depends on, enables parallel gate execution)
-hash: TEXT (unique, SHA-256 first 16 chars)
-created_at: TIMESTAMP
-completed_at: TIMESTAMP
-```
-**Rationale**: Primary organizational unit for progress tracking. Sequential ordering via `sequence` with explicit dependency modeling via `depends_on` for parallel execution scenarios. `proposal_hashes` references proposals generated later in the workflow (not available at gate creation time).
+**Rationale**: Exactly one per Zeno-managed workspace. Stores current project state. Project metadata and gates are stored in `project-overview.json` (version-controlled, human-readable).
 
-**Note**: Quality thresholds are non-configurable in MVP (90% coverage, 0 security vulnerabilities, <0.01% lint error rate). These are enforced as constants, not stored per-gate.
+## Data Models (Final 4-Table Schema)
+
+This section documents the actual database schema implemented in `zeno/.zeno/requirements.db`. The schema follows a minimalist design: only tables that provide query efficiency are stored in the database. Gates and project metadata live in version-controlled JSON files.
+
+### Core Tables
 
 #### Requirement
+
 ```
 id: TEXT (UUID, primary key)
 gate_id: TEXT (foreign key, nullable - null for project-level requirements)
@@ -816,142 +895,91 @@ status: ENUM('pending', 'implemented', 'tested')
 source_gate_id: TEXT (foreign key, nullable - original gate if transferred)
 created_at: TIMESTAMP
 ```
-**Rationale**: High volume (potentially hundreds per project). Self-referential `parent_id` creates tree structures within a gate. `project_requirement_id` links gate requirements to their parent project-level requirement. Hash-based lookups (`zeno req show #hash`) require indexed access. Primary driver for SQLite over flat files.
+
+**Rationale**: Hierarchical requirements storage supporting both project-level and gate-level decomposition. Hash-based lookups (`zeno req show #hash`) require database indexing for performance. Self-referential `parent_id` enables requirement trees within gates.
 
 **Level Values**:
-- `project`: High-level requirement generated during `zeno init`, may span multiple gates
-- `gate`: Specific requirement generated during `zeno gates start`, belongs to one gate
+
+- `project`: High-level requirement generated during `zeno init`, captures cross-cutting concerns
+- `gate`: Specific requirement generated during `zeno gates start`, actionable within gate
 
 **Source Values**:
+
 - `generated`: Created fresh during init (project) or gates start (gate)
 - `inherited`: Derived from a project-level requirement
 - `transferred`: Moved from another gate (e.g., during rescope)
 
 **Status Values**:
+
 - `pending`: Initial state, awaiting implementation
 - `implemented`: Code written for this requirement
 - `tested`: Tests pass for this requirement
 
-#### Artifact
-```
-id: TEXT (UUID, primary key)
-gate_id: TEXT (foreign key, not null)
-type: ENUM('prd', 'architecture', 'proposal', 'test', 'agents')
-name: TEXT (not null)
-path: TEXT (relative to project root, file location)
-hash: TEXT (unique, content hash for change detection)
-content: TEXT (short descriptor/summary, not file contents)
-metadata: JSON (type-specific metadata)
-created_at: TIMESTAMP
-```
-**Rationale**: Maps logical artifacts to physical file paths. `path` is the file system location; `content` is a brief description for quick reference without reading the file. Content hashing enables stale detection.
-
-**Semantics**:
-- `path`: Always populated. Relative path to the artifact file.
-- `content`: Optional summary/descriptor (e.g., "System architecture showing 7 layers"). NOT the file contents.
-- `hash`: SHA-256 of actual file contents for change detection.
-
-#### Dependency
-```
-id: TEXT (UUID, primary key)
-source_hash: TEXT (not null, indexed)
-source_entity_type: ENUM('gate', 'requirement', 'proposal', 'artifact', 'repository')
-target_hash: TEXT (not null, indexed)
-target_entity_type: ENUM('gate', 'requirement', 'proposal', 'artifact', 'repository')
-type: ENUM('requires', 'blocks', 'relates_to')
-description: TEXT
-confidence_score: REAL (0.0-1.0, for auto-detected deps)
-created_at: TIMESTAMP
-UNIQUE(source_hash, target_hash, type)
-```
-**Rationale**: Many-to-many relationships between any hashable entities. Entity type fields enable validation that dependencies are semantically valid (e.g., requirement depending on requirement, not proposal depending on gate incorrectly).
-
-**Deletion Behavior**: When an entity is deleted, the system must reevaluate and rescope dependent entities. Dependencies exist to prevent capability loss; orphan dependencies trigger mandatory review.
-
 #### Repository
+
 ```
 id: TEXT (UUID, primary key)
-project_id: TEXT (foreign key, not null)
 name: TEXT (not null)
-path: TEXT (relative to workspace root, not null)
+path: TEXT (relative to workspace root, not null, unique)
 type: ENUM('main', 'service', 'library', 'tool')
-hash: TEXT (unique, repo identifier)
+hash: TEXT (unique, repo identifier content-addressable)
 metadata: JSON (language, framework, size metrics)
 created_at: TIMESTAMP
 ```
-**Rationale**: Multi-repo project boundary tracking. Paths are always relative to workspace root to enable different developers to work on the same project without path collisions.
 
-**Path Normalization**: All paths stored as relative. Absolute paths are converted at insertion time using the workspace root as reference.
+**Rationale**: Multi-repository support for large-scale projects. Paths stored as relative to workspace root for portability across developer environments. Hash-based lookups enable efficient repository resolution.
 
-#### RequirementRepository
-```
-id: TEXT (UUID, primary key)
-requirement_id: TEXT (foreign key to requirements, not null)
-repository_id: TEXT (foreign key to repositories, not null)
-impact_type: ENUM('creates', 'modifies', 'depends_on')
-created_at: TIMESTAMP
-UNIQUE(requirement_id, repository_id, impact_type)
-```
-**Rationale**: Junction table mapping requirements to repositories for multi-repo projects. Answers "which requirements affect the auth-service repository?" and enables cross-repository impact analysis.
+**Path Normalization**: All paths stored relative to workspace root. Conversion happens at insertion time.
 
 #### Proposal
+
 ```
 id: TEXT (UUID, primary key)
-gate_id: TEXT (foreign key, not null)
-requirement_id: TEXT (foreign key, nullable)
 title: TEXT (not null)
+summary: TEXT
 status: ENUM('pending', 'in_progress', 'completed', 'rejected')
-check_results: JSON (detailed automated check results)
-human_feedback: TEXT
-approved_by: TEXT (foreign key to users, nullable)
 hash: TEXT (unique, proposal content hash)
+gate_id: TEXT (nullable, gate this proposal belongs to)
+role: ENUM('test-suite', 'implementation', 'test-cleanup', 'solitary')
+check_results: JSON (detailed automated check results from validation)
+human_feedback: TEXT
+approved_by: TEXT (nullable, identifier of approver)
 created_at: TIMESTAMP
 approved_at: TIMESTAMP
 implemented_at: TIMESTAMP
 ```
-**Rationale**: Single status field tracks proposal lifecycle. `requirement_id` is optional because requirement verification primarily occurs at the gate level; proposals may address gate-level concerns without mapping to specific requirements.
+
+**Rationale**: Hash-based lookup efficiency for operational commands (`proposal start`, `proposal validate`, `proposal approve`). Proposals are generated from gate PRDs and stored as markdown files in `zeno/proposals/gate-XX/`. Database stores proposal metadata for fast querying without scanning the filesystem.
 
 **Status Values**:
+
 - `pending`: Awaiting automated checks or human approval
 - `in_progress`: Implementation underway
 - `completed`: Approved and implemented
 - `rejected`: Human rejected the proposal
 
-#### HashRegistry
-```
-hash: TEXT (primary key, SHA-256 first 16 chars)
-entity_type: ENUM('gate', 'requirement', 'proposal', 'artifact', 'repository', 'user')
-entity_id: TEXT (UUID of actual entity)
-content_preview: TEXT (first 200 chars for quick reference)
-created_at: TIMESTAMP
-```
-**Rationale**: Central lookup table for O(1) hash resolution. When user references `#a3f9c2d1`, the system queries this table to determine entity type and ID, then retrieves the full entity. Prevents O(n) table scans across all entity tables.
+**Role Values** (Test-First Gate Pattern):
 
-#### StateHistory
+- `test-suite`: First proposal in a gate, tests written RED (expected to fail), tests GREEN first
+- `implementation`: Middle proposals, implement features to make tests pass
+- `test-cleanup`: Final proposal in a gate, refine tests, all tests must pass GREEN
+- `solitary`: Proposal not tied to a gate, self-contained with inline tests
+
+#### MetricsSnapshot
+
 ```
 id: TEXT (UUID, primary key)
-entity_type: ENUM('project', 'gate', 'requirement', 'proposal', 'artifact', 'repository')
-entity_id: TEXT (not null)
-field_name: TEXT (not null)
-old_value: TEXT (nullable, JSON-encoded for complex types)
-new_value: TEXT (nullable, JSON-encoded for complex types)
-changed_by: TEXT (foreign key to users, nullable for system changes)
-change_source: ENUM('system', 'human', 'rescope', 'validation')
-changed_at: TIMESTAMP (not null)
-reason: TEXT (optional explanation)
+gate_id: TEXT (foreign key, not null)
+snapshot_type: ENUM('gate_completion', 'milestone')
+metrics: JSON (aggregated metrics at gate completion)
+created_at: TIMESTAMP
 ```
-**Rationale**: Audit trail for all entity state changes. Enables answering "what did this requirement look like before the rescope?" and debugging proposal rejections. `changed_by` references User table; null indicates system-initiated change.
+
+**Rationale**: Lightweight historical baseline for trend analysis and performance tracking at gate completion. Stores aggregate metrics without per-module detail.
 
 ### Indexes
+
 ```sql
--- Hash-based lookups (primary access pattern)
-CREATE UNIQUE INDEX idx_hash_registry_hash ON hash_registry(hash);
-
--- Gate queries
-CREATE INDEX idx_gates_project ON gates(project_id);
-CREATE INDEX idx_gates_status ON gates(status);
-CREATE INDEX idx_gates_hash ON gates(hash);
-
 -- Requirement queries
 CREATE INDEX idx_requirements_gate ON requirements(gate_id);
 CREATE INDEX idx_requirements_hash ON requirements(hash);
@@ -959,65 +987,46 @@ CREATE INDEX idx_requirements_parent ON requirements(parent_id);
 CREATE INDEX idx_requirements_project_req ON requirements(project_requirement_id);
 CREATE INDEX idx_requirements_status ON requirements(status);
 CREATE INDEX idx_requirements_level ON requirements(level);
-CREATE INDEX idx_requirements_source ON requirements(source);
-
--- Note: Unified status vocabulary across entities
--- Gates: pending, in_progress, completed, rejected
--- Requirements: pending, implemented, tested
--- Proposals: pending, in_progress, completed, rejected
-
--- Dependency graph traversal
-CREATE INDEX idx_dependencies_source ON dependencies(source_hash);
-CREATE INDEX idx_dependencies_target ON dependencies(target_hash);
-CREATE INDEX idx_dependencies_source_type ON dependencies(source_entity_type);
-CREATE INDEX idx_dependencies_target_type ON dependencies(target_entity_type);
-
--- Proposal queries
-CREATE INDEX idx_proposals_gate ON proposals(gate_id);
-CREATE INDEX idx_proposals_requirement ON proposals(requirement_id);
-CREATE INDEX idx_proposals_status ON proposals(status);
-CREATE INDEX idx_proposals_hash ON proposals(hash);
-
--- Artifact queries
-CREATE INDEX idx_artifacts_gate ON artifacts(gate_id);
-CREATE INDEX idx_artifacts_hash ON artifacts(hash);
-CREATE INDEX idx_artifacts_type ON artifacts(type);
 
 -- Repository queries
-CREATE INDEX idx_repositories_project ON repositories(project_id);
 CREATE INDEX idx_repositories_hash ON repositories(hash);
+CREATE UNIQUE INDEX idx_repositories_path ON repositories(path);
 
--- RequirementRepository junction
-CREATE INDEX idx_req_repo_requirement ON requirement_repository(requirement_id);
-CREATE INDEX idx_req_repo_repository ON requirement_repository(repository_id);
+-- Proposal queries
+CREATE INDEX idx_proposals_hash ON proposals(hash);
+CREATE INDEX idx_proposals_gate ON proposals(gate_id);
+CREATE INDEX idx_proposals_status ON proposals(status);
+CREATE INDEX idx_proposals_role ON proposals(role);
 
--- StateHistory audit queries
-CREATE INDEX idx_state_history_entity ON state_history(entity_type, entity_id);
-CREATE INDEX idx_state_history_changed_at ON state_history(changed_at);
-CREATE INDEX idx_state_history_changed_by ON state_history(changed_by);
-
--- User lookups
-CREATE UNIQUE INDEX idx_users_git_email ON users(git_email);
+-- Metrics queries
+CREATE INDEX idx_metrics_gate ON metrics_snapshots(gate_id);
+CREATE INDEX idx_metrics_created_at ON metrics_snapshots(created_at);
 ```
 
 ### Relationships
-- User: Standalone identity table derived from git config
-- Project -> Gates: one-to-many (project has multiple gates)
-- Gate -> Gate: many-to-many via `depends_on` (parallel gate dependencies)
-- Gate -> Requirements: one-to-many (gate decomposes into requirements)
-- Requirement -> Requirements: one-to-many (parent-child hierarchy)
-- Requirement -> Repositories: many-to-many via RequirementRepository (multi-repo impact)
-- Gate -> Artifacts: one-to-many (gate produces multiple artifacts)
-- Gate -> Proposals: one-to-many (gate contains multiple proposals)
-- Requirement -> Proposals: one-to-many (requirement implemented via proposals, optional)
-- Proposal -> User: many-to-one (approved_by reference)
-- Dependency: many-to-many via hash references with entity type validation
-- Project -> Repositories: one-to-many (project spans multiple repos)
-- HashRegistry: central lookup table for all hashed entities
-- StateHistory -> User: many-to-one (changed_by reference for audit trail)
-- StateHistory: append-only audit log for all entity changes
+
+- Requirement -> Requirement: self-referential via `parent_id` (hierarchical decomposition)
+- Proposal -> Gate: many-to-one via `gate_id` (proposals belong to gates)
+- MetricsSnapshot -> Gate: many-to-one via `gate_id` (snapshots tied to gate completion)
+- Repository: Standalone table, indexed for multi-repo support
+
+### File Storage & Version Control
+
+Gates and project metadata are stored as version-controlled files, not in the database:
+
+| Artifact           | Location                                            | Format   | Version Controlled |
+| ------------------ | --------------------------------------------------- | -------- | ------------------ |
+| Project Overview   | `zeno/project-overview.json`                        | JSON     | Yes                |
+| Gates              | `zeno/gates/gate-{sequence}-{name}.md`              | Markdown | Yes                |
+| Gate Archive       | `zeno/gates/archive/{gate-id}.md`                   | Markdown | Yes                |
+| Proposals (Active) | `zeno/proposals/gate-{sequence}/{proposal-name}.md` | Markdown | Yes                |
+| Requirements DB    | `zeno/.zeno/requirements.db`                        | SQLite   | Yes                |
+| Migrations         | `src/storage/migrations/*.sql`                      | SQL      | Yes                |
+
+**Design Rationale**: Gates stored as markdown files enable version control history, human readability, and easy integration with git workflows. Project metadata in JSON provides queryable state while remaining human-editable. This hybrid approach combines benefits of files (versioning, readability) with database queries (requirements indices, hash-based lookups).
 
 ### API Contracts (if applicable)
+
 ```
 Command: zeno init
 Input: Interactive prompts (name, end state, codebase path)
@@ -1047,17 +1056,15 @@ Output: {
     security: { passed: boolean, vulnerabilities: number, threshold: 0 },
     linting: { passed: boolean, errorRate: number, threshold: 0.0001 },
     typeCheck: { passed: boolean, errors: string[] },
-    tests: { passed: boolean, results: TestResult[] },
-    dependencies: { passed: boolean, conflicts: Conflict[] }
+    tests: { passed: boolean, results: TestResult[] }
   }
 }
 
 Command: zeno show <hash>
 Input: { hash: string }
 Output: {
-  type: string,
-  entity: Gate | Requirement | Proposal | Artifact,
-  dependencies: Dependency[],
+  type: string ('requirement' | 'repository' | 'proposal'),
+  entity: Requirement | Repository | Proposal,
   content: string
 }
 ```
@@ -1065,6 +1072,7 @@ Output: {
 ## Out of Scope
 
 ### Explicitly NOT Included in MVP
+
 - Web UI or graphical interface (CLI/TUI only)
 - Real-time collaboration features (single-user focused)
 - Cloud synchronization or hosted service
@@ -1078,6 +1086,8 @@ Output: {
 - Mobile app or mobile-optimized interface
 
 ### Features Deferred to Future Iterations
+
+- Artifact database tracking (files tracked in git, not database)
 - Plugin system for custom analyzers and validators
 - Export to project management tools
 - Web dashboard for visualization
@@ -1102,5 +1112,3 @@ Output: {
 **Document Version**: 1.0.0  
 **Last Updated**: 2026-01-04  
 **Owner**: Zeno's Planner Development Team
-
-

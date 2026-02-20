@@ -19,6 +19,7 @@
 **All proposals must deliver a complete, testable unit of work in a SINGLE implementation phase.**
 
 **NOT Allowed** — Forced sequentiality indicating multi-phased work:
+
 - "Phase 1: [task], Phase 2: [task]" or "Stage 1/2/3"
 - "First implement X, then Y, then Z" (sequential steps that form required phases)
 - "Implementation deferred to a future phase/gate/proposal"
@@ -26,6 +27,7 @@
 - Tasks that logically require strict ordering as distinct phases
 
 **Correct Approach** — Parallelizable work designed for one sitting:
+
 - Multiple independent tasks that can run in parallel (many tasks OK if independent)
 - Create separate proposals for work with inherent sequentiality (e.g., foundation → integration)
 - Use `Dependencies: requires` to establish ordering without forced phases
@@ -33,6 +35,7 @@
 - Dependencies ensure sequencing without multi-phasing
 
 **If You See Multi-Phase Patterns:**
+
 1. Split into separate proposals (one per logical phase/gate)
 2. Update Dependencies to sequence them (e.g., "Proposal B requires Proposal A")
 3. Each proposal stands alone and can be reviewed/tested independently
@@ -50,17 +53,19 @@
 List only valid hash references. It is acceptable to have no dependencies if this proposal is self-contained or first in a gate.
 
 **Hash Usage Rules**:
+
 - Proposal hashes (#xxxxx) should only appear in: the proposal's own header, the associated gate's proposal table, and dependency tables
 - Do not reference proposal hashes in body text, task descriptions, or other sections
 - Use descriptive names instead of hashes for readability in all other contexts
 - **Performance**: This restriction prevents excessive file searches and context window bloat when LLMs need to find proposal references
 
-| Hash | Type | Description |
-|------|------|-------------|
-| #[hash] | requires | [What this proposal depends on] |
-| #[hash] | blocks | [What this unblocks when complete] |
+| Hash    | Type     | Description                        |
+| ------- | -------- | ---------------------------------- |
+| #[hash] | requires | [What this proposal depends on]    |
+| #[hash] | blocks   | [What this unblocks when complete] |
 
 **Rules**:
+
 - Omit rows for dependency types that do not apply
 - Never use placeholder values like "None" or "N/A" as hash references
 - If no dependencies exist, replace the entire Dependencies section (header through table) with: `*No dependencies.*`
@@ -73,6 +78,7 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
 **File Scoping Rules**:
+
 - Every `File(s)` entry MUST be an explicit file path (e.g., `src/core/archive-logic.ts`)
 - NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
 - NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
@@ -80,7 +86,8 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 - Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
 
 **Test Scoping Rules**:
-- **Gate-tied proposals**: Omit test tasks. A dedicated test proposal will be created as the final proposal in the gate to meet quality thresholds.
+
+- **Gate-tied proposals**: Omit test tasks from implementation proposals; create a dedicated test proposal as the first proposal in the gate to define acceptance tests, and a test-cleanup proposal as the final proposal to refine coverage.
 - **Solitary proposals**: MUST include test tasks inline. Solitary proposals are self-contained and have no gate-level test proposal.
 
 ### Task 1: [Task Title]
@@ -91,6 +98,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 [2-4 line description of what to implement. Name specific functions, interfaces, or patterns to follow. Do NOT embed code snippets — the apply agent reads the actual source files.]
 
 **Acceptance**:
+
 - [ ] [Specific, verifiable condition]
 - [ ] [Another verifiable condition]
 
@@ -104,19 +112,21 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 [2-4 line description. No code snippets — name types and functions, the apply agent reads actual source.]
 
 **Acceptance**:
+
 - [ ] [Condition]
 - [ ] [Condition]
 
 ---
 
-### Task 3: [Task Title] (Solitary proposals only)
+### Task 3: [Task Title] (Test or solitary proposals only)
 
 **File(s)**: `[path/to/file.test.ts]`  
 **Action**: create | modify
 
-[Test task - required for solitary proposals. Gate-tied proposals defer testing to a dedicated test proposal.]
+[Test task — required for the gate's test proposal (first proposal) and test-cleanup (final proposal). Also required for solitary proposals. Implementation proposals in gates omit test files.]
 
 **Acceptance**:
+
 - [ ] Tests cover happy path
 - [ ] Tests cover error cases
 - [ ] Coverage meets 90% threshold for touched files
@@ -126,14 +136,15 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 ## Files Affected
 
 **Rules**:
+
 - Every entry MUST be a fully-qualified file path — no directories, no globs, no wildcards
 - This table is the authoritative scope boundary; the scope validator rejects modifications to unlisted files
 - Each file path must match exactly one file in the repository
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/[path]/[file].ts` | create/modify | [Brief change description] |
-| `tests/[path]/[file].test.ts` | create/modify | [Test description — include for solitary proposals only; gate-tied proposals defer tests] |
+| File                          | Action        | Description                                                                                                            |
+| ----------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `src/[path]/[file].ts`        | create/modify | [Brief change description]                                                                                             |
+| `tests/[path]/[file].test.ts` | create/modify | [Test description — include for test proposals and solitary proposals only; gate implementation proposals defer tests] |
 
 ---
 
@@ -157,8 +168,6 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
-
-
+| Version | Date         | Summary         | Author          |
+| ------- | ------------ | --------------- | --------------- |
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

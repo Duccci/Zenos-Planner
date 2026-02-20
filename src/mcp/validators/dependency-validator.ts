@@ -7,6 +7,9 @@
  * - All blocking dependencies are listed
  */
 
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
+
 export interface DependencyNode {
   hash: string
   dependencies: string[]
@@ -19,12 +22,6 @@ export interface DependencyValidationContext {
   node: DependencyNode
   /** All nodes in the system */
   allNodes: Map<string, DependencyNode>
-}
-
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
 }
 
 /**

@@ -9,6 +9,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
+import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -204,12 +205,17 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const fullHashValue = shortHash(hashContent) // 16 chars
       const hash = fullHashValue.substring(0, 8) // 8 chars
 
-      // Check if gate exists (if provided)
+      // Check if gate exists in project-overview.json (gates are no longer stored in DB)
       if (validated.gateId) {
-        const db = (await import('../storage/database.js')).getDatabase()
-        const gate = db.prepare('SELECT id FROM gates WHERE id = ?').get(validated.gateId)
-        if (!gate) {
-          warnings.push(`Gate ${validated.gateId} not found in database`)
+        try {
+          const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
+          const overview = await readProjectOverview()
+          const gateExists = getGatesFromOverview(overview).some((g) => g.id === validated.gateId)
+          if (!gateExists) {
+            warnings.push(`Gate ${validated.gateId} not found in project overview`)
+          }
+        } catch {
+          // overview unavailable — skip gate validation
         }
       }
 
@@ -359,6 +365,14 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Write proposal file
       await writeFile(filePath, proposalContent, 'utf-8')
 
+      // Sync the new file into the DB so proposal_show resolves it immediately.
+      try {
+        const db = (await import('../storage/database.js')).getDatabase()
+        syncProposalsFromDisk(db)
+      } catch {
+        // Non-fatal — file was written; DB will be synced on next startup
+      }
+
       return {
         hash,
         filePath,
@@ -446,10 +460,55 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     'proposal_start',
     async (params) => {
       const validated = z.object({ hash: z.string() }).parse(params)
+
+      // Validate artifact before starting (user may have edited it)
+      const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
+      const db = (await import('../storage/database.js')).getDatabase()
+
+      // Get proposal details to find its file path
+      const proposal = db
+        .prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?')
+        .get(validated.hash, `${validated.hash}%`) as Record<string, unknown> | undefined
+
+      if (!proposal) {
+        throw new Error(`Proposal not found: ${validated.hash}`)
+      }
+
+      const projectRoot = process.cwd()
+      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+      const defaultPath = `zeno/proposals/gate-${(proposal['gate_id'] as string).split('-')[1]}/${((proposal['title'] as string) ?? 'proposal').replace(/\s+/g, '-').toLowerCase()}.md`
+      const proposalPath: string = (proposal['file_path'] as string | undefined) ?? defaultPath
+
+      try {
+        const validationResult = await validateArtifactFile(
+          projectRoot + '/' + proposalPath,
+          'proposal',
+          'all',
+          {
+            gateId: proposal['gate_id'] as string,
+            hash: validated.hash,
+          }
+        )
+
+        if (!validationResult.allowed) {
+          throw new Error(
+            `Proposal artifact validation failed:\n${validationResult.errors?.join('\n') ?? 'Unknown error'}`
+          )
+        }
+
+        if (validationResult.warnings) {
+          console.warn('Proposal validation warnings:', validationResult.warnings)
+        }
+      } catch (err) {
+        throw new Error(`Failed to validate proposal before starting: ${String(err)}`)
+      }
+
       const result = await invokeCommand('proposal_start', validated)
       if (!result.success) {
         throw new Error(result.error)
       }
+
+      return { success: true, hash: validated.hash }
     },
     {
       description: 'Start implementation of a proposal (status: pending -> in_progress)',
@@ -471,14 +530,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_validate',
     async (params) => {
-      const validated = z.object({ hash: z.string(), strict: z.boolean().optional() }).parse(params)
+      const validated = z.object({ hash: z.string() }).parse(params)
 
       // Import validators
       const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
       const { validateQuality } = await import('../mcp/validators/quality-validator.js')
       const { validateProposalPhases } =
         await import('../mcp/validators/proposal-phases-validator.js')
-      const { loadConfig } = await import('../utils/config.js')
       const { readFile } = await import('../utils/file.js')
 
       const errors: string[] = []
@@ -588,16 +646,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       // Quality validation (if metrics available)
-      const config = await loadConfig()
       const qualityMetrics: Record<string, unknown> | null = proposal.quality_metrics
         ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
         : null
 
       if (qualityMetrics) {
-        const qualityValidation = validateQuality({
+        const qualityValidation = await validateQuality({
           metrics: qualityMetrics,
-          config,
-          strict: validated.strict,
         })
 
         if (qualityValidation.errors) errors.push(...qualityValidation.errors)
@@ -620,17 +675,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           description: 'The hash identifier of the proposal',
           required: true,
         },
-        {
-          name: 'strict',
-          type: 'boolean',
-          description: 'Treat warnings as errors and fail validation',
-          required: false,
-        },
       ],
       returnType: 'ValidationResult',
       schema: z.object({
         hash: z.string().min(1, 'Hash is required'),
-        strict: z.boolean().optional(),
       }),
     }
   )
@@ -687,16 +735,15 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         throw new Error(`Proposal approval blocked:\n${applyValidation.errors?.join('\n') ?? ''}`)
       }
 
-      // Run quality validation
-      const qualityValidation = validateQuality({
-        metrics: qualityMetrics,
-        config,
-        strict: true, // Strict mode for approval
+      // Run quality validation before approval
+      // Quality metrics must come from the target project's own quality checks
+      const qualityValidation = await validateQuality({
+        metrics: qualityMetrics as Record<string, number>,
       })
 
       if (!qualityValidation.allowed) {
         throw new Error(
-          `Quality thresholds not met:\n${qualityValidation.errors?.join('\n') ?? ''}`
+          `Quality thresholds not met. Target project must meet quality requirements:\n${qualityValidation.errors?.join('\n') ?? ''}`
         )
       }
 

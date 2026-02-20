@@ -1,55 +1,72 @@
 # Zeno's Planner Schemas
 
-This directory contains JSON schemas used by Zeno's Planner for validating project files and ensuring data consistency across projects.
+Schemas in Zeno's Planner are defined as **TypeScript/Zod schemas** in the source code. This is the single source of truth for data validation across the project.
 
-## Available Schemas
+## Schema Definitions
 
-### `project-overview.schema.json`
-- **Purpose**: Validates the structure of `project-overview.json` files
-- **Location**: Used in `zeno/.zeno/project-overview.json` for each project
-- **Description**: Ensures LLM-optimized project memory files have the correct structure with project metadata, completed gates, current gate info, upcoming gates, and architecture overview
+All schemas are defined using [Zod](https://zod.dev/) for runtime validation with full TypeScript type safety.
 
-### `config.schema.json`
-- **Purpose**: Validates the structure of `config.json` files
-- **Location**: Used in `zeno/.zeno/config.json` for each project
-- **Description**: Ensures project configuration files have the correct structure with quality thresholds, git settings, versioning rules, and hash configuration. Project name and version information is stored in `project-overview.json` as the single source of truth.
+### Core Configuration Schemas
 
-### `repo-map.schema.json`
-- **Purpose**: Validates the structure of `repo-map.json` files
-- **Location**: Used in `zeno/subprojects/repo-map.json` for multi-repository projects
-- **Description**: Ensures repository mapping files have the correct structure with repository lists, cross-repository dependencies, and update timestamps
+Located in `src/utils/config.ts`:
+
+- **`ZenoConfigSchema`** - Project configuration validation
+  - Validates: `zeno/.zeno/config.json`
+  - Properties: quality thresholds, git settings, versioning, hash configuration
+  - Used by: Configuration loading and validation throughout the application
+
+- **`ProjectOverviewSchema`** - Project metadata validation
+  - Validates: `zeno/.zeno/project-overview.json`
+  - Properties: project name, version, gate status, completed gates, architecture overview
+  - Used by: Project state management and LLM context generation
+
+### MCP Tool Schemas
+
+Located in `src/mcp/schemas/`:
+
+- **Action Schemas**: Input/output validation for MCP tool handlers
+  - `gates-action-schemas.ts` - Gates action validation
+  - `proposal-action-schemas.ts` - Proposal action validation
+  - `req-action-schemas.ts` - Requirements action validation
+  - `archive-schemas.ts` - Archive action validation
+  - `config-schemas.ts` - Configuration query validation
+  - And others for specific tool operations
+
+- **Common Schemas**: Shared components
+  - `common-schemas.ts` - Hash, ID, timestamp, and other base types
+  - `requirement-schemas.ts` - Requirement validation
+  - `analysis-schemas.ts` - Analysis results
 
 ## Usage
 
-These schemas can be used by:
-- Zeno's Planner tool for validation during project initialization and updates
-- IDEs and editors for JSON validation and autocomplete
-- CI/CD pipelines for automated validation
-- Future Zeno projects for consistent data structures
+To validate data:
 
-## Schema Guidelines
+```typescript
+import { ZenoConfigSchema } from 'src/utils/config.js'
 
-Schemas are organized by purpose and used for validation at runtime. They are independent of template loading infrastructure.
-
-## Tool registry & action schemas
-
-- Tools that follow the entity-action pattern use a discriminator-based request envelope: `{ action: string, payload?: object }`.
-- Per-action output schemas are validated separately (used for `mockResult` and action output validation).
-
-Example registry entry (conceptual):
-
-```json
-{
-  "name": "proposal_action",
-  "inputSchema": "z.object({ action: z.enum(['list','show','create']), payload: z.any().optional() })",
-  "outputSchema": "z.object({ action: z.string(), result: z.any() })",
-  "actionOutputSchema": {
-    "list": "z.object({ proposals: z.array(z.object({...})) })",
-    "show": "z.object({ id: z.string(), name: z.string() })",
-    "create": "z.object({ id: z.string(), status: z.string() })"
-  }
+const result = ZenoConfigSchema.safeParse(configData)
+if (!result.success) {
+  console.error(result.error.issues) // Type-safe error details
 }
 ```
 
-Refer to `docs/mcp-tools-development.md` for guidance on designing action schemas and validators.
+## Adding New Schemas
 
+When adding new data structures:
+
+1. Define schema in TypeScript using Zod
+2. Export both the schema and inferred type: `export type MyType = z.infer<typeof MySchema>`
+3. Use in validation: `MySchema.safeParse(data)`
+4. For MCP tools, register in `src/mcp/schemas/registry.ts`
+
+## Tool Registry
+
+The MCP tool framework uses a discriminator-based request envelope:
+
+```typescript
+{ action: string, payload?: object }
+```
+
+Per-action output schemas are validated separately, ensuring type safety across tool invocations.
+
+Refer to `docs/mcp-tools-development.md` for guidance on designing action schemas and validators.

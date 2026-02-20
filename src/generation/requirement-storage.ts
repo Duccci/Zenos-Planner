@@ -201,21 +201,15 @@ export class RequirementStorage {
     for (const candidate of candidates) {
       // Only store high-confidence candidates
       if (candidate.confidence >= 0.6) {
-        try {
-          const requirement = this.storeRequirement(
-            candidate.description,
-            candidate.type,
-            candidate.priority,
-            projectId,
-            gateId,
-            undefined // acceptance criteria
-          )
-          requirements.push(requirement)
-        } catch (err: unknown) {
-          // Log but continue with other requirements
-          const e: Error = err instanceof Error ? err : new Error(String(err))
-          console.warn(`Failed to store requirement: ${candidate.description}`, e)
-        }
+        const requirement = this.storeRequirement(
+          candidate.description,
+          candidate.type,
+          candidate.priority,
+          projectId,
+          gateId,
+          undefined // acceptance criteria
+        )
+        requirements.push(requirement)
       }
     }
 

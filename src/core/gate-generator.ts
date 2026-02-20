@@ -3,24 +3,8 @@ import { decomposeWork } from './zeno-engine.js'
 import { sequenceGates } from './gate-sequencer.js'
 import { calculateConfidence } from './gate-scoring.js'
 import { getDatabase } from '../storage/database.js'
-import { readProjectOverview } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
 import type { CodeMetrics } from '../analysis/types.js'
-
-interface GateRow {
-  id: string
-  project_id: string
-  sequence: number
-  name: string
-  description: string | null
-  status: string
-  type: string
-  completion_description: string | null
-  proposal_hashes: string | null
-  depends_on: string | null
-  hash: string
-  created_at: string
-  completed_at: string | null
-}
 
 // Assuming these types from other modules
 interface InitialAnalysisResult {
@@ -155,24 +139,27 @@ function estimateInitialComplexity(
  * - If no analysis: Falls back to pure theoretical decomposition
  * - Combines both for most accurate gate sequencing
  */
-export function regenerateGatesWithAnalysis(fromGateId: string): RegenerationSuggestions {
-  const db = getDatabase()
-
-  // Get gate to check context
-  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined
-
-  // If database is empty but we have archived gates, return helpful message
-  if (!gate) {
-    return {
-      originalGates: [],
-      suggestedGates: [],
-      changes: [],
-      reasoning: `Gate ${fromGateId} found in archive but database is not yet synced. Run 'zeno gates list' to view and sync archived gates.`,
+export async function regenerateGatesWithAnalysis(
+  fromGateId: string
+): Promise<RegenerationSuggestions> {
+  // Verify gate exists in project overview
+  try {
+    const overview = await readProjectOverview()
+    const summaries = getGatesFromOverview(overview)
+    if (!summaries.find((g) => g.id === fromGateId)) {
+      return {
+        originalGates: [],
+        suggestedGates: [],
+        changes: [],
+        reasoning: `Gate ${fromGateId} not found in project overview.`,
+      }
     }
+  } catch {
+    // overview unavailable — continue with regeneration anyway
   }
 
-  // Check if we have analysis data (would be stored in gate metadata or separate analysis table)
-  // Try a runtime check against the sqlite_master table and a small query to avoid hard failures
+  // Check if analysis data exists in a separate table
+  const db = getDatabase()
   let hasAnalysisData = false
   try {
     const table = db
@@ -190,10 +177,10 @@ export function regenerateGatesWithAnalysis(fromGateId: string): RegenerationSug
 
   // Use appropriate regeneration strategy
   if (hasAnalysisData) {
-    return regenerateGatesFromAnalysis(fromGateId)
+    return await regenerateGatesFromAnalysis(fromGateId)
   } else {
     // Fall back to theoretical regeneration if no analysis data yet
-    return regenerateGatesTheoretical(fromGateId)
+    return await regenerateGatesTheoretical(fromGateId)
   }
 }
 
@@ -201,36 +188,25 @@ export function regenerateGatesWithAnalysis(fromGateId: string): RegenerationSug
  * Regenerates future gates based on analyzed code metrics from completed gates.
  * Compares theoretical decomposition with data-driven insights.
  */
-function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestions {
-  const db = getDatabase()
+async function regenerateGatesFromAnalysis(fromGateId: string): Promise<RegenerationSuggestions> {
+  const overview = await readProjectOverview()
+  const summaries = getGatesFromOverview(overview)
 
-  // Get gate and project overview
-  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined
-
-  if (!gate) {
+  if (!summaries.find((g) => g.id === fromGateId)) {
     throw new Error(`Gate ${fromGateId} not found`)
   }
 
-  // Get all gates (no longer tied to project_id since we removed projects table)
-  const gateRows = db
-    .prepare(
-      `
-    SELECT * FROM gates
-    ORDER BY sequence
-  `
-    )
-    .all() as GateRow[]
-
-  const allGates: Gate[] = gateRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description ?? '',
-    objectives: [], // Will be populated by regeneration logic
-    dependencies: row.depends_on?.split(',') ?? [],
-    estimatedComplexity: 0, // Will be calculated
-    confidence: 0, // Will be calculated
-    type: row.type as 'feature' | 'quality' | 'rescope',
-    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
+  // Build gate list from project overview
+  const allGates: Gate[] = summaries.map((s) => ({
+    id: s.id,
+    name: s.name,
+    description: '',
+    objectives: [],
+    dependencies: [],
+    estimatedComplexity: 0,
+    confidence: 0,
+    type: 'feature' as const,
+    status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
   // Get analysis data from completed gates
@@ -348,31 +324,20 @@ function regenerateGatesFromAnalysis(fromGateId: string): RegenerationSuggestion
  * Regenerates all gates from the project end state.
  */
 export async function regenerateGatesTheoreticalFromProject(): Promise<RegenerationSuggestions> {
-  const db = getDatabase()
-
   // Get project overview (single source of truth)
   const projectOverview = await readProjectOverview()
 
-  // Get all gates
-  const gateRows = db
-    .prepare(
-      `
-    SELECT * FROM gates
-    ORDER BY sequence
-  `
-    )
-    .all() as GateRow[]
-
-  const allGates: Gate[] = gateRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description ?? '',
+  // Build gate list from project overview
+  const allGates: Gate[] = getGatesFromOverview(projectOverview).map((s) => ({
+    id: s.id,
+    name: s.name,
+    description: '',
     objectives: [],
-    dependencies: row.depends_on?.split(',') ?? [],
+    dependencies: [],
     estimatedComplexity: 0,
     confidence: 0,
-    type: row.type as 'feature' | 'quality' | 'rescope',
-    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
+    type: 'feature' as const,
+    status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
   // Regenerate using theoretical decomposition
@@ -409,42 +374,27 @@ export async function regenerateGatesTheoreticalFromProject(): Promise<Regenerat
  * Theoretical gate regeneration used when no analysis data is available.
  * Uses decomposition-based approach to regenerate future gates.
  */
-function regenerateGatesTheoretical(fromGateId: string): RegenerationSuggestions {
-  const db = getDatabase()
+async function regenerateGatesTheoretical(fromGateId: string): Promise<RegenerationSuggestions> {
+  const overview = await readProjectOverview()
+  const summaries = getGatesFromOverview(overview)
 
-  // Get gate to establish context
-  const gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(fromGateId) as GateRow | undefined
-
-  if (!gate) {
-    throw new Error(`Gate ${fromGateId} not found`)
-  }
-
-  // Get all gates (no longer filtered by project_id)
-  const gateRows = db
-    .prepare(
-      `
-    SELECT * FROM gates
-    ORDER BY sequence
-  `
-    )
-    .all() as GateRow[]
-
-  const allGates: Gate[] = gateRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    description: row.description ?? '',
+  // Build gate list from project overview
+  const allGates: Gate[] = summaries.map((s) => ({
+    id: s.id,
+    name: s.name,
+    description: '',
     objectives: [],
-    dependencies: row.depends_on?.split(',') ?? [],
+    dependencies: [],
     estimatedComplexity: 0,
     confidence: 0,
-    type: row.type as 'feature' | 'quality' | 'rescope',
-    status: row.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
+    type: 'feature' as const,
+    status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
   // Find the fromGate index
   const fromGateIndex = allGates.findIndex((g) => g.id === fromGateId)
   if (fromGateIndex === -1) {
-    throw new Error(`Gate ${fromGateId} not found in project`)
+    throw new Error(`Gate ${fromGateId} not found in project overview`)
   }
 
   // Get future gates

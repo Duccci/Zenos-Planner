@@ -1,8 +1,7 @@
 # Dependencies
 node_modules/
 package-lock.json
-yarn.lock
-pnpm-lock.yaml
+# yarn.lock and pnpm-lock.yaml left out if switching package managers in future
 
 # Build outputs
 dist/
@@ -16,6 +15,7 @@ dist/
 # IDE
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
 *~

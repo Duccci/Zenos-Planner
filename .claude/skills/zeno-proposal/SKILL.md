@@ -28,6 +28,7 @@ Mark each step as in-progress, then completed immediately after finishing.
 5. **Decompose** - Map gate steps to proposals; one per cohesive unit
    - **Gate-tied**: Omit test tasks from implementation proposals; create a dedicated test proposal as the final proposal in the gate
    - **Solitary**: Include test tasks inline; solitary proposals are self-contained
+   - **Test Reuse First**: When identifying test tasks, search existing test files (`tests/` directory) before composing new test cases. Extend or enhance existing tests rather than duplicating similar scenarios. Create new tests only when existing ones cannot adequately cover the new scenario. Document in proposal tasks why new tests are necessary if reuse is not possible.
    - Every `File(s)` entry must be an explicit path (no globs, no directories)
    - Each task should touch 1-3 files; if more are needed, split into additional tasks
 6. **Generate files** - Create `zeno/proposals/gate-XX/01-name.md` or `solitary/YYYY-MM-DD-01-name.md`

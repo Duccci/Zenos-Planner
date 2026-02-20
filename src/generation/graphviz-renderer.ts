@@ -34,7 +34,9 @@ export class GraphvizRenderer {
    */
   async isAvailable(): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
-      execFile('dot', ['-V'], (error: unknown) => {
+      // shell:true ensures Windows resolves 'dot.exe' via PATHEXT without
+      // needing a platform-specific executable name.
+      execFile('dot', ['-V'], { shell: true }, (error: unknown) => {
         resolve(!error)
       })
     })
@@ -47,9 +49,12 @@ export class GraphvizRenderer {
   async renderToSvg(dotSyntax: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
+        // shell:true ensures Windows resolves 'dot.exe' via PATHEXT without
+        // needing a platform-specific executable name.
         const proc = spawn('dot', ['-Tsvg'], {
           timeout: 10000,
           stdio: ['pipe', 'pipe', 'pipe'],
+          shell: true,
         })
 
         let stdout = ''

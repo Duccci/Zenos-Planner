@@ -20,64 +20,59 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   registry.register(
     'gates_list',
     async () => {
-      const db = (await import('../storage/database.js')).getDatabase()
+      const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
-      let gates: Record<string, unknown>[] = db
-        .prepare('SELECT * FROM gates ORDER BY sequence ASC')
-        .all() as Record<string, unknown>[]
+      let summaries: Awaited<ReturnType<typeof getGatesFromOverview>> = []
 
-      // If no gates in database, attempt to read archived gate files
-      if (gates.length === 0) {
+      try {
+        const overview = await readProjectOverview()
+        summaries = getGatesFromOverview(overview)
+      } catch {
+        // project-overview.json unavailable — fall back to archive files
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
         if (existsSync(archivePath)) {
           const archiveFiles = readdirSync(archivePath)
             .filter((f) => f.endsWith('.md'))
             .sort()
-          const archivedGates = archiveFiles.map((file, index) => {
+          summaries = archiveFiles.map((file, index) => {
             const match = /^(gate-\d+)/.exec(file)
-            const gateId = match?.[1] ?? `gate-${String(index).padStart(2, '0')}`
-            const now = new Date().toISOString()
+            const gateId = match?.[1] ?? `gate-${String(index + 1).padStart(2, '0')}`
             return {
               id: gateId,
-              project_id: 'archived',
               sequence: index + 1,
               name: file
                 .replace(/^gate-\d+-/, '')
                 .replace('.md', '')
                 .replace(/-/g, ' '),
-              description: null,
-              status: 'completed',
-              type: 'feature',
+              status: 'completed' as const,
               hash: `archived-${gateId}`,
-              created_at: now,
-              completed_at: now,
+              completedAt: null,
             }
           })
-          gates = archivedGates
         }
       }
 
       const now = new Date().toISOString()
       return {
-        gates: gates.map((g) => ({
-          id: g['id'] as string,
-          name: g['name'] as string,
-          description: (g['description'] as string | null) ?? 'No description',
-          sequence: g['sequence'] as number,
-          status: g['status'] as string,
-          type: g['type'] as string,
-          created: (g['created_at'] as string | null) ?? now,
-          started: (g['started_at'] as string | null) ?? null,
-          completed: (g['completed_at'] as string | null) ?? null,
+        gates: summaries.map((g) => ({
+          id: g.id,
+          name: g.name,
+          description: 'No description',
+          sequence: g.sequence,
+          status: g.status,
+          type: 'feature',
+          created: g.completedAt ?? now,
+          started: g.status === 'in_progress' ? now : null,
+          completed: g.completedAt ?? null,
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
           testedRequirementCount: 0,
         })),
         pagination: {
-          total: gates.length,
+          total: summaries.length,
           skip: 0,
-          take: Math.max(gates.length, 1),
+          take: Math.max(summaries.length, 1),
           hasMore: false,
         },
       }
@@ -96,7 +91,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     'gates_show',
     async (params) => {
       const validated = z.object({ gateId: z.string() }).parse(params)
-      const db = (await import('../storage/database.js')).getDatabase()
+      const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
       // Normalize id: accept gate-01 or 01
       const regex = /(\d+)/
@@ -105,12 +100,11 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         ? `gate-${parseInt(match[1], 10).toString().padStart(2, '0')}`
         : validated.gateId
 
-      let gate: Record<string, unknown> | undefined = db
-        .prepare('SELECT * FROM gates WHERE id = ?')
-        .get(normalizedId) as Record<string, unknown> | undefined
-      gate ??= db.prepare('SELECT * FROM gates WHERE name LIKE ?').get(`%${validated.gateId}%`) as
-        | Record<string, unknown>
-        | undefined
+      const overview = await readProjectOverview()
+      const summaries = getGatesFromOverview(overview)
+      const gate =
+        summaries.find((g) => g.id === normalizedId) ??
+        summaries.find((g) => g.name.toLowerCase().includes(validated.gateId.toLowerCase()))
 
       if (!gate) {
         throw new Error(`Gate not found: ${validated.gateId}`)
@@ -118,18 +112,18 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const now = new Date().toISOString()
       return {
-        id: gate['id'] as string,
-        name: gate['name'] as string,
-        description: (gate['description'] as string | null) ?? 'No description',
-        sequence: gate['sequence'] as number,
-        status: gate['status'] as string,
-        type: gate['type'] as string,
+        id: gate.id,
+        name: gate.name,
+        description: 'No description',
+        sequence: gate.sequence,
+        status: gate.status,
+        type: 'feature',
         objectives: [],
         requirements: [],
         proposals: [],
-        created: (gate['created_at'] as string | null) ?? now,
-        started: (gate['started_at'] as string | null) ?? null,
-        completed: (gate['completed_at'] as string | null) ?? null,
+        created: gate.completedAt ?? now,
+        started: gate.status === 'in_progress' ? now : null,
+        completed: gate.completedAt ?? null,
       }
     },
     {

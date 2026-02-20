@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Zeno Database Layer
  *
  * Provides SQLite database connection management, initialization, and schema validation.
@@ -115,25 +115,19 @@ export function stopWalCheckpointInterval(): void {
   }
 }
 
-/** Cached WAL checkpoint statement to avoid allocating a new one per interval tick */
-let cachedCheckpointStmt: ReturnType<Database.Database['prepare']> | null = null
-
 export function checkpointWAL(db: Database.Database = getDatabase()): {
   status: 'ok' | 'blocked' | 'error'
   detail?: string
 } {
   try {
-    // Reuse prepared statement to avoid creating garbage on every checkpoint interval
-    cachedCheckpointStmt ??= db.prepare('PRAGMA wal_checkpoint(TRUNCATE)')
-    const res = cachedCheckpointStmt.get([]) as Record<string, unknown> | undefined
+    const stmt = db.prepare('PRAGMA wal_checkpoint(TRUNCATE)')
+    const res = stmt.get([]) as Record<string, unknown> | undefined
 
     logger.debug('WAL checkpoint executed', res ?? {})
 
     // If the PRAGMA returns an object with a numeric or string response, we consider it successful
     return { status: 'ok', detail: res ? JSON.stringify(res) : 'ok' }
   } catch (error) {
-    // Invalidate cached statement on error (db may have been closed/rebuilt)
-    cachedCheckpointStmt = null
     const message = error instanceof Error ? error.message : String(error)
     logger.warn('WAL checkpoint failed or blocked', message)
     // We conservatively mark this as 'blocked' so callers can decide to retry later
@@ -160,7 +154,6 @@ export function closeDatabase(): void {
 
       dbInstance.close()
       dbInstance = null
-      cachedCheckpointStmt = null
     } catch (error) {
       throw new DatabaseError(
         'Failed to close database',
@@ -183,10 +176,18 @@ export interface SchemaValidationResult {
 
 /**
  * Required tables for schema validation
- * Note: Gates and proposals are file-based per Technical Decision 1.
- * Only requirements table is validated as it's the sole database-backed entity.
+ *
+ * Final Database Schema (Minimalist Design):
+ * - requirements: Hierarchical requirements with parent-child relationships
+ * - repositories: Multi-repo support for large-scale projects
+ * - proposals: Proposal metadata with hash-based lookup (operational efficiency)
+ * - metrics_snapshots: Lightweight aggregate metrics at gate archive time
+ *
+ * NOT IN DATABASE (file-based per Technical Decision 4):
+ * - gates: Stored in project-overview.json (version-controlled, single source of truth)
+ * - proposal_dependencies: Derived from proposal references (no separate source of truth)
  */
-const REQUIRED_TABLES = ['requirements']
+const REQUIRED_TABLES = ['requirements', 'repositories', 'proposals', 'metrics_snapshots']
 
 /**
  * Validate that all required tables exist in the database.
@@ -266,6 +267,16 @@ export async function initializeDatabase(
     const tableCount = db
       .prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'")
       .get() as { count: number }
+
+    // Sync any proposal files on disk that aren't yet in the DB.
+    // Runs every startup so files written outside the registry (user edits,
+    // LLM tool writes, git checkouts) are always reflected before queries run.
+    try {
+      const { syncProposalsFromDisk } = await import('./proposal-sync.js')
+      syncProposalsFromDisk(db, projectRoot)
+    } catch {
+      // Non-fatal: proposals dir may not exist yet on a fresh project
+    }
 
     return {
       created: tableCount.count === 0 || migrationsApplied > 0,

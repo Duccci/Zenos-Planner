@@ -15,14 +15,14 @@ import { createToolHandler } from '../../src/mcp/tool-handlers.js'
 
 // Mock the transport for testing
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
-  StdioServerTransport: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    close: vi.fn(),
-    send: vi.fn(),
-    onmessage: null,
-    onerror: null,
-    onclose: null
-  }))
+  StdioServerTransport: function MockStdioServerTransport() {
+    this.start = vi.fn()
+    this.close = vi.fn()
+    this.send = vi.fn()
+    this.onmessage = null
+    this.onerror = null
+    this.onclose = null
+  },
 }))
 
 describe('MCP Server', () => {
@@ -43,8 +43,15 @@ describe('MCP Server', () => {
       expect(server).toBeInstanceOf(McpServer)
 
       // Basic check: server created and registration messages emitted
-      const infoCalls = (logger.info as unknown as jest.Mock)?.mock?.calls ?? (logger.info as any).mock?.calls ?? []
-      const registeredMessages = infoCalls.map((c: any) => c[0]).filter((m: any) => typeof m === 'string' && (m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: ')))
+      const infoCalls =
+        (logger.info as unknown as jest.Mock)?.mock?.calls ?? (logger.info as any).mock?.calls ?? []
+      const registeredMessages = infoCalls
+        .map((c: any) => c[0])
+        .filter(
+          (m: any) =>
+            typeof m === 'string' &&
+            (m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: '))
+        )
       expect(registeredMessages.length).toBeGreaterThan(0)
     })
 
@@ -52,11 +59,20 @@ describe('MCP Server', () => {
       await createMcpServer()
 
       // Derive registered tool names from logger.info calls
-      const infoCalls = (logger.info as unknown as jest.Mock)?.mock?.calls ?? (logger.info as any).__mock?.calls ?? (logger.info as any).mock?.calls ?? []
+      const infoCalls =
+        (logger.info as unknown as jest.Mock)?.mock?.calls ??
+        (logger.info as any).__mock?.calls ??
+        (logger.info as any).mock?.calls ??
+        []
       const infoMessages = infoCalls.map((c: any) => c[0]).filter((m: any) => typeof m === 'string')
       // Include both handler and function registration messages
-      const registeredMessages = infoMessages.filter((m: string) => m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: '))
-      const toolNames = registeredMessages.map((m: string) => m.replace('Registered MCP tool: ', '').replace('Registered MCP handler tool: ', ''))
+      const registeredMessages = infoMessages.filter(
+        (m: string) =>
+          m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: ')
+      )
+      const toolNames = registeredMessages.map((m: string) =>
+        m.replace('Registered MCP tool: ', '').replace('Registered MCP handler tool: ', '')
+      )
 
       expect(toolNames.length).toBeGreaterThanOrEqual(12)
       expect(toolNames).toContain('gates_action')
@@ -68,7 +84,7 @@ describe('MCP Server', () => {
       await createMcpServer()
 
       // Check the function definition in the public function registry
-      const func = registry.list().find(f => f.name === 'gates_list')
+      const func = registry.list().find((f) => f.name === 'gates_list')
       expect(func).toBeDefined()
       expect(func?.description).toContain('List all gates')
       expect(func?.schema).toBeDefined()

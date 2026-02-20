@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest'
-import { validateQuality, type QualityValidationContext } from '../../../src/mcp/validators/quality-validator.js'
-import { validateApplyPhase, type ApplyPhaseValidationContext } from '../../../src/mcp/validators/apply-phase-validator.js'
-import { validateScope, type ScopeValidationContext } from '../../../src/mcp/validators/scope-validator.js'
-import { validateDependencies, type DependencyValidationContext } from '../../../src/mcp/validators/dependency-validator.js'
+import {
+  validateQuality,
+  type QualityValidationContext,
+} from '../../../src/mcp/validators/quality-validator.js'
+import {
+  validateApplyPhase,
+  type ApplyPhaseValidationContext,
+} from '../../../src/mcp/validators/apply-phase-validator.js'
+import {
+  validateScope,
+  type ScopeValidationContext,
+} from '../../../src/mcp/validators/scope-validator.js'
+import {
+  validateDependencies,
+  type DependencyValidationContext,
+} from '../../../src/mcp/validators/dependency-validator.js'
 
 describe('Validator Config Integration', () => {
   const mockConfig = {
@@ -10,82 +22,68 @@ describe('Validator Config Integration', () => {
       codeCoverage: 90,
       typeCheckingErrors: 0,
       lintingErrorRate: 0.01,
-      securityVulnerabilities: 0
+      securityVulnerabilities: 0,
     },
     git: {
       commitFormat: 'feat: {subject}',
       remote: 'origin',
-      version: '1.0.0'
+      version: '1.0.0',
     },
-    version: '1.0.0'
+    version: '1.0.0',
   }
 
   describe('Quality Validator', () => {
-    it('uses config coverage threshold', () => {
+    it('uses config coverage threshold', async () => {
       const context: QualityValidationContext = {
         metrics: { coverage: 85 },
         config: mockConfig,
-        strict: true
       }
 
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result.allowed).toBe(false)
       expect(result.errors?.[0]).toContain('Code coverage 85.0% is below threshold 90%')
     })
 
-    it('passes when coverage meets threshold', () => {
+    it('passes when coverage meets threshold', async () => {
       const context: QualityValidationContext = {
         metrics: { coverage: 95 },
-        config: mockConfig
+        config: mockConfig,
       }
 
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result.allowed).toBe(true)
     })
 
-    it('uses config type error threshold', () => {
-      const context: QualityValidationContext = {
-        metrics: { typeErrors: 2 },
-        config: mockConfig,
-        strict: true
-      }
-
-      const result = validateQuality(context)
-      expect(result.allowed).toBe(false)
-      expect(result.errors?.[0]).toContain('Type checking errors (2) exceed threshold 0')
-    })
-
-    it('uses config lint error rate threshold', () => {
+    it('uses config lint error rate threshold', async () => {
       const context: QualityValidationContext = {
         metrics: { lintErrors: 5, totalLines: 200 }, // 2.5% rate
         config: mockConfig,
-        strict: true
       }
 
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result.allowed).toBe(false)
-      expect(result.errors?.some(e => e.includes('Lint error rate'))).toBe(true)
+      expect(result.errors?.some((e) => e.includes('Lint error rate'))).toBe(true)
     })
 
-    it('uses config security vulnerability threshold', () => {
+    it('uses config security vulnerability threshold', async () => {
       const context: QualityValidationContext = {
         metrics: { securityIssues: 1 },
-        config: mockConfig
+        config: mockConfig,
       }
 
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result.allowed).toBe(false)
       expect(result.errors?.[0]).toContain('Security vulnerabilities (1) exceed threshold 0')
     })
 
-    it('handles missing config gracefully', () => {
+    it('handles missing config gracefully', async () => {
       const context: QualityValidationContext = {
         metrics: { coverage: 50 },
-        config: {} as any
+        config: {} as any,
       }
 
       // Should not crash, may warn but allow
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result).toBeDefined()
     })
   })
@@ -97,7 +95,7 @@ describe('Validator Config Integration', () => {
         filesAffected: ['src/file.ts'],
         filesModified: [],
         gitOperations: ['git commit -m "test"'],
-        config: mockConfig
+        config: mockConfig,
       }
 
       const result = validateApplyPhase(context)
@@ -111,7 +109,7 @@ describe('Validator Config Integration', () => {
         filesAffected: ['src/auth.ts'],
         filesModified: ['src/auth.ts', 'src/utils.ts'], // Extra file
         gitOperations: [],
-        config: mockConfig
+        config: mockConfig,
       }
 
       const result = validateApplyPhase(context)
@@ -126,11 +124,11 @@ describe('Validator Config Integration', () => {
         filesModified: ['src/file.ts'],
         gitOperations: [],
         qualityMetrics: { coverage: 80 },
-        config: mockConfig
+        config: mockConfig,
       }
 
       const result = validateApplyPhase(context)
-      expect(result.warnings).toContain('Code coverage 80% is below threshold 90%')
+      expect(result.errors).toContain('Code coverage 80% is below threshold 90%')
     })
   })
 
@@ -139,7 +137,7 @@ describe('Validator Config Integration', () => {
       const context: ScopeValidationContext = {
         filesAffected: ['src/main.ts'],
         filesModified: ['src/main.ts', 'src/main.test.ts'],
-        allowTestFiles: true
+        allowTestFiles: true,
       }
 
       const result = validateScope(context)
@@ -150,7 +148,7 @@ describe('Validator Config Integration', () => {
       const context: ScopeValidationContext = {
         filesAffected: ['src/main.ts'],
         filesModified: ['src/main.ts', 'src/main.test.ts'],
-        allowTestFiles: false
+        allowTestFiles: false,
       }
 
       const result = validateScope(context)
@@ -163,28 +161,31 @@ describe('Validator Config Integration', () => {
     it('detects circular dependencies', () => {
       const allNodes = new Map([
         ['#a', { hash: '#a', dependencies: ['#b'] }],
-        ['#b', { hash: '#b', dependencies: ['#a'] }]
+        ['#b', { hash: '#b', dependencies: ['#a'] }],
       ])
 
       const context: DependencyValidationContext = {
         node: { hash: '#a', dependencies: ['#b'] },
-        allNodes
+        allNodes,
       }
 
       const result = validateDependencies(context)
       expect(result.allowed).toBe(false)
-      expect(result.errors?.some(e => e.includes('Circular dependency'))).toBe(true)
+      expect(result.errors?.some((e) => e.includes('Circular dependency'))).toBe(true)
     })
 
     it('validates gate ordering', () => {
       const allNodes = new Map([
         ['gate-01', { hash: 'gate-01', dependencies: [], gateId: 'gate-01', gateSequence: 1 }],
-        ['gate-02', { hash: 'gate-02', dependencies: ['gate-01'], gateId: 'gate-02', gateSequence: 2 }]
+        [
+          'gate-02',
+          { hash: 'gate-02', dependencies: ['gate-01'], gateId: 'gate-02', gateSequence: 2 },
+        ],
       ])
 
       const context: DependencyValidationContext = {
         node: { hash: 'gate-03', dependencies: ['gate-02'], gateId: 'gate-03', gateSequence: 3 },
-        allNodes
+        allNodes,
       }
 
       const result = validateDependencies(context)
@@ -194,51 +195,51 @@ describe('Validator Config Integration', () => {
     it('blocks dependencies on later gates', () => {
       const allNodes = new Map([
         ['gate-01', { hash: 'gate-01', dependencies: [], gateId: 'gate-01', gateSequence: 1 }],
-        ['gate-03', { hash: 'gate-03', dependencies: [], gateId: 'gate-03', gateSequence: 3 }]
+        ['gate-03', { hash: 'gate-03', dependencies: [], gateId: 'gate-03', gateSequence: 3 }],
       ])
 
       const context: DependencyValidationContext = {
         node: { hash: 'gate-02', dependencies: ['gate-03'], gateId: 'gate-02', gateSequence: 2 },
-        allNodes
+        allNodes,
       }
 
       const result = validateDependencies(context)
       expect(result.allowed).toBe(false)
-      expect(result.errors?.some(e => e.includes('later gate'))).toBe(true)
+      expect(result.errors?.some((e) => e.includes('later gate'))).toBe(true)
     })
   })
 
   describe('Edge Cases', () => {
-    it('handles missing config fields gracefully', () => {
+    it('handles missing config fields gracefully', async () => {
       const incompleteConfig = { qualityThresholds: {} }
 
       const context: QualityValidationContext = {
         metrics: { coverage: 50 },
-        config: incompleteConfig as any
+        config: incompleteConfig as any,
       }
 
       // Should not crash
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result).toBeDefined()
     })
 
     it('handles empty validator inputs', () => {
       const context: ScopeValidationContext = {
         filesAffected: [],
-        filesModified: []
+        filesModified: [],
       }
 
       const result = validateScope(context)
       expect(result.allowed).toBe(true)
     })
 
-    it('handles null/undefined metrics', () => {
+    it('handles null/undefined metrics', async () => {
       const context: QualityValidationContext = {
         metrics: {},
-        config: mockConfig
+        config: mockConfig,
       }
 
-      const result = validateQuality(context)
+      const result = await validateQuality(context)
       expect(result.allowed).toBe(true)
     })
   })

@@ -11,7 +11,7 @@ import { z } from 'zod'
 export const ArtifactTypeEnum = z.enum(['gate', 'proposal', 'architecture'])
 export type ArtifactType = z.infer<typeof ArtifactTypeEnum>
 
-export const ValidationModeEnum = z.enum(['format', 'quality', 'all'])
+export const ValidationModeEnum = z.enum(['format', 'structure', 'all'])
 export type ValidationMode = z.infer<typeof ValidationModeEnum>
 
 export const OutputFormatEnum = z.enum(['text', 'json'])
@@ -27,7 +27,7 @@ export const ArtifactValidateInputSchema = z.object({
     .optional(),
   /** Type of artifact being validated */
   artifactType: ArtifactTypeEnum,
-  /** Validation depth: format-only, quality checks, or all checks */
+  /** Validation depth: format-only, structure checks, or all checks */
   validationMode: ValidationModeEnum.default('format').optional(),
   /** Response format */
   outputFormat: OutputFormatEnum.default('text').optional(),

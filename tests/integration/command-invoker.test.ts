@@ -2,23 +2,27 @@
  * Command Invoker Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   invokeCommand,
   validateCommandArguments,
   getAvailableCommands,
-  getCommandHelp
+  getCommandHelp,
 } from '../../src/integration/command-invoker.js'
 
 // Mock execSync
 vi.mock('child_process', () => ({
-  execSync: vi.fn()
+  execSync: vi.fn(),
 }))
 
 import { execSync } from 'child_process'
 
 describe('Command Invoker', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  afterEach(() => {
     vi.clearAllMocks()
   })
 
@@ -32,10 +36,7 @@ describe('Command Invoker', () => {
       expect(result.success).toBe(true)
       expect(result.output).toBe('success output')
       expect(result.exitCode).toBe(0)
-      expect(mockExecSync).toHaveBeenCalledWith(
-        'node bin/zeno.js init',
-        expect.any(Object)
-      )
+      expect(mockExecSync).toHaveBeenCalledWith('node bin/zeno.js init', expect.any(Object))
     })
 
     it('should handle command failures', async () => {
@@ -194,10 +195,7 @@ describe('Command Invoker', () => {
       mockExecSync.mockReturnValue('')
 
       invokeCommand('init', {})
-      expect(mockExecSync).toHaveBeenCalledWith(
-        expect.stringContaining('init'),
-        expect.any(Object)
-      )
+      expect(mockExecSync).toHaveBeenCalledWith(expect.stringContaining('init'), expect.any(Object))
     })
   })
 })

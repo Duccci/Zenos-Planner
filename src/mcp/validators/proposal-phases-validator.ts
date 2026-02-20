@@ -13,6 +13,9 @@
  */
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
 
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
+
 export interface ProposalPhasesValidationContext {
   /** Proposal title */
   title: string
@@ -24,12 +27,6 @@ export interface ProposalPhasesValidationContext {
   taskDescriptions: string[]
   /** Rollback/implications section */
   rollback?: string
-}
-
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
 }
 
 /**

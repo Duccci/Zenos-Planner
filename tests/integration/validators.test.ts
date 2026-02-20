@@ -60,9 +60,7 @@ describe('Dependency Validator', () => {
   })
 
   it('should reject dependencies from later gates', () => {
-    const allNodes = new Map([
-      ['#future', { hash: '#future', dependencies: [], gateSequence: 5 }],
-    ])
+    const allNodes = new Map([['#future', { hash: '#future', dependencies: [], gateSequence: 5 }]])
 
     const result = validateDependencies({
       node: {
@@ -181,11 +179,10 @@ describe('Scope Validator', () => {
 })
 
 describe('Quality Validator', () => {
-  it('should pass when all thresholds are met', () => {
-    const result = validateQuality({
+  it('should pass when all thresholds are met', async () => {
+    const result = await validateQuality({
       metrics: {
         coverage: 95,
-        typeErrors: 0,
         lintErrors: 5,
         totalLines: 1000,
         securityIssues: 0,
@@ -197,11 +194,10 @@ describe('Quality Validator', () => {
     expect(result.errors).toBeUndefined()
   })
 
-  it('should fail on low code coverage in strict mode', () => {
-    const result = validateQuality({
+  it('should fail on low code coverage', async () => {
+    const result = await validateQuality({
       metrics: { coverage: 85 },
       config: mockConfig,
-      strict: true,
     })
 
     expect(result.allowed).toBe(false)
@@ -209,31 +205,8 @@ describe('Quality Validator', () => {
     expect(result.errors?.[0]).toContain('Code coverage')
   })
 
-  it('should warn on low code coverage in non-strict mode', () => {
-    const result = validateQuality({
-      metrics: { coverage: 85 },
-      config: mockConfig,
-      strict: false,
-    })
-
-    expect(result.allowed).toBe(true)
-    expect(result.warnings).toBeDefined()
-    expect(result.warnings?.[0]).toContain('Code coverage')
-  })
-
-  it('should fail on type errors exceeding threshold', () => {
-    const result = validateQuality({
-      metrics: { typeErrors: 5 },
-      config: mockConfig,
-    })
-
-    expect(result.allowed).toBe(false)
-    expect(result.errors).toBeDefined()
-    expect(result.errors?.[0]).toContain('Type checking errors')
-  })
-
-  it('should fail on security vulnerabilities', () => {
-    const result = validateQuality({
+  it('should fail on security vulnerabilities', async () => {
+    const result = await validateQuality({
       metrics: { securityIssues: 2 },
       config: mockConfig,
     })
@@ -243,14 +216,13 @@ describe('Quality Validator', () => {
     expect(result.errors?.[0]).toContain('Security vulnerabilities')
   })
 
-  it('should calculate lint error rate correctly', () => {
-    const result = validateQuality({
+  it('should calculate lint error rate correctly', async () => {
+    const result = await validateQuality({
       metrics: {
         lintErrors: 50,
         totalLines: 1000, // 50/1000 = 5% error rate
       },
       config: mockConfig,
-      strict: true,
     })
 
     expect(result.allowed).toBe(false)
@@ -258,8 +230,8 @@ describe('Quality Validator', () => {
     expect(result.errors?.[0]).toContain('Lint error rate')
   })
 
-  it('should warn when coverage not measured', () => {
-    const result = validateQuality({
+  it('should warn when coverage not measured', async () => {
+    const result = await validateQuality({
       metrics: {},
       config: mockConfig,
     })
@@ -279,7 +251,6 @@ describe('Apply Phase Validator', () => {
       gitOperations: [],
       qualityMetrics: {
         coverage: 95,
-        typeErrors: 0,
         lintErrors: 0,
         securityIssues: 0,
       },
@@ -318,7 +289,7 @@ describe('Apply Phase Validator', () => {
     expect(result.errors?.[0]).toContain('outside of declared scope')
   })
 
-  it('should warn on quality threshold issues', () => {
+  it('should block on quality threshold issues', () => {
     const result = validateApplyPhase({
       proposalHash: '#abc123',
       filesAffected: ['src/auth/middleware.ts'],
@@ -330,9 +301,9 @@ describe('Apply Phase Validator', () => {
       config: mockConfig,
     })
 
-    expect(result.allowed).toBe(true)
-    expect(result.warnings).toBeDefined()
-    expect(result.warnings?.[0]).toContain('Code coverage')
+    expect(result.allowed).toBe(false)
+    expect(result.errors).toBeDefined()
+    expect(result.errors?.[0]).toContain('Code coverage')
   })
 
   it('should fail on security vulnerabilities', () => {

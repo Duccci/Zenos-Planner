@@ -3,11 +3,7 @@ import { mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import {
-  getDatabase,
-  closeDatabase,
-  initializeDatabase,
-} from '../../src/storage/database.js'
+import { getDatabase, closeDatabase, initializeDatabase } from '../../src/storage/database.js'
 import {
   saveMetricsSnapshot,
   getMetricsForGate,
@@ -179,6 +175,37 @@ describe('metrics-storage', () => {
 
       const results = getRecentMetricsSnapshots(undefined, TEST_DIR)
       expect(results).toHaveLength(2) // Only 2 exist, limit is 5
+    })
+  })
+
+  describe('without projectRoot (uses global db singleton)', () => {
+    // After initializeDatabase(TEST_DIR) in beforeEach, getDatabase() returns the same instance.
+    // These tests cover the `projectRoot ? getDatabase(projectRoot) : getDatabase()` false branches.
+
+    it('saveMetricsSnapshot works without projectRoot (uses cached db)', () => {
+      const snapshot = makeSnapshot('gate-01')
+      const id = saveMetricsSnapshot(snapshot) // no projectRoot
+      expect(id).toBeGreaterThan(0)
+    })
+
+    it('getMetricsForGate works without projectRoot', () => {
+      saveMetricsSnapshot(makeSnapshot('gate-01'), TEST_DIR)
+      const result = getMetricsForGate('gate-01') // no projectRoot
+      expect(result).toBeDefined()
+      expect(result!.gateId).toBe('gate-01')
+    })
+
+    it('getAllMetricsSnapshots works without projectRoot', () => {
+      saveMetricsSnapshot(makeSnapshot('gate-01'), TEST_DIR)
+      const results = getAllMetricsSnapshots() // no projectRoot
+      expect(results.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('getRecentMetricsSnapshots works without projectRoot', () => {
+      saveMetricsSnapshot(makeSnapshot('gate-01'), TEST_DIR)
+      saveMetricsSnapshot(makeSnapshot('gate-02'), TEST_DIR)
+      const results = getRecentMetricsSnapshots(5) // no projectRoot
+      expect(results.length).toBeGreaterThanOrEqual(1)
     })
   })
 })

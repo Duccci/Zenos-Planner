@@ -106,7 +106,6 @@ export const ProposalActionInputSchema = z.object({
   outputDir: z.string().optional().describe('Output directory override (generate)'),
 
   // --- validate fields ---
-  strict: z.boolean().optional().describe('Enable strict validation mode (validate)'),
 
   // --- approve fields ---
   approverNotes: z.string().optional().describe('Optional notes from approver (approve)'),

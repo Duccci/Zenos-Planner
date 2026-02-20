@@ -1,0 +1,270 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+/**
+ * Consolidated proposal generation tests covering:
+ * - Basic generation from gate PRD
+ * - Validation loop edge cases (fs.access, validateArtifactFile)
+ * - Error handling and non-fatal failures
+ */
+
+// ---------------------------------------------------------------------------
+// Mock dependencies with function-based mocks for flexibility
+// ---------------------------------------------------------------------------
+
+const mockReadFile = vi.fn()
+const mockFsAccess = vi.fn()
+const mockExtractObjectives = vi.fn()
+const mockExtractRequirements = vi.fn()
+const mockDecomposeToProposals = vi.fn()
+const mockCalculateProposalDependencies = vi.fn()
+const mockValidateArtifactFile = vi.fn()
+const mockSyncProposalsFromDisk = vi.fn()
+const mockGetDatabase = vi.fn()
+
+vi.mock('../../src/utils/file.js', () => ({
+  readFile: (...args: unknown[]) => mockReadFile(...args),
+}))
+
+vi.mock('node:fs/promises', () => ({
+  access: (...args: unknown[]) => mockFsAccess(...args),
+}))
+
+vi.mock('../../src/core/proposal-parser.js', () => ({
+  extractObjectives: (...args: unknown[]) => mockExtractObjectives(...args),
+  extractRequirements: (...args: unknown[]) => mockExtractRequirements(...args),
+}))
+
+vi.mock('../../src/core/proposal-writer.js', () => ({
+  decomposeToProposals: (...args: unknown[]) => mockDecomposeToProposals(...args),
+  calculateProposalDependencies: (...args: unknown[]) => mockCalculateProposalDependencies(...args),
+}))
+
+vi.mock('../../src/mcp/validators/artifact-validator.js', () => ({
+  validateArtifactFile: (...args: unknown[]) => mockValidateArtifactFile(...args),
+}))
+
+vi.mock('../../src/storage/proposal-sync.js', () => ({
+  syncProposalsFromDisk: (...args: unknown[]) => mockSyncProposalsFromDisk(...args),
+}))
+
+vi.mock('../../src/storage/database.js', () => ({
+  getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
+}))
+
+vi.mock('../../src/utils/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}))
+
+vi.mock('../../src/utils/errors.js', () => ({
+  ZenoError: class extends Error {
+    code: string
+    constructor(msg: string, code: string) {
+      super(msg)
+      this.code = code
+    }
+  },
+}))
+
+// ---------------------------------------------------------------------------
+// Shared test data
+// ---------------------------------------------------------------------------
+
+const GATE_PRD =
+  '# Gate PRD\n\n## Objectives\n\n- Build API\n- Add Auth\n\n## Requirements\n\n- REQ-001: REST endpoints\n'
+
+const PROPOSAL_STUB = {
+  hash: 'abc12345',
+  filename: '01-feature.md',
+  path: 'zeno/proposals/gate-01/01-feature.md',
+  type: 'gate-tied',
+  status: 'pending',
+  summary: 'Feature proposal',
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('proposal-generation', () => {
+  // Setup shared mocks before each test
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    // Default mock implementations for all tests
+    mockReadFile.mockResolvedValue(GATE_PRD)
+    mockExtractObjectives.mockReturnValue(['Build API', 'Add Auth'])
+    mockExtractRequirements.mockReturnValue([{ id: 'req-1', description: 'REST endpoints' }])
+    mockDecomposeToProposals.mockResolvedValue([
+      {
+        hash: 'abc12345',
+        filename: '01-build-api.md',
+        path: '/out/01-build-api.md',
+        type: 'gate-tied',
+        status: 'pending',
+        summary: 'Build API',
+      },
+      {
+        hash: 'def67890',
+        filename: '02-add-auth.md',
+        path: '/out/02-add-auth.md',
+        type: 'gate-tied',
+        status: 'pending',
+        summary: 'Add Auth',
+      },
+    ])
+    mockCalculateProposalDependencies.mockReturnValue([
+      { from: 'abc12345', to: 'def67890', type: 'sequential' },
+    ])
+    mockValidateArtifactFile.mockResolvedValue({
+      allowed: true,
+      warnings: undefined,
+      errors: undefined,
+    })
+    mockSyncProposalsFromDisk.mockImplementation(() => undefined)
+    mockGetDatabase.mockReturnValue({ prepare: vi.fn() })
+    mockFsAccess.mockResolvedValue(undefined)
+  })
+
+  describe('basic generation', () => {
+    it('should generate proposals from gate PRD', async () => {
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+
+      const result = await generateProposals({
+        gateId: 'gate-01-core-api',
+        templateName: 'proposal-template',
+        outputDir: '/output/proposals',
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.gateId).toBe('gate-01-core-api')
+      expect(result.proposalsGenerated).toBe(2)
+      expect(result.proposals).toHaveLength(2)
+      expect(result.dependencies).toHaveLength(1)
+      expect(result.message).toContain('Generated 2 proposals')
+    })
+
+    it('should use default template name', async () => {
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+
+      const result = await generateProposals({
+        gateId: 'gate-02-auth-layer',
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('should handle read error', async () => {
+      mockReadFile.mockRejectedValueOnce(new Error('file not found'))
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+
+      await expect(generateProposals({ gateId: 'gate-99-nonexistent' })).rejects.toThrow(
+        'Proposal generation failed'
+      )
+    })
+  })
+
+  describe('validation loop', () => {
+    it('skips validation when fs.access throws (file does not exist)', async () => {
+      mockFsAccess.mockRejectedValue(new Error('ENOENT'))
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+      expect(mockValidateArtifactFile).not.toHaveBeenCalled()
+    })
+
+    it('validates file when fs.access resolves (file exists)', async () => {
+      mockFsAccess.mockResolvedValue(undefined)
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+      expect(mockValidateArtifactFile).toHaveBeenCalled()
+    })
+
+    it('throws when validateArtifactFile returns allowed:false', async () => {
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({
+        allowed: false,
+        errors: ['Missing required section'],
+      })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+
+      await expect(generateProposals({ gateId: 'gate-01' })).rejects.toThrow(
+        'Proposal generation failed'
+      )
+    })
+
+    it('logs warnings when validateArtifactFile returns allowed:true with warnings', async () => {
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({
+        allowed: true,
+        warnings: ['Non-critical issue found'],
+      })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('handles outer catch block when validateArtifactFile throws', async () => {
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockRejectedValue(new Error('validator crashed'))
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+
+      await expect(generateProposals({ gateId: 'gate-01' })).rejects.toThrow(
+        'Proposal generation failed'
+      )
+    })
+
+    it('succeeds even when syncProposalsFromDisk throws (non-fatal)', async () => {
+      mockFsAccess.mockRejectedValue(new Error('ENOENT'))
+      mockSyncProposalsFromDisk.mockImplementation(() => {
+        throw new Error('sync failed')
+      })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('succeeds with multiple proposals when all files pass validation', async () => {
+      const proposals = [
+        {
+          ...PROPOSAL_STUB,
+          hash: 'hash1',
+          filename: '01-a.md',
+          path: 'zeno/proposals/gate-01/01-a.md',
+        },
+        {
+          ...PROPOSAL_STUB,
+          hash: 'hash2',
+          filename: '02-b.md',
+          path: 'zeno/proposals/gate-01/02-b.md',
+        },
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+      expect(result.proposalsGenerated).toBe(2)
+      expect(mockValidateArtifactFile).toHaveBeenCalledTimes(2)
+    })
+  })
+})

@@ -1,17 +1,38 @@
 /**
- * Artifact Validation Service (lightweight)
- * Used by CLI and MCP handlers for quick format/structure checks.
+ * Artifact Validation Service
+ *
+ * Provides a unified interface for comprehensive artifact validation.
+ * Delegates to the unified artifact validator for format and structure checks.
+ *
+ * *** IMPORTANT: Structure validation is MANDATORY ***
+ * Structure validation cannot be disabled. ValidationMode parameters are
+ * deprecated and ignored; all validations include both format and structure.
+ *
+ * Used by CLI and MCP handlers for comprehensive artifact validation.
  */
-import { readFile } from 'node:fs/promises'
+import { validateArtifactFile } from '../mcp/validators/artifact-validator.js'
 
 export type ArtifactType = 'gate' | 'proposal' | 'architecture'
-export type ValidationMode = 'format' | 'quality' | 'all'
+
+/**
+ * DEPRECATED: ValidationMode is maintained for backward compatibility only.
+ * Structure validation is now MANDATORY and cannot be disabled.
+ *
+ * @deprecated All validations now enforce structure validation
+ */
+
+export type ValidationMode = 'format' | 'structure' | 'all'
 
 export interface ValidationInput {
   artifactPath?: string
   artifactHash?: string
   artifactType: ArtifactType
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   validationMode?: ValidationMode
+  /** For proposals: gate ID if gate-tied */
+  gateId?: string
+  /** For proposals: all proposals in the same gate (for test-first pattern) */
+  gateProposals?: { hash: string; role?: string; createdAt: string }[]
 }
 
 export interface ValidationResult {
@@ -23,71 +44,29 @@ export interface ValidationResult {
 
 export class ArtifactValidationService {
   async validate(input: ValidationInput): Promise<ValidationResult> {
-    const errors: string[] = []
-    const warnings: string[] = []
-
-    const pathProvided = Boolean(input.artifactPath)
-
-    if (!pathProvided) {
+    if (!input.artifactPath) {
       return {
         passed: false,
-        errors: ['artifactPath is required for validation in this lightweight implementation'],
+        errors: ['artifactPath is required for validation'],
       }
     }
 
-    const artifactPath = input.artifactPath
-    if (!artifactPath) {
-      return {
-        passed: false,
-        errors: ['artifactPath is required for validation in this lightweight implementation'],
+    // Delegate to unified artifact validator
+    const result = await validateArtifactFile(
+      input.artifactPath,
+      input.artifactType,
+      input.validationMode,
+      {
+        gateId: input.gateId,
+        gateProposals: input.gateProposals,
       }
-    }
+    )
 
-    try {
-      const content = await readFile(artifactPath, 'utf-8')
-
-      if (input.artifactType === 'proposal') {
-        const required = ['## Summary', '## Tasks', '## Files Affected', '## Dependencies']
-        for (const r of required) {
-          if (!content.includes(r)) {
-            errors.push(`Missing required section: ${r}`)
-          }
-        }
-        // Basic single-phase detection
-        if (/(Phase|Stage)\s*\d+/i.test(content)) {
-          errors.push(
-            'Detected multi-phase language (e.g., "Phase 1") in proposal tasks; proposals must be single-phase'
-          )
-        }
-      } else if (input.artifactType === 'gate') {
-        const required = ['## Objectives', '## Requirements', '## Architecture', 'Scope Boundaries']
-        for (const r of required) {
-          if (!content.includes(r)) {
-            warnings.push(`Gate: missing section (or different heading): ${r}`)
-          }
-        }
-        if (!/\*\*Status\*\*:\s*(pending|in_progress|completed|rejected)/i.test(content)) {
-          errors.push(
-            'Gate Status field missing or invalid (expected one of pending|in_progress|completed|rejected)'
-          )
-        }
-      } else {
-        // detect mermaid, dot, or svg content
-        if (!/```mermaid|digraph|graph\s+|<svg/i.test(content)) {
-          errors.push('Architecture file does not appear to contain mermaid, dot, or svg content')
-        }
-      }
-
-      // Note: quality checks are out of scope for this lightweight wrapper
-    } catch (err) {
-      errors.push(`Failed to read artifact: ${String(err)}`)
-    }
-
-    const passed = errors.length === 0
+    // Convert ValidationResult to ValidationInput format (allowed → passed)
     return {
-      passed,
-      errors: passed ? undefined : errors,
-      warnings: warnings.length ? warnings : undefined,
+      passed: result.allowed,
+      errors: result.errors,
+      warnings: result.warnings,
     }
   }
 }

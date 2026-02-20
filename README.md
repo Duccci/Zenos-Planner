@@ -1,5 +1,10 @@
 # Zeno's Planner
 
+[![Test](https://github.com/yourusername/zenos-planner/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/test.yml)
+[![Lint](https://github.com/yourusername/zenos-planner/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/lint.yml)
+[![Security](https://github.com/yourusername/zenos-planner/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/security.yml)
+[![Coverage](https://github.com/yourusername/zenos-planner/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/coverage.yml)
+
 Zeno's Planner is an LLM-friendly project planning and orchestration tool that decomposes high-level goals into iterative milestones (gates), with human approval and automated quality checks at every step. Inspired by Zeno's dichotomy paradox — each gate brings the project progressively closer to the end goal.
 
 ## Core Concept
@@ -67,14 +72,131 @@ zeno init
 
 ## Workflow
 
-1. **Initialize** — `zeno init` creates gates from your end goal
-2. **Start a gate** — `zeno gates start gate-01` activates the next milestone
-3. **Generate proposals** — AI creates implementation proposals for the gate's requirements
-4. **Implement** — Work through proposals (AI or manual), scoped to declared files
-5. **Validate** — `zeno proposal validate <hash>` runs quality checks
-6. **Approve** — Human reviews and approves each proposal
-7. **Complete gate** — `zeno gates complete gate-01` archives proposals, creates git tag
-8. **Repeat** — Move to the next gate
+Zeno's workflow consists of three phases: **Planning**, **Review**, and **Execution**. Gates flow through these phases iteratively until the project end goal is reached.
+
+### Planning Phase
+
+1. **Initialize** — `zeno init` decomposes your end goal into concrete gates
+2. **Gate Analysis** — Determine gate type (API, Database, Frontend, etc.)
+3. **Generate Requirements** — Zeno generates gate-specific requirements from project constraints
+4. **Generate Proposals** — AI creates implementation proposals addressing the requirements
+5. **Architecture Review** — Review system design diagrams and cross-gate dependencies
+
+### Review Phase
+
+6. **Check Status** — `zeno gates list` shows all gates and their status
+7. **Read Gate PRD** — `zeno gates show <gate-id>` displays detailed gate requirements
+8. **Review Requirements** — `zeno req list --gate <gate-id>` shows assigned tasks
+9. **View Proposals** — `zeno proposal show <hash>` displays implementation strategies
+10. **Approve Proposals** — Human reviews and approves each proposal before implementation
+
+### Execution Phase
+
+11. **Start Gate** — `zeno gates start <gate-id>` marks milestone as in-progress
+12. **Implement Proposals** — Apply approved proposals; Zeno validates they match specification
+13. **Validate Quality** — `zeno proposal validate <hash>` runs automated checks:
+    - Code coverage >= 90%
+    - Zero known vulnerabilities
+    - Lint error rate < 0.01%
+    - All tests passing
+14. **Reject or Approve** — Proposals are approved if quality gates pass
+15. **Complete Gate** — `zeno gates complete <gate-id>` archives proposals and creates git tag
+16. **Repeat** — Move to the next gate
+
+### Key Workflow Principles
+
+- **Sequential Gates** — Each gate represents a concrete deliverable, not a percentage
+- **Hash References** — Use `#a3f9c2d1` format to reference proposals, requirements, and gates with minimal context
+- **Human Approval** — Required at gate generation, proposal review, and completion
+- **Automated Quality** — 90% coverage, 0 vulnerabilities, <0.01% lint errors enforced before approval
+- **Git Integration** — Commits reference artifact hashes for full traceability
+
+## Git Workflow
+
+### Branch Naming
+
+Use kebab-case branch names following the pattern:
+
+```
+<type>/<ticket-id>-<description>
+```
+
+**Types:**
+
+- `feature/` — New functionality
+- `bugfix/` — Bug fixes for issues
+- `hotfix/` — Critical production fixes
+- `refactor/` — Code restructuring without behavior changes
+- `docs/` — Documentation updates
+- `test/` — Test additions or improvements
+- `chore/` — Build, tooling, or dependency updates
+
+**Examples:**
+
+```bash
+git checkout -b feature/GH-42-auth-middleware
+git checkout -b bugfix/GH-88-fix-memory-leak
+git checkout -b docs/GH-3-api-endpoint-docs
+```
+
+### Commit Messages
+
+Write clear, descriptive commit messages:
+
+- **First line** (50–72 chars): Summary of changes
+- **Body** (optional, wrapped at 72 chars): Extended explanation of why changes were made and any breaking changes
+
+**Format:**
+
+```
+<type>(<scope>): <subject>
+
+<body>
+```
+
+**Reference related issues/artifacts:**
+
+```
+feat(gate): implement authentication layer
+
+- Add JWT middleware for request validation
+- Integrate session management with database
+
+Addresses #42
+Related to #a3f9c2d1 (proposal hash)
+```
+
+### Pull Requests
+
+**Before requesting review:**
+
+- Keep PRs small (<400 lines of changes)
+- Single responsibility per PR
+- Self-review: verify code quality, tests, and coverage
+- All CI/CD checks must pass
+
+**PR Description:**
+
+- Reference related issue(s) or Zeno artifacts: `Fixes #42`, `Related to #a3f9c2d1`
+- Link proposals and requirements being implemented
+- Document any breaking changes
+- Include test coverage or QA steps if applicable
+
+### Merge Strategies
+
+- **Feature branches** — Squash and merge (clean, linear history)
+- **Hotfix branches** — Rebase and merge (preserves commits for traceability)
+- **Main/develop** — Never force push
+
+**Merging with Zeno:**
+When completing a gate (`zeno gates complete <gate-id>`), include related artifact hashes in the commit message:
+
+```bash
+zeno gates complete gate-04
+
+# Results in commit like:
+# feat(gate): archive core-infrastructure gate #a3f9c2d1
+```
 
 ## Project Structure
 
@@ -156,13 +278,13 @@ zeno mcp install                  # Set up editor MCP integration
 
 ## Quality Gates
 
-| Check | Threshold |
-|-------|-----------|
-| Code Coverage | >= 90% |
-| Security Vulnerabilities | 0 |
-| Linting Error Rate | < 0.01% |
-| Type Checking Errors | 0 |
-| Unit Tests | All passing |
+| Check                    | Threshold   |
+| ------------------------ | ----------- |
+| Code Coverage            | >= 90%      |
+| Security Vulnerabilities | 0           |
+| Linting Error Rate       | < 0.01%     |
+| Type Checking Errors     | 0           |
+| Unit Tests               | All passing |
 
 ## Documentation
 

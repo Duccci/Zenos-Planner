@@ -12,6 +12,7 @@ import { findProjectRoot, loadConfig } from '../../utils/config.js'
 import { readFile } from '../../utils/file.js'
 import { readdir } from 'node:fs/promises'
 import path from 'path'
+import { syncProposalsFromDisk } from '../../storage/proposal-sync.js'
 
 function normalizeHash(input: string): string {
   const trimmed = input.trim()
@@ -196,7 +197,7 @@ export function registerProposalCommands(program: Command): void {
       }
 
       const { readFile: readTemplate, writeFile } = await import('../../utils/file.js')
-      const { createHash, randomUUID } = await import('node:crypto')
+      const { createHash } = await import('node:crypto')
 
       // Generate hash: SHA-256, first 16 hex chars
       const hash = createHash('sha256')
@@ -242,13 +243,10 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
-      // Insert into database
+      // Sync file into DB (upsert — preserves any existing lifecycle metadata)
       const db = getDatabase(projectRoot)
-      const id = randomUUID()
       try {
-        db.prepare(
-          'INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
-        ).run(id, gateId ?? null, title, 'pending', hash)
+        syncProposalsFromDisk(db, projectRoot)
         logger.info(`Proposal created: #${hash} -> ${filePath}`)
 
         // Post-generation format validation (fast)
@@ -274,7 +272,7 @@ export function registerProposalCommands(program: Command): void {
           logger.debug(`Artifact validation failed to run: ${String(err)}`)
         }
       } catch (error) {
-        logger.error(`Failed to register proposal in database: ${String(error)}`)
+        logger.error(`Failed to sync proposal to database: ${String(error)}`)
         return
       }
     })

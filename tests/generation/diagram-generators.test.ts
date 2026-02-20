@@ -2,7 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ComplexityAnalyzer } from '../../src/generation/complexity-analyzer.js'
 import { MermaidRenderer } from '../../src/generation/mermaid-renderer.js'
 import { GraphvizRenderer } from '../../src/generation/graphviz-renderer.js'
-import { discoverDiagramTemplates, getTemplateRegistry, getAvailableDiagramTypes } from '../../src/generation/diagram-types.js'
+import {
+  discoverDiagramTemplates,
+  getTemplateRegistry,
+  getAvailableDiagramTypes,
+} from '../../src/generation/diagram-types.js'
 import { SystemOverviewGenerator } from '../../src/generation/diagram-generators/system-overview-generator.js'
 import { DataFlowGenerator } from '../../src/generation/diagram-generators/data-flow-generator.js'
 import { GateLifecycleGenerator } from '../../src/generation/diagram-generators/gate-lifecycle-generator.js'
@@ -87,25 +91,25 @@ describe('MermaidRenderer', () => {
   it('reports error when no diagram keyword present', () => {
     const result = renderer.validateSyntax('A --> B')
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('diagram type keyword'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('diagram type keyword'))).toBe(true)
   })
 
   it('reports error for unbalanced parentheses', () => {
     const result = renderer.validateSyntax('graph LR\n    A("open"')
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('parentheses'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('parentheses'))).toBe(true)
   })
 
   it('reports error for unbalanced square brackets', () => {
     const result = renderer.validateSyntax('graph LR\n    A[open')
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('square brackets'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('square brackets'))).toBe(true)
   })
 
   it('reports error for unbalanced curly braces', () => {
     const result = renderer.validateSyntax('graph LR\n    A{open')
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('curly braces'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('curly braces'))).toBe(true)
   })
 
   it('accepts sequenceDiagram keyword', () => {
@@ -355,5 +359,168 @@ describe('ContextDiagramGenerator', () => {
     vi.spyOn(GraphvizRenderer.prototype, 'isAvailable').mockResolvedValueOnce(false)
     const output = await gen.generate({ projectName: 'Test' }, 'graphviz')
     expect(output.renderingBackend).toBe('mermaid')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Architecture Diagram Generation: Test-First Validation
+// ---------------------------------------------------------------------------
+describe('Architecture Diagram Generation (Test-First)', () => {
+  describe('SystemOverviewGenerator - Content Structure Validation', () => {
+    it('generates diagram with required graph declaration', () => {
+      const gen = new SystemOverviewGenerator()
+      const content = gen.generateContent({ projectName: 'MyProject' })
+      expect(content).toMatch(/^graph\s+(TB|LR|RL|BT)/)
+    })
+
+    it('contains valid mermaid graph structure', () => {
+      const gen = new SystemOverviewGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toContain('subgraph')
+      expect(content).toMatch(/-->/)
+    })
+
+    it('contains defined subgraphs for system layers', () => {
+      const gen = new SystemOverviewGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toContain('subgraph')
+    })
+  })
+
+  describe('DataFlowGenerator - Content Structure Validation', () => {
+    it('generates diagram with proper flow direction', () => {
+      const gen = new DataFlowGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toMatch(/^graph\s+(LR|RL)/)
+      expect(content).toContain('-->')
+    })
+
+    it('includes entry and exit points for data flow', () => {
+      const gen = new DataFlowGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toMatch(/Input|Entry|Start|Source/) // Some entry point indicator
+    })
+  })
+
+  describe('GateLifecycleGenerator - State Machine Validation', () => {
+    it('implements proper state diagram syntax', () => {
+      const gen = new GateLifecycleGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toContain('stateDiagram-v2')
+    })
+
+    it('includes all required gate states', () => {
+      const gen = new GateLifecycleGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toContain('pending')
+      expect(content).toContain('in_progress')
+      expect(content).toContain('completed')
+    })
+
+    it('defines state transitions', () => {
+      const gen = new GateLifecycleGenerator()
+      const content = gen.generateContent({ projectName: 'Test' })
+      expect(content).toMatch(/--\>/) // State transitions
+    })
+  })
+
+  describe('DiagramOutput Validation', () => {
+    it('DiagramOutput contains all required properties', async () => {
+      const gen = new SystemOverviewGenerator()
+      const output = await gen.generate({ projectName: 'Test' }, 'mermaid')
+
+      expect(output).toHaveProperty('diagramType')
+      expect(output).toHaveProperty('renderingBackend')
+      expect(output).toHaveProperty('markdown')
+      expect(output).toHaveProperty('category')
+    })
+
+    it('markdown is properly formatted with code fence', async () => {
+      const gen = new SystemOverviewGenerator()
+      const output = await gen.generate({ projectName: 'Test' }, 'mermaid')
+
+      expect(output.markdown).toMatch(/^```\w+\n/)
+      expect(output.markdown).toMatch(/\n```$/)
+    })
+
+    it('markdown type matches rendering backend', async () => {
+      const gen = new SystemOverviewGenerator()
+      const mermaidOutput = await gen.generate({ projectName: 'Test' }, 'mermaid')
+
+      expect(mermaidOutput.markdown).toContain('```mermaid')
+      expect(mermaidOutput.renderingBackend).toBe('mermaid')
+    })
+  })
+
+  describe('Diagram Generation Error Handling', () => {
+    it('handles missing projectName gracefully', async () => {
+      const gen = new SystemOverviewGenerator()
+      const output = await gen.generate({} as never, 'mermaid')
+
+      expect(output).toBeDefined()
+      expect(output.markdown).toBeDefined()
+    })
+  })
+
+  describe('MermaidRenderer Validation Pipeline', () => {
+    it('validates generated diagram before rendering', () => {
+      const renderer = new MermaidRenderer()
+      const content = 'graph LR\n    A --> B'
+      const validation = renderer.validateSyntax(content)
+
+      expect(validation.valid).toBe(true)
+      expect(validation.errors).toHaveLength(0)
+    })
+
+    it('detects invalid mermaid syntax', () => {
+      const renderer = new MermaidRenderer()
+      const content = 'graph LR\n    A --> [unclosed'
+      const validation = renderer.validateSyntax(content)
+
+      expect(validation.valid).toBe(false)
+      expect(validation.errors.length).toBeGreaterThan(0)
+    })
+
+    it('render wraps valid content in markdown fence', () => {
+      const renderer = new MermaidRenderer()
+      const content = 'graph LR\n    A --> B'
+      const rendered = renderer.render(content)
+
+      expect(rendered).toMatch(/^```mermaid\n/)
+      expect(rendered).toMatch(/\n```$/)
+    })
+  })
+
+  describe('Diagram Generator Factory Pattern', () => {
+    it('all core generators implement required interface', async () => {
+      const generators = [
+        new SystemOverviewGenerator(),
+        new DataFlowGenerator(),
+        new GateLifecycleGenerator(),
+        new GateRoadmapGenerator(),
+        new ContextDiagramGenerator(),
+      ]
+
+      for (const gen of generators) {
+        expect(gen.getType()).toBeDefined()
+        expect(gen.getCategory()).toBeDefined()
+        expect(typeof gen.generateContent).toBe('function')
+        expect(typeof gen.generate).toBe('function')
+      }
+    })
+
+    it('each generator has unique type identifier', () => {
+      const generators = [
+        new SystemOverviewGenerator(),
+        new DataFlowGenerator(),
+        new GateLifecycleGenerator(),
+        new GateRoadmapGenerator(),
+        new ContextDiagramGenerator(),
+      ]
+
+      const types = generators.map((g) => g.getType())
+      const uniqueTypes = new Set(types)
+      expect(uniqueTypes.size).toBe(types.length)
+    })
   })
 })

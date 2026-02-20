@@ -9,14 +9,20 @@ import {
 export const validationToolDefinitions = [
   {
     name: 'artifact_validate',
-    description: 'Unified artifact validator (format/quality/dependency)',
+    description:
+      'Unified artifact validator (format/quality/dependency). IMPORTANT: Structure validation is always enforced as part of Zeno.',
     inputSchema: {
       type: 'object',
       properties: {
         artifactPath: { type: 'string' },
         artifactHash: { type: 'string' },
         artifactType: { type: 'string', enum: ['gate', 'proposal', 'architecture'] },
-        validationMode: { type: 'string', enum: ['format', 'quality', 'all'] },
+        validationMode: {
+          type: 'string',
+          enum: ['format', 'structure', 'all'],
+          description:
+            'DEPRECATED: Structure validation is always enforced. This parameter is ignored.',
+        },
         outputFormat: { type: 'string', enum: ['text', 'json'] },
       },
       required: ['artifactType'],

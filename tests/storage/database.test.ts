@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -9,6 +9,9 @@ import {
   getDatabasePath,
   initializeDatabase,
   validateSchema,
+  checkpointWAL,
+  startWalCheckpointInterval,
+  stopWalCheckpointInterval,
 } from '../../src/storage/database.js'
 
 const TEST_DIR = join(tmpdir(), `.test-db-utils-${Date.now()}`)
@@ -162,5 +165,81 @@ describe('database utilities', () => {
       expect(result.created).toBe(false)
     })
   })
-})
 
+  describe('checkpointWAL', () => {
+    it('returns blocked when statement get() throws', () => {
+      const mockDb = {
+        prepare: vi.fn().mockReturnValue({
+          get: vi.fn().mockImplementation(() => {
+            throw new Error('database is locked')
+          }),
+        }),
+      } as any
+
+      const result = checkpointWAL(mockDb)
+      expect(result.status).toBe('blocked')
+      expect(result.detail).toContain('database is locked')
+    })
+
+    it('returns ok when checkpoint succeeds', () => {
+      const mockDb = {
+        prepare: vi.fn().mockReturnValue({
+          get: vi.fn().mockReturnValue({ busy: 0, checkpointed: 10, log: 10 }),
+        }),
+      } as any
+
+      const result = checkpointWAL(mockDb)
+      expect(result.status).toBe('ok')
+      expect(result.detail).toBeDefined()
+    })
+
+    it('returns ok even when pragma returns undefined', () => {
+      const mockDb = {
+        prepare: vi.fn().mockReturnValue({
+          get: vi.fn().mockReturnValue(undefined),
+        }),
+      } as any
+
+      const result = checkpointWAL(mockDb)
+      expect(result.status).toBe('ok')
+      expect(result.detail).toBe('ok')
+    })
+  })
+
+  describe('validateSchema - error paths', () => {
+    it('records error when prepare throws', () => {
+      const mockDb = {
+        prepare: vi.fn().mockImplementation(() => {
+          throw new Error('corrupt db')
+        }),
+      } as any
+
+      const result = validateSchema(mockDb)
+      expect(result.valid).toBe(false)
+      expect(result.errors.length).toBeGreaterThan(0)
+      expect(result.errors[0]).toContain('corrupt db')
+    })
+  })
+
+  describe('WAL checkpoint interval', () => {
+    afterEach(() => {
+      stopWalCheckpointInterval()
+    })
+
+    it('stops interval idempotently', () => {
+      stopWalCheckpointInterval()
+      stopWalCheckpointInterval()
+      // Should not throw
+    })
+
+    it('restarts interval on repeated start', () => {
+      const mockDb = {
+        prepare: vi.fn().mockReturnValue({ get: vi.fn() }),
+      } as any
+
+      startWalCheckpointInterval(600000)
+      startWalCheckpointInterval(600000)
+      stopWalCheckpointInterval()
+    })
+  })
+})

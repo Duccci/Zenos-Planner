@@ -3,11 +3,7 @@ import { mkdir, rm, readFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import {
-  getDatabase,
-  closeDatabase,
-  initializeDatabase,
-} from '../../src/storage/database.js'
+import { getDatabase, closeDatabase, initializeDatabase } from '../../src/storage/database.js'
 import { getMetricsForGate } from '../../src/storage/metrics-storage.js'
 
 const TEST_DIR = join(tmpdir(), `.test-metrics-capture-${Date.now()}`)
@@ -89,6 +85,30 @@ describe('metrics-capture', () => {
     const result = await captureMetricsSnapshot('gate-01', TEST_DIR)
 
     // Should return undefined, not throw
+    expect(result).toBeUndefined()
+
+    vi.doUnmock('../../src/analysis/code-analyzer.js')
+  })
+
+  it('returns undefined when analyzer returns metrics: null', async () => {
+    vi.doMock('../../src/analysis/code-analyzer.js', () => ({
+      CodeAnalyzer: class {
+        async analyzeCodebase() {
+          return {
+            fileCount: 0,
+            totalLOC: 0,
+            metrics: null, // null metrics triggers the early-return branch
+          }
+        }
+        getGraph() {
+          return { getStats: () => ({ nodeCount: 0, edgeCount: 0 }) }
+        }
+      },
+    }))
+
+    const { captureMetricsSnapshot } = await import('../../src/core/metrics-capture.js')
+    const result = await captureMetricsSnapshot('gate-01', TEST_DIR)
+
     expect(result).toBeUndefined()
 
     vi.doUnmock('../../src/analysis/code-analyzer.js')

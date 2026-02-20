@@ -5,7 +5,7 @@
  */
 
 import path from 'path'
-import { execSync } from 'child_process'
+import { simpleGit } from 'simple-git'
 import type { Module, CodeMetrics } from '../analysis/types.js'
 
 import { findProjectRoot } from '../utils/config.js'
@@ -63,7 +63,7 @@ export async function analyzeGateChanges(gateId: string): Promise<GateAnalysisRe
     console.debug('gate row:', gate)
 
     // Get changed files since gate creation
-    const changedFiles = getChangedFilesSince(projectRoot, gate.created_at)
+    const changedFiles = await getChangedFilesSince(projectRoot, gate.created_at)
 
     // Debug: changed files list
 
@@ -209,21 +209,26 @@ export async function analyzeGateChanges(gateId: string): Promise<GateAnalysisRe
  * @param sinceTimestamp - ISO timestamp to check changes since
  * @returns Array of changed file paths relative to project root
  */
-function getChangedFilesSince(projectRoot: string, sinceTimestamp: string): string[] {
+async function getChangedFilesSince(
+  projectRoot: string,
+  sinceTimestamp: string
+): Promise<string[]> {
   try {
-    // Use git log to find commits since the timestamp
-    const gitCommand = `git log --since="${sinceTimestamp}" --name-only --pretty=format: | sort | uniq`
-    const output = execSync(gitCommand, {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-    })
-
-    // Parse the output - git log --name-only lists files after commit info
-    const lines = output.split('\n').filter((line) => line.trim() && !line.startsWith('commit '))
+    const git = simpleGit(projectRoot)
+    // --name-only lists files; --pretty=format: suppresses commit lines
+    const raw = await git.raw([
+      'log',
+      `--since=${sinceTimestamp}`,
+      '--name-only',
+      '--pretty=format:',
+    ])
+    // Normalize CRLF → LF and forward-slash all separators for cross-platform consistency
+    const normalized = raw.replace(/\r\n/g, '\n').replace(/\\/g, '/')
+    const lines = normalized.split('\n').filter((line) => line.trim() !== '')
     return [...new Set(lines)] // Remove duplicates
   } catch (error) {
-    // If git fails, fall back to checking all files (less efficient but works)
-    console.warn('Git diff failed, falling back to full analysis:', error)
+    // If git fails, fall back to empty list (caller handles gracefully)
+    console.warn('Git log failed, falling back to full analysis:', error)
     return []
   }
 }

@@ -4,19 +4,19 @@ How to read and navigate artifacts in this Zeno project. For tool usage and term
 
 ## Quick Navigation
 
-| What I Need | Where to Look |
-|------------|---------------|
-| Project scope, goals, decisions | `PROJECT_PRD.md` |
-| Tool usage, terminology, workflow | `../AGENTS.md` |
-| System architecture | `architecture/*.md` |
-| Current gate status | `zeno gates list` |
-| Gate details | `gates/gate-XX-name.md` |
-| Requirements for gate | `zeno req list --gate <id>` |
-| Specific requirement | `zeno req show <hash>` |
-| Proposal details | `zeno proposal show <hash>` |
-| Requirements database | `.zeno/requirements.db` |
-| Project config | `.zeno/config.json` |
-| Hash lookup | `zeno show <hash>` |
+| What I Need                       | Where to Look               |
+| --------------------------------- | --------------------------- |
+| Project scope, goals, decisions   | `PROJECT_PRD.md`            |
+| Tool usage, terminology, workflow | `../AGENTS.md`              |
+| System architecture               | `architecture/*.md`         |
+| Current gate status               | `zeno gates list`           |
+| Gate details                      | `gates/gate-XX-name.md`     |
+| Requirements for gate             | `zeno req list --gate <id>` |
+| Specific requirement              | `zeno req show <hash>`      |
+| Proposal details                  | `zeno proposal show <hash>` |
+| Requirements database             | `.zeno/requirements.db`     |
+| Project config                    | `.zeno/config.json`         |
+| Hash lookup                       | `zeno show <hash>`          |
 
 ## Project Structure
 
@@ -75,12 +75,12 @@ No `status` field — presence in DB = approved. Lifecycle tracked via proposal 
 
 Each file contains an embedded Mermaid diagram plus description:
 
-| File | Content |
-|------|---------|
+| File                 | Content                                      |
+| -------------------- | -------------------------------------------- |
 | `system-overview.md` | Component relationships and module structure |
-| `data-flow.md` | End-to-end data processing paths |
-| `gate-lifecycle.md` | State machine for gate/proposal workflow |
-| `gate-roadmap.md` | Gate structure and parallel relationships |
+| `data-flow.md`       | End-to-end data processing paths             |
+| `gate-lifecycle.md`  | State machine for gate/proposal workflow     |
+| `gate-roadmap.md`    | Gate structure and parallel relationships    |
 
 Gate roadmap shows gate-level structure only; detailed features are in gate-specific PRDs.
 
@@ -100,13 +100,25 @@ git log --grep '#<hash>' --pretty=format:'%h %ad %an %s' --date=short
 zeno show <hash>
 ```
 
+## Proposal Development Best Practices
+
+**Test-First Principle with Reuse:**
+
+- Always search existing test files in the `tests/` directory before creating new tests
+- Extend or enhance existing test cases rather than duplicating similar test scenarios
+- Create new tests only when existing ones cannot adequately cover the new functionality
+- Document in proposal task descriptions why new tests are necessary if reuse is not possible
+- Maintain awareness of test file locations across the codebase to minimize discovery overhead
+
+This approach ensures efficient test coverage, reduces duplication, and maintains a lean test suite aligned with quality thresholds (90% coverage minimum).
+
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Hash not found | `zeno show <hash>` — verify hash, check if archived |
-| Dependency conflict | `zeno proposal validate <hash>` to see conflicts |
-| Quality gate failure | Add tests, fix vulnerabilities, resolve lint issues |
+| Issue                | Solution                                                    |
+| -------------------- | ----------------------------------------------------------- |
+| Hash not found       | `zeno show <hash>` — verify hash, check if archived         |
+| Dependency conflict  | `zeno proposal validate <hash>` to see conflicts            |
+| Quality gate failure | Add tests, fix vulnerabilities, resolve lint issues         |
 | Stale gate structure | Check `.zeno/config.json`, review `PROJECT_PRD.md` timeline |
 
 ---

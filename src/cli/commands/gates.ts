@@ -9,10 +9,14 @@ import { logger } from '../../utils/logger.js'
 import { completeGate } from '../../core/completions.js'
 import { confirm } from '@inquirer/prompts'
 import { getDatabase } from '../../storage/database.js'
-import Database from 'better-sqlite3'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { getZenoDir } from '../../utils/config.js'
+import {
+  getZenoDir,
+  readProjectOverview,
+  saveProjectOverview,
+  getGatesFromOverview,
+} from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
 import {
   regenerateGatesWithAnalysis,
@@ -78,23 +82,35 @@ function normalizeGateId(gateId: string): string {
 }
 
 /**
- * Get gate by ID or name
+ * Get gate by ID or name from project-overview.json
  */
-function getGate(gateId: string): GateRecord | null {
-  const db = getDatabase()
+async function getGate(
+  gateId: string,
+  projectRoot: string = process.cwd()
+): Promise<GateRecord | null> {
   const normalizedId = normalizeGateId(gateId)
-
-  // Try by ID first
-  let gate = db.prepare('SELECT * FROM gates WHERE id = ?').get(normalizedId) as
-    | GateRecord
-    | undefined
-
-  // Try by name if not found
-  gate ??= db.prepare('SELECT * FROM gates WHERE name LIKE ?').get(`%${gateId}%`) as
-    | GateRecord
-    | undefined
-
-  return gate ?? null
+  try {
+    const overview = await readProjectOverview(projectRoot)
+    const summaries = getGatesFromOverview(overview)
+    const match =
+      summaries.find((g) => g.id === normalizedId) ??
+      summaries.find((g) => g.name.toLowerCase().includes(gateId.toLowerCase()))
+    if (!match) return null
+    return {
+      id: match.id,
+      project_id: 'default-project',
+      sequence: match.sequence,
+      name: match.name,
+      description: null,
+      status: match.status as GateStatus,
+      type: 'feature',
+      hash: match.hash,
+      created_at: match.completedAt ?? '',
+      completed_at: match.completedAt,
+    }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -126,21 +142,33 @@ export function registerGatesCommands(program: Command): void {
     .description('List all gates')
     .option('--verbose', 'Show additional details')
     .option('--status <status>', 'Filter by status (pending, in_progress, completed)')
-    .action((options: { verbose?: boolean; status?: string }) => {
+    .action(async (options: { verbose?: boolean; status?: string }) => {
       try {
-        const db = getDatabase()
+        let gates: GateRecord[] = []
 
-        let query = 'SELECT * FROM gates ORDER BY sequence ASC'
-        const params: string[] = []
-
-        if (options.status) {
-          query = 'SELECT * FROM gates WHERE status = ? ORDER BY sequence ASC'
-          params.push(options.status)
+        try {
+          const overview = await readProjectOverview()
+          let summaries = getGatesFromOverview(overview)
+          if (options.status) {
+            summaries = summaries.filter((g) => g.status === options.status)
+          }
+          gates = summaries.map((s) => ({
+            id: s.id,
+            project_id: 'default-project',
+            sequence: s.sequence,
+            name: s.name,
+            description: null,
+            status: s.status as GateStatus,
+            type: 'feature',
+            hash: s.hash,
+            created_at: s.completedAt ?? '',
+            completed_at: s.completedAt,
+          }))
+        } catch {
+          // project-overview.json unavailable — fall through to archive fallback
         }
 
-        let gates = db.prepare(query).all(...params) as GateRecord[]
-
-        // If no gates in database, check archive folder
+        // Archive fallback if no gates from overview
         if (gates.length === 0) {
           const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
           if (existsSync(archivePath)) {
@@ -227,9 +255,9 @@ export function registerGatesCommands(program: Command): void {
   gatesCmd
     .command('show <gate-id>')
     .description('Show gate details')
-    .action((gateId: string) => {
+    .action(async (gateId: string) => {
       try {
-        const gate = getGate(gateId)
+        const gate = await getGate(gateId)
 
         if (!gate) {
           logger.error(`Gate not found: ${gateId}`)
@@ -249,17 +277,8 @@ export function registerGatesCommands(program: Command): void {
           .prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?')
           .get(gate.id) as { count: number }
 
-        // Get dependencies
-        const dependencies = db
-          .prepare(
-            `
-          SELECT g.id, g.name, g.status
-          FROM gates g
-          JOIN dependencies d ON d.target_hash = g.hash
-          WHERE d.source_hash = ? AND d.type = 'requires'
-        `
-          )
-          .all(gate.hash) as { id: string; name: string; status: string }[]
+        // Dependencies were removed in migration 005 (gates table deprecated)
+        const dependencies: { id: string; name: string; status: string }[] = []
 
         // Display gate details
         logger.info(`\nGate Details\n`)
@@ -311,7 +330,7 @@ export function registerGatesCommands(program: Command): void {
     .description('Start a gate (status: pending -> in_progress)')
     .action(async (gateId: string) => {
       try {
-        const gate = getGate(gateId)
+        const gate = await getGate(gateId)
 
         if (!gate) {
           logger.error(`Gate not found: ${gateId}`)
@@ -342,26 +361,10 @@ export function registerGatesCommands(program: Command): void {
           return
         }
 
-        // Update status in database
-        const db = getDatabase()
-        db.prepare('UPDATE gates SET status = ? WHERE id = ?').run('in_progress', gate.id)
-
-        // Log state change
-        db.prepare(
-          `
-          INSERT INTO state_history (id, entity_type, entity_id, field_name, old_value, new_value, change_source, reason)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `
-        ).run(
-          `history-${Date.now().toString()}-${Math.random().toString(36).substring(2, 11)}`,
-          'gate',
-          gate.id,
-          'status',
-          gate.status,
-          'in_progress',
-          'human',
-          'Gate started via CLI command'
-        )
+        // Mark gate as in-progress in project-overview.json
+        const overview = await readProjectOverview()
+        overview.currentGate = gate.id
+        await saveProjectOverview(overview)
 
         logger.info(`\nGate ${gate.id} started successfully!\n`)
         logger.info('Next steps:')
@@ -442,195 +445,44 @@ export function registerGatesCommands(program: Command): void {
     .action(async () => {
       logger.info('Regenerating gates...')
 
-      // Get the most recently completed gate from database
-      const db: Database.Database = getDatabase()
+      // Get most recently completed gate from project-overview.json
       let recentGate: { id: string; name: string; completed_at?: string } | undefined
-      let projectId: string | undefined
 
-      // First try database
-      recentGate = db
-        .prepare(
-          `
-        SELECT id, name, completed_at FROM gates 
-        WHERE status = 'completed' 
-        AND completed_at IS NOT NULL
-        ORDER BY completed_at DESC 
-        LIMIT 1
-      `
-        )
-        .get() as { id: string; name: string; completed_at: string } | undefined
+      try {
+        const overview = await readProjectOverview()
+        if (overview.completedGates.length > 0) {
+          const last = overview.completedGates[overview.completedGates.length - 1]
+          if (last) {
+            recentGate = {
+              id: `gate-${last.sequence.toString().padStart(2, '0')}`,
+              name: last.name,
+              completed_at: last.completedAt,
+            }
+          }
+        }
+      } catch {
+        // No project-overview.json yet — check archive folder as fallback
+      }
 
-      // Get existing project
-      // const existingProject = db.prepare('SELECT id FROM projects LIMIT 1').get() as { id: string } | undefined
-      // projectId = existingProject?.id
-      // If a project exists in DB we would set projectId above. Leave undefined to allow
-      // sync from archive when DB is empty.
-
-      // If not found in database, check archive folder and sync all archived gates
+      // Archive fallback if overview has no completed gates
       if (!recentGate) {
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
         if (existsSync(archivePath)) {
           const archiveFiles = readdirSync(archivePath)
             .filter((f) => f.endsWith('.md'))
             .sort()
+            .reverse() // last file = highest sequence = most recently completed
 
-          if (archiveFiles.length > 0) {
-            // Check if database is empty and needs syncing
-            if (!projectId) {
-              logger.info('Syncing archived gates and generating missing gates...')
-
-              // Set default project ID (project data now comes from project-overview.json)
-              projectId = 'default-project'
-
-              // Sync all archived gates
-              let syncedCount = 0
-              for (const file of archiveFiles) {
-                const filePath = join(archivePath, file)
-                const content = readFileSync(filePath, 'utf-8')
-
-                // Extract gate ID from filename (e.g., "gate-01-name.md" -> "gate-01")
-                const match = /^(gate-(\d+))/.exec(file)
-                if (match?.[1] && match[2]) {
-                  const gateId = match[1]
-                  const sequence = parseInt(match[2], 10)
-                  const gateName = file
-                    .replace(/^gate-\d+-/, '')
-                    .replace('.md', '')
-                    .replace(/-/g, ' ')
-
-                  // Determine status based on file content
-                  const isCompleted = content.includes('**Status**: completed')
-
-                  db.prepare(
-                    `
-                    INSERT INTO gates (id, project_id, sequence, name, status, type, hash, created_at, completed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                  `
-                  ).run(
-                    gateId,
-                    projectId,
-                    sequence,
-                    gateName,
-                    isCompleted ? 'completed' : 'pending',
-                    'feature',
-                    `hash-${gateId}`,
-                    new Date().toISOString(),
-                    isCompleted ? new Date().toISOString() : null
-                  )
-
-                  syncedCount++
-                  if (isCompleted) {
-                    recentGate = {
-                      id: gateId,
-                      name: gateName,
-                      completed_at: new Date().toISOString(),
-                    }
-                  }
-                }
-              }
-
-              logger.info(`Synced ${String(syncedCount)} archived gates to database`)
-
-              // Parse gate roadmap to get dynamic gate list
-              logger.info('Generating missing gates...')
-              const gateRoadmapPath = join(getZenoDir(), '..', 'architecture', 'gate-roadmap.md')
-              let dynamicGates: { seq: number; name: string }[] = []
-
-              if (existsSync(gateRoadmapPath)) {
-                try {
-                  const roadmapContent = readFileSync(gateRoadmapPath, 'utf-8')
-                  // Parse Mermaid diagram for gates: G3[Gate 3<br/>Name...]
-                  // Handle multi-line gate definitions by removing line breaks and extra spaces
-                  const normalized = roadmapContent.replace(/\n\s+/g, ' ')
-
-                  // Match pattern: G<num>[Gate <num><br/>Name...] where name ends at ]
-                  const gatePattern = /G([0-9_]+)\[Gate [0-9._]+<br\/>([^]]+)/g
-                  let regexMatch
-                  const foundGates: { num: string; name: string }[] = []
-
-                  while ((regexMatch = gatePattern.exec(normalized)) !== null) {
-                    const gateNum = regexMatch[1] ?? ''
-                    let name = (regexMatch[2] ?? '').trim()
-
-                    // Clean up the name: remove <br/> tags and status text
-                    name = name
-                      .replace(/<br\/>/g, ' ')
-                      .replace(/\s+/g, ' ')
-                      .trim()
-                    if (name.includes(' Pending')) name = name.replace(' Pending', '')
-                    if (name.includes(' Completed')) name = name.replace(' Completed', '')
-
-                    if (name.length > 0) {
-                      foundGates.push({ num: gateNum, name })
-                    }
-                  }
-
-                  // Sort by gate number and assign sequential seq starting from 3
-                  foundGates.sort((a, b) => {
-                    const aNum = a.num.includes('_')
-                      ? parseFloat(a.num.replace('_', '.'))
-                      : parseInt(a.num, 10)
-                    const bNum = b.num.includes('_')
-                      ? parseFloat(b.num.replace('_', '.'))
-                      : parseInt(b.num, 10)
-                    return aNum - bNum
-                  })
-
-                  let seq = 3
-                  for (const gate of foundGates) {
-                    dynamicGates.push({ seq, name: gate.name })
-                    seq++
-                  }
-                } catch {
-                  logger.warn('Could not parse gate roadmap, falling back to defaults')
-                }
-              }
-
-              // Fall back to hardcoded gates if parsing failed
-              if (dynamicGates.length === 0) {
-                dynamicGates = [
-                  { seq: 3, name: 'MCP Server & LLM Tool Integration' },
-                  { seq: 4, name: 'Requirements & Database Layer' },
-                  { seq: 5, name: 'Architecture & Mermaid Generation' },
-                  { seq: 6, name: 'Multi-Repo & Subproject Detection' },
-                  { seq: 7, name: 'Proposal Generation & Management' },
-                  { seq: 8, name: 'Automated Validation & Quality Gates' },
-                  { seq: 9, name: 'Human Approval & Rejection Workflow' },
-                  { seq: 10, name: 'Git Integration & Commit Automation' },
-                  { seq: 11, name: 'Rescope & Replan Engine' },
-                  { seq: 12, name: 'Dashboard & Visualization' },
-                  { seq: 13, name: 'Subagent Orchestration & Parallel Execution' },
-                  { seq: 14, name: 'Documentation & Polish' },
-                ]
-              }
-
-              for (const gate of dynamicGates) {
-                const gateId = `gate-${gate.seq.toString().padStart(2, '0')}`
-                db.prepare(
-                  `
-                  INSERT INTO gates (id, project_id, sequence, name, status, type, hash, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                `
-                ).run(
-                  gateId,
-                  projectId,
-                  gate.seq,
-                  gate.name,
-                  'pending',
-                  'feature',
-                  `hash-${gateId}`,
-                  new Date().toISOString()
-                )
-              }
-
-              logger.info(
-                `Generated ${String(dynamicGates.length)} missing gates (gates 3-${String(2 + dynamicGates.length)})`
-              )
-              recentGate = {
-                id: 'gate-02',
-                name: 'zeno engine',
-                completed_at: new Date().toISOString(),
-              }
+          for (const file of archiveFiles) {
+            const match = /^(gate-(\d+))/.exec(file)
+            if (match?.[1] && match[2]) {
+              const gateId = match[1]
+              const gateName = file
+                .replace(/^gate-\d+-/, '')
+                .replace('.md', '')
+                .replace(/-/g, ' ')
+              recentGate = { id: gateId, name: gateName }
+              break
             }
           }
         }
@@ -641,14 +493,14 @@ export function registerGatesCommands(program: Command): void {
         logger.info('No completed gates found - using theoretical decomposition')
       } else {
         logger.info(`Using completed gate: ${recentGate.id}`)
-        if (recentGate.completed_at && recentGate.completed_at !== 'archived') {
+        if (recentGate.completed_at) {
           logger.info(`(Completed: ${recentGate.completed_at})`)
         }
       }
 
       try {
         const suggestions = recentGate
-          ? regenerateGatesWithAnalysis(recentGate.id)
+          ? await regenerateGatesWithAnalysis(recentGate.id)
           : await regenerateGatesTheoreticalFromProject()
 
         logger.info('\nRegeneration Summary:')
@@ -659,12 +511,14 @@ export function registerGatesCommands(program: Command): void {
           logger.info('No changes suggested - current gate plan appears optimal')
           logger.info('')
           logger.info('Current gates:')
-          const gates = db
-            .prepare('SELECT id, name, status FROM gates ORDER BY sequence ASC')
-            .all() as { id: string; name: string; status: string }[]
-          gates.forEach((g) => {
-            logger.info(`  ${g.id}: ${g.name} (${g.status})`)
-          })
+          try {
+            const overview = await readProjectOverview()
+            getGatesFromOverview(overview).forEach((g) => {
+              logger.info(`  ${g.id}: ${g.name} (${g.status})`)
+            })
+          } catch {
+            logger.info('  (run "zeno gates list" to view gates)')
+          }
           return
         }
 
@@ -683,7 +537,6 @@ export function registerGatesCommands(program: Command): void {
 
         if (apply) {
           logger.info('Gates regenerated successfully')
-          logger.info('Updated gate sequence stored in database')
           logger.info('Run "zeno gates list" to view updated gates')
         } else {
           logger.info('Gate regeneration cancelled')

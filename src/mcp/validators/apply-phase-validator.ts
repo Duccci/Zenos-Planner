@@ -8,6 +8,8 @@
  */
 
 import { ZenoConfig } from '../../utils/config.js'
+import type { ValidationResult } from './types.js'
+export type { ValidationResult }
 
 export interface ApplyPhaseValidationContext {
   /** Proposal hash */
@@ -21,21 +23,12 @@ export interface ApplyPhaseValidationContext {
   /** Quality metrics */
   qualityMetrics?: {
     coverage?: number
-    typeErrors?: number
     lintErrors?: number
     securityIssues?: number
+    totalLines?: number
   }
   /** Project configuration */
   config: ZenoConfig
-}
-
-export interface ValidationResult {
-  /** Whether validation passed */
-  allowed: boolean
-  /** Validation errors (blocking) */
-  errors?: string[]
-  /** Validation warnings (non-blocking) */
-  warnings?: string[]
 }
 
 /**
@@ -54,11 +47,12 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
     )
   }
 
-  // Rule 2: Changes must be scoped to Files Affected
-  const unauthorizedFiles = context.filesModified.filter(
-    (file) =>
-      !context.filesAffected.some((affected) => file.includes(affected) || affected.includes(file))
-  )
+  // Rule 2: Changes must be scoped to Files Affected (exact path match)
+  const normalizedAffected = context.filesAffected.map((f) => f.replace(/\\/g, '/').toLowerCase())
+  const unauthorizedFiles = context.filesModified.filter((file) => {
+    const normalized = file.replace(/\\/g, '/').toLowerCase()
+    return !normalizedAffected.includes(normalized)
+  })
 
   if (unauthorizedFiles.length > 0) {
     errors.push(
@@ -67,28 +61,25 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
     )
   }
 
-  // Rule 3: Quality thresholds (warnings for now, can be made blocking)
+  // Rule 3: Quality thresholds (all blocking per PRD Decision 6 — non-negotiable)
   if (context.qualityMetrics) {
-    const { coverage, typeErrors, lintErrors, securityIssues } = context.qualityMetrics
+    const { coverage, lintErrors, securityIssues, totalLines } = context.qualityMetrics
     const thresholds = context.config.qualityThresholds
 
     if (coverage !== undefined && coverage < thresholds.codeCoverage) {
-      warnings.push(
+      errors.push(
         `Code coverage ${String(coverage)}% is below threshold ${String(thresholds.codeCoverage)}%`
       )
     }
 
-    if (typeErrors !== undefined && typeErrors > thresholds.typeCheckingErrors) {
-      warnings.push(
-        `Type errors (${String(typeErrors)}) exceed threshold ${String(thresholds.typeCheckingErrors)}`
-      )
-    }
-
     if (lintErrors !== undefined) {
-      const lintErrorRate = lintErrors / (context.filesModified.length || 1)
+      // Use totalLines for rate calculation (consistent with quality-validator);
+      // fall back to file count if totalLines is unavailable.
+      const denominator = totalLines ?? (context.filesModified.length || 1)
+      const lintErrorRate = lintErrors / denominator
       if (lintErrorRate > thresholds.lintingErrorRate) {
-        warnings.push(
-          `Lint error rate (${lintErrorRate.toFixed(2)}) exceeds threshold ${String(thresholds.lintingErrorRate)}`
+        errors.push(
+          `Lint error rate (${(lintErrorRate * 100).toFixed(2)}%) exceeds threshold ${(thresholds.lintingErrorRate * 100).toFixed(2)}%`
         )
       }
     }
