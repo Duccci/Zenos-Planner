@@ -183,7 +183,7 @@ export async function approveProposal(
   newVersion: string
 }> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot)
+  await initializeDatabase(projectRoot, { syncProposals: true })
   const db = getDb(projectRoot)
 
   // Ensure approved_by column exists (added by this proposal; idempotent)
@@ -319,7 +319,7 @@ export async function completeGate(
   bump: 'minor' | 'major'
 }> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot)
+  await initializeDatabase(projectRoot, { syncProposals: true })
   const db = getDb(projectRoot)
 
   const gateId = normalizeGateId(gateIdInput)

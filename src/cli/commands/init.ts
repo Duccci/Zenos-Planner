@@ -63,7 +63,7 @@ async function runInitWorkflow(projectName: string, endState: string): Promise<v
 
   // 3. Initialize database
   logger.info('Initializing database...')
-  await initializeDatabase(projectRoot)
+  await initializeDatabase(projectRoot, { syncProposals: true })
 
   // 4. Generate project requirements
   logger.info('Generating project requirements...')

@@ -91,7 +91,9 @@ export async function main(): Promise<void> {
     const program = await createProgram()
 
     // Initialize database (creates tables and runs migrations if needed)
-    await initializeDatabase()
+    // Only sync proposals in production (skip during tests to prevent side effects)
+    const shouldSyncProposals = process.env['NODE_ENV'] !== 'test'
+    await initializeDatabase(process.cwd(), { syncProposals: shouldSyncProposals })
 
     // Initialize function registry (enables all Zeno operations)
     getGlobalRegistry()

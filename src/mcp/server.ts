@@ -87,7 +87,7 @@ export async function main(): Promise<void> {
     // initializeDatabase, leaving existing proposals invisible until a write ran.
     try {
       const { initializeDatabase } = await import('../storage/database.js')
-      await initializeDatabase(workspacePath)
+      await initializeDatabase(workspacePath, { syncProposals: true })
     } catch (err) {
       logger.warn('Database initialization warning (non-fatal):', err)
     }

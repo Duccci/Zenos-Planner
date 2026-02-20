@@ -48,5 +48,8 @@ temp/
 *.db-wal
 *.db-shm
 
+# Generated database (rebuilt on startup)
+zeno/.zeno/requirements.db
+
 # Runtime files
 zeno/.zeno/mcp.pid

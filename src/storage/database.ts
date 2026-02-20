@@ -235,11 +235,14 @@ export interface DatabaseInitResult {
 /**
  * Initialize the database: create directory, database file, and run migrations.
  * @param projectRoot - Project root directory (default: process.cwd())
+ * @param options - Configuration options
+ * @param options.syncProposals - Sync proposal files from disk (default: false)
  * @returns Initialization result
  * @throws DatabaseError if initialization fails
  */
 export async function initializeDatabase(
-  projectRoot: string = process.cwd()
+  projectRoot: string = process.cwd(),
+  options: { syncProposals?: boolean } = {}
 ): Promise<DatabaseInitResult> {
   try {
     // Ensure .zeno directory exists
@@ -268,14 +271,16 @@ export async function initializeDatabase(
       .prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'")
       .get() as { count: number }
 
-    // Sync any proposal files on disk that aren't yet in the DB.
-    // Runs every startup so files written outside the registry (user edits,
-    // LLM tool writes, git checkouts) are always reflected before queries run.
-    try {
-      const { syncProposalsFromDisk } = await import('./proposal-sync.js')
-      syncProposalsFromDisk(db, projectRoot)
-    } catch {
-      // Non-fatal: proposals dir may not exist yet on a fresh project
+    // Sync proposal files from disk if requested.
+    // Only run in production contexts (CLI, MCP, init, completions).
+    // Skipped during tests to prevent side effects on workspace.
+    if (options.syncProposals) {
+      try {
+        const { syncProposalsFromDisk } = await import('./proposal-sync.js')
+        syncProposalsFromDisk(db, projectRoot)
+      } catch {
+        // Non-fatal: proposals dir may not exist yet on a fresh project
+      }
     }
 
     return {
