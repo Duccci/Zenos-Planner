@@ -7,8 +7,9 @@
 
 import { readFile } from './file.js'
 import { FileSystemError } from './errors.js'
-import { readdir } from 'node:fs/promises'
-import path from 'path'
+import { readdirSync, existsSync } from 'node:fs'
+import { walkDir } from './file.js'
+import { parseProposalMetadata } from '../core/proposal-parser.js'
 
 export interface ConsolidatedProposal {
   hash: string
@@ -50,17 +51,47 @@ export interface GateConsolidation {
 }
 
 /**
+ * List archived gates from the archive directory
+ * @param archivePath - Path to the archive directory
+ * @returns Array of archived gate records
+ */
+export function listArchivedGates(
+  archivePath: string
+): { id: string; name: string; status: string }[] {
+  if (!existsSync(archivePath)) {
+    return []
+  }
+
+  const archiveFiles = readdirSync(archivePath)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+
+  return archiveFiles.map((file, index) => {
+    const match = /^(gate-\d+)/.exec(file)
+    const gateId = match?.[1] ?? `gate-${String(index + 1).padStart(2, '0')}`
+    return {
+      id: gateId,
+      name: file
+        .replace(/^gate-\d+-/, '')
+        .replace('.md', '')
+        .replace(/-/g, ' '),
+      status: 'completed',
+    }
+  })
+}
+
+/**
  * Parse a proposal markdown file and extract structured information
  */
 export async function parseProposal(proposalPath: string): Promise<ConsolidatedProposal> {
   const content = await readFile(proposalPath)
 
-  // Extract header metadata
-  const hashMatch = /\*\*Hash\*\*:\s*#([^\s]+)/.exec(content)
+  // Extract header metadata using shared parser
+  const metadata = parseProposalMetadata(content)
   const titleMatch = /# Proposal:\s*(.+)/.exec(content)
   const requirementMatch = /\*\*Requirement\*\*:\s*(.+)/.exec(content)
 
-  const hash = hashMatch?.[1] ?? ''
+  const hash = metadata.hash ?? ''
   const title = titleMatch?.[1]?.trim() ?? ''
   const requirements = requirementMatch?.[1]
     ? requirementMatch[1]
@@ -236,25 +267,7 @@ export async function consolidateGateProposals(
   try {
     // Read all files recursively from the proposals directory
     // This supports both flat structure (for completed/archived) and gate-based structure (for active)
-    const getAllFiles = async (dir: string): Promise<string[]> => {
-      const allFiles: string[] = []
-      try {
-        const entries = await readdir(dir, { withFileTypes: true })
-        for (const entry of entries) {
-          const fullPath = path.join(dir, entry.name)
-          if (entry.isDirectory()) {
-            allFiles.push(...(await getAllFiles(fullPath)))
-          } else if (entry.isFile() && entry.name.endsWith('.md')) {
-            allFiles.push(fullPath)
-          }
-        }
-      } catch {
-        // Directory doesn't exist or can't be read
-      }
-      return allFiles
-    }
-
-    const proposalFiles = await getAllFiles(proposalsDir)
+    const proposalFiles = await walkDir(proposalsDir)
 
     for (const proposalPath of proposalFiles) {
       const proposal = await parseProposal(proposalPath)

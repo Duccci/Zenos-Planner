@@ -15,6 +15,8 @@ import {
   resolvePath,
   normalizePath,
   getFileStats,
+  walkDir,
+  walkDirSync,
 } from '../../src/utils/file.js'
 
 const TEST_DIR = join(process.cwd(), '.test-temp-file-utils')
@@ -255,5 +257,83 @@ describe('file utilities', () => {
       await expect(writeFile('', 'content')).rejects.toThrow('Failed to write file')
     })
   })
+
+  describe('walkDir', () => {
+    it('recursively collects .md files', async () => {
+      // Create directory structure
+      const dir1 = join(TEST_DIR, 'dir1')
+      const dir2 = join(TEST_DIR, 'dir1', 'dir2')
+      await mkdir(dir2, { recursive: true })
+
+      // Create markdown files
+      await fsWriteFile(join(TEST_DIR, 'file1.md'), 'content')
+      await fsWriteFile(join(dir1, 'file2.md'), 'content')
+      await fsWriteFile(join(dir2, 'file3.md'), 'content')
+      await fsWriteFile(join(TEST_DIR, 'file.txt'), 'not markdown')
+
+      const files = await walkDir(TEST_DIR)
+      expect(files).toHaveLength(3)
+      expect(files.every((f) => f.endsWith('.md'))).toBe(true)
+    })
+
+    it('handles missing directory gracefully', async () => {
+      const nonexistent = join(TEST_DIR, 'nonexistent')
+      const files = await walkDir(nonexistent)
+      expect(files).toEqual([])
+    })
+
+    it('respects custom extension filter', async () => {
+      const dir1 = join(TEST_DIR, 'dir1')
+      await mkdir(dir1, { recursive: true })
+
+      await fsWriteFile(join(TEST_DIR, 'file1.txt'), 'content')
+      await fsWriteFile(join(TEST_DIR, 'file2.md'), 'content')
+      await fsWriteFile(join(dir1, 'file3.txt'), 'content')
+
+      const txtFiles = await walkDir(TEST_DIR, '.txt')
+      expect(txtFiles).toHaveLength(2)
+      expect(txtFiles.every((f) => f.endsWith('.txt'))).toBe(true)
+    })
+  })
+
+  describe('walkDirSync', () => {
+    it('synchronously collects .md files', () => {
+      // Create directory structure
+      const dir1 = join(TEST_DIR, 'dir1')
+      const dir2 = join(TEST_DIR, 'dir1', 'dir2')
+
+      require('node:fs').mkdirSync(dir2, { recursive: true })
+
+      // Create markdown files
+      require('node:fs').writeFileSync(join(TEST_DIR, 'file1.md'), 'content')
+      require('node:fs').writeFileSync(join(dir1, 'file2.md'), 'content')
+      require('node:fs').writeFileSync(join(dir2, 'file3.md'), 'content')
+      require('node:fs').writeFileSync(join(TEST_DIR, 'file.txt'), 'not markdown')
+
+      const files = walkDirSync(TEST_DIR)
+      expect(files).toHaveLength(3)
+      expect(files.every((f) => f.endsWith('.md'))).toBe(true)
+    })
+
+    it('handles missing directory gracefully', () => {
+      const nonexistent = join(TEST_DIR, 'nonexistent')
+      const files = walkDirSync(nonexistent)
+      expect(files).toEqual([])
+    })
+
+    it('respects custom extension filter', () => {
+      const dir1 = join(TEST_DIR, 'dir1')
+      require('node:fs').mkdirSync(dir1, { recursive: true })
+
+      require('node:fs').writeFileSync(join(TEST_DIR, 'file1.txt'), 'content')
+      require('node:fs').writeFileSync(join(TEST_DIR, 'file2.md'), 'content')
+      require('node:fs').writeFileSync(join(dir1, 'file3.txt'), 'content')
+
+      const txtFiles = walkDirSync(TEST_DIR, '.txt')
+      expect(txtFiles).toHaveLength(2)
+      expect(txtFiles.every((f) => f.endsWith('.txt'))).toBe(true)
+    })
+  })
 })
+
 

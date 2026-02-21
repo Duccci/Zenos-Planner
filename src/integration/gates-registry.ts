@@ -9,10 +9,22 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
+import { normalizeGateId } from '../utils/normalize.js'
+import { listArchivedGates } from '../utils/gate-consolidation.js'
 
-import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { getZenoDir } from '../utils/config.js'
+
+/**
+ * Helper to convert YYYY-MM-DD dates to ISO 8601 format
+ */
+function toISOTimestamp(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null
+  // If already in ISO format, return as-is
+  if (dateStr.includes('T')) return dateStr
+  // Convert YYYY-MM-DD to ISO 8601 with time 00:00:00Z
+  return `${dateStr}T00:00:00Z`
+}
 
 export function registerGatesOps(registry: FunctionRegistry): void {
   // In-process implementation for listing gates (faster than spawning CLI)
@@ -30,26 +42,15 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       } catch {
         // project-overview.json unavailable — fall back to archive files
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
-        if (existsSync(archivePath)) {
-          const archiveFiles = readdirSync(archivePath)
-            .filter((f) => f.endsWith('.md'))
-            .sort()
-          summaries = archiveFiles.map((file, index) => {
-            const match = /^(gate-\d+)/.exec(file)
-            const gateId = match?.[1] ?? `gate-${String(index + 1).padStart(2, '0')}`
-            return {
-              id: gateId,
-              sequence: index + 1,
-              name: file
-                .replace(/^gate-\d+-/, '')
-                .replace('.md', '')
-                .replace(/-/g, ' '),
-              status: 'completed' as const,
-              hash: `archived-${gateId}`,
-              completedAt: null,
-            }
-          })
-        }
+        const archivedGateList = listArchivedGates(archivePath)
+        summaries = archivedGateList.map((g, index) => ({
+          id: g.id,
+          sequence: index + 1,
+          name: g.name,
+          status: 'completed' as const,
+          hash: `archived-${g.id}`,
+          completedAt: null,
+        }))
       }
 
       const now = new Date().toISOString()
@@ -61,9 +62,9 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           sequence: g.sequence,
           status: g.status,
           type: 'feature',
-          created: g.completedAt ?? now,
+          created: toISOTimestamp(g.completedAt) ?? now,
           started: g.status === 'in_progress' ? now : null,
-          completed: g.completedAt ?? null,
+          completed: toISOTimestamp(g.completedAt),
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
@@ -94,11 +95,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
       // Normalize id: accept gate-01 or 01
-      const regex = /(\d+)/
-      const match = regex.exec(validated.gateId)
-      const normalizedId = match?.[1]
-        ? `gate-${parseInt(match[1], 10).toString().padStart(2, '0')}`
-        : validated.gateId
+      const normalizedId = normalizeGateId(validated.gateId)
 
       const overview = await readProjectOverview()
       const summaries = getGatesFromOverview(overview)
@@ -121,9 +118,9 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         objectives: [],
         requirements: [],
         proposals: [],
-        created: gate.completedAt ?? now,
+        created: toISOTimestamp(gate.completedAt) ?? now,
         started: gate.status === 'in_progress' ? now : null,
-        completed: gate.completedAt ?? null,
+        completed: toISOTimestamp(gate.completedAt),
       }
     },
     {
@@ -146,8 +143,22 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   registry.register(
     'gates_start',
     async (params) => {
-      const validated = z.object({ gateId: z.string() }).parse(params)
-      const result = await invokeCommand('gates_start', validated)
+      const validated = z.object({ gateId: z.string(), startedBy: z.string().optional() }).parse(params)
+
+      const { getGitUserInfo } = await import('../utils/git.js')
+
+      // Pull git user info if not provided
+      let startedBy = validated.startedBy
+      if (!startedBy) {
+        try {
+          const gitUser = await getGitUserInfo(process.cwd())
+          startedBy = gitUser.name ?? gitUser.email ?? undefined
+        } catch {
+          // Silently ignore git user pull errors; startedBy remains optional
+        }
+      }
+
+      const result = await invokeCommand('gates_start', { gateId: validated.gateId, startedBy })
       if (!result.success) {
         throw new Error(result.error)
       }
@@ -172,8 +183,24 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   registry.register(
     'gates_complete',
     async (params) => {
-      const validated = z.object({ gateId: z.string() }).parse(params)
-      const result = await invokeCommand('gates_complete', validated)
+      const validated = z
+        .object({ gateId: z.string(), completedBy: z.string().optional() })
+        .parse(params)
+
+      const { getGitUserInfo } = await import('../utils/git.js')
+
+      // Pull git user info if not provided
+      let completedBy = validated.completedBy
+      if (!completedBy) {
+        try {
+          const gitUser = await getGitUserInfo(process.cwd())
+          completedBy = gitUser.name ?? gitUser.email ?? undefined
+        } catch {
+          // Silently ignore git user pull errors; completedBy remains optional
+        }
+      }
+
+      const result = await invokeCommand('gates_complete', { gateId: validated.gateId, completedBy })
       if (!result.success) {
         throw new Error(result.error)
       }

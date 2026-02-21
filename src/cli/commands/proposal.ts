@@ -9,15 +9,13 @@ import { logger } from '../../utils/logger.js'
 import { approveProposal } from '../../core/completions.js'
 import { getDatabase } from '../../storage/database.js'
 import { findProjectRoot, loadConfig } from '../../utils/config.js'
+import { normalizeHash } from '../../utils/normalize.js'
 import { readFile } from '../../utils/file.js'
 import { readdir } from 'node:fs/promises'
 import path from 'path'
 import { syncProposalsFromDisk } from '../../storage/proposal-sync.js'
 
-function normalizeHash(input: string): string {
-  const trimmed = input.trim()
-  return trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
-}
+
 
 interface ProposalRecord {
   id: string

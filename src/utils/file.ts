@@ -12,9 +12,10 @@ import {
   mkdir,
   stat,
   unlink,
+  readdir,
 } from 'node:fs/promises'
-import { existsSync, statSync } from 'node:fs'
-import { dirname, resolve, relative, normalize, sep } from 'node:path'
+import { existsSync, statSync, readdirSync } from 'node:fs'
+import { dirname, resolve, relative, normalize, sep, join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { FileSystemError, wrapError } from './errors.js'
@@ -196,5 +197,53 @@ export async function getFileStats(filePath: string): Promise<Awaited<ReturnType
   } catch {
     return null
   }
+}
+
+/**
+ * Recursively walk a directory and collect all files matching an extension.
+ * @param dir - Directory path to walk
+ * @param ext - File extension to filter by (default: '.md')
+ * @returns Array of full file paths
+ */
+export async function walkDir(dir: string, ext = '.md'): Promise<string[]> {
+  const out: string[] = []
+  try {
+    const entries = await readdir(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        out.push(...(await walkDir(full, ext)))
+      } else if (entry.isFile() && entry.name.endsWith(ext)) {
+        out.push(full)
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+  return out
+}
+
+/**
+ * Synchronously walk a directory and collect all files matching an extension.
+ * @param dir - Directory path to walk
+ * @param ext - File extension to filter by (default: '.md')
+ * @returns Array of full file paths
+ */
+export function walkDirSync(dir: string, ext = '.md'): string[] {
+  const out: string[] = []
+  try {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    for (const entry of entries) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        out.push(...walkDirSync(full, ext))
+      } else if (entry.isFile() && entry.name.endsWith(ext)) {
+        out.push(full)
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+  return out
 }
 

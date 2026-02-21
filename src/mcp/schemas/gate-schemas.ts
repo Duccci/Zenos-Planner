@@ -35,7 +35,7 @@ export const GateSummarySchema = z.object({
   proposalCount: z.number().int().min(0),
   completedProposalCount: z.number().int().min(0),
   requirementCount: z.number().int().min(0),
-  testedRequirementCount: z.number().int().min(0)
+  testedRequirementCount: z.number().int().min(0),
 })
 export type GateSummary = z.infer<typeof GateSummarySchema>
 
@@ -61,26 +61,32 @@ export const GateDetailSchema = z.object({
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
   type: z.enum(['feature', 'infrastructure', 'migration']),
-  objectives: z.array(z.object({
-    title: z.string(),
-    completed: z.boolean()
-  })),
-  requirements: z.array(z.object({
-    hash: z.string(),
-    title: z.string(),
-    status: z.enum(['pending', 'in_progress', 'tested', 'archived']),
-    priority: z.enum(['low', 'medium', 'high']).optional()
-  })),
-  proposals: z.array(z.object({
-    hash: z.string(),
-    title: z.string(),
-    status: z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected']),
-    tasksCompleted: z.number().int().min(0),
-    totalTasks: z.number().int().min(0)
-  })),
+  objectives: z.array(
+    z.object({
+      title: z.string(),
+      completed: z.boolean(),
+    })
+  ),
+  requirements: z.array(
+    z.object({
+      hash: z.string(),
+      title: z.string(),
+      status: z.enum(['pending', 'in_progress', 'tested', 'archived']),
+      priority: z.enum(['low', 'medium', 'high']).optional(),
+    })
+  ),
+  proposals: z.array(
+    z.object({
+      hash: z.string(),
+      title: z.string(),
+      status: z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected']),
+      tasksCompleted: z.number().int().min(0),
+      totalTasks: z.number().int().min(0),
+    })
+  ),
   created: TimestampSchema,
   started: OptionalTimestampSchema,
-  completed: OptionalTimestampSchema
+  completed: OptionalTimestampSchema,
 })
 export type GateDetail = z.infer<typeof GateDetailSchema>
 
@@ -90,7 +96,7 @@ export type GateDetail = z.infer<typeof GateDetailSchema>
 
 export const GatesStartInputSchema = z.object({
   gateId: GateIdSchema,
-  notes: z.string().optional()
+  notes: z.string().optional(),
 })
 export type GatesStartInput = z.infer<typeof GatesStartInputSchema>
 
@@ -98,7 +104,7 @@ export const GatesStartOutputSchema = z.object({
   gateId: GateIdSchema,
   previousStatus: GateStatusEnum,
   newStatus: z.literal('in_progress'),
-  startedAt: TimestampSchema
+  startedAt: TimestampSchema,
 })
 export type GatesStartOutput = z.infer<typeof GatesStartOutputSchema>
 
@@ -109,7 +115,7 @@ export type GatesStartOutput = z.infer<typeof GatesStartOutputSchema>
 export const GatesCompleteInputSchema = z.object({
   gateId: GateIdSchema,
   completionNotes: z.string().optional(),
-  approvalDate: TimestampSchema.optional()
+  approvalDate: TimestampSchema.optional(),
 })
 export type GatesCompleteInput = z.infer<typeof GatesCompleteInputSchema>
 
@@ -125,9 +131,9 @@ export const GatesCompleteOutputSchema = z.object({
       testCoverage: z.number().min(0).max(100),
       typeErrors: z.number().int().min(0),
       lintErrors: z.number().int().min(0),
-      securityIssues: z.number().int().min(0)
-    }).optional()
-  })
+      securityIssues: z.number().int().min(0),
+    }).optional(),
+  }),
 })
 export type GatesCompleteOutput = z.infer<typeof GatesCompleteOutputSchema>
 

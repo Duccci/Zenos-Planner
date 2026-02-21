@@ -13,6 +13,9 @@
  *   )
  */
 
+import type { ValidationResult } from '../validators/types.js'
+export type { ValidationResult }
+
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import type { ZodType } from 'zod'
 import type { FunctionErrorResponse } from '../../integration/function-registry.js'
@@ -202,14 +205,7 @@ export function createBasicHandler(
   }
 }
 
-/**
- * Validation result interface used by runValidators and validators
- */
-export interface ValidationResult {
-  allowed: boolean
-  errors?: string[]
-  warnings?: string[]
-}
+
 
 /**
  * Extract mockResult from tool arguments if present (for testing)

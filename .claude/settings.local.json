@@ -26,7 +26,8 @@
       "Bash(cmd /c \"echo test > nul\")",
       "Bash(npm test:*)",
       "Bash(node_modules/.bin/tsc:*)",
-      "Bash(./node_modules/.bin/tsc:*)"
+      "Bash(./node_modules/.bin/tsc:*)",
+      "Bash(git config:*)"
     ]
   },
   "outputStyle": "taming-AI"

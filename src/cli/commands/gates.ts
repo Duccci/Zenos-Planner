@@ -7,9 +7,11 @@
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { completeGate } from '../../core/completions.js'
+import { normalizeGateId } from '../../utils/normalize.js'
+import { listArchivedGates } from '../../utils/gate-consolidation.js'
 import { confirm } from '@inquirer/prompts'
 import { getDatabase } from '../../storage/database.js'
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   getZenoDir,
@@ -68,18 +70,7 @@ function validateStatusTransition(
   }
 }
 
-/**
- * Normalize gate ID (handles "gate-01" or "gate 01" or just "01")
- */
-function normalizeGateId(gateId: string): string {
-  const regex = /(\d+)/
-  const match = regex.exec(gateId)
-  if (match?.[1]) {
-    const num = parseInt(match[1], 10)
-    return `gate-${num.toString().padStart(2, '0')}`
-  }
-  return gateId
-}
+
 
 /**
  * Get gate by ID or name from project-overview.json
@@ -171,31 +162,22 @@ export function registerGatesCommands(program: Command): void {
         // Archive fallback if no gates from overview
         if (gates.length === 0) {
           const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
-          if (existsSync(archivePath)) {
-            const archiveFiles = readdirSync(archivePath)
-              .filter((f) => f.endsWith('.md'))
-              .sort()
+          const archivedGateList = listArchivedGates(archivePath)
 
-            // Convert archived gate files to gate records
-            const archivedGates: GateRecord[] = archiveFiles.map((file, index) => {
-              const match = /^(gate-\d+)/.exec(file)
-              const gateId = match?.[1] ?? `gate-${String(index)}`
-              return {
-                id: gateId,
-                project_id: 'archived',
-                sequence: index + 1,
-                name: file
-                  .replace(/^gate-\d+-/, '')
-                  .replace('.md', '')
-                  .replace(/-/g, ' '),
-                description: null,
-                status: 'completed' as GateStatus,
-                type: 'feature',
-                hash: `archived-${gateId}`,
-                created_at: '',
-                completed_at: '',
-              }
-            })
+          // Convert archived gate records to gate records
+          if (archivedGateList.length > 0) {
+            const archivedGates: GateRecord[] = archivedGateList.map((g, index) => ({
+              id: g.id,
+              project_id: 'archived',
+              sequence: index + 1,
+              name: g.name,
+              description: null,
+              status: 'completed' as GateStatus,
+              type: 'feature',
+              hash: `archived-${g.id}`,
+              created_at: '',
+              completed_at: '',
+            }))
 
             gates = archivedGates
 
@@ -467,23 +449,13 @@ export function registerGatesCommands(program: Command): void {
       // Archive fallback if overview has no completed gates
       if (!recentGate) {
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
-        if (existsSync(archivePath)) {
-          const archiveFiles = readdirSync(archivePath)
-            .filter((f) => f.endsWith('.md'))
-            .sort()
-            .reverse() // last file = highest sequence = most recently completed
-
-          for (const file of archiveFiles) {
-            const match = /^(gate-(\d+))/.exec(file)
-            if (match?.[1] && match[2]) {
-              const gateId = match[1]
-              const gateName = file
-                .replace(/^gate-\d+-/, '')
-                .replace('.md', '')
-                .replace(/-/g, ' ')
-              recentGate = { id: gateId, name: gateName }
-              break
-            }
+        const archivedGateList = listArchivedGates(archivePath)
+        
+        // Get the most recently completed gate (last in sorted list)
+        if (archivedGateList.length > 0) {
+          const mostRecent = archivedGateList[archivedGateList.length - 1]
+          if (mostRecent) {
+            recentGate = { id: mostRecent.id, name: mostRecent.name }
           }
         }
       }

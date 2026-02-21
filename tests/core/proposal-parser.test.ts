@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractObjectives, extractRequirements } from '../../src/core/proposal-parser.js'
+import { extractObjectives, extractRequirements, parseProposalMetadata } from '../../src/core/proposal-parser.js'
 
 const sampleGate = `# Gate: Example
 
@@ -65,5 +65,74 @@ describe('Proposal Parser', () => {
     const content = '# Gate\n\n## Objectives\n- Final objective\n'
     const result = extractObjectives(content)
     expect(result).toEqual(['Final objective'])
+  })
+
+  it('parseProposalMetadata extracts hash with # prefix', () => {
+    const content = '**Hash**: #d26021701\n'
+    const result = parseProposalMetadata(content)
+    expect(result.hash).toBe('d26021701')
+  })
+
+  it('parseProposalMetadata extracts hash without # prefix', () => {
+    const content = '**Hash**: d26021701\n'
+    const result = parseProposalMetadata(content)
+    expect(result.hash).toBe('d26021701')
+  })
+
+  it('parseProposalMetadata extracts title from first heading', () => {
+    const content = '# Proposal: Test Proposal\n\nContent here'
+    const result = parseProposalMetadata(content)
+    expect(result.title).toBe('Proposal: Test Proposal')
+  })
+
+  it('parseProposalMetadata extracts status', () => {
+    const content = '**Status**: pending\n'
+    const result = parseProposalMetadata(content)
+    expect(result.status).toBe('pending')
+  })
+
+  it('parseProposalMetadata extracts gate', () => {
+    const content = '**Gate**: gate-01\n'
+    const result = parseProposalMetadata(content)
+    expect(result.gate).toBe('gate-01')
+  })
+
+  it('parseProposalMetadata extracts all fields from complete proposal', () => {
+    const content = `# Proposal: Complete Test
+
+**Hash**: #abc12345
+**Status**: in_progress
+**Gate**: gate-05
+
+## Summary
+Test summary here
+`
+    const result = parseProposalMetadata(content)
+    expect(result.hash).toBe('abc12345')
+    expect(result.title).toBe('Proposal: Complete Test')
+    expect(result.status).toBe('in_progress')
+    expect(result.gate).toBe('gate-05')
+  })
+
+  it('parseProposalMetadata returns undefined for missing fields', () => {
+    const content = '# Some Title\n\nJust content, no metadata'
+    const result = parseProposalMetadata(content)
+    expect(result.hash).toBeUndefined()
+    expect(result.status).toBeUndefined()
+    expect(result.gate).toBeUndefined()
+    expect(result.title).toBe('Some Title')
+  })
+
+  it('parseProposalMetadata handles solitary gate', () => {
+    const content = '**Gate**: solitary\n'
+    const result = parseProposalMetadata(content)
+    expect(result.gate).toBe('solitary')
+  })
+
+  it('parseProposalMetadata is case-insensitive for field names', () => {
+    const content = '**hash**: #test1234\n**STATUS**: completed\n'
+    const result = parseProposalMetadata(content)
+    expect(result.hash).toBe('test1234')
+    expect(result.status).toBe('completed')
   })
 })

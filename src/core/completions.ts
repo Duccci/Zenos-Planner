@@ -26,22 +26,12 @@ import { readdir, unlink } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
 import { stripAnsi } from '../utils/ansi-strip.js'
+import { normalizeGateId, normalizeHash } from '../utils/normalize.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
 
-function normalizeHash(input: string): string {
-  const trimmed = input.trim()
-  return trimmed.startsWith('#') ? trimmed.slice(1) : trimmed
-}
 
-function normalizeGateId(input: string): string {
-  const trimmed = input.trim()
-  const m = /^gate-(\d+)$/.exec(trimmed)
-  if (!m) return trimmed
-  const n = m[1] ?? ''
-  return `gate-${n.padStart(2, '0')}`
-}
 
 function requireProjectRoot(): string {
   const root = findProjectRoot(process.cwd())

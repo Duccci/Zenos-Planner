@@ -4,10 +4,7 @@ import { parseProposal, consolidateGateProposals, generateConsolidationMarkdown 
 // TODO: Tests use vi.mock to mock file system and node:fs/promises modules
 vi.mock('../../src/utils/file.js', () => ({
   readFile: vi.fn(),
-}))
-
-vi.mock('node:fs/promises', () => ({
-  readdir: vi.fn(),
+  walkDir: vi.fn(),
 }))
 
 describe('Gate Consolidation Utilities', () => {
@@ -35,12 +32,11 @@ describe('Gate Consolidation Utilities', () => {
   })
 
   it('consolidateGateProposals collects gate-specific data and computes metrics', async () => {
-    const { readFile } = await import('../../src/utils/file.js')
-    const { readdir } = await import('node:fs/promises')
+    const { readFile, walkDir } = await import('../../src/utils/file.js')
 
     const content = `# Proposal: P\n**Hash**: #s1\n**Requirement**: #r1\n**Gate**: gate-1\n\n## Summary\nSummary here\n---\n\n## Completion Summary\n**Tasks Completed**: 2/4\n**Files Modified**: 2\n**Test Coverage**: 90%\n\n### Artifacts Created\n- A\n\n### Quality Metrics\nCoverage: 90%\nSecurity: 0\nLint errors: 0\nType errors: 0\n`
 
-    vi.mocked(readdir).mockResolvedValue([{ name: 'p1.md', isFile: () => true, isDirectory: () => false } as any])
+    vi.mocked(walkDir).mockResolvedValue(['zeno/proposals/gate-1/p1.md'])
     vi.mocked(readFile).mockResolvedValue(content)
 
     const result = await consolidateGateProposals('gate-01', 'zeno/proposals')
@@ -107,18 +103,12 @@ describe('Gate Consolidation Utilities', () => {
   })
 
   it('consolidateGateProposals handles directory with subdirectories', async () => {
-    const { readFile } = await import('../../src/utils/file.js')
-    const { readdir } = await import('node:fs/promises')
-
-    const subDirEntry = { name: 'subdir', isFile: () => false, isDirectory: () => true } as any
-    const subFileEntry = { name: 'p.md', isFile: () => true, isDirectory: () => false } as any
+    const { readFile, walkDir } = await import('../../src/utils/file.js')
 
     const content = `# Proposal: Sub\n**Hash**: #sub1\n**Requirement**: #r1\n**Gate**: gate-2\n\n## Summary\nSummary sub\n---\n\n## Completion Summary\n**Tasks Completed**: 1/2\n**Files Modified**: 1\n**Test Coverage**: 80%\n\n### Artifacts Created\n- sub-art\n\n### Quality Metrics\nCoverage: 80%\nSecurity: 0\nLint errors: 0\nType errors: 0\n`
 
-    // First readdir returns subdir, second readdir (inside subdir) returns file
-    vi.mocked(readdir)
-      .mockResolvedValueOnce([subDirEntry] as any)
-      .mockResolvedValueOnce([subFileEntry] as any)
+    // walkDir returns paths including those in subdirectories
+    vi.mocked(walkDir).mockResolvedValueOnce(['zeno/proposals/subdir/p.md'])
     vi.mocked(readFile).mockResolvedValue(content)
 
     const result = await consolidateGateProposals('gate-02', 'zeno/proposals')
@@ -126,12 +116,11 @@ describe('Gate Consolidation Utilities', () => {
   })
 
   it('consolidateGateProposals returns empty when no proposals match gate', async () => {
-    const { readFile } = await import('../../src/utils/file.js')
-    const { readdir } = await import('node:fs/promises')
+    const { readFile, walkDir } = await import('../../src/utils/file.js')
 
     const content = `# Proposal: Other\n**Hash**: #o1\n**Gate**: gate-9\n\n## Summary\nOther gate\n---\n`
 
-    vi.mocked(readdir).mockResolvedValueOnce([{ name: 'o.md', isFile: () => true, isDirectory: () => false } as any] as any)
+    vi.mocked(walkDir).mockResolvedValueOnce(['zeno/proposals/o.md'])
     vi.mocked(readFile).mockResolvedValue(content)
 
     const result = await consolidateGateProposals('gate-01', 'zeno/proposals')
@@ -141,10 +130,10 @@ describe('Gate Consolidation Utilities', () => {
   })
 
   it('consolidateGateProposals handles readdir error gracefully', async () => {
-    const { readdir } = await import('node:fs/promises')
-    vi.mocked(readdir).mockRejectedValueOnce(new Error('ENOENT'))
+    const { walkDir } = await import('../../src/utils/file.js')
+    vi.mocked(walkDir).mockRejectedValueOnce(new Error('ENOENT'))
 
-    const result = await consolidateGateProposals('gate-01', 'nonexistent')
-    expect(result.requirementsFulfilled).toEqual([])
+    // When walkDir errors, consolidateGateProposals should throw a FileSystemError
+    await expect(consolidateGateProposals('gate-01', 'nonexistent')).rejects.toThrow('Failed to consolidate proposals')
   })
 })

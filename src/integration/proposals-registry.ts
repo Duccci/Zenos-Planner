@@ -459,10 +459,11 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_start',
     async (params) => {
-      const validated = z.object({ hash: z.string() }).parse(params)
+      const validated = z.object({ hash: z.string(), startedBy: z.string().optional() }).parse(params)
 
       // Validate artifact before starting (user may have edited it)
       const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
+      const { getGitUserInfo } = await import('../utils/git.js')
       const db = (await import('../storage/database.js')).getDatabase()
 
       // Get proposal details to find its file path
@@ -503,7 +504,18 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         throw new Error(`Failed to validate proposal before starting: ${String(err)}`)
       }
 
-      const result = await invokeCommand('proposal_start', validated)
+      // Pull git user info if not provided
+      let startedBy = validated.startedBy
+      if (!startedBy) {
+        try {
+          const gitUser = await getGitUserInfo(projectRoot)
+          startedBy = gitUser.name ?? gitUser.email ?? undefined
+        } catch {
+          // Silently ignore git user pull errors; startedBy remains optional
+        }
+      }
+
+      const result = await invokeCommand('proposal_start', { hash: validated.hash, startedBy })
       if (!result.success) {
         throw new Error(result.error)
       }
@@ -686,12 +698,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_approve',
     async (params) => {
-      const validated = z.object({ hash: z.string() }).parse(params)
+      const validated = z.object({ hash: z.string(), approvedBy: z.string().optional() }).parse(params)
 
       // Import validators
       const { validateApplyPhase } = await import('../mcp/validators/apply-phase-validator.js')
       const { validateQuality } = await import('../mcp/validators/quality-validator.js')
       const { loadConfig } = await import('../utils/config.js')
+      const { getGitUserInfo } = await import('../utils/git.js')
 
       // Load proposal from database
       const db = (await import('../storage/database.js')).getDatabase()
@@ -747,8 +760,19 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         )
       }
 
+      // Pull git user info if not provided
+      let approvedBy = validated.approvedBy
+      if (!approvedBy) {
+        try {
+          const gitUser = await getGitUserInfo(process.cwd())
+          approvedBy = gitUser.name ?? gitUser.email ?? undefined
+        } catch {
+          // Silently ignore git user pull errors; approvedBy remains optional
+        }
+      }
+
       // Proceed with approval
-      const result = await invokeCommand('proposal_approve', validated)
+      const result = await invokeCommand('proposal_approve', { hash: validated.hash, approvedBy })
       if (!result.success) {
         throw new Error(result.error)
       }
@@ -782,11 +806,29 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_reject',
     async (params) => {
-      const validated = z.object({ hash: z.string() }).parse(params)
-      const result = await invokeCommand('proposal_reject', validated)
+      const validated = z
+        .object({ hash: z.string(), rejectionReason: z.string().optional(), rejectedBy: z.string().optional() })
+        .parse(params)
+
+      const { getGitUserInfo } = await import('../utils/git.js')
+
+      // Pull git user info if not provided
+      let rejectedBy = validated.rejectedBy
+      if (!rejectedBy) {
+        try {
+          const gitUser = await getGitUserInfo(process.cwd())
+          rejectedBy = gitUser.name ?? gitUser.email ?? undefined
+        } catch {
+          // Silently ignore git user pull errors; rejectedBy remains optional
+        }
+      }
+
+      const result = await invokeCommand('proposal_reject', { hash: validated.hash, rejectedBy })
       if (!result.success) {
         throw new Error(result.error)
       }
+
+      return { success: true, hash: validated.hash }
     },
     {
       description: 'Reject a proposal (status: in_progress -> rejected)',

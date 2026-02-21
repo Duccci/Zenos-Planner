@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { getZenoDir } from '../utils/config.js'
 import { ZenoError } from '../utils/errors.js'
+import { parseProposalMetadata } from './proposal-parser.js'
 
 /**
  * Validate gate is ready for archive
@@ -110,7 +111,8 @@ export async function validateProposalReady(
   }
 
   const content = await readFile(proposalPath, 'utf-8')
-  if (!content.includes('**Status**: completed')) {
+  const metadata = parseProposalMetadata(content)
+  if (metadata.status !== 'completed') {
     throw new ZenoError(`Proposal ${hash} is not completed`, 'ARCHIVE_NOT_READY', {
       hash,
       reason: 'Proposal status is not completed',

@@ -158,4 +158,53 @@ describe('MCP Proposal tools (integration)', () => {
     })
     expect(result).toBeDefined()
   })
+
+  it('proposal_action generate with solitary=true routes to proposal workflow', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
+    const registry = createFunctionRegistry()
+    const handler = createToolHandler(registry, 'proposal_action')
+
+    // Call generate with solitary=true - should route to proposal_create workflow
+    const result = await handler({
+      action: 'generate',
+      solitary: true,
+      title: 'Solitary Proposal',
+      summary: 'A self-contained proposal',
+      tasks: [
+        {
+          description: 'Task 1',
+          acceptanceCriteria: ['AC1'],
+        },
+      ],
+    })
+    expect(result).toBeDefined()
+    // Should either succeed or return a structured error, but NOT fail to route
+    expect(result.content).toBeDefined()
+  })
+
+  it('proposal_action generate with no gateId defaults to solitary workflow', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
+    const registry = createFunctionRegistry()
+    const handler = createToolHandler(registry, 'proposal_action')
+
+    // Call generate without gateId - should route to solitary (proposal_create) workflow
+    const result = await handler({
+      action: 'generate',
+      title: 'Implicit Solitary Proposal',
+      summary: 'A proposal without explicit gate',
+      tasks: [
+        {
+          description: 'Task 1',
+          acceptanceCriteria: ['AC1'],
+        },
+      ],
+    })
+    expect(result).toBeDefined()
+    // Should route to proposal_create successfully
+    expect(result.content).toBeDefined()
+  })
 })

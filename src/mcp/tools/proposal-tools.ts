@@ -24,6 +24,10 @@ import { type ZenoConfig } from '../../utils/config.js'
  *
  * Actions: list, show, create, generate, validate, approve, reject, start, progress
  *
+ * The 'generate' action intelligently routes based on proposal type:
+ * - Gate-tied proposals (gateId provided): uses gate workflow to decompose gate PRD into proposals
+ * - Solitary proposals (solitary=true or no gateId): uses proposal workflow to create self-contained proposal
+ *
  * Example usage:
  * ```json
  * {
@@ -111,7 +115,29 @@ export function proposalHandlers(
         list: async (payload, r) => r.invoke('proposal_list', payload),
         show: async (payload, r) => r.invoke('proposal_show', payload),
         create: async (payload, r) => r.invoke('proposal_create', payload),
-        generate: async (payload, r) => r.invoke('generateProposals', payload),
+        generate: async (payload, r) => {
+          // Route solitary proposals to the proposal workflow (proposal_create)
+          // Route gate-tied proposals to the gate workflow (generateProposals)
+          const isSolitary = (payload as { solitary?: boolean }).solitary === true
+          const hasGateId = Boolean((payload as { gateId?: string }).gateId)
+
+          if (isSolitary || !hasGateId) {
+            // Solitary proposal: use proposal_create workflow
+            // If no gateId is provided and not explicitly solitary, default to solitary mode
+            const solitaryPayload = {
+              ...(payload ?? {}),
+              solitary: true,
+            }
+            // Remove gateId if present with solitary=true to avoid conflict
+            if (isSolitary && hasGateId) {
+              delete (solitaryPayload as Record<string, unknown>)['gateId']
+            }
+            return r.invoke('proposal_create', solitaryPayload)
+          } else {
+            // Gate-tied proposal: use gate workflow (generateProposals)
+            return r.invoke('generateProposals', payload)
+          }
+        },
         validate: async (payload, r) => r.invoke('proposal_validate', payload),
         approve: async (payload, r) => r.invoke('proposal_approve', payload),
         reject: async (payload, r) => r.invoke('proposal_reject', payload),

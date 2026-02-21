@@ -715,7 +715,7 @@ describe('proposals-registry operations', () => {
         success: boolean
       }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith('proposal_reject', { hash: 'abc12345' })
+      expect(mockInvokeCommand).toHaveBeenCalledWith('proposal_reject', expect.objectContaining({ hash: 'abc12345' }))
     })
 
     it('throws when invokeCommand fails', async () => {

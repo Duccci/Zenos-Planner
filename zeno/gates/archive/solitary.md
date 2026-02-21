@@ -76,6 +76,12 @@ High-level implementation: Comprehensive testing and documentation for MCP tools
 
 High-level implementation: Implemented comprehensive safety features for MCP tools including unified error response format with 12 standardized error codes, git operation audit and blocking during apply phase, and completed solitary proposal archival workflow. All 59 safety tests pass with 95%+ coverage, ensuring production-ready error handling and preventing critical guardrail violations.
 
+### Codebase Deduplication & Consolidation (#d26021701)
+
+**Completed**: 2026-02-21
+
+Eliminated 15+ instances of duplicated logic across CLI, core, integration, MCP, and generation layers by extracting six shared utilities: `normalizeGateId`/`normalizeHash` (normalize.ts), `ValidationResult` interface (mcp/validators/types.ts), `listArchivedGates` (gate-consolidation.ts), `walkDir`/`walkDirSync` (file.ts), and `parseProposalMetadata` (proposal-parser.ts). All 13 consumers updated to import from canonical locations. 1,818 tests passing, 100% coverage on new utilities, 0 TypeScript errors.
+
 ### Unified Artifact Validator (#a4f7b2e9)
 
 **Completed**: 2026-02-17

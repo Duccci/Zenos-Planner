@@ -29,7 +29,7 @@ import {
  *   list      — list proposals; optional: gateId, status, skip, take
  *   show      — get proposal details; required: hash
  *   create    — new proposal; required: title, summary, tasks; optional: gateId, solitary, filesAffected, context, dependencies
- *   generate  — generate proposals from gate PRD; required: gateId; optional: templateName, outputDir
+ *   generate  — generate proposals (gate or solitary); required: gateId (for gate-tied) or solitary=true (for solitary); optional: title, summary, tasks, templateName, outputDir, filesAffected
  *   validate  — run quality checks on a proposal; required: hash; optional: strict
  *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
  *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy
@@ -55,7 +55,7 @@ export const ProposalActionInputSchema = z.object({
         'list=show proposals (filter by gateId/status). ' +
         'show=get proposal details (needs: hash). ' +
         'create=new proposal (needs: title, summary, tasks; optional: gateId, filesAffected). ' +
-        'generate=generate from gate PRD (needs: gateId). ' +
+        'generate=generate proposals from gate PRD (gate-tied) or create solitary proposal (needs: gateId for gate-tied, solitary=true for solitary). ' +
         'validate=run quality checks (needs: hash). ' +
         'approve=merge proposal (needs: hash). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
