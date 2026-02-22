@@ -484,6 +484,39 @@ export const functionRegistry: FunctionDefinition[] = [
     examples: ['arch_show("system") - Show system overview diagram'],
   },
   {
+    name: 'arch_catalogue',
+    description: 'Get the complete catalogue of available architecture diagram types',
+    parameters: [],
+    returnType: 'DiagramCatalogue[]',
+    examples: ['arch_catalogue() - Get all diagram types with metadata'],
+  },
+  {
+    name: 'arch_select',
+    description: 'Record selected diagram types for a specific gate',
+    parameters: [
+      {
+        name: 'gateHash',
+        type: 'string',
+        description: 'The hash of the gate to select diagrams for',
+        required: true,
+      },
+      {
+        name: 'diagramTypes',
+        type: 'string[]',
+        description: 'Array of diagram type names to select',
+        required: true,
+      },
+      {
+        name: 'descriptors',
+        type: 'object',
+        description: 'Optional custom descriptions for selected diagrams',
+        required: false,
+      },
+    ],
+    returnType: 'void',
+    examples: ['arch_select("#gate-02", ["sequence", "deployment"]) - Select conditional diagrams for a gate'],
+  },
+  {
     name: 'show',
     description: 'Resolve a hash to its entity details',
     parameters: [

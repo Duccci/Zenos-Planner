@@ -6,6 +6,14 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { DIAGRAM_CATALOGUE } from './diagram-catalogue.js';
+
+export interface DiagramEntry {
+  name: string;
+  type: string;
+  order: number;
+  status: 'pending' | 'generated';
+}
 
 export interface GateData {
   gateNumber: number;
@@ -30,7 +38,7 @@ export interface GateData {
     priority: string;
     howAddressed: string;
   }[];
-  // Add more fields as needed
+  diagrams?: DiagramEntry[];
 }
 
 /**
@@ -42,10 +50,49 @@ export function loadTemplate(templateName: string): string {
 }
 
 /**
+ * Generate diagram entries for a gate PRD
+ * 
+ * Always includes the five core diagram entries with sequential order numbers.
+ * Leaves conditional diagram slots for LLM selection.
+ */
+export function generateDiagramEntries(): DiagramEntry[] {
+  const entries: DiagramEntry[] = [];
+  let order = 1;
+
+  // Add all core diagrams with sequential order numbers
+  for (const catalogEntry of DIAGRAM_CATALOGUE) {
+    if (catalogEntry.alwaysGenerated) {
+      entries.push({
+        name: catalogEntry.name,
+        type: catalogEntry.type,
+        order: order++,
+        status: 'pending'
+      });
+    }
+  }
+
+  // Add placeholder rows for conditional diagrams
+  // Leave these empty with a comment for LLM selection
+  for (let i = 0; i < 2; i++) {
+    entries.push({
+      name: '[Conditional Diagram - Reserved]',
+      type: '[diagram-type]',
+      order: order++,
+      status: 'pending'
+    });
+  }
+
+  return entries;
+}
+
+/**
  * Render template with data
  */
 export function renderGateTemplate(template: string, data: GateData): string {
   let rendered = template;
+
+  // Ensure diagrams are populated if not provided
+  const diagramEntries = data.diagrams ?? generateDiagramEntries();
 
   // Basic variable substitution
   rendered = rendered.replace(/\[XX\]/g, data.gateNumber.toString());
@@ -78,6 +125,15 @@ export function renderGateTemplate(template: string, data: GateData): string {
     `| #${req.hash} | ${req.name} | ${req.type} | ${req.priority} | ${req.howAddressed} |`
   ).join('\n');
   rendered = rendered.replace(/\| #\[hash\] \| \[Project Requirement Name\] \| \[functional\|non_functional\|constraint\] \| \[must\|should\|could\] \| \[How this gate...\] \|/g, reqRows);
+
+  // Architecture Diagrams table
+  const diagramRows = diagramEntries.map(diagram =>
+    `| ${diagram.name} | ${diagram.type} | ${String(diagram.order)} | ${diagram.status} |`
+  ).join('\n');
+  rendered = rendered.replace(
+    /\| System Overview[\s\S]*?\| \[Conditional Diagram - Reserved\] *\| \[diagram-type\] *\| 7 *\| pending *\|/,
+    diagramRows
+  );
 
   // For now, leave other sections as is, or add more replacements
 

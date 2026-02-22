@@ -15,6 +15,9 @@ import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 import { parseCommitsForHashes } from '../utils/git.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
+import { DiagramSelector } from '../generation/diagram-selector.js'
+import type { DiagramContext } from '../generation/diagram-generator-base.js'
+import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
 
 export function registerRepositoryOps(registry: FunctionRegistry): void {
   registry.register('repos_list', async () => {
@@ -89,25 +92,98 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
 }
 
 export function registerArchitectureOps(registry: FunctionRegistry): void {
-  registry.register('arch_generate', async () => {
-    const result = await invokeCommand('arch_generate')
-    if (!result.success) {
-      throw new Error(result.error)
+  registry.register('arch_generate', async (params) => {
+    // Direct in-process generation - avoids invokeCommand -> CLI -> registry recursion
+    const validated = z.object({
+      gateHash: z.string().optional(),
+      diagramType: z.string().optional(),
+    }).parse(params)
+
+    const context: DiagramContext = { projectName: 'zeno' }
+    const thresholds = { maxMermaidNodes: 50, maxMermaidEdges: 100, nestingDepthMultiplier: 1.5 }
+    const selector = new DiagramSelector(thresholds)
+
+    let generators = selector.selectCoreDiagrams()
+
+    // If a specific type is requested, filter to just that one
+    if (validated.diagramType) {
+      generators = generators.filter((g) => g.getType() === validated.diagramType)
+      // If not in core, try as a conditional type
+      if (generators.length === 0) {
+        const conditionals = selector.selectConditionalDiagrams(
+          [validated.diagramType],
+          validated.gateHash ?? 'default'
+        )
+        generators = conditionals
+      }
+    }
+
+    const results = await Promise.all(generators.map((g) => g.generate(context)))
+
+    return {
+      diagrams: results.map((r) => ({
+        type: r.diagramType,
+        category: r.category,
+        format: r.renderingBackend,
+        generated: true,
+      })),
+      totalGenerated: results.length,
+      timestamp: new Date().toISOString(),
+      success: true,
     }
   }, {
     description: 'Generate all architecture diagrams for the project',
-    parameters: [],
-    returnType: 'void',
-    schema: z.object({})
+    parameters: [
+      { name: 'gateHash', type: 'string', description: 'Gate hash to scope generation', required: false },
+      { name: 'diagramType', type: 'string', description: 'Single diagram type to generate', required: false },
+    ],
+    returnType: 'ArchDiagramGenerateOutput',
+    schema: z.object({
+      gateHash: z.string().optional(),
+      diagramType: z.string().optional(),
+    })
   })
 
   registry.register('arch_show', async (params) => {
-    const validated = z.object({ type: z.string() }).parse(params)
-    const result = await invokeCommand('arch_show', validated)
-    if (!result.success) {
-      throw new Error(result.error)
+    // Direct in-process retrieval - avoids invokeCommand -> CLI -> registry recursion
+    const validated = z.object({
+      type: z.string().min(1),
+      gateHash: z.string().optional(),
+    }).parse(params)
+
+    const diagramType = validated.type
+    if (!isValidDiagramType(diagramType)) {
+      throw Object.assign(new Error(`Unknown diagram type: ${diagramType}`), { code: 'DIAGRAM_NOT_FOUND' })
     }
-    return result
+
+    const entry = getCatalogueEntry(diagramType)
+    const context: DiagramContext = { projectName: 'zeno' }
+    const thresholds = { maxMermaidNodes: 50, maxMermaidEdges: 100, nestingDepthMultiplier: 1.5 }
+    const selector = new DiagramSelector(thresholds)
+
+    // Try core generators first, then conditional
+    const coreGenerators = selector.selectCoreDiagrams()
+    let generator = coreGenerators.find((g) => g.getType() === diagramType)
+    if (!generator) {
+      const conditionals = selector.selectConditionalDiagrams(
+        [diagramType],
+        validated.gateHash ?? 'default'
+      )
+      generator = conditionals[0]
+    }
+
+    if (!generator) {
+      throw Object.assign(new Error(`Diagram type not available: ${diagramType}`), { code: 'DIAGRAM_NOT_FOUND' })
+    }
+
+    const output = await generator.generate(context)
+    return {
+      type: diagramType,
+      title: entry?.name ?? diagramType,
+      content: output.markdown,
+      format: output.renderingBackend,
+      found: true,
+    }
   }, {
     description: 'Show a specific type of architecture diagram',
     parameters: [
@@ -116,11 +192,127 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
         type: 'string',
         description: 'Diagram type: system, lifecycle, flow, gate-roadmap',
         required: true
+      },
+      {
+        name: 'gateHash',
+        type: 'string',
+        description: 'Optional gate hash for gate-scoped diagram',
+        required: false
       }
     ],
     returnType: 'Diagram',
     schema: z.object({
-      type: z.string().min(1, 'Diagram type is required')
+      type: z.string().min(1, 'Diagram type is required'),
+      gateHash: z.string().optional(),
+    })
+  })
+
+  registry.register('arch_catalogue', () => {
+    // Return the diagram type catalogue with metadata
+    const catalogue = [
+      // Core diagrams
+      {
+        type: 'system-overview',
+        category: 'core',
+        description: 'Component relationships and module structure',
+      },
+      {
+        type: 'data-flow',
+        category: 'core',
+        description: 'End-to-end data processing paths',
+      },
+      {
+        type: 'gate-roadmap',
+        category: 'core',
+        description: 'Gate structure and parallel relationships',
+      },
+      {
+        type: 'lifecycle',
+        category: 'core',
+        description: 'State machine for gate workflow',
+      },
+      {
+        type: 'context',
+        category: 'core',
+        description: 'System boundary and external dependencies',
+      },
+      // Conditional diagrams
+      {
+        type: 'sequence',
+        category: 'conditional',
+        description: 'Temporal interactions for complex workflows',
+      },
+      {
+        type: 'component',
+        category: 'conditional',
+        description: 'Detailed module structure for complex components',
+      },
+      {
+        type: 'package',
+        category: 'conditional',
+        description: 'Code organization and module dependencies',
+      },
+      {
+        type: 'deployment',
+        category: 'conditional',
+        description: 'Runtime infrastructure and deployment topology',
+      },
+      {
+        type: 'network',
+        category: 'conditional',
+        description: 'Network topology and communication patterns',
+      },
+    ]
+    return catalogue
+  }, {
+    description: 'Get the complete catalogue of available architecture diagram types',
+    parameters: [],
+    returnType: 'DiagramCatalogue[]',
+    schema: z.object({})
+  })
+
+  registry.register('arch_select', (params) => {
+    const validated = z.object({
+      gateHash: z.string().min(1, 'Gate hash is required'),
+      diagramTypes: z.array(z.string()).min(1, 'At least one diagram type is required'),
+      descriptors: z.record(z.string(), z.string()).optional()
+    }).parse(params)
+    
+    // Store selection for the gate (this would normally persist to a file or database)
+    // For now, just return a confirmation
+    return {
+      gateHash: validated.gateHash,
+      selectedTypes: validated.diagramTypes,
+      count: validated.diagramTypes.length,
+      status: 'recorded'
+    }
+  }, {
+    description: 'Record selected diagram types for a specific gate',
+    parameters: [
+      {
+        name: 'gateHash',
+        type: 'string',
+        description: 'The hash of the gate to select diagrams for',
+        required: true
+      },
+      {
+        name: 'diagramTypes',
+        type: 'string[]',
+        description: 'Array of diagram type names to select',
+        required: true
+      },
+      {
+        name: 'descriptors',
+        type: 'object',
+        description: 'Optional custom descriptions for selected diagrams',
+        required: false
+      }
+    ],
+    returnType: 'void',
+    schema: z.object({
+      gateHash: z.string().min(1, 'Gate hash is required'),
+      diagramTypes: z.array(z.string()).min(1, 'At least one diagram type is required'),
+      descriptors: z.record(z.string(), z.string()).optional()
     })
   })
 }

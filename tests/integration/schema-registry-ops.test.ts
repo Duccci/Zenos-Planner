@@ -137,38 +137,41 @@ describe('schema-registry operations', () => {
   // -------------------------------------------------------------------------
   // Architecture operations
   // -------------------------------------------------------------------------
+  // arch_generate and arch_show use direct in-process generation (no invokeCommand)
+  // to avoid CLI -> registry recursion. Tests verify the registry contract directly.
   describe('arch_generate', () => {
-    it('succeeds', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true })
-
-      const result = (await registry.invoke('arch_generate', {})) as { success: boolean }
+    it('succeeds and returns generation result', async () => {
+      const result = (await registry.invoke('arch_generate', {})) as {
+        success: boolean
+        data: { totalGenerated: number }
+      }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith('arch_generate')
+      expect(result.data).toBeDefined()
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('arch_generate')
     })
 
-    it('throws on failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Arch gen failed' })
-
-      const result = (await registry.invoke('arch_generate', {})) as { success: boolean }
-      expect(result.success).toBe(false)
+    it('accepts optional gateHash and diagramType params', async () => {
+      const result = (await registry.invoke('arch_generate', {
+        gateHash: 'g05archdiag',
+        diagramType: 'system-overview',
+      })) as { success: boolean }
+      expect(result.success).toBe(true)
     })
   })
 
   describe('arch_show', () => {
-    it('returns diagram on success', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true, data: { content: '...' } })
-
-      const result = (await registry.invoke('arch_show', { type: 'system' })) as {
+    it('returns diagram on success for valid type', async () => {
+      const result = (await registry.invoke('arch_show', { type: 'system-overview' })) as {
         success: boolean
+        data: { type: string; content: string }
       }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith('arch_show', { type: 'system' })
+      expect(result.data.type).toBe('system-overview')
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('arch_show', expect.anything())
     })
 
-    it('throws on failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Diagram not found' })
-
-      const result = (await registry.invoke('arch_show', { type: 'system' })) as {
+    it('fails for unknown diagram type', async () => {
+      const result = (await registry.invoke('arch_show', { type: 'unknown-type-xyz' })) as {
         success: boolean
       }
       expect(result.success).toBe(false)

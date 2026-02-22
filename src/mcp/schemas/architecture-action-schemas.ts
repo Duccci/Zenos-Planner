@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Zod schemas for architecture action tool input and output
- * Consolidates arch_generate and arch_show into a unified arch_action
+ * Consolidates arch_generate and arch_show into a unified diagram_action
  */
 
 // ============================================================================

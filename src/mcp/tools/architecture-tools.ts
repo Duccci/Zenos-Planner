@@ -1,143 +1,55 @@
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import {
-  ArchitectureActionInputSchema,
-  ArchGenerateOutputSchema,
-  ArchShowOutputSchema,
-} from '../schemas/architecture-action-schemas.js'
+  DiagramActionInputSchema,
+  DiagramActionOutputSchema,
+  getDiagramActionOutputSchema,
+} from '../schemas/architecture-schemas.js'
+import { createEntityActionHandler } from './entity-action-handler.js'
 
 /**
- * Architecture tool definitions for consolidated arch_action
+ * Unified diagram_action tool definition.
+ * Consolidates all architecture diagram operations into a single action-based entrypoint.
+ *
+ * Actions: catalogue, select, generate, show
  */
 export const architectureToolDefinitions = [
   {
-    name: 'arch_action',
-    description: `Unified architecture diagram management.
+    name: 'diagram_action',
+    description: `REQUIRED TOOL: Use diagram_action for ALL architecture diagram operations.
 
-Actions: generate (generate all architecture diagrams), show (display specific diagram type).
+Actions: catalogue (list all available diagram types with metadata), select (record which conditional diagrams to generate for a gate), generate (generate diagrams for a gate or a single type), show (retrieve and display a specific diagram).
 
-Call this tool when: you need to generate or retrieve architecture diagrams for the project.`,
-    inputSchema: ArchitectureActionInputSchema,
+Call this tool whenever: you need to view available diagram types, choose diagrams for a gate, generate architecture diagrams, or read diagram content.`,
+    inputSchema: DiagramActionInputSchema,
   },
 ]
 
 export function architectureHandlers(
   registry: FunctionRegistry
 ): Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>> {
-  return {
-    arch_action: async (args: Record<string, unknown>): Promise<CallToolResult> => {
-      try {
-        const validated = ArchitectureActionInputSchema.parse(args)
-
-        // Route to appropriate function based on action
-        if (validated.action === 'generate') {
-          return await handleArchGenerate(registry)
-        }
-
-        return await handleArchShow(registry, validated.payload)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
-          structuredContent: { error: { message } },
-          isError: true,
-        }
-      }
+  const archActionHandler = createEntityActionHandler(
+    {
+      entity: 'arch',
+      actions: ['catalogue', 'select', 'generate', 'show'] as const,
+      inputSchema: DiagramActionInputSchema,
+      outputSchema: DiagramActionOutputSchema,
+      actionOutputSchema: getDiagramActionOutputSchema,
+      actionHandlers: {
+        catalogue: async (_payload, r) => r.invoke('arch_catalogue', {}),
+        select: async (payload, r) => r.invoke('arch_select', payload ?? {}),
+        generate: async (payload, r) => r.invoke('arch_generate', payload ?? {}),
+        show: async (payload, r) => {
+          // arch_show registry uses `type` key, but MCP input uses `diagramType`
+          const { diagramType, ...rest } = (payload ?? {}) as { diagramType?: string } & Record<string, unknown>
+          return r.invoke('arch_show', { type: diagramType, ...rest })
+        },
+      },
     },
-  }
-}
+    registry
+  )
 
-/**
- * Handle arch_generate action
- */
-async function handleArchGenerate(registry: FunctionRegistry): Promise<CallToolResult> {
-  try {
-    const result = await registry.invoke('arch_generate', {})
-
-    if (result.success) {
-      const data = result.data as Record<string, unknown>
-      const validated = ArchGenerateOutputSchema.parse(data)
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(validated, null, 2) }],
-        structuredContent: validated,
-      }
-    } else {
-      const error = result.error
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              { error: error.message || 'Failed to generate architecture diagrams' },
-              null,
-              2
-            ),
-          },
-        ],
-        structuredContent: { error },
-        isError: true,
-      }
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
-      structuredContent: { error: { message } },
-      isError: true,
-    }
-  }
-}
-
-/**
- * Handle arch_show action
- */
-async function handleArchShow(
-  registry: FunctionRegistry,
-  payload: Record<string, unknown> | undefined
-): Promise<CallToolResult> {
-  try {
-    const diagramType = payload?.['type']
-    if (typeof diagramType !== 'string' || diagramType.length === 0) {
-      return {
-        content: [{ type: 'text', text: 'Error: diagram type is required' }],
-        isError: true,
-      }
-    }
-
-    const result = await registry.invoke('arch_show', { type: diagramType })
-
-    if (result.success) {
-      const data = result.data as Record<string, unknown>
-      const validated = ArchShowOutputSchema.parse(data)
-
-      return {
-        content: [{ type: 'text', text: JSON.stringify(validated, null, 2) }],
-        structuredContent: validated,
-      }
-    } else {
-      const error = result.error
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              { error: error.message || `Failed to retrieve architecture diagram: ${diagramType}` },
-              null,
-              2
-            ),
-          },
-        ],
-        structuredContent: { error },
-        isError: true,
-      }
-    }
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return {
-      content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
-      structuredContent: { error: { message } },
-      isError: true,
-    }
+  return {
+    diagram_action: archActionHandler,
   }
 }

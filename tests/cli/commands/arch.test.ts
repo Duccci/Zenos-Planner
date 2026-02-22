@@ -17,6 +17,11 @@ vi.mock('../../../src/utils/logger.js', () => ({
   },
 }))
 
+const mockRegistryInvoke = vi.fn()
+vi.mock('../../../src/index.js', () => ({
+  getGlobalRegistry: () => ({ invoke: mockRegistryInvoke }),
+}))
+
 import { registerArchCommands } from '../../../src/cli/commands/arch.js'
 import { logger } from '../../../src/utils/logger.js'
 
@@ -31,8 +36,9 @@ describe('arch command', () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'arch-test-'))
     program = new Command()
     program.exitOverride()
-    registerArchCommands(program)
     vi.clearAllMocks()
+    mockRegistryInvoke.mockResolvedValue({ success: true, data: {} })
+    registerArchCommands(program)
   })
 
   afterEach(async () => {
@@ -64,14 +70,14 @@ describe('arch command', () => {
   })
 
   describe('registerArchCommands - action handlers', () => {
-    it('arch generate action logs generate message', () => {
-      program.parse(['node', 'zeno', 'arch', 'generate'])
+    it('arch generate action logs generate message', async () => {
+      await program.parseAsync(['node', 'zeno', 'arch', 'generate'])
       expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('generate'))
     })
 
-    it('arch show <type> action logs show message', () => {
-      program.parse(['node', 'zeno', 'arch', 'show', 'system'])
-      expect(mockLogger.info).toHaveBeenCalledWith(expect.stringContaining('show'))
+    it('arch show <type> action invokes registry with type', async () => {
+      await program.parseAsync(['node', 'zeno', 'arch', 'show', 'system'])
+      expect(mockRegistryInvoke).toHaveBeenCalledWith('arch_show', expect.objectContaining({ type: 'system' }))
     })
 
     it('arch setup-graphviz on darwin shows brew instructions', () => {

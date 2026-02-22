@@ -139,6 +139,27 @@ graph LR
 
 ---
 
+## Architecture Diagrams
+
+<!-- LLM Instructions: Populate this section with applicable architecture diagrams for this gate.
+     Core diagrams (system-overview, data-flow, gate-lifecycle, gate-roadmap, context) are always included.
+     For conditional diagrams, use the diagram catalogue to select additional diagrams based on this gate's scope.
+     Set order numbers sequentially starting from 1 (core diagrams should come first with orders 1-5,
+     then conditional diagrams with orders 6+).
+-->
+
+| Name                              | Type               | Order | Status    |
+| --------------------------------- | ------------------ | ----- | --------- |
+| System Overview                   | system-overview    | 1     | pending   |
+| Data Flow Diagram                 | data-flow          | 2     | pending   |
+| Gate Lifecycle State Machine      | gate-lifecycle     | 3     | pending   |
+| Gate Roadmap                      | gate-roadmap       | 4     | pending   |
+| System Context Diagram            | context            | 5     | pending   |
+| [Conditional Diagram - Reserved]  | [diagram-type]     | 6     | pending   |
+| [Conditional Diagram - Reserved]  | [diagram-type]     | 7     | pending   |
+
+---
+
 ## Technical Decisions for This Gate
 
 [List 2-4 gate-specific technical decisions. Focus on choices specific to this gate, not project-wide architecture.]

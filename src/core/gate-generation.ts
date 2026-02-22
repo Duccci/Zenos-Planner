@@ -9,7 +9,26 @@
 import { readFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
+import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
+import {
+  getProjectRequirements,
+  generateNewGates,
+  rebaselineGates,
+  generateSingleGate,
+} from './gate-planner.js'
+import { createGatePrdFiles, updateGateDiagrams } from './gate-writer.js'
 import path from 'path'
+
+export interface ArchReviewNotification {
+  triggered: boolean
+  reason: string
+  changeEvents: {
+    type: string
+    gateHash: string
+    gateName: string
+    details: string
+  }[]
+}
 
 export interface GateGenerateInput {
   mode: 'new' | 'rebaseline' | 'single'
@@ -33,6 +52,7 @@ export interface GateGenerateOutput {
   requirementsAttributed: number
   diagramsUpdated: string[]
   message: string
+  archReviewNotification?: ArchReviewNotification
 }
 
 /**
@@ -54,6 +74,23 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
 
     // Get existing requirements
     const requirements = await getProjectRequirements(projectRoot)
+
+    // Store previous gate state for change detection
+    let previousGatesFromOverview: {
+      id: string
+      sequence: number
+      name: string
+      hash: string
+      status: 'completed' | 'in_progress' | 'pending'
+    }[] = []
+
+    try {
+      const projectOverview = await readProjectOverview(projectRoot)
+      previousGatesFromOverview = getGatesFromOverview(projectOverview)
+    } catch {
+      // Project overview might not exist yet (e.g., on first generation)
+      logger.info('No previous project overview found - skipping change detection')
+    }
 
     // Determine generation strategy based on mode
     let gates: {
@@ -83,6 +120,12 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     // Update diagrams
     const diagramsUpdated = await updateGateDiagrams(gates, projectRoot)
 
+    // Detect structural changes and notify if arch review needed
+    const archReviewNotification = await detectGateChangesAndNotify(
+      previousGatesFromOverview,
+      gates
+    )
+
     return {
       success: true,
       mode,
@@ -91,6 +134,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
       requirementsAttributed: requirements.length,
       diagramsUpdated,
       message: `Generated ${String(createdGates.length)} gates in ${mode} mode`,
+      archReviewNotification,
     }
   } catch (error) {
     logger.error('Failed to generate gates', { error, input })
@@ -101,11 +145,69 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
   }
 }
 
-// Implementations moved to `gate-planner.ts` and `gate-writer.ts`
-import {
-  getProjectRequirements,
-  generateNewGates,
-  rebaselineGates,
-  generateSingleGate,
-} from './gate-planner.js'
-import { createGatePrdFiles, updateGateDiagrams } from './gate-writer.js'
+/**
+ * Detect gate structural changes and trigger arch review notification if needed
+ */
+async function detectGateChangesAndNotify(
+  previousGates: {
+    id: string
+    sequence: number
+    name: string
+    hash: string
+    status: 'completed' | 'in_progress' | 'pending'
+  }[],
+  currentGates: {
+    id: string
+    name: string
+    type: string
+    status: string
+    requirementsCount: number
+    dependencies: string[]
+  }[]
+): Promise<ArchReviewNotification> {
+  const { GateChangeDetector } = await import(
+    '../generation/gate-change-detector.js'
+  )
+
+  const detector = new GateChangeDetector()
+
+  // Convert gates to the format expected by the detector
+  const previousGatesMetadata = previousGates.map((g) => ({
+    id: g.id,
+    hash: g.hash,
+    name: g.name,
+    sequence: g.sequence,
+    status: g.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
+    type: 'feature' as const,
+  }))
+
+  const currentGatesMetadata = currentGates.map((g, index) => ({
+    id: g.id,
+    hash: `hash-${g.id}`, // Placeholder hash
+    name: g.name,
+    sequence: index + 1,
+    status: g.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
+    type: g.type as 'feature' | 'quality' | 'rescope',
+  }))
+
+  const changeEvents = detector.detectChanges(previousGatesMetadata, currentGatesMetadata)
+  const shouldTrigger = detector.shouldTriggerArchReview(changeEvents)
+
+  if (shouldTrigger) {
+    logger.info('Architecture review notification: Gate structure changed', {
+      eventCount: changeEvents.length,
+      events: changeEvents,
+    })
+  }
+
+  return {
+    triggered: shouldTrigger,
+    reason: shouldTrigger ? 'Gate structure changed - architecture diagrams may need updates' : '',
+    changeEvents: changeEvents.map((e) => ({
+      type: e.type,
+      gateHash: e.gateHash,
+      gateName: e.gateName,
+      details: e.details,
+    })),
+  }
+}
