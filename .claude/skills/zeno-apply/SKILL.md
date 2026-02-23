@@ -8,8 +8,8 @@ description: Implement an approved Zeno proposal and track task completion.
 - Assume user approval: proposals are reviewed and approved before apply begins (no separate approval step required)
 - Implement straightforward solutions; add complexity only when required
 - Keep changes tightly scoped to proposal tasks
-- Only modify files and target objects explicitly listed in the proposal's **Files Affected** or the task description (for example, specific functions, classes, modules). Avoid unrelated edits or large refactors that extend beyond the stated scope.
-- All `Files Affected` entries must be explicit file paths. If a proposal contains wildcards (`*.ts`) or directory references (`src/dir/`), reject and request revision.
+- Only modify files and target objects explicitly listed in the proposal's **Files Affected** or the task description. Avoid unrelated edits or large refactors. // See MCP: scope-validator.ts#validateScope + apply-phase-validator.ts#validateApplyPhase (Rule 2)
+- All `Files Affected` entries must be explicit file paths — MCP validates this at `proposal_action: start`: wildcards (`*.ts`) and directory references (`src/dir/`) are rejected by `validateScope.validateExplicitPaths`. If a proposal contains them, reject and request revision. // See MCP: scope-validator.ts#validateExplicitPaths
 - Limit test changes to those that directly validate the updated target objects; do not broadly alter the test suite without explicit approval.
 - **Gate-tied proposals**: Do not create or modify test files unless the proposal is the gate's dedicated test proposal. Implementation proposals in gates deliberately omit tests to reduce context burden.
 - **Solitary proposals**: Tests are included inline and must be implemented as part of the proposal.
@@ -17,8 +17,7 @@ description: Implement an approved Zeno proposal and track task completion.
 - Review dependencies for context only; do not act on, implement, or pre-empt work that belongs to other proposals or later gates. If a dependency is incomplete and belongs to future work, document it as a blocker in the proposal and notify a human for clarification.
 - Use quality thresholds from `config_get()` instead of hard-coded values
 - Wait for human approval if automated checks fail
-- **NEVER perform git operations during apply phase** - commits and archival occur ONLY at gate completion
-- **DO NOT use git add, git commit, or any git commands** during proposal implementation
+- **No git operations during apply phase** — MCP tools automatically validate: `proposal_action: start` and `proposal_action: approve` both call `validateApplyPhase` which blocks if git operations are detected. Commits and archival occur ONLY at gate completion. // See MCP: apply-phase-validator.ts#validateApplyPhase (Rule 1)
 - **DO NOT rename proposal files** - proposals remain in active proposals directory until gate completion
 - **DO NOT move proposal files to archive** - archival happens automatically when gate is completed
 
@@ -34,7 +33,7 @@ Track progress by outputting step completion messages. **DO NOT use manage_todo_
 1. **Identify proposal** - Use hash or filename to locate proposal
 2. **Read proposal** - Review Summary, Context, Tasks, Files Affected. Skip architecture docs — trust the proposal's file paths.
 3. **Check dependencies** - Read the Description column in the proposal's Dependencies table only. Do NOT open or read dependency proposal files. If a description indicates an incomplete blocker, document it and notify a human. Continue implementing tasks that are not blocked.
-4. **Start proposal** - Invoke: `zeno proposal start <hash>`
+4. **Start proposal** - Invoke: `zeno proposal start <hash>` (or `proposal_action: start`). The MCP handler enforces preconditions before transitioning: proposal must be `pending`; artifact must pass format + structure validation; no git operations permitted. Invalid state transitions return a structured error listing valid next actions. // See MCP: proposal-tools.ts#validators.start, entity-action-handler.ts#createStateTransitionValidator
 5. **Implement tasks** - For each task in the proposal:
    - Output: "Starting task: [task description]"
    - Implement the task
@@ -50,7 +49,7 @@ Track progress by outputting step completion messages. **DO NOT use manage_todo_
 7. **Update requirements** - For each requirement: either run `zeno req status <hash> implemented` or note that `zeno gates complete <gate-id>` will automatically set associated requirements to `implemented` when applicable.
 8. **Run checks** - Invoke: `zeno proposal validate <hash>` and fix failures
    - Confirm the proposal file has a Completion Summary and all acceptance boxes are checked.
-   - **DO NOT perform any git operations** - commits and archival occur ONLY at gate completion (preserves human-in-the-loop)
+   - No git operations allowed during apply — enforced by MCP validators (not just a convention). // See MCP: apply-phase-validator.ts#validateApplyPhase
 9. **Request gate completion** - If all gate proposals done: Output message for human approval to run `zeno gates complete <gate-id>`
    - Note: This single command will implement, commit, archive all proposals, and tag the gate (preserves human review at gate level only)
 

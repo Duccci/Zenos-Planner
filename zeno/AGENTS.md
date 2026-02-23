@@ -24,8 +24,8 @@ How to read and navigate artifacts in this Zeno project. For tool usage and term
 zeno/
 ├── .zeno/                      # Internal state (version controlled)
 │   ├── config.json             # Project configuration
-│   ├── state.json              # Current state
-│   ├── project-overview.json   # LLM-optimized project memory
+│   ├── state.json              # Historical snapshot of gate progress (synced with gate workflow)
+│   ├── project-overview.json   # LLM-optimized project memory (source of truth)
 │   └── requirements.db         # SQLite requirements database
 ├── AGENTS.md                   # This file
 ├── PROJECT_PRD.md              # Single source of truth for scope
@@ -99,6 +99,35 @@ git log --grep '#<hash>' --pretty=format:'%h %ad %an %s' --date=short
 # Resolve hash to entity
 zeno show <hash>
 ```
+
+## MCP Tool Reference
+
+MCP tools are the authoritative interface for all workflow actions. Use these instead of guessing CLI mappings. Each tool exposes a unified `action` parameter — always pass `action` as a string.
+
+| CLI Equivalent | MCP Tool | Action Values |
+| -------------- | -------- | ------------- |
+| `zeno init` | `project_action` | `init`, `status` |
+| `zeno status` | `project_action` | `init`, `status` |
+| `zeno gates *` | `gates_action` | `list`, `show`, `create`, `generate`, `start`, `complete`, `regenerate` |
+| `zeno proposal *` | `proposal_action` | `list`, `show`, `create`, `generate`, `validate`, `approve`, `reject`, `start`, `progress` |
+| `zeno req *` | `req_action` | `list`, `show`, `deps`, `transfer` |
+| `zeno repos *` | `repos_action` | `list`, `detect`, `deps`, `adjust` |
+| `zeno gates complete` + archive | `archive_action` | `gate`, `batch` |
+| `zeno arch *` | `diagram_action` | *(see tool schema)* |
+| `zeno show <hash>` | `show_entity` | — |
+| `config_get()` in skills | `config_get` | — |
+
+**Validator functions** (called by handlers; not invoked directly):
+
+| Validator | Purpose |
+| --------- | ------- |
+| `validateApplyPhase` | Enforces apply-phase constraints |
+| `validateQuality` | Code coverage, CVEs, linting |
+| `validateDependencies` | Blocks on unresolved dependencies |
+| `validateProposalPhases` | Verifies RED/GREEN phase ordering |
+| `validateScope` | Checks changes are within declared scope |
+| `validateTestFirstPattern` | Enforces test-first design |
+| `validateArtifact` | Checks artifact structure and completeness |
 
 ## Proposal Development Best Practices
 

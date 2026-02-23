@@ -30,6 +30,8 @@ import { normalizeGateId, normalizeHash } from '../utils/normalize.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
+import { archiveCompletedGateInState } from '../utils/state-sync.js'
+import { readProjectOverview } from '../utils/config.js'
 
 
 
@@ -464,6 +466,26 @@ export async function completeGate(
   } catch (error) {
     logger.warn(`Failed to update PROJECT_PRD.md: ${String(error)}`)
     // Don't fail the completion if PRD update fails
+  }
+
+  // Sync gate completion to state.json (backup/traceability archive)
+  // state.json serves as a historical snapshot of gate progress
+  try {
+    const overview = await readProjectOverview(projectRoot)
+    const gateInfo = overview.completedGates.find((g) => g.name === gate.name) ?? {
+      sequence: 0,
+      hash: '#unknown',
+    }
+    await archiveCompletedGateInState(
+      gateId,
+      gate.name,
+      gateInfo.sequence ?? 0,
+      gateInfo.hash ?? '#unknown',
+      projectRoot
+    )
+  } catch (error) {
+    logger.warn(`Failed to archive gate in state.json: ${String(error)}`)
+    // Don't fail the completion if state sync fails
   }
 
   // Lifecycle completion detection: after marking this gate completed, if there

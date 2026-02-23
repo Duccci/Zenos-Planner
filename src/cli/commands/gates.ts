@@ -24,6 +24,8 @@ import {
   regenerateGatesWithAnalysis,
   regenerateGatesTheoreticalFromProject,
 } from '../../core/gate-generator.js'
+import { updateCurrentGateInState } from '../../utils/state-sync.js'
+import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 
 /**
  * Gate status type
@@ -135,6 +137,15 @@ export function registerGatesCommands(program: Command): void {
     .option('--status <status>', 'Filter by status (pending, in_progress, completed)')
     .action(async (options: { verbose?: boolean; status?: string }) => {
       try {
+        // Sync database gates to project-overview.json first
+        try {
+          await syncGatesToProjectOverview()
+        } catch (error) {
+          logger.debug(
+            `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
+
         let gates: GateRecord[] = []
 
         try {
@@ -239,6 +250,15 @@ export function registerGatesCommands(program: Command): void {
     .description('Show gate details')
     .action(async (gateId: string) => {
       try {
+        // Sync database gates to project-overview.json first
+        try {
+          await syncGatesToProjectOverview()
+        } catch (error) {
+          logger.debug(
+            `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
+
         const gate = await getGate(gateId)
 
         if (!gate) {
@@ -348,6 +368,25 @@ export function registerGatesCommands(program: Command): void {
         overview.currentGate = gate.id
         await saveProjectOverview(overview)
 
+        // Sync gate start to state.json
+        try {
+          await updateCurrentGateInState(gate.id, gate.name, gate.sequence, gate.hash)
+        } catch (error) {
+          logger.warn(
+            `Failed to sync gate start to state.json: ${error instanceof Error ? error.message : String(error)}`
+          )
+          // Don't fail the start if state sync fails
+        }
+
+        // Sync gate change back to project-overview.json
+        try {
+          await syncGatesToProjectOverview()
+        } catch (error) {
+          logger.debug(
+            `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
+
         logger.info(`\nGate ${gate.id} started successfully!\n`)
         logger.info('Next steps:')
         logger.info(`  1. Review gate PRD in zeno/gates/${gate.id}-*.md`)
@@ -419,6 +458,15 @@ export function registerGatesCommands(program: Command): void {
       }
 
       logger.info('Gate completion summary: All requirements implemented and tested')
+
+      // Sync completed gate back to project-overview.json
+      try {
+        await syncGatesToProjectOverview()
+      } catch (error) {
+        logger.debug(
+          `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
     })
 
   gatesCmd
@@ -426,6 +474,15 @@ export function registerGatesCommands(program: Command): void {
     .description('Regenerate future gates (automatically uses analysis data if available)')
     .action(async () => {
       logger.info('Regenerating gates...')
+
+      // Sync database gates to project-overview.json first to ensure we have current data
+      try {
+        await syncGatesToProjectOverview()
+      } catch (error) {
+        logger.debug(
+          `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
 
       // Get most recently completed gate from project-overview.json
       let recentGate: { id: string; name: string; completed_at?: string } | undefined

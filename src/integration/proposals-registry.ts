@@ -90,7 +90,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         {
           name: 'status',
           type: 'string',
-          description: 'Optional status filter: pending, in_progress, completed, rejected',
+          description: 'Optional status filter: pending, in_progress, completed, rejected, cancelled, backlog',
           required: false,
         },
       ],
@@ -101,6 +101,52 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         skip: z.number().int().min(0).default(0),
         take: z.number().int().min(1).max(100).default(50),
       }),
+    }
+  )
+
+  registry.register(
+    'proposal_cancel',
+    async (params) => {
+      const validated = z.object({ hash: z.string(), reason: z.string().optional() }).parse(params)
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
+      if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
+      const previousStatus = proposal['status'] as string
+      db.prepare("UPDATE proposals SET status = 'cancelled', updated_at = ? WHERE hash = ?").run(new Date().toISOString(), proposal['hash'] as string)
+      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'cancelled', cancelledAt: new Date().toISOString(), reason: validated.reason }
+    },
+    {
+      description: 'Cancel a proposal (mark as cancelled/dropped)',
+      parameters: [
+        { name: 'hash', type: 'string', description: 'Proposal hash', required: true },
+        { name: 'reason', type: 'string', description: 'Optional reason for cancellation', required: false },
+      ],
+      returnType: 'ProposalCancelOutput',
+      schema: z.object({ hash: z.string(), reason: z.string().optional() }),
+    }
+  )
+
+  registry.register(
+    'proposal_defer',
+    async (params) => {
+      const validated = z.object({ hash: z.string(), reason: z.string().optional() }).parse(params)
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
+      if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
+      const previousStatus = proposal['status'] as string
+      db.prepare("UPDATE proposals SET status = 'backlog', updated_at = ? WHERE hash = ?").run(new Date().toISOString(), proposal['hash'] as string)
+      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'backlog', deferredAt: new Date().toISOString(), reason: validated.reason }
+    },
+    {
+      description: 'Defer a proposal to backlog (off main implementation path, revisit later)',
+      parameters: [
+        { name: 'hash', type: 'string', description: 'Proposal hash', required: true },
+        { name: 'reason', type: 'string', description: 'Optional reason for deferral', required: false },
+      ],
+      returnType: 'ProposalDeferOutput',
+      schema: z.object({ hash: z.string(), reason: z.string().optional() }),
     }
   )
 

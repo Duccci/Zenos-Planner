@@ -28,6 +28,8 @@ export interface ProposalGenerateOutput {
     type: 'gate-tied' | 'solitary'
     status: string
     summary: string
+    phase?: 'RED' | 'GREEN' | 'Test Refinement'
+    coverageTarget?: number
   }[]
   dependencies?: {
     from: string
@@ -124,6 +126,12 @@ export async function generateProposals(
 
     // Sync newly written proposal files into the DB so that subsequent
     // proposal_show / proposal_list calls see them immediately.
+    // Validate RED/GREEN guardrails
+    const guardrailErrors = validateRedGreenGuardrails(proposals)
+    if (guardrailErrors.length > 0) {
+      logger.warn('RED/GREEN guardrail validation warnings', { guardrailErrors })
+    }
+
     try {
       const { syncProposalsFromDisk } = await import('../storage/proposal-sync.js')
       const { getDatabase } = await import('../storage/database.js')
@@ -148,6 +156,61 @@ export async function generateProposals(
       'PROPOSAL_GENERATION_FAILED'
     )
   }
+}
+
+/**
+ * Validate that RED/GREEN design principles are followed.
+ * GREEN phase proposals should not introduce new test files.
+ * Test Refinement proposal should exist as the final proposal.
+ */
+function validateRedGreenGuardrails(
+  proposals: {
+    hash: string
+    phase?: string
+    filename?: string
+  }[]
+): string[] {
+  const errors: string[] = []
+
+  // Check that test refinement is the last proposal
+  const testRefinementIndex = proposals.findIndex((p) => p.phase === 'Test Refinement')
+  if (testRefinementIndex >= 0) {
+    if (testRefinementIndex !== proposals.length - 1) {
+      errors.push(
+        'Test Refinement proposal must be the last proposal in the gate (after all GREEN proposals)'
+      )
+    }
+  }
+
+  // Check that GREEN proposals don't appear before RED proposals
+  const redProposals = proposals.filter((p) => p.phase === 'RED')
+  const greenProposals = proposals.filter((p) => p.phase === 'GREEN')
+
+  if (redProposals.length > 0 && greenProposals.length > 0) {
+    const firstRedIndex = proposals.findIndex((p) => p.phase === 'RED')
+    const firstGreenIndex = proposals.findIndex((p) => p.phase === 'GREEN')
+
+    if (firstGreenIndex >= 0 && firstRedIndex >= 0 && firstGreenIndex < firstRedIndex) {
+      errors.push('GREEN (implementation) proposals must come after RED (test) proposals')
+    }
+
+    // Check that RED and GREEN are interleaved properly (RED[i] before GREEN[i])
+    for (let i = 0; i < redProposals.length && i < greenProposals.length; i++) {
+      const redProposal = redProposals[i]
+      const greenProposal = greenProposals[i]
+
+      if (redProposal && greenProposal) {
+        const redIndex = proposals.indexOf(redProposal)
+        const greenIndex = proposals.indexOf(greenProposal)
+
+        if (redIndex >= 0 && greenIndex >= 0 && greenIndex < redIndex) {
+          errors.push(`GREEN proposal ${i + 1} must come after corresponding RED proposal ${i + 1}`)
+        }
+      }
+    }
+  }
+
+  return errors
 }
 
 // Helper functions moved to `proposal-parser.ts` and `proposal-writer.ts`

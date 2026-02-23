@@ -33,11 +33,13 @@ Mark each step as in-progress, then completed immediately after finishing.
 10. **Validate structure** - Verify hash, status, requirements, no circular dependencies
 11. **Output summary** - Show gate sequence, dependencies, end state
 
-**Status Reference**
+**Status Reference** (enforced at MCP handler level)
 
-- Gate: pending, in_progress, completed, rejected
+- Gate transitions: `pending → in_progress` — triggered by `gates_action: start`. MCP validates preconditions; invalid transitions return a structured error with valid next actions. // See MCP: gate-tools.ts#validators.start, entity-action-handler.ts#createStateTransitionValidator
+- Gate status: pending, in_progress, completed, rejected
 - Requirement: pending, implemented, tested
 - Proposal: pending, in_progress, completed, rejected
+- Full state machine: `zeno/architecture/mcp-workflows.md`
 
 **Reference**
 
@@ -256,13 +258,15 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
     To start work on first gate: `zeno gates start gate-01`
     ```
 
-**Status Values Reference**
+**Status Values Reference** (state transitions enforced at MCP handler layer)
 
 | Entity      | Status Values                             | Notes                                       |
 | ----------- | ----------------------------------------- | ------------------------------------------- |
-| Gate        | pending, in_progress, completed, rejected | Set by `zeno gates start/complete`          |
+| Gate        | pending, in_progress, completed, rejected | `gates_action: start/complete` via MCP; state checked before execution // See MCP: gate-tools.ts#validators |
 | Requirement | pending, implemented, tested              | Set by `zeno req status`                    |
-| Proposal    | pending, in_progress, completed, rejected | Set by `zeno proposal start/approve/reject` |
+| Proposal    | pending, in_progress, completed, rejected | `proposal_action: start/approve/reject` via MCP; state checked before execution // See MCP: proposal-tools.ts#validators |
+
+Full state machine docs: `zeno/architecture/mcp-workflows.md`
 
 **Rebaseline Scenarios**
 

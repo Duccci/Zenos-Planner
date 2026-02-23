@@ -195,6 +195,32 @@ export const ProposalStartOutputSchema = z.object({
 export type ProposalStartOutput = z.infer<typeof ProposalStartOutputSchema>
 
 // ============================================================================
+// PROPOSAL_CANCEL - Cancel a proposal (divergent/dropped)
+// ============================================================================
+
+export const ProposalCancelOutputSchema = z.object({
+  hash: ProposalHashSchema,
+  previousStatus: ProposalStatusEnum,
+  newStatus: z.literal('cancelled'),
+  cancelledAt: TimestampSchema,
+  reason: z.string().optional(),
+})
+export type ProposalCancelOutput = z.infer<typeof ProposalCancelOutputSchema>
+
+// ============================================================================
+// PROPOSAL_DEFER - Defer a proposal to backlog (off main path, revisit later)
+// ============================================================================
+
+export const ProposalDeferOutputSchema = z.object({
+  hash: ProposalHashSchema,
+  previousStatus: ProposalStatusEnum,
+  newStatus: z.literal('backlog'),
+  deferredAt: TimestampSchema,
+  reason: z.string().optional(),
+})
+export type ProposalDeferOutput = z.infer<typeof ProposalDeferOutputSchema>
+
+// ============================================================================
 // ERROR RESPONSES
 // ============================================================================
 

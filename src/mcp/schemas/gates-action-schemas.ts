@@ -14,6 +14,8 @@ import {
   GatesStartOutputSchema,
   GatesCompleteOutputSchema,
   GatesRegenerateOutputSchema,
+  GatesCancelOutputSchema,
+  GatesDeferOutputSchema,
 } from './gate-schemas.js'
 import { GateCreateOutputSchema } from './gate-create-schemas.js'
 import { GateGenerateOutputSchema } from './workflow-schemas.js'
@@ -32,7 +34,7 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  */
 export const GatesActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate'])
+    .enum(['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate', 'cancel', 'defer'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -42,7 +44,9 @@ export const GatesActionInputSchema = z.object({
         'generate=generate from requirements (optional: mode, anchorGateId). ' +
         'start=begin gate work, pending→in_progress (needs: gateId). ' +
         'complete=finish gate (needs: gateId). ' +
-        'regenerate=rebuild future gates after rescope (optional: fromGateId, mode).'
+        'regenerate=rebuild future gates after rescope (optional: fromGateId, mode). ' +
+        'cancel=mark gate as cancelled/dropped (needs: gateId; optional: notes as reason). ' +
+        'defer=move gate to backlog for later implementation (needs: gateId; optional: notes as reason).'
     ),
 
   // --- shared identifier ---
@@ -53,7 +57,7 @@ export const GatesActionInputSchema = z.object({
 
   // --- list filters ---
   status: z
-    .enum(['pending', 'in_progress', 'completed', 'archived'])
+    .enum(['pending', 'in_progress', 'completed', 'archived', 'cancelled', 'backlog'])
     .optional()
     .describe('Filter gates by status (list action)'),
   skip: z.number().int().min(0).optional().describe('Pagination offset (list, default 0)'),
@@ -146,6 +150,16 @@ export const GatesActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('regenerate'),
     result: GatesRegenerateOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('cancel'),
+    result: GatesCancelOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('defer'),
+    result: GatesDeferOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
 ])

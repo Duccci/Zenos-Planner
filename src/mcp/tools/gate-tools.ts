@@ -4,6 +4,20 @@ import {
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
+import { createStateTransitionValidator } from './entity-action-handler.js'
+
+/** Valid gate statuses */
+type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
+
+/** Full gate state transition map — used for helpful error messages */
+const GATE_TRANSITIONS: Partial<Record<GateStatus, GateStatus[]>> = {
+  pending: ['in_progress'],
+  in_progress: ['completed', 'rejected', 'cancelled', 'backlog'],
+  rejected: ['in_progress'],
+  completed: [],
+  cancelled: [],
+  backlog: ['in_progress'],
+}
 
 /**
  * Unified gate action tool definition.
@@ -31,6 +45,8 @@ import {
   GatesStartOutputSchema,
   GatesCompleteOutputSchema,
   GatesRegenerateOutputSchema,
+  GatesCancelOutputSchema,
+  GatesDeferOutputSchema,
 } from '../schemas/gate-schemas.js'
 import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
 import { GateGenerateOutputSchema } from '../schemas/workflow-schemas.js'
@@ -43,7 +59,7 @@ export function gateHandlers(
   const gateActionHandler = createEntityActionHandler(
     {
       entity: 'gate',
-      actions: ['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate'] as const,
+      actions: ['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate', 'cancel', 'defer'] as const,
       inputSchema: GatesActionInputSchema,
       outputSchema: GatesActionOutputSchema,
       actionOutputSchema(action) {
@@ -62,6 +78,10 @@ export function gateHandlers(
             return GatesCompleteOutputSchema
           case 'regenerate':
             return GatesRegenerateOutputSchema
+          case 'cancel':
+            return GatesCancelOutputSchema
+          case 'defer':
+            return GatesDeferOutputSchema
           default:
             throw new Error(`Unknown gate action: ${String(action)}`)
         }
@@ -71,11 +91,52 @@ export function gateHandlers(
         show: async (payload, r) => r.invoke('gates_show', payload),
         create: async (payload, r) => r.invoke('gate_create', payload),
         generate: async (payload, r) => r.invoke('generateGates', payload),
-        start: async (payload, r) => r.invoke('gates_start', payload),
-        complete: async (payload, r) => r.invoke('gates_complete', payload),
+        start: async (payload, r) => {
+          // Idempotent: if gate is already in_progress, return success without re-invoking CLI
+          const gateId = (payload as { gateId?: string }).gateId ?? ''
+          const showResult = await r.invoke('gates_show', { gateId })
+          if (showResult.success) {
+            const currentStatus = (showResult.data as { status?: string }).status
+            if (currentStatus === 'in_progress') {
+              return { success: true, data: { gateId, status: 'in_progress', message: 'Gate already in progress (no-op)' } }
+            }
+          }
+          return r.invoke('gates_start', payload)
+        },
+        complete: async (payload, r) => {
+          // Idempotent: if gate is already completed, return success without re-invoking CLI
+          const gateId = (payload as { gateId?: string }).gateId ?? ''
+          const showResult = await r.invoke('gates_show', { gateId })
+          if (showResult.success) {
+            const currentStatus = (showResult.data as { status?: string }).status
+            if (currentStatus === 'completed') {
+              return { success: true, data: { gateId, status: 'completed', message: 'Gate already completed (no-op)' } }
+            }
+          }
+          return r.invoke('gates_complete', payload)
+        },
         regenerate: async (payload, r) => r.invoke('gates_regenerate', payload),
+        cancel: async (payload, r) => r.invoke('gate_cancel', payload),
+        defer: async (payload, r) => r.invoke('gate_defer', payload),
       },
       validators: {
+        start: (_payload, r) => [
+          // Enforce state transition: only pending (or rejected) gates can be started
+          // See MCP: entity-action-handler.ts#createStateTransitionValidator
+          createStateTransitionValidator<GateStatus>({
+            getCurrentStatus: async () => {
+              const gateId = (_payload as { gateId?: string }).gateId ?? ''
+              const result = await r.invoke('gates_show', { gateId })
+              if (!result.success) return null
+              const status = (result.data as { status?: string }).status as GateStatus | undefined
+              return status ?? null
+            },
+            targetStatus: 'in_progress',
+            validFromStatuses: ['pending', 'rejected'],
+            allTransitions: GATE_TRANSITIONS,
+            entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
+          }),
+        ],
         create: (_payload, r) => [
           async () => {
             const allErrors: string[] = []
@@ -146,6 +207,21 @@ export function gateHandlers(
           },
         ],
         complete: (_payload, r) => [
+          // Enforce state transition: only in_progress gates can be completed
+          // See MCP: entity-action-handler.ts#createStateTransitionValidator
+          createStateTransitionValidator<GateStatus>({
+            getCurrentStatus: async () => {
+              const gateId = (_payload as { gateId?: string }).gateId ?? ''
+              const result = await r.invoke('gates_show', { gateId })
+              if (!result.success) return null
+              const status = (result.data as { status?: string }).status as GateStatus | undefined
+              return status ?? null
+            },
+            targetStatus: 'completed',
+            validFromStatuses: ['in_progress'],
+            allTransitions: GATE_TRANSITIONS,
+            entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
+          }),
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []

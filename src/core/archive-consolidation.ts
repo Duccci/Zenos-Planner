@@ -60,7 +60,29 @@ export function prepareArchiveContent(
   timestamp?: string
 ): string {
   const ts = timestamp ?? new Date().toISOString()
-  let updatedContent = originalContent
+  const completedDate = ts.split('T')[0] // Extract date portion (YYYY-MM-DD)
+  
+  // Update Status from in_progress/pending to completed
+  let updatedContent = originalContent.replace(
+    /\*\*Status\*\*:\s*(pending|in_progress|completed|rejected)/,
+    '**Status**: completed'
+  )
+  
+  // Add/update Completed date if not already present
+  if (!updatedContent.includes('**Completed**:')) {
+    // Insert Completed date after Status line
+    updatedContent = updatedContent.replace(
+      /(\*\*Status\*\*: completed)/,
+      `$1\n**Completed**: ${completedDate}`
+    )
+  } else {
+    // Update existing Completed date
+    updatedContent = updatedContent.replace(
+      /\*\*Completed\*\*: \d{4}-\d{2}-\d{2}/,
+      `**Completed**: ${completedDate}`
+    )
+  }
+  
   updatedContent += '\n\n## Archive Summary\n\n'
   updatedContent += `**Archived**: ${ts}\n`
   updatedContent += `**Completion Notes**: ${completionNotes ?? 'None'}\n\n`

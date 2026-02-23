@@ -238,6 +238,56 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     }
   )
 
+  registry.register(
+    'gate_cancel',
+    async (params) => {
+      const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
+      const { getDatabase } = await import('../storage/database.js')
+      const { normalizeGateId } = await import('../utils/normalize.js')
+      const db = getDatabase()
+      const normalizedId = normalizeGateId(validated.gateId)
+      const gate = db.prepare('SELECT id, status FROM gates WHERE id = ?').get(normalizedId) as Record<string, unknown> | undefined
+      if (!gate) throw new Error(`Gate not found: ${validated.gateId}`)
+      const previousStatus = gate['status'] as string
+      db.prepare('UPDATE gates SET status = ?, updated_at = ? WHERE id = ?').run('cancelled', new Date().toISOString(), normalizedId)
+      return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt: new Date().toISOString(), reason: validated.reason }
+    },
+    {
+      description: 'Cancel a gate (mark as cancelled/dropped from roadmap)',
+      parameters: [
+        { name: 'gateId', type: 'string', description: 'The ID of the gate to cancel', required: true },
+        { name: 'reason', type: 'string', description: 'Optional reason for cancellation', required: false },
+      ],
+      returnType: 'GatesCancelOutput',
+      schema: z.object({ gateId: z.string(), reason: z.string().optional() }),
+    }
+  )
+
+  registry.register(
+    'gate_defer',
+    async (params) => {
+      const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
+      const { getDatabase } = await import('../storage/database.js')
+      const { normalizeGateId } = await import('../utils/normalize.js')
+      const db = getDatabase()
+      const normalizedId = normalizeGateId(validated.gateId)
+      const gate = db.prepare('SELECT id, status FROM gates WHERE id = ?').get(normalizedId) as Record<string, unknown> | undefined
+      if (!gate) throw new Error(`Gate not found: ${validated.gateId}`)
+      const previousStatus = gate['status'] as string
+      db.prepare('UPDATE gates SET status = ?, updated_at = ? WHERE id = ?').run('backlog', new Date().toISOString(), normalizedId)
+      return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt: new Date().toISOString(), reason: validated.reason }
+    },
+    {
+      description: 'Defer a gate to backlog (off main implementation path, revisit later)',
+      parameters: [
+        { name: 'gateId', type: 'string', description: 'The ID of the gate to defer', required: true },
+        { name: 'reason', type: 'string', description: 'Optional reason for deferral', required: false },
+      ],
+      returnType: 'GatesDeferOutput',
+      schema: z.object({ gateId: z.string(), reason: z.string().optional() }),
+    }
+  )
+
   // Gate creation
 
   registry.register(

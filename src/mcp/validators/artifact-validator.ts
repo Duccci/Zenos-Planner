@@ -249,9 +249,9 @@ function validateGateArtifact(context: ArtifactValidationContext): ValidationRes
   }
 
   // Check 2: Valid Status field
-  if (!/\*\*Status\*\*:\s*(pending|in_progress|completed|rejected|archived)/i.test(content)) {
+  if (!/\*\*Status\*\*:\s*(pending|in_progress|completed|rejected|archived|cancelled|backlog)/i.test(content)) {
     errors.push(
-      'Gate Status field missing or invalid (expected **Status**: one of pending|in_progress|completed|rejected|archived)'
+      'Gate Status field missing or invalid (expected **Status**: one of pending|in_progress|completed|rejected|archived|cancelled|backlog)'
     )
   }
 

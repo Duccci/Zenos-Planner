@@ -30,8 +30,8 @@ export function registerStatusCommand(program: Command): void {
         // Check database for active gates
         const db = getDatabase()
         const activeGates = db
-          .prepare('SELECT * FROM gates WHERE status != ? ORDER BY sequence')
-          .all('completed') as {
+          .prepare("SELECT * FROM gates WHERE status NOT IN ('completed', 'cancelled', 'backlog') ORDER BY sequence")
+          .all() as {
           id: string
           name: string
           status: string
@@ -44,6 +44,72 @@ export function registerStatusCommand(program: Command): void {
           }
         } else {
           logger.info('No active gates found.')
+        }
+
+        // Check cancelled gates
+        const cancelledGates = db
+          .prepare("SELECT * FROM gates WHERE status = 'cancelled' ORDER BY sequence")
+          .all() as {
+          id: string
+          name: string
+          status: string
+        }[]
+
+        if (cancelledGates.length > 0) {
+          logger.info('Cancelled Gates:')
+          for (const gate of cancelledGates) {
+            logger.info(`  ${gate.id}: ${gate.name} (cancelled)`)
+          }
+        }
+
+        // Check backlog gates
+        const backlogGates = db
+          .prepare("SELECT * FROM gates WHERE status = 'backlog' ORDER BY sequence")
+          .all() as {
+          id: string
+          name: string
+          status: string
+        }[]
+
+        if (backlogGates.length > 0) {
+          logger.info('Backlog Gates (deferred):')
+          for (const gate of backlogGates) {
+            logger.info(`  ${gate.id}: ${gate.name} (backlog)`)
+          }
+        }
+
+        // Check cancelled proposals
+        const cancelledProposals = db
+          .prepare("SELECT id, gate_id, title, hash FROM proposals WHERE status = 'cancelled' ORDER BY created_at DESC")
+          .all() as {
+          id: string
+          gate_id: string | null
+          title: string
+          hash: string
+        }[]
+
+        if (cancelledProposals.length > 0) {
+          logger.info('Cancelled Proposals:')
+          for (const proposal of cancelledProposals) {
+            logger.info(`  #${proposal.hash.slice(0, 8)} [${proposal.gate_id ?? 'solitary'}] ${proposal.title}`)
+          }
+        }
+
+        // Check backlog proposals
+        const backlogProposals = db
+          .prepare("SELECT id, gate_id, title, hash FROM proposals WHERE status = 'backlog' ORDER BY created_at DESC")
+          .all() as {
+          id: string
+          gate_id: string | null
+          title: string
+          hash: string
+        }[]
+
+        if (backlogProposals.length > 0) {
+          logger.info('Backlog Proposals (deferred):')
+          for (const proposal of backlogProposals) {
+            logger.info(`  #${proposal.hash.slice(0, 8)} [${proposal.gate_id ?? 'solitary'}] ${proposal.title}`)
+          }
         }
 
         // Check archived gates

@@ -79,7 +79,7 @@ export const GateDetailSchema = z.object({
     z.object({
       hash: z.string(),
       title: z.string(),
-      status: z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected']),
+      status: z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog']),
       tasksCompleted: z.number().int().min(0),
       totalTasks: z.number().int().min(0),
     })
@@ -158,6 +158,32 @@ export const GatesRegenerateOutputSchema = z.object({
   }).optional()
 })
 export type GatesRegenerateOutput = z.infer<typeof GatesRegenerateOutputSchema>
+
+// ============================================================================
+// GATES_CANCEL - Cancel a gate (divergent/dropped from roadmap)
+// ============================================================================
+
+export const GatesCancelOutputSchema = z.object({
+  gateId: GateIdSchema,
+  previousStatus: GateStatusEnum,
+  newStatus: z.literal('cancelled'),
+  cancelledAt: TimestampSchema,
+  reason: z.string().optional(),
+})
+export type GatesCancelOutput = z.infer<typeof GatesCancelOutputSchema>
+
+// ============================================================================
+// GATES_DEFER - Defer a gate to backlog (off main path, revisit later)
+// ============================================================================
+
+export const GatesDeferOutputSchema = z.object({
+  gateId: GateIdSchema,
+  previousStatus: GateStatusEnum,
+  newStatus: z.literal('backlog'),
+  deferredAt: TimestampSchema,
+  reason: z.string().optional(),
+})
+export type GatesDeferOutput = z.infer<typeof GatesDeferOutputSchema>
 
 // ============================================================================
 // ERROR RESPONSES

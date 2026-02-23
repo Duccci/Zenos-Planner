@@ -126,7 +126,7 @@ export function registerProposalCommands(program: Command): void {
     .command('list')
     .description('List proposals')
     .option('--gate <gate-id>', 'Filter by gate')
-    .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected)')
+    .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected/cancelled/backlog)')
     .action((options: { gate?: string; status?: string }) => {
       const proposals = listProposalsFromDb(options.gate, options.status)
 
@@ -142,7 +142,11 @@ export function registerProposalCommands(program: Command): void {
             ? 'COMPLETED'
             : proposal.status === 'rejected'
               ? 'REJECTED'
-              : 'PENDING'
+              : proposal.status === 'cancelled'
+                ? 'CANCELLED'
+                : proposal.status === 'backlog'
+                  ? 'BACKLOG'
+                  : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
         logger.info(`  Gate: ${proposal.gate_id ?? 'solitary'}, Created: ${proposal.created_at}`)
       }

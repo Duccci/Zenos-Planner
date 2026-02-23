@@ -16,7 +16,7 @@ import { z } from 'zod'
  * - completed: All requirements tested, gate approved
  * - rejected: Gate rejected during review
  */
-export const GateStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected'])
+export const GateStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog'])
 export type GateStatus = z.infer<typeof GateStatusEnum>
 
 /**
@@ -26,7 +26,7 @@ export type GateStatus = z.infer<typeof GateStatusEnum>
  * - completed: Implementation done and integrated at gate completion
  * - rejected: Proposal rejected during review
  */
-export const ProposalStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected'])
+export const ProposalStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog'])
 export type ProposalStatus = z.infer<typeof ProposalStatusEnum>
 
 /**

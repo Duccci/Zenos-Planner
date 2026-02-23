@@ -8,54 +8,98 @@
   "completedGates": [
     {
       "sequence": 1,
-      "name": "Core Infrastructure",
-      "hash": "#g01coreinfra",
+      "name": "Gate 01: Core Infrastructure",
+      "hash": "g01c0re1nfra",
       "completedAt": "2026-01-28",
       "status": "completed"
     },
     {
       "sequence": 2,
-      "name": "Zeno Engine & Gate Generation",
-      "hash": "#g02zenoeng",
+      "name": "Gate 02: Zeno Engine & Gate Generation",
+      "hash": "g02zenoeng",
       "completedAt": "2026-01-30",
       "status": "completed"
     },
     {
       "sequence": 3,
-      "name": "MCP Server & LLM Tool Integration",
-      "hash": "#g03mcpserver",
+      "name": "Gate 03: MCP Server & LLM Tool Integration",
+      "hash": "g03mcpserver",
       "completedAt": "2026-02-04",
       "status": "completed"
     },
     {
       "sequence": 4,
-      "name": "Requirements & Database Layer",
-      "hash": "#g04reqdb01",
+      "name": "Gate 04: Requirements & Database Layer",
+      "hash": "g04reqdb01",
       "completedAt": "2026-02-07",
+      "status": "completed"
+    },
+    {
+      "sequence": 5,
+      "name": "Gate 05: Architecture & Diagram Generation",
+      "hash": "g05archdiag",
+      "completedAt": "2026-02-21",
       "status": "completed"
     }
   ],
   "currentGateInfo": {
-    "sequence": 5,
-    "name": "Architecture & Diagram Generation",
-    "hash": "#g05archdiag",
+    "sequence": 6,
+    "name": "Gate 06: Multi-Repo & Subproject Detection",
+    "hash": "#gate06",
     "status": "pending",
     "estimatedComplexity": "high"
   },
   "upcomingGates": [
     {
-      "sequence": 6,
-      "name": "Multi-Repo & Subproject Detection",
+      "sequence": 7,
+      "name": "Gate 07: Proposal Generation & Management",
       "estimatedComplexity": "high"
     },
     {
-      "sequence": 7,
-      "name": "Proposal Generation & Management",
+      "sequence": 8,
+      "name": "Gate 08: Automated Validation & Quality Gates",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 9,
+      "name": "Gate 09: Human Approval & Rejection Workflow",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 10,
+      "name": "Gate 10: Git Integration & Commit Automation",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 11,
+      "name": "Gate 11: Rescope & Replan Engine",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 12,
+      "name": "Gate 12: Dashboard & Visualization",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 13,
+      "name": "Gate 13: Subagent Orchestration & Parallel Execution",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 14,
+      "name": "Gate 14: Documentation & Polish",
       "estimatedComplexity": "high"
     }
   ],
   "architecture": {
-    "layers": ["CLI", "Core", "Analysis", "Generation", "Integration", "Storage"],
+    "layers": [
+      "CLI",
+      "Core",
+      "Analysis",
+      "Generation",
+      "Integration",
+      "Storage"
+    ],
     "keyDependencies": {
       "@babel/parser": "^7.26.3",
       "@babel/traverse": "^7.26.5",

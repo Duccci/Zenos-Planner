@@ -51,8 +51,18 @@ export function parseJsonSafe(input: unknown): unknown {
 export function createSchemaValidatingHandler(
   registry: FunctionRegistry,
   functionName: string,
-  outputSchema: ZodType
+  outputSchema: ZodType | undefined
 ): (args: Record<string, unknown>) => Promise<CallToolResult> {
+  if (!outputSchema) {
+    const errorMsg = `Cannot create handler for "${functionName}": outputSchema is undefined`
+    return () =>
+      Promise.resolve({
+        content: [{ type: 'text', text: JSON.stringify({ error: errorMsg }, null, 2) }],
+        structuredContent: { error: errorMsg },
+        isError: true,
+      })
+  }
+
   return async (args: Record<string, unknown>): Promise<CallToolResult> => {
     try {
       // If caller provided a mock result (useful for tests and local simulation),
@@ -229,8 +239,18 @@ export function extractMockResult(args: unknown): unknown {
  */
 export function handleMockResult(
   args: Record<string, unknown>,
-  schema: ZodType
+  schema: ZodType | undefined
 ): CallToolResult | null {
+  // Defensive check: schema must be defined to call .safeParse()
+  // Otherwise: "Cannot read properties of undefined (reading '_zod')" error
+  if (!schema) {
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ error: 'Output schema is undefined' }, null, 2) }],
+      structuredContent: { error: 'Output schema is undefined' },
+      isError: true,
+    }
+  }
+
   const raw = extractMockResult(args)
   if (raw === null) return null
 

@@ -155,32 +155,32 @@ Worktrees enable 4+ agents to work simultaneously on independent proposals witho
 
 | Command | Purpose | MCP Tool |
 |---------|---------|----------|
-| `zeno init` | Initialize project | `init_project` |
-| `zeno status` | Show project overview | `project_status` |
-| `zeno gates list` | List all gates | `gates_list` |
-| `zeno gates show <id>` | Show gate details | `gates_show` |
-| `zeno gates start <id>` | Start gate (generates requirements) | `gates_start` |
-| `zeno gates complete <id>` | Complete gate (commits work) | `gates_complete` |
-| `zeno req list [--gate <id>]` | List requirements (filtered) | `requirements_list` |
-| `zeno req show <hash>` | Show requirement details | `requirement_show` |
-| `zeno req deps <hash>` | Show requirement dependencies | `requirement_dependencies` |
-| `zeno req status <hash> <status>` | Update requirement status | `requirement_status_update` |
-| `zeno proposal list [--gate <id>]` | List proposals | `proposals_list` |
-| `zeno proposal show <hash>` | Show proposal details | `proposal_show` |
-| `zeno proposal start <hash>` | Start proposal (create worktree) | `proposal_start_with_worktree` |
-| `zeno proposal validate <hash>` | Run automated checks | `proposal_validate` |
-| `zeno proposal approve <hash>` | Approve + merge worktree | `proposal_approve` |
-| `zeno proposal reject <hash>` | Reject proposal | `proposal_reject` |
-| `zeno worktree list` | List active worktrees | `worktree_list` |
-| `zeno worktree prune` | Remove expired worktrees | `worktree_prune` |
-| `zeno worktree remove <hash>` | Manually delete worktree | `worktree_remove` |
-| `zeno worktree merge <hash>` | Merge worktree branch | `worktree_merge` |
-| `zeno repos list` | List detected repositories | `repositories_list` |
-| `zeno repos deps` | Show cross-repo dependencies | `repositories_dependencies` |
-| `zeno arch generate` | Generate architecture diagrams | `architecture_generate` |
-| `zeno arch show <type>` | Show specific diagram | `architecture_show` |
-| `zeno rescope` | Rescope project mid-development | `project_rescope` |
-| `zeno show <hash>` | Resolve hash to entity | `entity_show` |
+| `zeno init` | Initialize project | `project_action` (`init`) |
+| `zeno status` | Show project overview | `project_action` (`status`) |
+| `zeno gates list` | List all gates | `gates_action` (`list`) |
+| `zeno gates show <id>` | Show gate details | `gates_action` (`show`) |
+| `zeno gates start <id>` | Start gate (generates requirements) | `gates_action` (`start`) |
+| `zeno gates complete <id>` | Complete gate (commits work) | `gates_action` (`complete`) |
+| `zeno req list [--gate <id>]` | List requirements (filtered) | `req_action` (`list`) |
+| `zeno req show <hash>` | Show requirement details | `req_action` (`show`) |
+| `zeno req deps <hash>` | Show requirement dependencies | `req_action` (`deps`) |
+| `zeno req transfer <hash> <gate>` | Move requirement to different gate | `req_action` (`transfer`) |
+| `zeno proposal list [--gate <id>]` | List proposals | `proposal_action` (`list`) |
+| `zeno proposal show <hash>` | Show proposal details | `proposal_action` (`show`) |
+| `zeno proposal start <hash>` | Start proposal (create worktree) | `proposal_action` (`start`) |
+| `zeno proposal validate <hash>` | Run automated checks | `proposal_action` (`validate`) |
+| `zeno proposal approve <hash>` | Approve + merge worktree | `proposal_action` (`approve`) |
+| `zeno proposal reject <hash>` | Reject proposal | `proposal_action` (`reject`) |
+| `zeno worktree list` | List active worktrees | CLI only |
+| `zeno worktree prune` | Remove expired worktrees | CLI only |
+| `zeno worktree remove <hash>` | Manually delete worktree | CLI only |
+| `zeno worktree merge <hash>` | Merge worktree branch | CLI only |
+| `zeno repos list` | List detected repositories | `repos_action` (`list`) |
+| `zeno repos deps` | Show cross-repo dependencies | `repos_action` (`deps`) |
+| `zeno arch generate` | Generate architecture diagrams | `diagram_action` (`generate`) |
+| `zeno arch show <type>` | Show specific diagram | `diagram_action` (`show`) |
+| `zeno rescope` | Rescope project mid-development | CLI only |
+| `zeno show <hash>` | Resolve hash to entity | `show_entity` |
 
 ## Quality Thresholds (Non-Configurable)
 

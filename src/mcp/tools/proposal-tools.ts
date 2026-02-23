@@ -5,6 +5,8 @@ import {
   ProposalApproveOutputSchema,
   ProposalRejectOutputSchema,
   ProposalStartOutputSchema,
+  ProposalCancelOutputSchema,
+  ProposalDeferOutputSchema,
 } from '../schemas/proposal-schemas.js'
 import {
   ProposalGenerateOutputSchema,
@@ -17,6 +19,28 @@ import {
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
 import { type ZenoConfig } from '../../utils/config.js'
+import { createStateTransitionValidator } from './entity-action-handler.js'
+
+/** Valid proposal statuses */
+type ProposalStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled'
+  | 'backlog'
+  | 'archived'
+
+/** Full proposal state transition map — used for helpful error messages */
+const PROPOSAL_TRANSITIONS: Partial<Record<ProposalStatus, ProposalStatus[]>> = {
+  pending: ['in_progress', 'cancelled', 'backlog'],
+  in_progress: ['completed', 'rejected', 'cancelled', 'backlog'],
+  rejected: ['pending'],
+  completed: [],
+  cancelled: [],
+  backlog: ['pending'],
+  archived: [],
+}
 
 /**
  * Unified proposal action tool definition.
@@ -84,6 +108,8 @@ export function proposalHandlers(
         'reject',
         'start',
         'progress',
+        'cancel',
+        'defer',
       ] as const,
       inputSchema: ProposalActionInputSchema,
       outputSchema: ProposalActionOutputSchema,
@@ -107,6 +133,10 @@ export function proposalHandlers(
             return ProposalStartOutputSchema
           case 'progress':
             return ProposalUpdateProgressOutputSchema
+          case 'cancel':
+            return ProposalCancelOutputSchema
+          case 'defer':
+            return ProposalDeferOutputSchema
           default:
             throw new Error(`Unknown proposal action: ${String(action)}`)
         }
@@ -139,14 +169,65 @@ export function proposalHandlers(
           }
         },
         validate: async (payload, r) => r.invoke('proposal_validate', payload),
-        approve: async (payload, r) => r.invoke('proposal_approve', payload),
-        reject: async (payload, r) => r.invoke('proposal_reject', payload),
-        start: async (payload, r) => r.invoke('proposal_start', payload),
+        approve: async (payload, r) => {
+          // Idempotent: if already completed, return success without re-invoking CLI
+          const hash = (payload as { hash?: string }).hash ?? ''
+          const showResult = await r.invoke('proposal_show', { hash })
+          if (showResult.success) {
+            const currentStatus = (showResult.data as { status?: string }).status
+            if (currentStatus === 'completed') {
+              return { success: true, data: { hash, status: 'completed', message: 'Proposal already completed (no-op)' } }
+            }
+          }
+          return r.invoke('proposal_approve', payload)
+        },
+        reject: async (payload, r) => {
+          // Idempotent: if already rejected, return success without re-invoking CLI
+          const hash = (payload as { hash?: string }).hash ?? ''
+          const showResult = await r.invoke('proposal_show', { hash })
+          if (showResult.success) {
+            const currentStatus = (showResult.data as { status?: string }).status
+            if (currentStatus === 'rejected') {
+              return { success: true, data: { hash, status: 'rejected', message: 'Proposal already rejected (no-op)' } }
+            }
+          }
+          return r.invoke('proposal_reject', payload)
+        },
+        start: async (payload, r) => {
+          // Idempotent: if already in_progress, return success without re-invoking CLI
+          const hash = (payload as { hash?: string }).hash ?? ''
+          const showResult = await r.invoke('proposal_show', { hash })
+          if (showResult.success) {
+            const currentStatus = (showResult.data as { status?: string }).status
+            if (currentStatus === 'in_progress') {
+              return { success: true, data: { hash, status: 'in_progress', message: 'Proposal already in progress (no-op)' } }
+            }
+          }
+          return r.invoke('proposal_start', payload)
+        },
         progress: async (payload, r) => r.invoke('updateProposalProgress', payload),
+        cancel: async (payload, r) => r.invoke('proposal_cancel', payload),
+        defer: async (payload, r) => r.invoke('proposal_defer', payload),
       },
 
       validators: {
         start: (payload, r) => [
+          // 1) Enforce state transition: only pending proposals can be started
+          // See MCP: entity-action-handler.ts#createStateTransitionValidator
+          createStateTransitionValidator<ProposalStatus>({
+            getCurrentStatus: async () => {
+              const hash = (payload as { hash?: string }).hash ?? ''
+              const result = await r.invoke('proposal_show', { hash })
+              if (!result.success) return null
+              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
+              return status ?? null
+            },
+            targetStatus: 'in_progress',
+            validFromStatuses: ['pending'],
+            allTransitions: PROPOSAL_TRANSITIONS,
+            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
+          }),
+          // 2) Apply-phase constraints (no git ops, files in scope)
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []
@@ -203,7 +284,23 @@ export function proposalHandlers(
             }
           },
         ],
-        approve: (_payload, _r) => [
+        approve: (payload, r) => [
+          // 1) Enforce state transition: only in_progress proposals can be approved
+          // See MCP: entity-action-handler.ts#createStateTransitionValidator
+          createStateTransitionValidator<ProposalStatus>({
+            getCurrentStatus: async () => {
+              const hash = (payload as { hash?: string }).hash ?? ''
+              const result = await r.invoke('proposal_show', { hash })
+              if (!result.success) return null
+              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
+              return status ?? null
+            },
+            targetStatus: 'completed',
+            validFromStatuses: ['in_progress'],
+            allTransitions: PROPOSAL_TRANSITIONS,
+            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
+          }),
+          // 2) Quality thresholds
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []
@@ -228,6 +325,23 @@ export function proposalHandlers(
               warnings: allWarnings.length > 0 ? allWarnings : undefined,
             }
           },
+        ],
+        reject: (payload, r) => [
+          // Enforce state transition: only in_progress proposals can be rejected
+          // See MCP: entity-action-handler.ts#createStateTransitionValidator
+          createStateTransitionValidator<ProposalStatus>({
+            getCurrentStatus: async () => {
+              const hash = (payload as { hash?: string }).hash ?? ''
+              const result = await r.invoke('proposal_show', { hash })
+              if (!result.success) return null
+              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
+              return status ?? null
+            },
+            targetStatus: 'rejected',
+            validFromStatuses: ['in_progress'],
+            allTransitions: PROPOSAL_TRANSITIONS,
+            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
+          }),
         ],
       },
     },

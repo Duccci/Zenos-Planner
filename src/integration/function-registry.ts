@@ -381,7 +381,7 @@ export const functionRegistry: FunctionDefinition[] = [
       {
         name: 'status',
         type: 'string',
-        description: 'Optional status filter: pending, in_progress, completed, rejected',
+        description: 'Optional status filter: pending, in_progress, completed, rejected, cancelled, backlog',
         required: false,
       },
     ],

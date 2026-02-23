@@ -15,6 +15,8 @@ import {
   ProposalApproveOutputSchema,
   ProposalRejectOutputSchema,
   ProposalStartOutputSchema,
+  ProposalCancelOutputSchema,
+  ProposalDeferOutputSchema,
 } from './proposal-schemas.js'
 import { ProposalCreateOutputSchema } from './proposal-create-schemas.js'
 import {
@@ -34,7 +36,8 @@ import {
  *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
  *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy
  *   start     — create isolated worktree; required: hash; optional: startedBy
- *   progress  — update task completion; required: hash, taskIndex, completed; optional: notes
+ *   cancel    — cancel a proposal (divergent/dropped); required: hash; optional: rejectionReason as reason
+ *   defer     — move proposal to backlog (deferred to later); required: hash; optional: notes as reason
  */
 export const ProposalActionInputSchema = z.object({
   action: z
@@ -48,6 +51,8 @@ export const ProposalActionInputSchema = z.object({
       'reject',
       'start',
       'progress',
+      'cancel',
+      'defer',
     ])
     .optional()
     .describe(
@@ -60,12 +65,14 @@ export const ProposalActionInputSchema = z.object({
         'approve=merge proposal (needs: hash). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
         'start=create worktree for implementation (needs: hash). ' +
-        'progress=update task status (needs: hash, taskIndex, completed).'
+        'progress=update task status (needs: hash, taskIndex, completed). ' +
+        'cancel=mark proposal as cancelled/dropped (needs: hash; optional: rejectionReason as reason). ' +
+        'defer=move proposal to backlog for later implementation (needs: hash; optional: notes as reason).'
     ),
 
   // --- list filters ---
   status: z
-    .enum(['pending', 'in_progress', 'completed', 'archived', 'rejected'])
+    .enum(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog'])
     .optional()
     .describe('Filter proposals by status (list action)'),
   skip: z.number().int().min(0).optional().describe('Pagination offset (list action, default 0)'),
@@ -188,6 +195,16 @@ export const ProposalActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('progress'),
     result: ProposalUpdateProgressOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('cancel'),
+    result: ProposalCancelOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('defer'),
+    result: ProposalDeferOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
 ])

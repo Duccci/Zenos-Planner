@@ -205,7 +205,7 @@ my-project/
 ├── zeno/
 │   ├── .zeno/                  # Internal state (version controlled)
 │   │   ├── config.json         # Project configuration
-│   │   ├── state.json          # Current state
+│   │   ├── state.json          # Historical snapshot of gate progress (synced with workflow)
 │   │   ├── project-overview.json
 │   │   └── requirements.db     # SQLite requirements database
 │   ├── AGENTS.md               # Project-specific AI context guide

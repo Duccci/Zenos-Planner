@@ -25,12 +25,17 @@ Mark each step as in-progress, then completed immediately after finishing.
 2. **Start gate** - If gate-tied and pending: `zeno gates start <gate-id>`
 3. **Read source** - Extract objectives, requirements, steps, decisions
 4. **Review existing** - Check `zeno/proposals/gate-XX/` or `solitary/` for duplicates
-5. **Decompose** - Map gate steps to proposals; one per cohesive unit
-   - **Gate-tied**: Omit test tasks from implementation proposals; create a dedicated test proposal as the final proposal in the gate
-   - **Solitary**: Include test tasks inline; solitary proposals are self-contained
-   - **Test Reuse First**: When identifying test tasks, search existing test files (`tests/` directory) before composing new test cases. Extend or enhance existing tests rather than duplicating similar scenarios. Create new tests only when existing ones cannot adequately cover the new scenario. Document in proposal tasks why new tests are necessary if reuse is not possible.
-   - Every `File(s)` entry must be an explicit path (no globs, no directories)
-   - Each task should touch 1-3 files; if more are needed, split into additional tasks
+5. **Decompose** - Map gate steps to proposals; one per coherent unit.
+   Use `proposal_action: generate` to let the MCP tool orchestrate proposal creation for gate-tied proposals (pass `gateId`); for solitary, use `proposal_action: create` (pass `solitary: true`). // See MCP: proposal-tools.ts#actionHandlers.generate
+   - **Gate-tied** (`gateId` provided): MCP routes to `generateProposals` which reads the gate PRD and decomposes it. Use test-first RED/GREEN design:
+     - **RED Phase**: First proposal(s) write tests covering target coverage threshold (`config.qualityThresholds.codeCoverage`, default 90%)
+     - **GREEN Phase**: Implementation proposals follow RED tests; include guardrails to verify no new tests are added
+     - **Final Proposal**: Test refinement and coverage validation
+   - **Solitary** (`solitary: true`): MCP routes to `proposal_create`; include test tasks inline
+   - **Test-First Red Design**: same structure as before \u2014 tests define acceptance criteria BEFORE implementation
+   - **Test Reuse First**: search existing test files first; extend rather than duplicate
+   - Every `File(s)` entry must be an explicit path (no globs, no directories) \u2014 MCP validates at `proposal_action: start`. // See MCP: scope-validator.ts#validateExplicitPaths
+   - Each task should touch 1-3 files; if more are needed, split
 6. **Generate files** - Create `zeno/proposals/gate-XX/01-name.md` or `solitary/YYYY-MM-DD-01-name.md`
 7. **Establish dependencies** - First proposal: no deps; subsequent: reference earlier ones. Treat listed dependencies as context only; do not implement or act on them during proposal creation. If a dependency is incomplete, note it as a blocker in the proposal and notify a human for clarification.
 8. **Validate structure** - Hash, Type, Status pending, Summary, Tasks, Files Affected

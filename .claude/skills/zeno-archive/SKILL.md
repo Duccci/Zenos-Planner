@@ -8,6 +8,8 @@ description: Archive a completed artifact (gate or proposal) and update dependen
 - Archive only when status is `completed`; proposals: all tasks done with `[x]` marks; gates: all requirements `tested`
 - Gate types: `gate-01` (gates); `#p01...` or filename (gate-tied proposals); `#s20260115...` (solitary)
 - Update dependent artifacts; preserve audit trail
+- State transitions enforced by MCP handlers — `gates_action: complete` validates preconditions before execution. // See MCP: gate-tools.ts#validators.complete, entity-action-handler.ts#createStateTransitionValidator
+- Full state machine reference: `zeno/architecture/mcp-workflows.md`
 
 **Functions**
 - `getTemplate()` - Verify structure
