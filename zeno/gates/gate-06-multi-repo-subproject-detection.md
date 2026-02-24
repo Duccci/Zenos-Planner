@@ -53,9 +53,30 @@ Delivers repository declaration and CRUD in SQLite, cross-repo dependency tracki
 
 ### Repository Management Commands
 - [ ] Implement `zeno repos list` command (display declared repositories)
-- [ ] Implement `zeno repos deps` command (show cross-repo dependency graph)
+- [ ] Implement `zeno repos show` command (display specific repository details)
 - [ ] Implement `zeno repos add <path|url>` command (declare a new repository)
 - [ ] Implement `zeno repos remove` command (remove a repository declaration)
+- [ ] Implement `zeno repos deps` command (show cross-repo dependency graph)
+- [ ] Implement `zeno repos sync` command (check/trigger cross-project Zeno state sync)
+
+### Repository Analysis Commands
+- [ ] Implement `zeno repos analyze imports <repo_id>` command (analyze imports in repository using AST + Dependency Analyzer from Gate 02)
+- [ ] Implement `zeno repos analyze boundaries` command (validate proposed repository boundaries for circular dependencies using Gate 04 detection logic)
+- [ ] Analyze and suggest internal vs. external dependencies with user confirmation
+- [ ] Generate import analysis report with coupling metrics informing boundary recommendations
+- [ ] Detect and report circular repository dependencies
+
+### MCP Tool Exposure
+- [ ] Register all repository operations as actions under single `repos_action` MCP tool via function registry (8 actions: list, show, add, remove, deps, sync, analyze_imports, validate_boundaries)
+- [ ] Implement function-registry handler for `repos_action` with Zod schema validation for all action parameters
+- [ ] Expose repository CRUD operations and dependency queries to LLM via MCP for interactive boundary analysis
+- [ ] Wire `repos_action analyze_imports` with imported analysis tools from Gate 02:
+  - ast-analyzer for import enumeration
+  - dependency-analyzer for per-repo graph building
+  - metrics-calculator for coupling analysis
+- [ ] Wire `repos_action validate_boundaries` with Gate 04 utilities:
+  - Circular dependency detection (DFS algorithm with transaction rollback)
+  - Dependency Graph utilities for visualization
 
 ### Cross-Project Zeno State Sync
 - [ ] Store Zeno project references in each subproject's database (which other Zeno projects exist)
@@ -116,6 +137,42 @@ Gate-06 leverages these specific analysis tools from earlier gates:
 | **Requirements Dependency Graph** (`dependency-graph.ts`) | Gate 04 | Model cross-repo requirement dependencies and inheritance |
 | **Gate Change Detector** (`gate-change-detector.ts`) | Gate 05 | Identify code changes that cross repository boundaries |
 | **coupling-analyzer agent** | External | Guide LLM in interpreting metrics for boundary recommendations |
+
+### MCP Tools Consumed & Exposed
+
+**MCP Tools Consumed (From Earlier Gates)**
+
+Gate-06 integrates with MCP tools already exposed by earlier gates:
+
+| MCP Tool | Source Gate | Purpose in Gate-06 |
+|---|---|---|
+| `project_list` | Gate 03 | Enumerate project repositories and structure |
+| `project_show` | Gate 03 | Inspect specific project details and metadata |
+| `req_list` | Gate 04 | Query requirements by gate to understand cross-repo dependencies |
+| `req_deps` | Gate 04 | Visualize requirement dependency graphs across repositories |
+| `arch_show` | Gate 05 | Display architecture diagrams showing module coupling |
+| `arch_catalogue` | Gate 05 | List available diagram types for dependency visualization |
+| `analyze_dependencies` | Gate 02 | Analyze code dependencies from AST (via function registry) |
+| `calculate_metrics` | Gate 02 | Calculate coupling metrics for boundary recommendations (via function registry) |
+
+**MCP Tools Exposed (New in Gate-06)**
+
+Gate-06 will expose one unified MCP tool for repository management:
+
+| MCP Tool | Actions | Purpose |
+|---|---|---|
+| `repos_action` | list, show, add, remove, deps, sync, analyze_imports, validate_boundaries | Unified repository management (CRUD, dependency analysis, boundary validation, cross-project sync) |
+
+**Action Specifications**:
+
+- `repos_action list` (optional: filter) — List all declared repositories with metadata (path, type, URL, zeno_project_ref)
+- `repos_action show` (repo_hash or repo_id) — Show detailed information for a specific repository
+- `repos_action add` (path OR url, optional: type) — Declare a new repository (interactive LLM flow or CLI)
+- `repos_action remove` (repo_hash or repo_id) — Remove a repository declaration
+- `repos_action deps` (optional: repo_id) — Display cross-repository dependency graph (ASCII tree or Mermaid)
+- `repos_action sync` (optional: repo_id) — Check/trigger cross-project Zeno state sync across subprojects
+- `repos_action analyze_imports` (repo_id, optional: path_pattern) — Analyze imports in repository; suggest internal vs. external dependencies (integrates Code Analyzer, Dependency Analyzer, Metrics Calculator from Gate 02)
+- `repos_action validate_boundaries` (optional: config) — Validate proposed repository boundaries for circular dependencies and coupling issues (integrates Circular Dependency Detection, Dependency Graph Utilities from Gate 04)
 
 ### What This Gate Enables
 
@@ -236,30 +293,44 @@ Gate-06 leverages these specific analysis tools from earlier gates:
 4. Build interactive repository declaration through LLM conversation (via MCP)
 5. Support local git repo paths and remote URLs as input
 6. Implement `zeno repos add <path|url>` CLI command for non-interactive use
-7. LLM validates paths/URLs and confirms with user before persisting
+7. Implement `zeno repos show` and `zeno repos list` CLI commands
+8. Implement `zeno repos remove` CLI command
+9. LLM validates paths/URLs and confirms with user before persisting
 
-### Phase 3: LLM-Driven Boundary Analysis (Leveraging Gate 2-3 Analysis Features)
-8. **Use Code Analyzer** (`src/analysis/ast-analyzer.ts`) to enumerate imports in each repository
-9. **Use Dependency Analyzer** (`src/analysis/dependency-analyzer.ts`) to build per-repository dependency graph
-10. **Use Metrics Calculator** (`src/analysis/metrics-calculator.ts`) to calculate coupling metrics (afferent/efferent)
-11. **Use MCP Project Scanning** (Gate 03 tools) to expose project structure to LLM
-12. **Invoke coupling-analyzer agent** to guide LLM in recommending repository boundaries with rationale
-13. Implement import/file reference analysis with user confirmation (not every import is a team-owned repo)
-14. Propose repository boundaries with metrics-informed suggestions (not hardcoded rules)
+### Phase 3: Repository Analysis Commands (Leveraging Gate 2-4 Analysis Features)
+10. Implement `zeno repos analyze imports <repo_id>` command:
+    - **Use Code Analyzer** (`src/analysis/ast-analyzer.ts`) to enumerate imports in repository
+    - **Use Dependency Analyzer** (`src/analysis/dependency-analyzer.ts`) to build per-repository dependency graph
+    - **Use Metrics Calculator** (`src/analysis/metrics-calculator.ts`) to calculate coupling metrics (afferent/efferent)
+    - Analyze and suggest internal vs. external dependencies with user confirmation
+    - Generate import analysis report informing boundary recommendations
+11. Implement `zeno repos analyze boundaries` command:
+    - **Use Circular Dependency Detection** logic from Gate 04 (DFS with transaction rollback)
+    - Validate proposed repository boundaries for circular dependencies
+    - Report coupling issues and suggest boundary refinements
+    - Trigger detection on project initialization and rebase/rescope
 
-### Phase 4: Cross-Repository Dependency Tracking
-15. Implement cross-repository relationship tracking in SQLite
-16. **Use Dependency Graph utilities** (`src/generation/dependency-graph.ts`) from Gate 04 for visualization
-17. Create repository dependency resolution queries
-18. **Use Circular dependency detection** logic from Gate 04 (DFS with transaction rollback)
-19. Trigger circular dependency detection on project initialization and rebase/rescope
+### Phase 4: Cross-Repository Dependency Tracking & Management
+12. Implement cross-repository relationship tracking in SQLite
+13. **Use Dependency Graph utilities** (`src/generation/dependency-graph.ts`) from Gate 04 for visualization
+14. Create repository dependency resolution queries
+15. Implement `zeno repos deps` command (show cross-repo dependency graph)
+16. Implement `zeno repos sync` command (check/trigger cross-project Zeno state sync)
+17. Store Zeno project references in each subproject's database
+18. Track gate completion status across subprojects
+19. Signal dependent subprojects when a gate completes
 
-### Phase 5: Repository Management Commands & Syncing
-20. Implement `zeno repos list` command (display declared repositories)
-21. Implement `zeno repos deps` command (show cross-repo dependency graph)
-22. Implement `zeno repos remove` command (remove a repository declaration)
-23. Implement cross-project Zeno state sync (store references, track gate completion)
-24. Expose sync status via MCP tool for LLM-driven coordination
+### Phase 5: MCP Tool Exposure (Function Registry Integration)
+20. Implement unified function-registry handler for `repos_action` tool (8 actions: list, show, add, remove, deps, sync, analyze_imports, validate_boundaries)
+21. Define Zod schemas for `repos_action` parameters (action select, shared args: repo_id/path/url/filter; action-specific args for add, analyze_imports, validate_boundaries)
+22. Wire `repos_action analyze_imports` to Gate 02 analysis modules:
+    - Code Analyzer (ast-analyzer.ts) — Parse imports from candidate repositories
+    - Dependency Analyzer (dependency-analyzer.ts) — Build per-repo dependency graphs
+    - Metrics Calculator (metrics-calculator.ts) — Calculate coupling metrics
+23. Wire `repos_action validate_boundaries` to Gate 04 utilities:
+    - Circular Dependency Detection — Enforce acyclic repository dependencies
+    - Dependency Graph Utilities — Render cross-repo relationships as ASCII trees or Mermaid diagrams
+24. Expose `repos_action` to LLM via MCP for interactive boundary analysis workflow
 
 ### Phase 6: Proposal-Repository Scoping
 25. Implement proposal-repository scoping logic (proposals scoped to current working repo)
@@ -269,10 +340,11 @@ Gate-06 leverages these specific analysis tools from earlier gates:
 ### Phase 7: Testing & Quality (Target 90% Coverage)
 28. Write unit tests for repository CRUD operations
 29. Write integration tests for import analysis using Gate 02 analysis tools
-30. Write tests for cross-repo dependency queries and visualization
-31. Write tests for circular dependency detection
-32. Write tests for cross-project state sync logic
-33. Achieve 90% test coverage for multi-repo module
+30. Write tests for analysis commands (`analyze_imports`, `analyze_boundaries`)
+31. Write tests for cross-repo dependency queries and visualization
+32. Write tests for circular dependency detection
+33. Write tests for cross-project state sync logic
+34. Achieve 90% test coverage for multi-repo module
 
 ## Gate Completion Criteria
 
