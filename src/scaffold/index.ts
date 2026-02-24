@@ -29,7 +29,6 @@ export async function createProjectStructure(
       'zeno/architecture',
       'zeno/proposals',
       'zeno/requirements',
-      'zeno/subprojects',
     ]
 
     // Create all directories

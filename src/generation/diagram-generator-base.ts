@@ -17,21 +17,57 @@ import { GraphvizRenderer } from './graphviz-renderer.js'
 import { logger } from '../utils/logger.js'
 
 /**
- * Context provided to diagram generators for content generation
+ * Context provided to diagram generators for content generation.
+ *
+ * IMPORTANT: Architecture diagrams must be ASPIRATIONAL, reflecting the target design
+ * from PROJECT_PRD.md, not the current implementation. Diagrams show:
+ * - Target architecture with all planned components (Gates 1-14)
+ * - Implementation status indicators (🟢 done, 🟡 in-progress, 🔵 planned)
+ * - Desired system boundaries and module organization
+ *
+ * Generators should read from PRD vision, gate descriptions, and requirements,
+ * not from current code structure.
  */
 export interface DiagramContext {
+  /** Project name */
   projectName: string
+
+  /** Full PRD content for reading aspirational architecture and vision */
+  prdContent?: string
+
+  /** Project type (e.g., 'library', 'cli-tool', 'service', 'framework') */
+  projectType?: string
+
+  /** Project description/overview from PRD */
+  projectDescription?: string
+
+  /** Current gate status (for progress indicators) */
   gates?: {
     id: string
+    number: number
     name: string
-    status: string
+    status: 'pending' | 'in_progress' | 'completed' | 'rejected'
+    objectives?: string
   }[]
+
+  /** Requirements for context and decomposition */
   requirements?: {
     id: string
     type: string
     status: string
+    priority?: string
+    gateId?: string
   }[]
+
+  /** Existing diagrams for reference */
   existingDiagrams?: DiagramMetadata[]
+
+  /** Project metadata for architecture decisions */
+  metadata?: {
+    targetGateCount?: number
+    implementedGateCount?: number
+    technicalDecisions?: Record<string, string>
+  }
 }
 
 /**

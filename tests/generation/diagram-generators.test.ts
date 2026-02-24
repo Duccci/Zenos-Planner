@@ -252,7 +252,7 @@ describe('DataFlowGenerator', () => {
   it('generateContent returns a mermaid graph', () => {
     const gen = new DataFlowGenerator()
     const content = gen.generateContent({ projectName: 'Test' })
-    expect(content).toContain('graph LR')
+    expect(content).toContain('flowchart TD')
   })
 
   it('generate returns DiagramOutput', async () => {
@@ -388,10 +388,10 @@ describe('Architecture Diagram Generation (Test-First)', () => {
   })
 
   describe('DataFlowGenerator - Content Structure Validation', () => {
-    it('generates diagram with proper flow direction', () => {
+    it('generateContent returns a mermaid graph', () => {
       const gen = new DataFlowGenerator()
       const content = gen.generateContent({ projectName: 'Test' })
-      expect(content).toMatch(/^graph\s+(LR|RL)/)
+      expect(content).toMatch(/^flowchart\s+TD/)
       expect(content).toContain('-->')
     })
 

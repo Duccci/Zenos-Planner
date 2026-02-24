@@ -1,9 +1,14 @@
 # Gate Lifecycle
 
-**Purpose**: State machine showing the complete lifecycle of gates and proposals
+**Purpose**: Complete state machine for gate and proposal lifecycles with implementation status
 
-**Generated**: 2026-01-04  
-**Status**: Approved
+**Last Updated**: 2026-02-23  
+**Status**: Design document reflecting target end state through Gate 14
+
+**Implementation Readiness**:
+- Complete (Gates 1-5): Initialization, generation, architecture
+- InProgress (Gate 6): Repository detection
+- Planned (Gates 7-14): Proposals through completion
 
 ---
 
@@ -139,15 +144,26 @@ stateDiagram-v2
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-01-04  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+---
+
+**Document Version**: 2.0.0  
+**Last Updated**: 2026-02-23  
+**Status**: Target architecture (design document through Gate 14); implementation follows this flow  
 **Owner**: jamesonBatworker  
-**Reviewers**: jamesonBatworker
 
 ### Change Log
 
 | Version | Date | Summary | Author |
 |---------|------|---------|--------|
-| 1.0.0 | 2026-01-04 | Initial version | jamesonBatworker |
+| 2.0.0 | 2026-02-23 | Updated to forward-looking target design with status indicators for Gates 1-14. Added implementation readiness notes. | jamesonBatworker |
+| 1.0.0 | 2026-01-04 | Initial gate lifecycle diagram (Gates 1-5 path) | jamesonBatworker |
+
+---
+
+## Related Documents
+
+- [`system-overview.md`](system-overview.md) — Component architecture with implementation status
+- [`data-flow.md`](data-flow.md) — Workflow paths (happy path, error recovery, rescope, subagent orchestration)
+- [`../mcp-workflows.md`](../mcp-workflows.md) — State machine contracts for MCP handlers (gate/proposal transitions)
+- [`../PROJECT_PRD.md`](../PROJECT_PRD.md) — Technical decisions and design rationale
 

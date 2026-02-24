@@ -82,6 +82,13 @@ Implements Git integration layer enabling approved proposals to be automatically
 - [ ] Create clean/dirty status reporting
 - [ ] Implement conflict detection (proposals modifying same files)
 
+### Subproject Git Syncing
+- [ ] When a gate is completed in a subproject, pull gate changes into dependent working directories
+- [ ] Implement `zeno repos sync` command to pull latest gate state from subproject repos
+- [ ] Detect when a subproject gate closure affects the current working repo's dependencies
+- [ ] Handle sync conflicts (subproject changes vs. local uncommitted work)
+- [ ] Integrate with cross-project Zeno state references from Gate 06
+
 ### Agent Delegation with Configurable Models
 Deferred to post-MVP (Gate 13 scope). See Gate 13 for agent delegation design.
 
@@ -125,6 +132,8 @@ Gate 01-09 established:
 - Rollback mechanism for rejected proposals
 - `zeno worktree` commands (list, prune, remove)
 - Git status integration with Zeno state
+- Subproject git syncing (`zeno repos sync`) — pull gate changes from completed subprojects into working directory
+- File-level conflict detection between concurrent proposals across repos
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
@@ -212,6 +221,9 @@ This gate addresses execution and persistence requirements from project initiali
 - [ ] `zeno worktree list` shows all active worktrees
 - [ ] `zeno worktree prune` cleans up expired/dead worktrees
 - [ ] Git status integration shows which proposals modify which files
+- [ ] `zeno repos sync` pulls gate changes from completed subprojects
+- [ ] Subproject sync conflicts detected and escalated to user
+- [ ] File conflict detection prevents concurrent proposals from modifying same files across repos
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for git integration module
 - [ ] Zero lint errors, zero type errors

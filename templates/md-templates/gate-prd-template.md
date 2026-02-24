@@ -10,7 +10,10 @@
   - pending: Gate generated at init, requirements not yet decomposed
   - in_progress: Gate started via `zeno gates start`, requirements generated
   - completed: All requirements tested, gate approved
+  - archived: Gate completed and moved to archive with final artifacts
   - rejected: Gate rejected during review
+  - cancelled: Gate cancelled/dropped with optional reason
+  - backlog: Gate deferred to later implementation
 -->
 
 ## Overview

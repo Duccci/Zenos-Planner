@@ -33,6 +33,112 @@ import { captureMetricsSnapshot } from './metrics-capture.js'
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
 
 // ============================================================================
+// ARCHITECTURE UPDATE TRIGGER
+// ============================================================================
+
+/**
+ * Updates architecture documentation when a gate completes
+ * 
+ * Non-fatal helper: failures logged but don't block gate archive
+ * Updates:
+ * - Version number (PATCH bump: 2.0.0 → 2.0.1)
+ * - "Last Updated" date
+ * - Changelog entry with gate completion note
+ */
+async function updateArchitectureOnGateCompletion(
+  gateId: string,
+  gateName: string,
+  timestamp: string
+): Promise<void> {
+  try {
+    const archFile = join(getZenoDir(), '..', 'architecture', 'system-overview.md')
+    
+    if (!existsSync(archFile)) {
+      logger.warn(`Architecture file not found at ${archFile}, skipping architecture update`)
+      return
+    }
+
+    let content = await readFile(archFile, 'utf-8')
+
+    // Extract current version from header
+    // Format: **Last Updated**: 2026-02-23
+    // **Version**: 2.0.0
+    const dateMatch = /\*\*Last Updated\*\*: (\d{4}-\d{2}-\d{2})/
+    const versionMatch = /\*\*Version\*\*: (\d+\.\d+\.\d+)/
+    
+    const oldDate = dateMatch.exec(content)?.[1] ?? '2026-02-23'
+    const versionStr = versionMatch.exec(content)?.[1] ?? '2.0.0'
+    
+    // Parse version and bump PATCH (2.0.0 → 2.0.1)
+    const [major, minor, patch] = versionStr.split('.')
+    const newPatch = String(parseInt(patch ?? '0', 10) + 1)
+    const newVersion = `${major}.${minor}.${newPatch}`
+    
+    // Format timestamp as YYYY-MM-DD
+    const newDate = timestamp.split('T')[0] ?? timestamp
+    
+    // Update "Last Updated" line
+    if (dateMatch.test(content)) {
+      content = content.replace(
+        `**Last Updated**: ${oldDate}`,
+        `**Last Updated**: ${newDate}`
+      )
+    }
+    
+    // Update Version line if it exists, otherwise add it after "Last Updated"
+    if (versionMatch.test(content)) {
+      content = content.replace(
+        `**Version**: ${versionStr}`,
+        `**Version**: ${newVersion}`
+      )
+    } else {
+      // Add version after "Last Updated" if not present
+      content = content.replace(
+        `**Last Updated**: ${newDate}`,
+        `**Last Updated**: ${newDate}\n**Version**: ${newVersion}`
+      )
+    }
+    
+    // Add changelog entry at the end if not present
+    if (!content.includes('## Changelog')) {
+      const changelog = `\n---\n\n## Changelog\n\n- ${newDate}: Gate ${gateId} (${gateName}) completion: Updated implementation status\n`
+      content += changelog
+    } else {
+      // Append to existing changelog
+      const changelogEntry = `- ${newDate}: Gate ${gateId} (${gateName}) completion: Updated implementation status\n`
+      const changelogMatch = /(## Changelog)\n\n/
+      if (changelogMatch.test(content)) {
+        content = content.replace(
+          /(## Changelog)\n\n/,
+          `$1\n\n${changelogEntry}`
+        )
+      }
+    }
+
+    // Write updated content
+    await writeFile(archFile, content)
+    
+    // Commit architecture update
+    const commitMsg = `docs(arch): Update system-overview.md for gate ${gateId} completion
+
+- Bump version to ${newVersion}
+- Update "Last Updated" timestamp
+- Add changelog entry for ${gateName}`
+
+    await performGitCommitAndPush({
+      commitMessage: commitMsg,
+      files: [archFile],
+    })
+
+    logger.info(`Architecture documentation updated for gate ${gateId}`)
+  } catch (error) {
+    // Non-fatal: log warning but don't fail gate archive
+    const err = error instanceof Error ? error.message : String(error)
+    logger.warn(`Failed to update architecture documentation: ${err}`)
+  }
+}
+
+// ============================================================================
 // ARCHIVE GATE ORCHESTRATOR
 // ============================================================================
 
@@ -100,6 +206,9 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`)
 
   // Step 8: Capture metrics snapshot (non-fatal)
   await captureMetricsSnapshot(gateId)
+
+  // Step 8.5: Update architecture documentation (non-fatal)
+  await updateArchitectureOnGateCompletion(gateId, gateName, timestamp)
 
   // Step 9: Calculate dependencies
   const nextGateId = calculateNextGateId(gateId)
