@@ -44,6 +44,30 @@ High-level implementation: Successfully implemented critical MCP tools and guard
 
 High-level implementation: Created a generic EntityActionHandler factory that standardizes action dispatch for MCP tools, reducing code duplication from 300+ LOC to reusable pattern. Refactored gates and proposal handlers to use the new factory, establishing foundation for consistent tool behavior across all entity types.
 
+### Project Action MCP Tool (#s26022204proj-act)
+
+**Completed**: 2026-02-22
+
+Exposed `project_action: init` and `project_action: status` as unified MCP tools by extracting business logic from CLI commands into registry-backed implementations. Created Zod schemas for discriminated union input/output, implemented handler using `createEntityActionHandler` pattern, refactored CLI commands to delegate via registry invocation, ensuring single source of truth. All 4 tasks completed: schemas validated, handler factory implemented, CLI refactored with no logic duplication, 20/20 tests passing. Architecture now complete: MCP → Handler → Registry Function → Business Logic → CLI Command.
+
+### MCP Tools Reference Documentation (#s26022202mcp-ref)
+
+**Completed**: 2026-02-22
+
+Consolidated and replaced `docs/MCP-TOOLS-REVIEW.md` with a single authoritative `docs/MCP-TOOLS.md` covering every MCP tool action: input schema, validators executed, preconditions, output schema, error codes, and example request/response for all six tools (gates_action, proposal_action, req_action, repos_action, archive_action, config_get) and 27 actions. Added CI verification script that prevents new tool actions from shipping without documentation. 100% documentation coverage achieved, 19 tests passing, all quality thresholds met.
+
+### Guardrail CI Drift Check (#s26022203ci-drift)
+
+**Completed**: 2026-02-22
+
+Implemented automatic CI check detecting drift between skill guardrails and MCP validators. Created guardrail allowlist with narrative-only rationale, script that extracts guardrails, matches against validators, and reports coverage with human-readable table. Integrated script into CI pipeline with fail-fast reporting of unmatched guardrails. All 3 tasks completed: allowlist created, validation script implemented, CI integration verified. Prevents future skill guardrails from drifting out of sync with system validators.
+
+### Guardrail Enhancements - Proposal/Gate Review (#s26022205gard-rev)
+
+**Completed**: 2026-02-22
+
+Enhanced guardrails to mandate review of proposals before application and gates before proposal generation. Added Pre-Apply Review guardrails (4 checks: open questions, file verification, assumptions, dependencies) to zeno-apply skill and Pre-Generation Gate Review guardrails (4 checks: clarity, acceptance criteria, assumptions, blockers) to zeno-proposal skill. Updated guardrail allowlist with 8 narrative-only entries explaining why review steps require human judgment. Updated workflow documentation (AGENTS.md) with Pre-Action Review checklist. All 4 tasks completed, guardrail validation tests pass.
+
 ## Security & Safety
 
 ### Extract MCP Handler Utilities (#s20260210extract)

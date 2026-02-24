@@ -8,6 +8,7 @@ import {
   RepositoryActionOutputSchema,
 } from './repository-action-schemas.js'
 import { ConfigGetOutputSchema } from './config-schemas.js'
+import { ProjectActionInputSchema, ProjectActionOutputSchema } from './project-action-schemas.js'
 
 /**
  * Central tool registry: declarative mapping of MCP tools to their actions and schemas.
@@ -76,6 +77,15 @@ export const ToolRegistry = {
     outputSchema: ConfigGetOutputSchema,
     description:
       'REQUIRED: Use config_get to retrieve quality thresholds and project configuration.',
+  },
+
+  project: {
+    toolName: 'project_action',
+    actions: ['init', 'status'] as const,
+    inputSchema: ProjectActionInputSchema,
+    outputSchema: ProjectActionOutputSchema,
+    description:
+      'REQUIRED: Use project_action for project initialization and status. Actions: init (create new project), status (show project overview).',
   },
 } as const
 

@@ -131,7 +131,7 @@ export async function syncProjectMetadataToState(
           name: overview.projectName,
           version: overview.projectVersion,
           endState: overview.endState,
-          startState: overview.startState ?? null,
+          startState: overview.startState,
           totalGatesPlanned: overview.totalGatesPlanned,
           gitHistory: {
             repository: 'https://github.com/owner/Zenos-Planner',
@@ -141,11 +141,8 @@ export async function syncProjectMetadataToState(
         },
         currentGate: overview.currentGate ?? null,
         gates: [],
-        upcomingGates: overview.upcomingGates ?? [],
-        architecture: overview.architecture ?? {
-          layers: ['CLI', 'Core', 'Analysis', 'Generation', 'Integration', 'Storage'],
-          keyDependencies: {},
-        },
+        upcomingGates: overview.upcomingGates,
+        architecture: overview.architecture,
         lastUpdated: new Date().toISOString(),
         status: overview.currentGate ? 'gate_in_progress' : 'awaiting_review',
       }
@@ -154,11 +151,11 @@ export async function syncProjectMetadataToState(
       state.project.name = overview.projectName
       state.project.version = overview.projectVersion
       state.project.endState = overview.endState
-      state.project.startState = overview.startState ?? null
+      state.project.startState = overview.startState
       state.project.totalGatesPlanned = overview.totalGatesPlanned
       state.currentGate = overview.currentGate ?? null
-      state.upcomingGates = overview.upcomingGates ?? []
-      state.architecture = overview.architecture ?? state.architecture
+      state.upcomingGates = overview.upcomingGates
+      state.architecture = overview.architecture
       state.lastUpdated = new Date().toISOString()
       state.status = overview.currentGate ? 'gate_in_progress' : 'awaiting_review'
     }

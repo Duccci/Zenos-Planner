@@ -46,6 +46,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
+    "validate-guardrails": "npx ts-node scripts/validate-guardrail-coverage.ts",
+    "ci": "npm run typecheck && npm run lint && npm run validate-guardrails && npm run test",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "prebuild": "npm run clean"
   },

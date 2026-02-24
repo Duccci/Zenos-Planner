@@ -190,6 +190,122 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
+#### gates_action: create
+
+**Description:** Create a new gate with objectives, requirements, and dependencies.
+
+**Input Schema:**
+```json
+{
+  "action": "create",
+  "gateId": "gate-03",
+  "name": "API Layer",
+  "type": "feature",
+  "sequence": 3,
+  "objectives": ["Implement REST API", "Add authentication"],
+  "dependencies": ["gate-02"],
+  "description": "Build the API layer with all required endpoints"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"create"` |
+| `gateId` | string | yes | Gate ID (e.g., `"gate-03"`) |
+| `name` | string | yes | Human-readable gate name |
+| `type` | enum | yes | Gate type (feature, quality, rescope) |
+| `sequence` | number | yes | Gate sequence number |
+| `objectives` | array[string] | yes | Goals the gate must achieve |
+| `dependencies` | array[string] | no | Gate IDs that must complete first |
+| `description` | string | no | Optional gate description |
+
+**Validators Executed:**
+1. `validateGatesActionInput` — schema validation
+2. `validateDependencies` — upstream gate dependencies exist and form valid DAG
+
+**Preconditions:**
+- Gate ID is unique
+- All dependencies reference existing gates
+- No circular dependencies
+
+**Output Schema:**
+```json
+{
+  "action": "create",
+  "result": {
+    "gateId": "gate-03",
+    "name": "API Layer",
+    "sequence": 3,
+    "status": "pending",
+    "created": true,
+    "message": "Gate gate-03 created successfully"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `DUPLICATE_ID` (409) — Gate ID already exists
+- `INVALID_DEPENDENCY` (400) — Referenced dependency gate not found
+- `CIRCULAR_DEPENDENCY` (400) — Dependencies form a cycle
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### gates_action: generate
+
+**Description:** Auto-generate gates from requirements and project structure.
+
+**Input Schema:**
+```json
+{
+  "action": "generate",
+  "mode": "new",
+  "anchorGateId": "gate-02"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"generate"` |
+| `mode` | enum | no | Generation mode (new, rebaseline, single); default "new" |
+| `anchorGateId` | string | no | Gate to anchor generation from |
+| `templateName` | string | no | Template name; default "gate-prd-template" |
+| `requirementsPerGate` | number | no | Max requirements per gate; default 5 |
+
+**Validators Executed:**
+1. `validateGatesActionInput` — schema validation
+2. `validateDependencies` — generated gates respect requirement dependencies
+
+**Preconditions:**
+- If anchor gate specified, it must exist
+- Requirements database must have content
+
+**Output Schema:**
+```json
+{
+  "action": "generate",
+  "result": {
+    "generatedCount": 3,
+    "gates": [
+      {"gateId": "gate-03", "name": "...", "sequence": 3},
+      {"gateId": "gate-04", "name": "...", "sequence": 4}
+    ],
+    "message": "3 gates generated from requirements"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Anchor gate or template not found
+- `GENERATION_FAILED` (500) — Internal error during generation
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
 #### gates_action: start
 
 **Description:** Transition a gate from `pending` to `in_progress`. Generates gate-specific requirements and proposals.
@@ -350,7 +466,158 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-### proposal_action – Proposal Lifecycle Management
+#### gates_action: regenerate
+
+**Description:** Regenerate the gate roadmap after rescope or mid-project changes.
+
+**Input Schema:**
+```json
+{
+  "action": "regenerate",
+  "fromGateId": "gate-02",
+  "mode": "full"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"regenerate"` |
+| `fromGateId` | string | no | Regenerate from this gate forward; if omitted, regenerate all |
+| `mode` | enum | no | Regeneration mode (full, partial, check); default "full" |
+
+**Validators Executed:**
+1. `validateGatesActionInput` — schema validation
+2. `validateDependencies` — regenerated gates form valid DAG
+
+**Preconditions:**
+- If fromGateId specified, gate must exist
+
+**Output Schema:**
+```json
+{
+  "action": "regenerate",
+  "result": {
+    "regeneratedCount": 3,
+    "gates": [
+      {"gateId": "gate-03", "name": "...", "status": "pending"}
+    ],
+    "message": "3 gates regenerated from current position onward"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — fromGateId not found
+- `REGENERATION_FAILED` (500) — Internal error during regeneration
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### gates_action: cancel
+
+**Description:** Mark a gate as cancelled/dropped (not to be implemented).
+
+**Input Schema:**
+```json
+{
+  "action": "cancel",
+  "gateId": "gate-03",
+  "notes": "Feature deprioritized in favor of core functionality"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"cancel"` |
+| `gateId` | string | yes | Gate ID to cancel |
+| `notes` | string | no | Reason for cancellation |
+
+**Validators Executed:**
+1. `validateGatesActionInput` — schema validation
+2. `createStateTransitionValidator` — gate must allow transition to `cancelled`
+
+**Preconditions:**
+- Gate exists
+- Gate is not in a terminal state (completed)
+- No active proposals depend on this gate
+
+**Output Schema:**
+```json
+{
+  "action": "cancel",
+  "result": {
+    "gateId": "gate-03",
+    "previousStatus": "pending",
+    "newStatus": "cancelled",
+    "cancelReason": "Feature deprioritized in favor of core functionality",
+    "message": "Gate gate-03 cancelled. Future gates regenerated if needed."
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Gate not found
+- `INVALID_STATE_TRANSITION` (409) — Gate cannot be cancelled from current state
+- `DEPENDENT_WORK` (409) — Active proposals depend on this gate
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### gates_action: defer
+
+**Description:** Move a gate to backlog for later implementation.
+
+**Input Schema:**
+```json
+{
+  "action": "defer",
+  "gateId": "gate-03",
+  "notes": "Defer to phase 2 pending budget approval"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"defer"` |
+| `gateId` | string | yes | Gate ID to defer |
+| `notes` | string | no | Reason for deferral |
+
+**Validators Executed:**
+1. `validateGatesActionInput` — schema validation
+2. `createStateTransitionValidator` — gate must allow transition to `backlog`
+
+**Preconditions:**
+- Gate exists
+- Gate is in `pending` status
+
+**Output Schema:**
+```json
+{
+  "action": "defer",
+  "result": {
+    "gateId": "gate-03",
+    "previousStatus": "pending",
+    "newStatus": "backlog",
+    "deferReason": "Defer to phase 2 pending budget approval",
+    "message": "Gate gate-03 moved to backlog. Can be resumed later."
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Gate not found
+- `INVALID_STATE_TRANSITION` (409) — Gate cannot be deferred from current state
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+## proposal_action – Proposal Lifecycle Management
 
 **Tool Name:** `proposal_action`  
 **Purpose:** Manage implementation proposals—detailed plans for satisfying gate requirements.
@@ -689,7 +956,170 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-### req_action – Requirements Database Query
+#### proposal_action: create
+
+**Description:** Create a new proposal for a gate from requirements.
+
+**Input Schema:**
+```json
+{
+  "action": "create",
+  "gateId": "gate-03",
+  "title": "API Implementation",
+  "summary": "Implement REST API with all required endpoints",
+  "tasks": [
+    {"description": "Create endpoints", "acceptanceCriteria": ["Tests pass"]},
+    {"description": "Add documentation", "acceptanceCriteria": ["Swagger docs complete"]}
+  ],
+  "filesAffected": ["src/api/routes.ts", "src/api/handlers.ts"]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"create"` |
+| `gateId` | string | yes | Gate ID this proposal serves |
+| `title` | string | yes | Proposal title |
+| `summary` | string | yes | Brief description of implementation approach |
+| `tasks` | array | yes | Array of tasks with acceptance criteria |
+| `filesAffected` | array[string] | yes | Explicit file paths to be modified/created |
+
+**Validators Executed:**
+1. `validateProposalActionInput` — schema validation
+2. `validateGateExists` — gate must exist
+3. `validateScope` — files must be explicit paths
+4. `validateArtifactFile` — proposal must have required sections
+
+**Preconditions:**
+- Gate exists
+- All files in Files Affected are explicit paths (no wildcards or directories)
+
+**Output Schema:**
+```json
+{
+  "action": "create",
+  "result": {
+    "hash": "#p03api",
+    "title": "API Implementation",
+    "gateId": "gate-03",
+    "status": "pending",
+    "message": "Proposal #p03api created from gate requirements"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Gate not found
+- `INVALID_FILE_SCOPE` (400) — Files include wildcards or directory paths
+- `FORMAT_INVALID` (400) — Proposal missing required sections
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### proposal_action: generate
+
+**Description:** Auto-generate a proposal from a gate's requirements.
+
+**Input Schema:**
+```json
+{
+  "action": "generate",
+  "gateId": "gate-03"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"generate"` |
+| `gateId` | string | yes | Gate ID to generate proposal from |
+
+**Validators Executed:**
+1. `validateProposalActionInput` — schema validation
+2. `validateGateExists` — gate must exist
+
+**Preconditions:**
+- Gate exists
+
+**Output Schema:**
+```json
+{
+  "action": "generate",
+  "result": {
+    "hash": "#p03api",
+    "title": "Gate 03 Implementation Proposal",
+    "gateId": "gate-03",
+    "status": "pending",
+    "generatedTasks": 5,
+    "message": "Proposal generated from gate requirements"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Gate not found
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### proposal_action: progress
+
+**Description:** Update proposal task progress during implementation.
+
+**Input Schema:**
+```json
+{
+  "action": "progress",
+  "hash": "#p03api",
+  "taskIndex": 0,
+  "status": "in_progress",
+  "notes": "Started implementation of endpoints"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"progress"` |
+| `hash` | string | yes | Proposal hash |
+| `taskIndex` | number | yes | Index of the task to update |
+| `status` | enum | yes | Task status (pending, in_progress, completed, blocked) |
+| `notes` | string | no | Optional progress notes |
+
+**Validators Executed:**
+1. `validateProposalActionInput` — schema validation
+2. `validateProposalExists` — proposal must exist
+
+**Preconditions:**
+- Proposal exists and is in `in_progress` status
+- Task index is valid
+
+**Output Schema:**
+```json
+{
+  "action": "progress",
+  "result": {
+    "hash": "#p03api",
+    "taskIndex": 0,
+    "previousStatus": "pending",
+    "newStatus": "in_progress",
+    "message": "Task 1 progress updated to in_progress"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Proposal hash not found or task index invalid
+- `INVALID_STATE` (409) — Proposal is not `in_progress`
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+## req_action – Requirements Database Query
 
 **Tool Name:** `req_action`  
 **Purpose:** Query and manage the requirements database (single source of truth for what must be built).
@@ -838,7 +1268,248 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-### archive_action – Finalize Completed Work
+#### req_action: transfer
+
+**Description:** Move a requirement from one gate to another.
+
+**Input Schema:**
+```json
+{
+  "action": "transfer",
+  "hash": "#g03req1",
+  "targetGateId": "gate-04",
+  "reason": "Scope moved to next gate"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"transfer"` |
+| `hash` | string | yes | Requirement hash to transfer |
+| `targetGateId` | string | yes | Target gate ID |
+| `reason` | string | no | Reason for transfer |
+
+**Validators Executed:**
+1. `validateReqActionInput` — schema validation
+2. `validateRequirementExists` — requirement must exist
+3. `validateGateExists` — target gate must exist
+4. `validateDependencies` — check if transfer violates dependency constraints
+
+**Preconditions:**
+- Requirement exists
+- Target gate exists
+- Transfer doesn't create circular dependencies or violate constraints
+
+**Output Schema:**
+```json
+{
+  "action": "transfer",
+  "result": {
+    "hash": "#g03req1",
+    "title": "API Layer Implementation",
+    "previousGateId": "gate-03",
+    "newGateId": "gate-04",
+    "message": "Requirement transferred from gate-03 to gate-04"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Requirement or target gate not found
+- `INVALID_TRANSFER` (409) — Transfer violates dependency constraints or creates cycles
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+## repos_action – Repository Analysis & Management
+
+**Tool Name:** `repos_action`  
+**Purpose:** Manage repository boundaries and analyze multi-repo project structure.
+
+#### repos_action: list
+
+**Description:** List detected repository boundaries and structure.
+
+**Input Schema:**
+```json
+{
+  "action": "list"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"list"` |
+
+**Validators Executed:**
+1. `validateRepositoryActionInput` — schema validation
+
+**Preconditions:** None
+
+**Output Schema:**
+```json
+{
+  "action": "list",
+  "result": {
+    "repositories": [
+      {
+        "name": "core-engine",
+        "path": "src/",
+        "languages": ["TypeScript"],
+        "loc": 15000,
+        "confidence": 0.95,
+        "couplingMetrics": {
+          "afferent": 3,
+          "efferent": 2
+        }
+      }
+    ],
+    "total": 1
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### repos_action: detect
+
+**Description:** Re-run repository boundary detection.
+
+**Input Schema:**
+```json
+{
+  "action": "detect"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"detect"` |
+
+**Validators Executed:**
+1. `validateRepositoryActionInput` — schema validation
+
+**Preconditions:** None
+
+**Output Schema:**
+```json
+{
+  "action": "detect",
+  "result": {
+    "message": "Boundary detection complete",
+    "repositoriesFound": 1,
+    "updated": true
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### repos_action: deps
+
+**Description:** Show dependency graph between repositories.
+
+**Input Schema:**
+```json
+{
+  "action": "deps"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"deps"` |
+
+**Validators Executed:**
+1. `validateRepositoryActionInput` — schema validation
+2. `validateDependencies` — analyze repo dependency graph
+
+**Preconditions:** None
+
+**Output Schema:**
+```json
+{
+  "action": "deps",
+  "result": {
+    "repositories": [
+      {
+        "name": "core-engine",
+        "dependsOn": ["utils-lib"],
+        "requiredBy": ["cli-tool"]
+      }
+    ]
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+#### repos_action: adjust
+
+**Description:** Manually adjust repository boundaries.
+
+**Input Schema:**
+```json
+{
+  "action": "adjust",
+  "repositoryName": "core-engine",
+  "path": "src/",
+  "confidence": 0.95
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `action` | enum | yes | Must be `"adjust"` |
+| `repositoryName` | string | yes | Repository name to adjust |
+| `path` | string | yes | New path boundary |
+| `confidence` | number | no | Confidence score for the boundary (0.0-1.0) |
+
+**Validators Executed:**
+1. `validateRepositoryActionInput` — schema validation
+
+**Preconditions:**
+- Repository exists
+
+**Output Schema:**
+```json
+{
+  "action": "adjust",
+  "result": {
+    "name": "core-engine",
+    "path": "src/",
+    "confidence": 0.95,
+    "message": "Repository boundary adjusted successfully"
+  },
+  "validation": {"allowed": true}
+}
+```
+
+**Error Codes:**
+- `INVALID_INPUT` (400) — Schema validation failed
+- `NOT_FOUND` (404) — Repository does not exist
+- `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+## archive_action – Finalize Completed Work
 
 **Tool Name:** `archive_action`  
 **Purpose:** Archive and close out completed gates and proposals, creating historical records.
@@ -943,10 +1614,14 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-### config_get – Access Project Configuration
+## config_get – Access Project Configuration
 
 **Tool Name:** `config_get`  
 **Purpose:** Retrieve project-level settings and quality thresholds.
+
+#### config_get: get
+
+**Description:** Retrieve project configuration and quality metrics.
 
 **Input Schema:** Empty object
 

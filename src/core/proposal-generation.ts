@@ -204,7 +204,7 @@ function validateRedGreenGuardrails(
         const greenIndex = proposals.indexOf(greenProposal)
 
         if (redIndex >= 0 && greenIndex >= 0 && greenIndex < redIndex) {
-          errors.push(`GREEN proposal ${i + 1} must come after corresponding RED proposal ${i + 1}`)
+          errors.push(`GREEN proposal ${String(i + 1)} must come after corresponding RED proposal ${String(i + 1)}`)
         }
       }
     }

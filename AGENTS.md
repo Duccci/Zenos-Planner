@@ -267,22 +267,29 @@ project-root/
 ### Review Phase
 8. **Check status**: `zeno gates list` to see current gate
 9. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
+   - **Gate Review Check** (see `zeno-proposal/SKILL.md` guardrails): Identify any open questions, unclear requirements, or contradictory statements. Flag implicit assumptions and ask for confirmation. Check gate dependencies for blockers. Escalate clarifications to user before proceeding.
 10. **Review requirements**: `zeno req list --gate "<id>"`
 11. **Review planning insights**: Check planning phase analysis in proposal summaries
 12. **View proposals**: `zeno proposal show "<hash>"`
 13. **Approve proposals**: User reviews and approves proposals before implementation begins (assumption: approval means user agrees with implementation strategy)
 
 ### Execution Phase
-14. **Implement proposals**: Apply phase implements all approved proposals (`/zeno-apply <hash>` for each, or batch)
+14. **Pre-Apply Review** (see `zeno-apply/SKILL.md` guardrails): Before implementing each proposal:
+    - Read the entire proposal and check for open questions, unclear requirements, contradictory statements
+    - Verify all Files Affected exist (or are marked as new)
+    - Identify implicit assumptions and confirm correctness
+    - Flag any incomplete dependency blockers
+    - Document issues and escalate to user for clarification if needed
+15. **Implement proposals**: Apply phase implements all approved proposals (`/zeno-apply <hash>` for each, or batch)
     - Implementation happens directly without intermediate approval workflow
     - Zeno validates implementation matches proposal specifications
     - All changes remain in active proposal files until gate completion
-15. **Gate Completion**: When all proposals implemented, run `zeno gates complete <gate-id>` to:
+16. **Gate Completion**: When all proposals implemented, run `zeno gates complete <gate-id>` to:
     - Commit all implementation work
     - Archive all proposals automatically
     - Create git tag for the gate release
     - Set requirements to `tested` status
-16. **Repeat**: Continue with next gates
+17. **Repeat**: Continue with next gates
 
 **Key Improvement**: Streamlined workflow assumes user approval during proposal review phase. Archival happens only at gate completion, reducing friction between proposal and implementation. Zeno's role is to ensure implementation adheres to proposal specifications, not to manage intermediate archival steps.
 

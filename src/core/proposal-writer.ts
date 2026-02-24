@@ -284,7 +284,7 @@ function generateRedPhaseTasks(objective: string, coverageTarget: number): strin
 **File(s)**: \`tests/[module]/[feature].test.ts\`  
 **Action**: create
 
-Write comprehensive test cases covering happy paths, error conditions, and edge cases. Target ${coverageTarget} lines of coverage. Use mocks and fixtures to isolate units under test.
+Write comprehensive test cases covering happy paths, error conditions, and edge cases. Target ${String(coverageTarget)} lines of coverage. Use mocks and fixtures to isolate units under test.
 
 **Acceptance**:
 - [ ] All test cases execute and can fail

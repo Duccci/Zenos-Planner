@@ -73,13 +73,13 @@ export function prepareArchiveContent(
     // Insert Completed date after Status line
     updatedContent = updatedContent.replace(
       /(\*\*Status\*\*: completed)/,
-      `$1\n**Completed**: ${completedDate}`
+      `$1\n**Completed**: ${String(completedDate)}`
     )
   } else {
     // Update existing Completed date
     updatedContent = updatedContent.replace(
       /\*\*Completed\*\*: \d{4}-\d{2}-\d{2}/,
-      `**Completed**: ${completedDate}`
+      `**Completed**: ${String(completedDate)}`
     )
   }
   

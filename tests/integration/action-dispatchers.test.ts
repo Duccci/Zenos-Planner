@@ -178,7 +178,7 @@ describe('Proposal Action Dispatcher', () => {
       hash: 'prxy0001',
       title: 'Test',
       description: 'Test',
-      status: 'pending',
+      status: 'in_progress',
       gateId: 'gate-01',
       tasks: [],
       created: now,
@@ -197,7 +197,7 @@ describe('Proposal Action Dispatcher', () => {
     })
     registry.setMockResult('proposal_approve', {
       hash: 'prxy0001',
-      previousStatus: 'pending',
+      previousStatus: 'in_progress',
       newStatus: 'completed',
       approvedAt: now,
     })
@@ -214,9 +214,18 @@ describe('Proposal Action Dispatcher', () => {
 
   it('should dispatch reject action correctly', async () => {
     const now = new Date().toISOString()
+    registry.setMockResult('proposal_show', {
+      hash: 'prxy0001',
+      title: 'Test',
+      description: 'Test',
+      status: 'in_progress',
+      gateId: 'gate-01',
+      tasks: [],
+      created: now,
+    })
     registry.setMockResult('proposal_reject', {
       hash: 'prxy0001',
-      previousStatus: 'pending',
+      previousStatus: 'in_progress',
       newStatus: 'rejected',
       rejectedAt: now,
       reason: 'Requires changes',
@@ -433,6 +442,14 @@ describe('Gates Action Dispatcher', () => {
 
   it('should dispatch start action correctly', async () => {
     const now = new Date().toISOString()
+    registry.setMockResult('gates_show', {
+      id: 'gate-03',
+      name: 'Gate 3',
+      status: 'pending',
+      type: 'feature',
+      sequence: 3,
+      created: now,
+    })
     registry.setMockResult('gates_start', {
       gateId: 'gate-03',
       previousStatus: 'pending',
@@ -452,6 +469,14 @@ describe('Gates Action Dispatcher', () => {
 
   it('should dispatch complete action correctly', async () => {
     const now = new Date().toISOString()
+    registry.setMockResult('gates_show', {
+      id: 'gate-02',
+      name: 'Gate 2',
+      status: 'in_progress',
+      type: 'feature',
+      sequence: 2,
+      created: now,
+    })
     registry.setMockResult('config_get', {
       projectName: 'test',
       version: '0.1.0',

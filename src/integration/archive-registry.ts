@@ -28,7 +28,12 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
         case 'batch': {
           const payload = z
             .object({
-              artifacts: z.array(z.object({ type: z.literal('gate'), gateId: z.string() })),
+              artifacts: z.array(
+                z.union([
+                  z.object({ type: z.literal('gate'), gateId: z.string() }),
+                  z.object({ type: z.literal('proposal'), proposalHash: z.string() }),
+                ])
+              ),
               completionNotes: z.string().optional(),
             })
             .parse(validated.payload)

@@ -107,10 +107,10 @@ export async function syncGatesToProjectOverview(
 
     // Save back to JSON
     await saveProjectOverview(overview, projectRoot)
-    logger.debug(`Synced ${dbGates.length} gates to project-overview.json`)
+    logger.debug(`Synced ${String(dbGates.length)} gates to project-overview.json`)
   } catch (error) {
     logger.warn(
-      `Failed to sync gates to project-overview.json: ${error instanceof Error ? error.message : String(error)}`
+      `Failed to sync gates to project-overview.json: ${error instanceof Error ? error.message : ''}`
     )
   }
 }

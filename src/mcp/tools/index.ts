@@ -10,6 +10,7 @@ import { templateHandlers, templateToolDefinitions } from './template-tools.js'
 import { repositoryHandlers, repositoryToolDefinitions } from './repository-tools.js'
 import { analysisHandlers, analysisToolDefinitions } from './analysis-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
+import { projectHandlers, projectToolDefinitions } from './project-tools.js'
 import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -30,6 +31,7 @@ const handlerToolDefs = [
   ...proposalToolDefinitions,
   ...validationToolDefinitions,
   ...architectureToolDefinitions,
+  ...projectToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -76,6 +78,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     archiveHandlers,
     validationHandlers,
     architectureHandlers,
+    projectHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)

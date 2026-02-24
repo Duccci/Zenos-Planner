@@ -3,6 +3,12 @@
  *
  * Provides git operations wrapper using simple-git for version control integration.
  * Enables commit automation, tagging for gate releases, and status checks.
+ *
+ * IMPORTANT: All commits respect pre-commit hooks. Zeno NEVER uses --no-verify or similar
+ * flags that bypass quality gates. If commits fail due to hook violations, the failure is
+ * intentional and indicates code quality issues that must be resolved before committing.
+ *
+ * This is a core principle of Zeno's architecture: quality gates are non-negotiable.
  */
 
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
@@ -143,11 +149,20 @@ export async function getCurrentBranch(dir: string = process.cwd()): Promise<str
 
 /**
  * Stage files and create a commit.
+ *
+ * This function respects all pre-commit hooks. If the commit fails due to hook violations
+ * (linting errors, test failures, security issues, etc.), the error is intentional and
+ * indicates that the code quality gates have been triggered. These failures must be
+ * resolved before the commit can proceed.
+ *
+ * IMPORTANT: Zeno NEVER bypasses pre-commit hooks (no --no-verify, no skip flags).
+ * This is a core principle of Zeno's architecture - quality gates are non-negotiable.
+ *
  * @param message - Commit message
  * @param files - Files to stage (empty array means all changes)
  * @param dir - Repository directory (default: process.cwd())
  * @returns Commit hash
- * @throws GitError if commit fails
+ * @throws GitError if commit fails (including hook violations - this is intentional)
  */
 export async function commit(
   message: string,
@@ -164,10 +179,15 @@ export async function commit(
       await git.add('.')
     }
 
-    // Create commit
+    // Create commit - this will respect pre-commit hooks and fail if they detect issues
     const result = await git.commit(message)
     return result.commit
   } catch (error) {
+    // If commit fails, it's likely due to:
+    // 1. Pre-commit hook violations (linting, formatting, tests, security)
+    // 2. Actual git errors (invalid repo, permission issues, etc)
+    // Both cases are intentional failures - pre-commit hooks are a quality gate.
+    // Do NOT bypass them with --no-verify or similar flags.
     throw new GitError(
       'Failed to create commit',
       'GIT_COMMIT_FAILED',
@@ -252,9 +272,14 @@ export interface GitSyncResult {
 /**
  * Sync changes with git as part of a lifecycle event.
  *
+ * This function respects all pre-commit hooks. Commits are only created if:
+ * 1. The working tree has uncommitted changes
+ * 2. All pre-commit hooks pass (linting, formatting, tests, security, etc.)
+ *
  * This is intentionally conservative:
  * - If working tree is clean, it does nothing.
  * - It never pushes unless explicitly requested via autoPush=true.
+ * - It NEVER bypasses quality gates (no --no-verify flags)
  */
 export async function syncWithGit(options: {
   commitMessage: string

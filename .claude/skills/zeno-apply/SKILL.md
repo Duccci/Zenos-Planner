@@ -5,6 +5,13 @@ description: Implement an approved Zeno proposal and track task completion.
 
 **Guardrails**
 
+**Pre-Apply Review**: Before running `zeno proposal start`, read the entire proposal and perform the following checks:
+- Flag any open questions, unclear requirements, or contradictory statements in the Summary, Context, or Tasks sections. If found, document them and ask the user for clarification before proceeding.
+- Verify all Files Affected exist (or are explicitly marked as new files). If a file path references a non-existent directory structure, flag it and request confirmation.
+- Identify any implicit assumptions in the proposal (e.g., "assume X is already installed", "assume database schema exists"). List assumptions and ask the user to confirm they are correct before implementation begins.
+- Check Dependencies table (if present) for any blockers marked as incomplete. If found, document the blocker and wait for user guidance before proceeding.
+
+**Implementation Constraints**:
 - Assume user approval: proposals are reviewed and approved before apply begins (no separate approval step required)
 - Implement straightforward solutions; add complexity only when required
 - Keep changes tightly scoped to proposal tasks
@@ -13,6 +20,7 @@ description: Implement an approved Zeno proposal and track task completion.
 - Limit test changes to those that directly validate the updated target objects; do not broadly alter the test suite without explicit approval.
 - **Gate-tied proposals**: Do not create or modify test files unless the proposal is the gate's dedicated test proposal. Implementation proposals in gates deliberately omit tests to reduce context burden.
 - **Solitary proposals**: Tests are included inline and must be implemented as part of the proposal.
+- **Solitary proposals – Requirement updates**: Solitary proposals have no parent gate and must directly update requirements via `zeno req status <hash> implemented` (not through gate completion). Gate completion is only for gate-tied proposals.
 - If a task requires expanding the scope (additional files, refactors, or cross-cutting changes), document the proposed additions in the implementation output and obtain human approval before making those changes.
 - Review dependencies for context only; do not act on, implement, or pre-empt work that belongs to other proposals or later gates. If a dependency is incomplete and belongs to future work, document it as a blocker in the proposal and notify a human for clarification.
 - Use quality thresholds from `config_get()` instead of hard-coded values
@@ -46,12 +54,16 @@ Track progress by outputting step completion messages. **DO NOT use manage_todo_
    - `**Tasks Completed**: X/Y`
    - `**Files Modified/Created**: [list]`
    - `### Quality Metrics` (coverage, lint/type errors if applicable)
-7. **Update requirements** - For each requirement: either run `zeno req status <hash> implemented` or note that `zeno gates complete <gate-id>` will automatically set associated requirements to `implemented` when applicable.
+7. **Update requirements** - For each requirement:
+   - **Solitary proposals** (no parent gate): Directly run `zeno req status <hash> implemented` for each requirement
+   - **Gate-tied proposals**: Do NOT update requirements yet. Gate completion (`zeno gates complete <gate-id>`) will automatically set all associated requirements to `implemented` when the gate is completed by a human
 8. **Run checks** - Invoke: `zeno proposal validate <hash>` and fix failures
    - Confirm the proposal file has a Completion Summary and all acceptance boxes are checked.
    - No git operations allowed during apply — enforced by MCP validators (not just a convention). // See MCP: apply-phase-validator.ts#validateApplyPhase
-9. **Request gate completion** - If all gate proposals done: Output message for human approval to run `zeno gates complete <gate-id>`
-   - Note: This single command will implement, commit, archive all proposals, and tag the gate (preserves human review at gate level only)
+9. **Request approval and completion**:
+   - **Solitary proposals**: Output message requesting human approval to run `zeno proposal approve <hash>` (which will archive the proposal)
+   - **Gate-tied proposals**: Output message for human approval to run `zeno gates complete <gate-id>`
+     - Note: This single command will implement, commit, archive all proposals, and tag the gate (preserves human review at gate level only)
 
 **Reference**
 

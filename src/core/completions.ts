@@ -479,8 +479,8 @@ export async function completeGate(
     await archiveCompletedGateInState(
       gateId,
       gate.name,
-      gateInfo.sequence ?? 0,
-      gateInfo.hash ?? '#unknown',
+      gateInfo.sequence,
+      gateInfo.hash,
       projectRoot
     )
   } catch (error) {

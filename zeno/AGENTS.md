@@ -141,6 +141,47 @@ MCP tools are the authoritative interface for all workflow actions. Use these in
 
 This approach ensures efficient test coverage, reduces duplication, and maintains a lean test suite aligned with quality thresholds (90% coverage minimum).
 
+## Pre-Action Review: Identifying Issues Before Implementation
+
+Before generating proposals or applying them, AI agents must perform validation checks to identify open questions, unclear requirements, and incorrect assumptions. This prevents propagating ambiguity into implementation.
+
+### Before Generating Proposals (Gate Review)
+
+When starting proposal generation for a gate, read the entire Gate PRD and:
+- **Flag open questions** — Any ambiguous or incomplete requirement descriptions
+- **Identify unclear acceptance criteria** — Requirements saying "should be fast" without quantified metrics need clarification
+- **List implicit assumptions** — Assumptions about existing systems, migration paths, or constraints that may not be correct
+- **Check for blocked dependencies** — Gate dependencies that are incomplete or blocked by other work
+
+**See**: `../AGENTS.md` step 9 (Gate Review Check); `../.claude/skills/zeno-proposal/SKILL.md` (Pre-Generation Gate Review guardrails)
+
+### Before Applying Proposals (Pre-Apply Review)
+
+When starting proposal implementation, read the entire proposal and:
+- **Flag open questions** — Unclear tasks, contradictory acceptance criteria, or vague requirements
+- **Verify Files Affected** — Ensure all target files exist or are explicitly marked as new; flag non-existent paths
+- **Identify implicit assumptions** — Assumptions about installed packages, existing schemas, or system state
+- **Check for incomplete blockers** — Dependencies marked as incomplete that will prevent implementation
+
+**See**: `../AGENTS.md` step 14 (Pre-Apply Review); `../.claude/skills/zeno-apply/SKILL.md` (Pre-Apply Review guardrails)
+
+**Process**: If any issues are found, document them and escalate to the user for clarification BEFORE proceeding. Do not implement around unclear requirements.
+
+### Pre-Action Review Checklist
+
+Use this checklist when performing pre-action reviews (gate review before proposal generation, pre-apply review before implementation):
+
+| Check | Gate Review | Pre-Apply Review | Action if Found |
+|-------|-----------|-----------------|-----------------|
+| **Open Questions** | Any ambiguous/incomplete requirements | Unclear tasks, contradictory acceptance criteria | Document and escalate for clarification |
+| **Vague Acceptance Criteria** | "Should be fast" without metrics | Missing quantified thresholds | Flag and request specific measurements |
+| **Implicit Assumptions** | Assumed existing systems, migration paths | Assumed installed packages, schemas | List assumptions and request confirmation |
+| **Blocked Dependencies** | Gate dependencies incomplete/blocked | Dependency tasks marked incomplete | Document blocker and wait for user guidance |
+| **File/Path Verification** | (N/A) | Files Affected exist or marked as new | Flag non-existent paths and request confirmation |
+| **Clarity Across Sections** | PRD objectives, requirements, decisions | Summary, Context, Tasks sections | Document contradictions and ask for alignment |
+
+If any of these checks reveal issues, **STOP and escalate to the user** rather than proceeding with implementation or proposal generation.
+
 ## Troubleshooting
 
 | Issue                | Solution                                                    |

@@ -31,18 +31,18 @@ interface Tool {
 function parseRegistry(content: string): Map<string, string[]> {
   const tools = new Map<string, string[]>()
 
-  // Match each tool definition: name: 'tool-name', actions: ['...'] as const
+  // More robust regex to handle multiline actions and whitespace variations
   const toolMatches = content.matchAll(
-    /toolName:\s*['"]([^'"]+)['"],\s*actions:\s*\[([^\]]+)\]\s*as\s*const/g
+    /toolName:\s*['"]([^'"]+)['"]\s*,\s*actions:\s*\[([^\]]+)\]\s*as\s*const/gs
   )
 
   for (const match of toolMatches) {
     const [, toolName, actionsStr] = match
-    // Extract action names from the string
+    // Extract action names, handling multiline and extra whitespace
     const actions = actionsStr
       .split(',')
-      .map((a) => a.trim().replace(/['"]/g, ''))
-      .filter((a) => a.length > 0)
+      .map((a) => a.trim().replace(/['"]/g, '').trim())
+      .filter((a) => a.length > 0 && a !== '')
 
     tools.set(toolName, actions)
   }
@@ -61,26 +61,18 @@ function verifyDocumentation(
   const missingActions = new Map<string, string[]>()
 
   for (const [toolName, actions] of tools) {
-    // Check for tool heading: ## <toolName>
+    // Check for tool heading: ## toolName anywhere in the document
     const toolHeading = `## ${toolName}`
     if (!docContent.includes(toolHeading)) {
       missingTools.push(toolName)
       continue
     }
 
-    // Find the section for this tool
-    const toolIndex = docContent.indexOf(toolHeading)
-    const nextToolIndex = docContent.indexOf('\n##', toolIndex + 1)
-    const toolSection = docContent.slice(
-      toolIndex,
-      nextToolIndex > 0 ? nextToolIndex : docContent.length
-    )
-
-    // Check for action subsections: ### <action>
+    // Check for action subsections: #### <toolName>: <action>
     const missingForTool: string[] = []
     for (const action of actions) {
       const actionHeading = `#### ${toolName}: ${action}`
-      if (!toolSection.includes(actionHeading)) {
+      if (!docContent.includes(actionHeading)) {
         missingForTool.push(action)
       }
     }
@@ -118,7 +110,7 @@ async function verify(): Promise<number> {
 
   console.log(`[INFO] Found ${tools.size} registered tools:`)
   for (const [toolName, actions] of tools) {
-    console.log(`  - ${toolName} (${actions.length} actions)`)
+    console.log(`  - ${toolName} (${actions.length} actions): ${actions.join(', ')}`)
   }
   console.log()
 

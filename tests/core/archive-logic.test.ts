@@ -9,6 +9,13 @@ vi.mock('node:fs/promises', () => ({
   readFile: vi.fn(),
   writeFile: vi.fn(),
   mkdir: vi.fn(),
+  readdir: vi.fn(),
+  unlink: vi.fn(),
+}));
+
+vi.mock('node:fs', () => ({
+  existsSync: vi.fn(),
+  readdirSync: vi.fn(),
 }));
 
 vi.mock('../../src/utils/config.js', () => ({
@@ -23,6 +30,7 @@ vi.mock('../../src/utils/gate-consolidation.js', () => ({
 
 vi.mock('../../src/core/archive-validation.js', () => ({
   validateGateReady: vi.fn(),
+  validateProposalReady: vi.fn(),
 }));
 
 vi.mock('../../src/core/archive-consolidation.js', () => ({
@@ -44,11 +52,12 @@ vi.mock('../../src/core/metrics-capture.js', () => ({
   captureMetricsSnapshot: vi.fn(),
 }));
 
-import { archiveGate, archiveBatch } from '../../src/core/archive-logic.js';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { archiveGate, archiveBatch, archiveProposal } from '../../src/core/archive-logic.js';
+import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
+import { existsSync, readdirSync } from 'node:fs';
 import { loadConfig, getZenoDir } from '../../src/utils/config.js';
 import { consolidateGateProposals } from '../../src/utils/gate-consolidation.js';
-import { validateGateReady } from '../../src/core/archive-validation.js';
+import { validateGateReady, validateProposalReady } from '../../src/core/archive-validation.js';
 import { prepareArchiveContent } from '../../src/core/archive-consolidation.js';
 import {
   getCurrentTimestamp,
@@ -80,7 +89,15 @@ beforeEach(() => {
   vi.mocked(readFile).mockResolvedValue('# Gate 01 Test Gate\n**Status**: completed');
   vi.mocked(writeFile).mockResolvedValue(undefined);
   vi.mocked(mkdir).mockResolvedValue(undefined);
+  vi.mocked(readdir).mockResolvedValue([]);
+  vi.mocked(unlink).mockResolvedValue(undefined);
+  vi.mocked(existsSync).mockReturnValue(true);
+  vi.mocked(readdirSync).mockReturnValue([]);
   vi.mocked(validateGateReady).mockResolvedValue(undefined);
+  vi.mocked(validateProposalReady).mockResolvedValue({
+    type: 'solitary',
+    title: 'Test Proposal',
+  } as any);
   vi.mocked(performGitCommitAndPush).mockResolvedValue(undefined);
 });
 
@@ -158,6 +175,9 @@ describe('archiveBatch', () => {
     expect(result.archivedCount).toBe(2);
     expect(result.results).toHaveLength(2);
     expect(result.summary).toContain('2/2');
+    expect(result.results[0]).toHaveProperty('artifactType', 'gate');
+    expect(result.results[0]).toHaveProperty('success', true);
+    expect(result.results[0]).toHaveProperty('output');
   });
 
   it('continues on error and reports partial success', async () => {
@@ -174,8 +194,11 @@ describe('archiveBatch', () => {
 
     expect(result.success).toBe(true);
     expect(result.archivedCount).toBe(1);
-    expect(result.results).toHaveLength(1);
+    expect(result.results).toHaveLength(2);
     expect(result.summary).toContain('1/2');
+    expect(result.results[0]).toHaveProperty('success', true);
+    expect(result.results[1]).toHaveProperty('success', false);
+    expect(result.results[1]).toHaveProperty('error');
   });
 
   it('returns success=false when all artifacts fail', async () => {
@@ -190,7 +213,9 @@ describe('archiveBatch', () => {
 
     expect(result.success).toBe(false);
     expect(result.archivedCount).toBe(0);
-    expect(result.results).toHaveLength(0);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0]).toHaveProperty('success', false);
+    expect(result.results[1]).toHaveProperty('success', false);
   });
 
   it('handles empty artifacts array', async () => {
@@ -208,5 +233,28 @@ describe('archiveBatch', () => {
 
     const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
     expect(commitCall?.commitMessage).toContain('Notes: batch notes');
+  });
+
+  it('handles mixed gate and proposal artifacts', async () => {
+    // Ensure readdir is mocked to return empty array (no duplicates)
+    vi.mocked(readdir).mockResolvedValue([]);
+    vi.mocked(readdirSync).mockReturnValue([]);
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Test Proposal',
+    });
+
+    const artifacts = [
+      { type: 'gate' as const, gateId: 'gate-01' },
+      { type: 'proposal' as const, proposalHash: 'p-test-hash' },
+    ];
+
+    const result = await archiveBatch(artifacts);
+
+    expect(result.success).toBe(true);
+    expect(result.archivedCount).toBe(2);
+    expect(result.results).toHaveLength(2);
+    expect(result.results[0]).toHaveProperty('artifactType', 'gate');
+    expect(result.results[1]).toHaveProperty('artifactType', 'proposal');
   });
 });

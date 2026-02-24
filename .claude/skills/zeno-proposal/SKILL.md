@@ -5,6 +5,13 @@ description: Generate proposal documents from a Gate PRD for implementation.
 
 **Guardrails**
 
+**Pre-Generation Gate Review**: Before decomposing a gate into proposals, perform the following checks:
+- Read the entire Gate PRD (Objectives, Requirements, Technical Decisions, Acceptance Criteria). Flag any open questions, unclear requirements, or contradictory statements. If found, document them and ask the user for clarification before generating proposals.
+- Verify all Requirements listed in the gate are complete and unambiguous. If a requirement has vague acceptance criteria (e.g., "should be fast", "reasonable performance"), flag it and ask for quantified metrics before proceeding.
+- Identify any implicit assumptions in the gate PRD (e.g., "assumes migration path from v1 exists", "assumes no breaking changes"). List assumptions and ask the user to confirm they are correct before proposal generation.
+- Check if any gate dependencies are incomplete or blocked. If so, document the blocker and request user guidance before proceeding with proposal generation.
+
+**Proposal Generation Constraints**:
 - Only create markdown in `zeno/proposals/gate-XX/`; no code, files, or commands
 - Keep proposals as single coherent work units with status `pending`
 - Decompose Gate PRD steps into tasks; describe changes without implementing

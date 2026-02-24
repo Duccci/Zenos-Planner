@@ -16,7 +16,7 @@ import type Database from 'better-sqlite3'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 
-/** Walk `dir` recursively, yielding paths of .md files. Skips `archive` subdirectories. */
+/** Walk `dir` recursively, yielding paths of .md files. Skips `archive` subdirectories and non-canonical proposal files. */
 function* walkMd(dir: string): Generator<string> {
   let entries: string[]
   try {
@@ -34,6 +34,11 @@ function* walkMd(dir: string): Generator<string> {
         if (entry === 'archive') continue
         yield* walkMd(full)
       } else if (entry.endsWith('.md')) {
+        // Skip non-canonical proposal filenames (e.g., -generated, -template, -backup)
+        // Canonical proposals should not have these suffixes before .md
+        if (/-generated|-template|-backup|-tmp|-draft/.test(entry)) {
+          continue
+        }
         yield full
       }
     } catch {
@@ -121,6 +126,8 @@ export function syncProposalsFromDisk(
   `)
 
   const syncAll = db.transaction(() => {
+    const seenHashes = new Map<string, string>() // hash -> filePath
+
     // Sync all proposals from disk
     for (const filePath of walkMd(proposalsDir)) {
       let content: string
@@ -132,6 +139,18 @@ export function syncProposalsFromDisk(
 
       const meta = parseProposalMetadata(content, filePath)
       if (!meta) continue
+
+      // Check for hash collision in current sync
+      if (seenHashes.has(meta.hash)) {
+        console.warn(
+          `⚠ Hash collision detected: ${meta.hash}\n` +
+            `  File 1: ${String(seenHashes.get(meta.hash))}\n` +
+            `  File 2: ${filePath}\n` +
+            `  Only the first file will be synced. This indicates a data integrity issue.`
+        )
+        continue
+      }
+      seenHashes.set(meta.hash, filePath)
 
       upsert.run(meta.gateId, meta.title, meta.status, meta.hash, meta.createdAt)
     }
