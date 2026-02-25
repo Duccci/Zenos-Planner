@@ -523,4 +523,147 @@ describe('Architecture Diagram Generation (Test-First)', () => {
       expect(uniqueTypes.size).toBe(types.length)
     })
   })
+
+  // Additional tests for conditional diagram generators (lower coverage)
+  describe('Sequence Diagram Generator', () => {
+    it('returns sequence diagram type', async () => {
+      const { SequenceDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/sequence-diagram-generator.js'
+      )
+      const gen = new SequenceDiagramGenerator()
+      expect(gen.getType()).toBe('sequence')
+      expect(gen.getCategory()).toBe('conditional')
+    })
+
+    it('generates valid sequence diagram content', async () => {
+      const { SequenceDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/sequence-diagram-generator.js'
+      )
+      const gen = new SequenceDiagramGenerator()
+      const content = gen.generateContent({})
+      expect(content).toContain('sequenceDiagram')
+      expect(content).toContain('participant')
+      expect(content).toContain('->>') // Message syntax
+    })
+
+    it('counts nodes and edges correctly', async () => {
+      const { SequenceDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/sequence-diagram-generator.js'
+      )
+      const gen = new SequenceDiagramGenerator()
+      expect(gen['countNodes']()).toBe(4) // User, API, Service, DB
+      expect(gen['countEdges']()).toBe(8) // 8 interactions
+      expect(gen['countNestingDepth']()).toBe(3) // Activation levels
+    })
+
+    it('accepts optional descriptor parameter', async () => {
+      const { SequenceDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/sequence-diagram-generator.js'
+      )
+      const gen = new SequenceDiagramGenerator('my-descriptor')
+      const content = gen.generateContent({})
+      expect(content).toBeDefined()
+    })
+
+    it('handles complexity analyzer parameter', async () => {
+      const { SequenceDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/sequence-diagram-generator.js'
+      )
+      const analyzer = new ComplexityAnalyzer()
+      const gen = new SequenceDiagramGenerator('desc', analyzer)
+      expect(gen).toBeDefined()
+    })
+  })
+
+  describe('Package Diagram Generator', () => {
+    it('returns package diagram type', async () => {
+      const { PackageDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/package-diagram-generator.js'
+      )
+      const gen = new PackageDiagramGenerator()
+      expect(gen.getType()).toBe('package')
+      expect(gen.getCategory()).toBe('conditional')
+    })
+
+    it('generates valid package diagram with subgraphs', async () => {
+      const { PackageDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/package-diagram-generator.js'
+      )
+      const gen = new PackageDiagramGenerator()
+      const content = gen.generateContent({})
+      expect(content).toContain('subgraph')
+      expect(content).toContain('graph TB')
+      expect(content).toContain('-->|uses|')
+    })
+
+    it('counts package and module nodes', async () => {
+      const { PackageDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/package-diagram-generator.js'
+      )
+      const gen = new PackageDiagramGenerator()
+      expect(gen['countNodes']()).toBe(14) // 4 packages + 10 modules
+      expect(gen['countEdges']()).toBe(6) // Package dependencies
+      expect(gen['countNestingDepth']()).toBe(2) // Packages containing modules
+    })
+
+    it('accepts optional scope prefix parameter', async () => {
+      const { PackageDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/package-diagram-generator.js'
+      )
+      const gen = new PackageDiagramGenerator('@scope')
+      expect(gen).toBeDefined()
+    })
+  })
+
+  describe('Component Diagram Generator', () => {
+    it('returns component diagram type', async () => {
+      const { ComponentDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/component-diagram-generator.js'
+      )
+      const gen = new ComponentDiagramGenerator()
+      expect(gen.getType()).toBe('component')
+      expect(gen.getCategory()).toBe('conditional')
+    })
+
+    it('generates component diagram with default system name', async () => {
+      const { ComponentDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/component-diagram-generator.js'
+      )
+      const gen = new ComponentDiagramGenerator()
+      const content = gen.generateContent({})
+      expect(content).toContain('System Component')
+      expect(content).toContain('subgraph')
+    })
+
+    it('generates component diagram with custom component name', async () => {
+      const { ComponentDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/component-diagram-generator.js'
+      )
+      const gen = new ComponentDiagramGenerator('MyService')
+      const content = gen.generateContent({})
+      expect(content).toContain('MyService Component')
+    })
+
+    it('includes interface, modules, and external system', async () => {
+      const { ComponentDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/component-diagram-generator.js'
+      )
+      const gen = new ComponentDiagramGenerator()
+      const content = gen.generateContent({})
+      expect(content).toContain('[interface]')
+      expect(content).toContain('Parser')
+      expect(content).toContain('Validator')
+      expect(content).toContain('Processor')
+      expect(content).toContain('External')
+    })
+
+    it('counts nodes and nesting depth', async () => {
+      const { ComponentDiagramGenerator } = await import(
+        '../../src/generation/diagram-generators/component-diagram-generator.js'
+      )
+      const gen = new ComponentDiagramGenerator()
+      // Component diagram should count internal components
+      expect(gen['countNodes']()).toBeGreaterThan(0)
+    })
+  })
 })

@@ -57,8 +57,8 @@ export class SystemOverviewGenerator extends DiagramGeneratorBase {
    */
   private extractDiagramFromPRD(prdContent: string): string | null {
     // Look for Mermaid code block in PRD
-    const match = prdContent.match(/```mermaid\n([\s\S]*?)\n```/)
-    return match && match[1] ? match[1] : null
+    const match = /```mermaid\n([\s\S]*?)\n```/.exec(prdContent)
+    return match?.[1] ?? null
   }
 
   /**
@@ -66,8 +66,8 @@ export class SystemOverviewGenerator extends DiagramGeneratorBase {
    */
   private extractMermaidFromMarkdown(markdown: string): string | null {
     // Look for Mermaid code block
-    const match = markdown.match(/```mermaid\n([\s\S]*?)\n```/)
-    return match && match[1] ? match[1] : null
+    const match = /```mermaid\n([\s\S]*?)\n```/.exec(markdown)
+    return match?.[1] ?? null
   }
 
   /**

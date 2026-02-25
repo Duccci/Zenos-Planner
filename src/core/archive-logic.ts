@@ -70,7 +70,7 @@ async function updateArchitectureOnGateCompletion(
     const versionStr = versionMatch.exec(content)?.[1] ?? '2.0.0'
     
     // Parse version and bump PATCH (2.0.0 → 2.0.1)
-    const [major, minor, patch] = versionStr.split('.')
+    const [major = '2', minor = '0', patch] = versionStr.split('.')
     const newPatch = String(parseInt(patch ?? '0', 10) + 1)
     const newVersion = `${major}.${minor}.${newPatch}`
     

@@ -39,7 +39,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
       context.prdContent = prdContent
 
       // Extract project description from PRD (first paragraph)
-      const descMatch = prdContent.match(/## Overview\s+([\s\S]*?)\n##/)
+      const descMatch = /## Overview\s+([\s\S]*?)\n##/.exec(prdContent)
       if (descMatch?.[1]) {
         context.projectDescription = descMatch[1].trim()
       }
@@ -53,7 +53,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
         }
       }
       if (Object.keys(decisions).length > 0) {
-        if (!context.metadata) context.metadata = {}
+        context.metadata ??= {}
         context.metadata.technicalDecisions = decisions
       }
     } catch (e) {
@@ -75,7 +75,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
       }))
 
       // Add metadata about gate progress
-      if (!context.metadata) context.metadata = {}
+      context.metadata ??= {}
       const implementedCount = allGates.filter((g) => g.status === 'completed').length
       context.metadata.targetGateCount = allGates.length
       context.metadata.implementedGateCount = implementedCount

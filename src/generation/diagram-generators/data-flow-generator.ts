@@ -46,8 +46,8 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
    * Extract Mermaid diagram from markdown documentation.
    */
   private extractMermaidFromMarkdown(markdown: string): string | null {
-    const match = markdown.match(/```mermaid\n([\s\S]*?)\n```/)
-    return match && match[1] ? match[1] : null
+    const match = /```mermaid\n([\s\S]*?)\n```/.exec(markdown)
+    return match?.[1] ?? null
   }
 
   /**

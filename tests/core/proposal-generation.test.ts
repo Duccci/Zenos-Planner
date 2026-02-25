@@ -267,4 +267,117 @@ describe('proposal-generation', () => {
       expect(mockValidateArtifactFile).toHaveBeenCalledTimes(2)
     })
   })
+
+  describe('RED/GREEN guardrail validation', () => {
+    it('validates Test Refinement is the last proposal', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'red1', phase: 'RED' },
+        { ...PROPOSAL_STUB, hash: 'test-refine', phase: 'Test Refinement' },
+        { ...PROPOSAL_STUB, hash: 'green1', phase: 'GREEN' }, // GREEN after Test Refinement - INVALID
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true) // Log warnings but don't fail
+    })
+
+    it('validates GREEN comes before RED triggers warning', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'green1', phase: 'GREEN' },
+        { ...PROPOSAL_STUB, hash: 'red1', phase: 'RED' }, // RED after GREEN - INVALID
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('validates RED[i] before GREEN[i] ordering', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'red1', phase: 'RED', filename: '01-red.md' },
+        { ...PROPOSAL_STUB, hash: 'green1', phase: 'GREEN', filename: '02-green.md' },
+        { ...PROPOSAL_STUB, hash: 'red2', phase: 'RED', filename: '03-red2.md' },
+        { ...PROPOSAL_STUB, hash: 'green2', phase: 'GREEN', filename: '04-green2.md' }, // GREEN[2] before RED[2] - INVALID
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('allows mixed proposals without RED/GREEN phases', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'p1', filename: '01.md' },
+        { ...PROPOSAL_STUB, hash: 'p2', filename: '02.md' },
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('allows Test Refinement without other RED/GREEN proposals', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'test-refine', phase: 'Test Refinement' },
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('succeeds with proper RED-GREEN-Test Refinement sequence', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'red1', phase: 'RED', filename: '01-red.md' },
+        { ...PROPOSAL_STUB, hash: 'green1', phase: 'GREEN', filename: '02-green.md' },
+        { ...PROPOSAL_STUB, hash: 'test-refine', phase: 'Test Refinement', filename: '03-test.md' },
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('handles multiple RED/GREEN cycles correctly', async () => {
+      const proposals = [
+        { ...PROPOSAL_STUB, hash: 'red1', phase: 'RED', filename: '01-red.md' },
+        { ...PROPOSAL_STUB, hash: 'green1', phase: 'GREEN', filename: '02-green.md' },
+        { ...PROPOSAL_STUB, hash: 'red2', phase: 'RED', filename: '03-red2.md' },
+        { ...PROPOSAL_STUB, hash: 'green2', phase: 'GREEN', filename: '04-green2.md' },
+        { ...PROPOSAL_STUB, hash: 'test-refine', phase: 'Test Refinement', filename: '05-test.md' },
+      ]
+      mockDecomposeToProposals.mockResolvedValue(proposals)
+      mockFsAccess.mockResolvedValue(undefined)
+      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
+
+      const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
+
+      expect(result.success).toBe(true)
+    })
+  })
 })

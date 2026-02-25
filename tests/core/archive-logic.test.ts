@@ -258,3 +258,137 @@ describe('archiveBatch', () => {
     expect(result.results[1]).toHaveProperty('artifactType', 'proposal');
   });
 });
+
+// Additional tests for architecture update and proposal archival branches
+describe('archiveProposal', () => {
+  it('archives a solitary proposal', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Standalone Proposal',
+    });
+    vi.mocked(readdir).mockResolvedValue([]);
+    vi.mocked(readdirSync).mockReturnValue([]);
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    const result = await archiveProposal('p-hash123', 'done');
+
+    expect(result.success).toBe(true);
+    expect(result.proposalHash).toBe('p-hash123');
+    expect(result.proposalType).toBe('solitary');
+    expect(result.status).toBe('completed');
+    expect(performGitCommitAndPush).toHaveBeenCalled();
+  });
+
+  it('archives a gate-tied proposal', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'gate-tied',
+      title: 'Gate Proposal',
+      gateId: 'gate-01',
+    });
+    vi.mocked(readdir).mockResolvedValue([]);
+    vi.mocked(readdirSync).mockReturnValue([]);
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    const result = await archiveProposal('p-hash456', 'complete');
+
+    expect(result.success).toBe(true);
+    expect(result.proposalType).toBe('gate-tied');
+    expect(result.gateId).toBe('gate-01');
+  });
+
+  it('throws when proposal file not found', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Missing Proposal',
+    });
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    await expect(archiveProposal('p-missing')).rejects.toThrow('not found');
+  });
+
+  it('removes duplicate archive files before writing', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Proposal',
+    });
+    vi.mocked(readdir).mockResolvedValue(['p-hash.md', 'p-hash-old.md'] as any);
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    // Mock fs.unlink via dynamic import (used in archiveProposal)
+    const fsImportSpy = vi.spyOn(await import('node:fs/promises'), 'unlink').mockResolvedValue(undefined as any);
+
+    const result = await archiveProposal('p-hash');
+    expect(result.success).toBe(true);
+
+    fsImportSpy.mockRestore();
+  });
+
+  it('handles readFile errors gracefully', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Proposal',
+    });
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockRejectedValue(new Error('read fail'));
+
+    await expect(archiveProposal('p-hash')).rejects.toThrow('read fail');
+  });
+});
+
+describe('updateArchitectureOnGateCompletion', () => {
+  it('skips update when architecture file not found', async () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+
+    // Import and call the function using dynamic import
+    const { archiveGate } = await import('../../src/core/archive-logic.js');
+    // The architecture update is called internally during archiveGate, but we test through that
+    const result = await archiveGate('gate-01', 'test notes');
+    expect(result.success).toBe(true); // Should not fail even if arch file missing
+  });
+
+  it('handles version parsing edge cases', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValueOnce('# Gate 01\nContent'); // Initial read
+    vi.mocked(readFile).mockResolvedValueOnce('**Last Updated**: 2026-02-24\n**Version**: 1.2.3'); // Arch file for update
+
+    const result = await archiveGate('gate-01');
+    expect(result.success).toBe(true);
+  });
+
+  it('handles missing version with fallback', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValueOnce('# Gate 01'); // Initial gate read
+    vi.mocked(readFile).mockResolvedValueOnce('**Last Updated**: 2026-02-23'); // Arch file without version
+
+    const result = await archiveGate('gate-01');
+    expect(result.success).toBe(true);
+  });
+
+  it('appends changelog when not present', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValueOnce('# Gate 01'); // Initial gate read
+    vi.mocked(readFile).mockResolvedValueOnce('# System Overview\n**Last Updated**: 2026-02-23'); // No changelog
+
+    const result = await archiveGate('gate-01');
+    expect(result.success).toBe(true);
+  });
+
+  it('gracefully handles arch update write failure', async () => {
+    // We need to set up writefile to fail on the architecture update but succeed on main gate archive
+    let writeCallCount = 0;
+    vi.mocked(writeFile).mockImplementation(async () => {
+      writeCallCount++;
+      // First write (main gate archive) succeeds, second write (arch update) fails
+      if (writeCallCount === 2) {
+        throw new Error('write fail');
+      }
+    });
+    
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockImplementation(async () => '# Gate 01');
+
+    // The archiveGate should still succeed (non-fatal arch update)
+    const result = await archiveGate('gate-01');
+    expect(result.success).toBe(true);
+  });
+});

@@ -161,18 +161,18 @@ Gate-06 will expose one unified MCP tool for repository management:
 
 | MCP Tool | Actions | Purpose |
 |---|---|---|
-| `repos_action` | list, show, add, remove, deps, sync, analyze_imports, validate_boundaries | Unified repository management (CRUD, dependency analysis, boundary validation, cross-project sync) |
+| `subrepos_action` | list, show, add, remove, deps, sync, analyze_imports, validate_boundaries | Unified repository management (CRUD, dependency analysis, boundary validation, cross-project sync) |
 
 **Action Specifications**:
 
-- `repos_action list` (optional: filter) — List all declared repositories with metadata (path, type, URL, zeno_project_ref)
-- `repos_action show` (repo_hash or repo_id) — Show detailed information for a specific repository
-- `repos_action add` (path OR url, optional: type) — Declare a new repository (interactive LLM flow or CLI)
-- `repos_action remove` (repo_hash or repo_id) — Remove a repository declaration
-- `repos_action deps` (optional: repo_id) — Display cross-repository dependency graph (ASCII tree or Mermaid)
-- `repos_action sync` (optional: repo_id) — Check/trigger cross-project Zeno state sync across subprojects
-- `repos_action analyze_imports` (repo_id, optional: path_pattern) — Analyze imports in repository; suggest internal vs. external dependencies (integrates Code Analyzer, Dependency Analyzer, Metrics Calculator from Gate 02)
-- `repos_action validate_boundaries` (optional: config) — Validate proposed repository boundaries for circular dependencies and coupling issues (integrates Circular Dependency Detection, Dependency Graph Utilities from Gate 04)
+- `subrepos_action list` (optional: filter) — List all declared repositories with metadata (path, type, URL, zeno_project_ref)
+- `subrepos_action show` (repo_hash or repo_id) — Show detailed information for a specific repository
+- `subrepos_action add` (path OR url, optional: type) — Declare a new repository (interactive LLM flow or CLI)
+- `subrepos_action remove` (repo_hash or repo_id) — Remove a repository declaration
+- `subrepos_action deps` (optional: repo_id) — Display cross-repository dependency graph (ASCII tree or Mermaid)
+- `subrepos_action sync` (optional: repo_id) — Check/trigger cross-project Zeno state sync across subprojects
+- `subrepos_action analyze_imports` (repo_id, optional: path_pattern) — Analyze imports in repository; suggest internal vs. external dependencies (integrates Code Analyzer, Dependency Analyzer, Metrics Calculator from Gate 02)
+- `subrepos_action validate_boundaries` (optional: config) — Validate proposed repository boundaries for circular dependencies and coupling issues (integrates Circular Dependency Detection, Dependency Graph Utilities from Gate 04)
 
 ### What This Gate Enables
 

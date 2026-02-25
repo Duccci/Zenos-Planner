@@ -63,11 +63,15 @@ export function createSchemaValidatingHandler(
       })
   }
 
-  return async (args: Record<string, unknown>): Promise<CallToolResult> => {
+  return async (args: Record<string, unknown> | null | undefined): Promise<CallToolResult> => {
+    // Normalize: LLMs sometimes pass null as the top-level args object (or include
+    // null values for optional fields). Treat null args the same as empty object.
+    const safeArgs: Record<string, unknown> = args ?? {}
+
     try {
       // If caller provided a mock result (useful for tests and local simulation),
       // try to parse and validate it against the provided schema first.
-      const rawMock = (args as { mockResult?: unknown }).mockResult ?? null
+      const rawMock = (safeArgs as { mockResult?: unknown }).mockResult ?? null
       if (rawMock != null) {
         const parsed = parseJsonSafe(rawMock)
         if (parsed !== null) {
@@ -89,7 +93,7 @@ export function createSchemaValidatingHandler(
         }
       }
 
-      const result = await registry.invoke(functionName, args)
+      const result = await registry.invoke(functionName, safeArgs)
 
       if (result.success) {
         const data = result.data
@@ -170,10 +174,11 @@ export function createSchemaValidatingHandler(
 export function createBasicHandler(
   registry: FunctionRegistry,
   functionName: string
-): (args: Record<string, unknown>) => Promise<CallToolResult> {
-  return async (args: Record<string, unknown>): Promise<CallToolResult> => {
+): (args: Record<string, unknown> | null | undefined) => Promise<CallToolResult> {
+  return async (args: Record<string, unknown> | null | undefined): Promise<CallToolResult> => {
+    const safeArgs: Record<string, unknown> = args ?? {}
     try {
-      const result = await registry.invoke(functionName, args)
+      const result = await registry.invoke(functionName, safeArgs)
 
       if (result.success) {
         const data = result.data

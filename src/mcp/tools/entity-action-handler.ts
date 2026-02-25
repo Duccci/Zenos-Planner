@@ -46,7 +46,13 @@ export function createEntityActionHandler<T extends string>(
     if (!registry) return createNotImplementedHandler(`${config.entity} action requires registry`)
 
     try {
-      const validated = config.inputSchema.parse(args) as { action?: T } & Record<string, unknown>
+      // LLMs often pass `null` for optional fields they don't intend to set.
+      // Zod `.optional()` accepts `undefined` but not `null`, so strip top-level
+      // null values before parsing to avoid spurious validation failures.
+      const cleanArgs = Object.fromEntries(
+        Object.entries(args).filter(([, v]) => v !== null)
+      )
+      const validated = config.inputSchema.parse(cleanArgs) as { action?: T } & Record<string, unknown>
 
       // Return usage guidance when no action is provided
       if (!validated.action) {

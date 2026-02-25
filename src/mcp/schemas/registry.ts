@@ -73,7 +73,7 @@ export const ToolRegistry = {
   config: {
     toolName: 'config_get',
     actions: ['get'] as const,
-    inputSchema: z.object({}).optional(),
+    inputSchema: z.object({}),
     outputSchema: ConfigGetOutputSchema,
     description:
       'REQUIRED: Use config_get to retrieve quality thresholds and project configuration.',
