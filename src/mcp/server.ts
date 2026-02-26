@@ -54,9 +54,6 @@ Always specify the project path when working with project-specific tools. Follow
   // Register resources for project artifacts
   const { registerResources } = await import('./resources/index.js')
   const resourceResult = await registerResources(server, workspacePath, { watch: true })
-  const resourceCountNumber =
-    typeof resourceResult === 'number' ? resourceResult : resourceResult.count
-  logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)
 
   // Store resource watcher for cleanup on server shutdown
   let resourceWatcher: { close: () => void } | undefined

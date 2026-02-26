@@ -105,7 +105,15 @@ describe('Action Tool Config Integration', () => {
 
       const result = await handlers.proposal_action({
         action: 'start',
-        payload: { hash: 'test0001' },
+        hash: 'test0001',
+        preReview: {
+          phase: 'apply',
+          openQuestionsResolved: true,
+          questionsFound: [],
+          filesVerified: true,
+          assumptionsDocumented: [],
+          blockersIdentified: [],
+        },
       })
 
       const parsed = JSON.parse(result.content[0].text)
@@ -285,7 +293,15 @@ describe('Action Tool Config Integration', () => {
 
       const result = await handlers.proposal_action({
         action: 'start',
-        payload: { hash: 'test0001' },
+        hash: 'test0001',
+        preReview: {
+          phase: 'apply',
+          openQuestionsResolved: true,
+          questionsFound: [],
+          filesVerified: true,
+          assumptionsDocumented: [],
+          blockersIdentified: [],
+        },
       })
 
       // Should still work but with warnings
@@ -340,7 +356,15 @@ describe('Action Tool Config Integration', () => {
 
       const result = await handlers.proposal_action({
         action: 'start',
-        payload: { hash: 'test0001' },
+        hash: 'test0001',
+        preReview: {
+          phase: 'apply',
+          openQuestionsResolved: true,
+          questionsFound: [],
+          filesVerified: true,
+          assumptionsDocumented: [],
+          blockersIdentified: [],
+        },
       })
 
       expect(result).toBeDefined()

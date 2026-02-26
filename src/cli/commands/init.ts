@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger.js'
 import { directoryExists } from '../../utils/file.js'
 import { findProjectRoot, loadConfig } from '../../utils/config.js'
 import { getGlobalRegistry } from '../../integration/function-implementations.js'
+import { syncMemoryFromProjectOverview } from '../../utils/memory-sync.js'
 
 /**
  * Validate project name
@@ -139,6 +140,13 @@ export function registerInitCommand(program: Command): void {
           logger.info('  3. Run "zeno gates list" to see your roadmap')
           logger.info('  4. Start with "zeno gates start gate-01"')
           logger.info(`Generated ${String(data.gatesGenerated)} gates and ${String(data.requirementsGenerated)} requirements`)
+
+          // Seed .serena/memories/project_overview.md with initial gate roadmap
+          try {
+            await syncMemoryFromProjectOverview(projectRoot)
+          } catch {
+            // Non-fatal — memory file may not exist in all environments
+          }
         } else {
           const error = result.error as { code: string; message: string }
           if (error.code === 'PROJECT_EXISTS') {

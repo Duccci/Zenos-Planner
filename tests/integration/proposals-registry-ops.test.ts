@@ -27,6 +27,9 @@ const mockReadFile = vi.fn()
 const mockValidateApplyPhase = vi.fn()
 const mockLoadConfig = vi.fn()
 const mockValidateArtifactFile = vi.fn()
+const mockApproveProposal = vi.fn()
+const mockRejectProposal = vi.fn()
+const mockStartProposal = vi.fn()
 
 vi.mock('../../src/storage/database.js', () => ({
   getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
@@ -75,6 +78,12 @@ vi.mock('../../src/mcp/validators/artifact-validator.js', () => ({
   validateArtifactFile: (...args: unknown[]) => mockValidateArtifactFile(...args),
 }))
 
+vi.mock('../../src/core/completions.js', () => ({
+  approveProposal: (...args: unknown[]) => mockApproveProposal(...args),
+  rejectProposal: (...args: unknown[]) => mockRejectProposal(...args),
+  startProposal: (...args: unknown[]) => mockStartProposal(...args),
+}))
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -99,6 +108,9 @@ describe('proposals-registry operations', () => {
     mockAll.mockReturnValue([])
     mockGet.mockReturnValue(undefined)
     mockInvokeCommand.mockResolvedValue({ success: true })
+    mockApproveProposal.mockResolvedValue({})
+    mockRejectProposal.mockResolvedValue({})
+    mockStartProposal.mockResolvedValue({})
     mockValidateDependencies.mockReturnValue({ errors: [], warnings: [] })
     mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
     mockValidateApplyPhase.mockReturnValue({ allowed: true, warnings: [] })
@@ -649,7 +661,7 @@ describe('proposals-registry operations', () => {
       })
       mockValidateApplyPhase.mockReturnValue({ allowed: true, warnings: [] })
       mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
-      mockInvokeCommand.mockResolvedValue({ success: true })
+      mockApproveProposal.mockResolvedValue({})
 
       const result = (await registry.invoke('proposal_approve', { hash: 'abc12345' })) as {
         success: boolean
@@ -661,7 +673,7 @@ describe('proposals-registry operations', () => {
       expect(data.status).toBe('approved')
     })
 
-    it('throws when invokeCommand fails after validation passes', async () => {
+    it('throws when approveProposal throws after validation passes', async () => {
       mockGet.mockReturnValue({
         hash: 'abc12345',
         dependencies: null,
@@ -671,7 +683,7 @@ describe('proposals-registry operations', () => {
       })
       mockValidateApplyPhase.mockReturnValue({ allowed: true, warnings: [] })
       mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Command failed' })
+      mockApproveProposal.mockRejectedValue(new Error('DB write failed'))
 
       const result = (await registry.invoke('proposal_approve', { hash: 'abc12345' })) as {
         success: boolean
@@ -692,7 +704,7 @@ describe('proposals-registry operations', () => {
         allowed: true,
         warnings: ['Approaching lint threshold'],
       })
-      mockInvokeCommand.mockResolvedValue({ success: true })
+      mockApproveProposal.mockResolvedValue({})
 
       const result = (await registry.invoke('proposal_approve', { hash: 'abc12345' })) as {
         success: boolean
@@ -709,17 +721,17 @@ describe('proposals-registry operations', () => {
   // -------------------------------------------------------------------------
   describe('proposal_reject', () => {
     it('rejects a proposal successfully', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true })
+      mockRejectProposal.mockResolvedValue({})
 
       const result = (await registry.invoke('proposal_reject', { hash: 'abc12345' })) as {
         success: boolean
       }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith('proposal_reject', expect.objectContaining({ hash: 'abc12345' }))
+      expect(mockRejectProposal).toHaveBeenCalledWith('abc12345', expect.any(Object))
     })
 
     it('throws when invokeCommand fails', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Rejection failed' })
+      mockRejectProposal.mockRejectedValue(new Error('Rejection failed'))
 
       const result = (await registry.invoke('proposal_reject', { hash: 'abc12345' })) as {
         success: boolean
@@ -789,7 +801,7 @@ describe('proposals-registry operations', () => {
         file_path: 'zeno/proposals/gate-01/01-test.md',
       })
       mockValidateArtifactFile.mockResolvedValue({ allowed: true, warnings: [] })
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Start failed' })
+      mockStartProposal.mockRejectedValue(new Error('Start failed'))
 
       const result = (await registry.invoke('proposal_start', { hash: 'abc12345' })) as {
         success: boolean

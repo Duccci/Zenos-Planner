@@ -411,4 +411,179 @@ describe('MCP Proposal tools (integration)', () => {
     })
     expect(result).toBeDefined()
   })
+
+  // ============================================================================
+  // PreReview Enforcement Tests (G1-G4, G5-G8, currentTask)
+  // ============================================================================
+
+  it('proposal_action start without preReview returns structured error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({ action: 'start', hash: 'test-hash' })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('prereview')
+  })
+
+  it('proposal_action start with preReview.openQuestionsResolved=false and open questions returns error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({
+      action: 'start',
+      hash: 'test-hash',
+      preReview: {
+        phase: 'apply',
+        openQuestionsResolved: false,
+        questionsFound: ['What does "complete" mean for task 3?'],
+        filesVerified: true,
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('unresolved')
+  })
+
+  it('proposal_action start with preReview.filesVerified=false returns error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({
+      action: 'start',
+      hash: 'test-hash',
+      preReview: {
+        phase: 'apply',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        filesVerified: false,
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('filesverified')
+  })
+
+  it('proposal_action start with valid preReview proceeds to state validation', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({
+      action: 'start',
+      hash: 'test-hash',
+      preReview: {
+        phase: 'apply',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        filesVerified: true,
+        assumptionsDocumented: ['Assumes test DB exists'],
+        blockersIdentified: [],
+      },
+    })
+    // Passes preReview validation; may fail on state check (proposal not found) — that's expected
+    expect(result).toBeDefined()
+    // preReview validation passed, so any error is from downstream (not preReview enforcement)
+    if (result.isError) {
+      const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+      expect(text.toLowerCase()).not.toContain('prereview is required')
+    }
+  })
+
+  it('proposal_action generate without preReview returns structured error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({ action: 'generate', gateId: 'gate-01' })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('prereview')
+  })
+
+  it('proposal_action generate with valid preReview proceeds past enforcement', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({
+      action: 'generate',
+      gateId: 'gate-01',
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: true,
+        requirementsVerified: true,
+        vagueRequirements: [],
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })
+    expect(result).toBeDefined()
+    // preReview validation passed — any error is from downstream gate generation (expected)
+    if (result.isError) {
+      const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+      expect(text.toLowerCase()).not.toContain('prereview is required')
+    }
+  })
+
+  it('proposal_action progress without currentTask returns structured error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({ action: 'progress', hash: 'test-hash' })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('currenttask')
+  })
+
+  it('proposal_action progress with currentTask=0 (out of bounds) returns error', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    const result = await handler({ action: 'progress', hash: 'test-hash', currentTask: 0 })
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+    expect(text.toLowerCase()).toContain('1')
+  })
+
+  it('proposal_action progress with valid currentTask proceeds to handler', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    // currentTask=1 passes validation; handler will attempt real progress update
+    const result = await handler({ action: 'progress', hash: 'test-hash', currentTask: 1 })
+    expect(result).toBeDefined()
+    // currentTask validation passed; downstream may error (expected for test-hash)
+    if (result.isError) {
+      const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
+      expect(text.toLowerCase()).not.toContain('currenttask is required')
+    }
+  })
 })

@@ -51,4 +51,144 @@ describe('MCP Gates tools (integration)', () => {
 
     expect(content.toLowerCase()).toContain('error')
   })
+
+  // ============================================================================
+  // PreReview Enforcement Tests for gates_action: generate (G5-G8)
+  // ============================================================================
+
+  it('gates_action generate without preReview returns structured error', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    const result = (await handler({ action: 'generate' })) as CallToolResult
+
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+
+    const text = Array.isArray(result.content) && result.content.length > 0
+      ? String((result.content[0] as { text?: unknown }).text ?? '')
+      : ''
+    expect(text.toLowerCase()).toContain('prereview')
+  })
+
+  it('gates_action generate with preReview.gateReviewed=false returns error', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    const result = (await handler({
+      action: 'generate',
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: false,
+        requirementsVerified: true,
+        vagueRequirements: [],
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })) as CallToolResult
+
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = Array.isArray(result.content) && result.content.length > 0
+      ? String((result.content[0] as { text?: unknown }).text ?? '')
+      : ''
+    expect(text.toLowerCase()).toContain('gatereviewed')
+  })
+
+  it('gates_action generate with valid preReview proceeds past enforcement', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    const result = (await handler({
+      action: 'generate',
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: true,
+        requirementsVerified: true,
+        vagueRequirements: [],
+        assumptionsDocumented: ['Assumes PRD is finalized'],
+        blockersIdentified: [],
+      },
+    })) as CallToolResult
+
+    expect(result).toBeDefined()
+    // preReview validation passed; any downstream error is from gate generation (expected)
+    if (result.isError) {
+      const text = Array.isArray(result.content) && result.content.length > 0
+        ? String((result.content[0] as { text?: unknown }).text ?? '')
+        : ''
+      expect(text.toLowerCase()).not.toContain('prereview is required')
+    }
+  })
+
+  it('gates_action generate with vague requirements and requirementsVerified=false returns error', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    const result = (await handler({
+      action: 'generate',
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: true,
+        requirementsVerified: false,
+        vagueRequirements: ['R2: acceptance criteria unclear'],
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })) as CallToolResult
+
+    expect(result).toBeDefined()
+    expect(result.isError).toBe(true)
+    const text = Array.isArray(result.content) && result.content.length > 0
+      ? String((result.content[0] as { text?: unknown }).text ?? '')
+      : ''
+    expect(text.toLowerCase()).toContain('vague')
+  })
+
+  it('gates_action generate with preReviewSummary surfaced in successful response', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    const result = (await handler({
+      action: 'generate',
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: true,
+        requirementsVerified: true,
+        vagueRequirements: [],
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })) as CallToolResult
+
+    expect(result).toBeDefined()
+    // If successful, response should contain preReviewSummary echoed back
+    if (!result.isError && result.structuredContent) {
+      const sc = result.structuredContent as Record<string, unknown>
+      const resultData = sc['result'] as Record<string, unknown> | undefined
+      if (resultData?.['preReviewSummary']) {
+        const summary = resultData['preReviewSummary'] as Record<string, unknown>
+        expect(summary['openQuestionsResolved']).toBe(true)
+        expect(summary['gateReviewed']).toBe(true)
+      }
+    }
+  })
 })

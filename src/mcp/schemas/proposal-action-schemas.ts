@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod'
+import { PreReviewSchema, ScopeExpansionSchema } from './pre-review-schemas.js'
 import {
   ProposalListOutputSchema,
   ProposalDetailSchema,
@@ -32,12 +33,20 @@ import {
  *   show      — get proposal details; required: hash
  *   create    — new proposal; required: title, summary, tasks; optional: gateId, solitary, filesAffected, context, dependencies
  *   generate  — generate proposals (gate or solitary); required: gateId (for gate-tied) or solitary=true (for solitary); optional: title, summary, tasks, templateName, outputDir, filesAffected
+ *              preReview required for generate (enforced by handler)
  *   validate  — run quality checks on a proposal; required: hash; optional: strict
  *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
  *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy
- *   start     — create isolated worktree; required: hash; optional: startedBy
+ *   start     — create isolated worktree; required: hash, preReview; optional: startedBy
+ *              preReview required for start (enforced by handler)
+ *   progress  — update task status; required: hash, currentTask; optional: completed, notes, scopeExpansion
+ *              currentTask required for every progress call (enforced by handler)
  *   cancel    — cancel a proposal (divergent/dropped); required: hash; optional: rejectionReason as reason
  *   defer     — move proposal to backlog (deferred to later); required: hash; optional: notes as reason
+ *
+ * preReview: required for `start` and `generate` actions; see PreReviewSchema for fields.
+ * currentTask: required for `progress` action; 1-based index of the task currently being applied.
+ * scopeExpansion: optional for `progress` action; document files added outside filesAffected.
  */
 export const ProposalActionInputSchema = z.object({
   action: z
@@ -64,8 +73,8 @@ export const ProposalActionInputSchema = z.object({
         'validate=run quality checks (needs: hash). ' +
         'approve=merge proposal (needs: hash). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
-        'start=create worktree for implementation (needs: hash). ' +
-        'progress=update task status (needs: hash, taskIndex, completed). ' +
+        'start=create worktree for implementation (needs: hash, preReview with phase=apply). ' +
+        'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
         'cancel=mark proposal as cancelled/dropped (needs: hash; optional: rejectionReason as reason). ' +
         'defer=move proposal to backlog for later implementation (needs: hash; optional: notes as reason).'
     ),
@@ -134,6 +143,42 @@ export const ProposalActionInputSchema = z.object({
     .describe('Zero-based task index to update (progress)'),
   completed: z.boolean().optional().describe('Whether the task is completed (progress)'),
   notes: z.string().optional().describe('Implementation notes for the task (progress)'),
+
+  // --- preReview fields (start + generate) ---
+  /**
+   * Pre-work review evidence. Required for `start` and `generate` actions.
+   * The handler returns a structured error if absent for those actions.
+   * Phase must match action: 'apply' for start, 'generate' for generate.
+   */
+  preReview: PreReviewSchema.optional().describe(
+    "Pre-work review evidence (required for 'start' and 'generate' actions). " +
+      "phase='apply' for start; phase='generate' for generate. " +
+      'See PreReviewSchema for all required fields.'
+  ),
+
+  // --- currentTask field (progress) ---
+  /**
+   * 1-based index of the task currently being applied.
+   * Required on every `progress` call. Enables out-of-bounds detection
+   * to catch context rot where the agent loses track of its position.
+   */
+  currentTask: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe('1-based index of the task currently being applied (required for progress action)'),
+
+  // --- scopeExpansion field (progress) ---
+  /**
+   * G9: Structured scope expansion documentation.
+   * Required when `progress` modifies files outside filesAffected.
+   * Provides a structured alternative to the narrative "document and ask human" guidance.
+   */
+  scopeExpansion: ScopeExpansionSchema.optional().describe(
+    "(progress) Required when modifying files outside the proposal's declared filesAffected. " +
+      'List the new files and justify the scope change.'
+  ),
 })
 
 export type ProposalActionInput = z.infer<typeof ProposalActionInputSchema>

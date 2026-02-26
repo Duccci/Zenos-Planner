@@ -91,3 +91,102 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
     warnings: warnings.length > 0 ? warnings : undefined,
   }
 }
+
+/**
+ * Test-file pattern constants used by validateTestFileScope.
+ * Centralized here so future test conventions can be added in one place.
+ */
+export const TEST_FILE_PATTERNS = [
+  'tests/',
+  '.test.ts',
+  '.test.tsx',
+  '.test.js',
+  '.test.jsx',
+  '.spec.ts',
+  '.spec.tsx',
+  '.spec.js',
+  '.spec.jsx',
+]
+
+/**
+ * Check whether a file path matches test file patterns.
+ */
+function isTestFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, '/')
+  return TEST_FILE_PATTERNS.some((pattern) => normalized.includes(pattern))
+}
+
+/**
+ * Validate test file scope based on proposal type.
+ *
+ * G10: Gate-tied proposals must NOT include test files in filesAffected
+ *      (unless the proposal is the gate's dedicated test proposal).
+ * G11: Solitary proposals SHOULD include at least one test file (warning if they don't).
+ *
+ * @param filesAffected - File paths declared in the proposal's Files Affected
+ * @param isSolitary    - True for solitary proposals, false for gate-tied proposals
+ */
+export function validateTestFileScope(
+  filesAffected: string[],
+  isSolitary: boolean
+): ValidationResult {
+  if (!isSolitary) {
+    // Gate-tied: reject if any test files are included
+    const testFiles = filesAffected.filter(isTestFile)
+    if (testFiles.length > 0) {
+      return {
+        allowed: false,
+        errors: [
+          'Gate-tied proposals must not include test files in Files Affected. ' +
+            "Tests are handled by the gate's dedicated test proposal. " +
+            `Offending entries: ${testFiles.map((f) => `"${f}"`).join(', ')}`,
+        ],
+      }
+    }
+    return { allowed: true }
+  }
+
+  // Solitary: warn if no test files are included
+  const hasTestFiles = filesAffected.some(isTestFile)
+  if (!hasTestFiles) {
+    return {
+      allowed: true,
+      warnings: [
+        'Solitary proposal has zero test files in Files Affected. ' +
+          'Solitary proposals should include inline tests. ' +
+          'Add test file paths to Files Affected if tests will be written as part of this proposal.',
+      ],
+    }
+  }
+
+  return { allowed: true }
+}
+
+/**
+ * Validate that all filesAffected entries are markdown files.
+ *
+ * G12: Gate and proposal generation actions must only produce markdown artifacts.
+ *      Generating .ts, .json, or other non-markdown files during generation phases
+ *      is prohibited — generated content belongs in planning documents, not code.
+ *
+ * @param filesAffected - File paths declared as output of a generation action
+ */
+export function validateMarkdownOnly(filesAffected: string[]): ValidationResult {
+  if (filesAffected.length === 0) {
+    return { allowed: true }
+  }
+
+  const nonMarkdown = filesAffected.filter((f) => !f.trim().toLowerCase().endsWith('.md'))
+  if (nonMarkdown.length > 0) {
+    return {
+      allowed: false,
+      errors: [
+        'Generation actions must only produce markdown files. ' +
+          'Non-markdown files are not allowed in Files Affected during generate actions. ' +
+          `Offending entries: ${nonMarkdown.map((f) => `"${f}"`).join(', ')}`,
+      ],
+    }
+  }
+
+  return { allowed: true }
+}

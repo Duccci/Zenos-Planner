@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod'
+import { PreReviewSchema } from './pre-review-schemas.js'
 import {
   GatesListOutputSchema,
   GateDetailSchema,
@@ -27,10 +28,12 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  *   list       — list gates; optional: status, skip, take
  *   show       — get gate details; required: gateId
  *   create     — create a new gate; required: gateId, name, type, sequence, objectives; optional: dependencies, description
- *   generate   — generate gates from requirements; optional: mode, anchorGateId, templateName, requirementsPerGate
+ *   generate   — generate gates from requirements; required: preReview (enforced by handler); optional: mode, anchorGateId, templateName, requirementsPerGate
  *   start      — transition gate to in_progress; required: gateId; optional: notes
  *   complete   — mark gate completed; required: gateId; optional: completionNotes, approvalDate
  *   regenerate — regenerate gate sequence; optional: fromGateId, mode
+ *
+ * preReview: required for `generate` action (enforced by handler, not schema).
  */
 export const GatesActionInputSchema = z.object({
   action: z
@@ -41,7 +44,7 @@ export const GatesActionInputSchema = z.object({
         'list=show all gates (optional: status filter). ' +
         'show=get gate details (needs: gateId). ' +
         'create=new gate (needs: gateId, name, type, sequence, objectives). ' +
-        'generate=generate from requirements (optional: mode, anchorGateId). ' +
+        'generate=generate from requirements (optional: mode, anchorGateId; required: preReview with phase=generate). ' +
         'start=begin gate work, pending→in_progress (needs: gateId). ' +
         'complete=finish gate (needs: gateId). ' +
         'regenerate=rebuild future gates after rescope (optional: fromGateId, mode). ' +
@@ -99,6 +102,17 @@ export const GatesActionInputSchema = z.object({
   completionNotes: z.string().optional().describe('Completion summary notes (complete)'),
   approvalDate: z.string().optional().describe('ISO timestamp of approval (complete)'),
   fromGateId: z.string().optional().describe('Regenerate from this gate forward (regenerate)'),
+
+  // --- preReview field (generate) ---
+  /**
+   * Pre-work review evidence. Required for the `generate` action.
+   * The handler returns a structured error if absent when action === 'generate'.
+   * Must use phase='generate'.
+   */
+  preReview: PreReviewSchema.optional().describe(
+    "Pre-work review evidence (required for 'generate' action). " +
+      "phase must be 'generate'. Read the full project PRD and requirements before generating gates."
+  ),
 })
 
 export type GatesActionInput = z.infer<typeof GatesActionInputSchema>

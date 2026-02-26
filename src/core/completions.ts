@@ -28,10 +28,12 @@ import { logger } from '../utils/logger.js'
 import { stripAnsi } from '../utils/ansi-strip.js'
 import { normalizeGateId, normalizeHash } from '../utils/normalize.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
-import { regenerateGatesWithAnalysis } from './gate-generator.js'
+import { regenerateGatesWithAnalysis, regenerateGatesTheoreticalFromProject } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
-import { archiveCompletedGateInState } from '../utils/state-sync.js'
-import { readProjectOverview } from '../utils/config.js'
+import { archiveCompletedGateInState, updateCurrentGateInState } from '../utils/state-sync.js'
+import { readProjectOverview, saveProjectOverview } from '../utils/config.js'
+import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
+import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
 
 
 
@@ -181,6 +183,13 @@ export async function approveProposal(
   // Ensure approved_by column exists (added by this proposal; idempotent)
   try {
     db.prepare('ALTER TABLE proposals ADD COLUMN approved_by TEXT').run()
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Ensure implemented_at column exists (added by this proposal; idempotent)
+  try {
+    db.prepare('ALTER TABLE proposals ADD COLUMN implemented_at TIMESTAMP').run()
   } catch {
     // Column already exists — ignore
   }
@@ -488,6 +497,15 @@ export async function completeGate(
     // Don't fail the completion if state sync fails
   }
 
+  // Refresh .serena/memories/project_overview.md Gate Roadmap section from
+  // project-overview.json so agent sessions have current context.
+  try {
+    await syncMemoryFromProjectOverview(projectRoot)
+  } catch (error) {
+    logger.warn(`Failed to sync memory from project-overview.json: ${String(error)}`)
+    // Don't fail the completion if memory sync fails
+  }
+
   // Lifecycle completion detection: after marking this gate completed, if there
   // are no remaining non-completed gates, bump major. Otherwise bump minor.
   const remaining = db
@@ -532,5 +550,180 @@ export async function completeGate(
     previousVersion,
     newVersion,
     bump,
+  }
+}
+
+export interface StartProposalOptions {
+  startedBy?: string
+}
+
+export async function startProposal(
+  hashInput: string,
+  _options: StartProposalOptions = {}
+): Promise<void> {
+  const projectRoot = requireProjectRoot()
+  await initializeDatabase(projectRoot, { syncProposals: true })
+  const db = getDb(projectRoot)
+
+  const proposalHash = normalizeHash(hashInput)
+
+  const proposal = getRequiredRow(
+    db
+      .prepare('SELECT id, status FROM proposals WHERE hash = ?')
+      .get(proposalHash) as { id: string; status: string } | undefined,
+    'Proposal not found',
+    { hash: proposalHash }
+  )
+
+  if (proposal.status === 'in_progress') {
+    throw new ValidationError('Proposal is already in progress', 'VALIDATION_STATE_CONFLICT', {
+      hash: proposalHash,
+      status: proposal.status,
+    })
+  }
+  if (proposal.status === 'completed' || proposal.status === 'rejected') {
+    throw new ValidationError(
+      `Cannot start a ${proposal.status} proposal`,
+      'VALIDATION_STATE_CONFLICT',
+      { hash: proposalHash, status: proposal.status }
+    )
+  }
+
+  db.prepare(
+    `UPDATE proposals SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+  ).run(proposal.id)
+}
+
+export interface RejectProposalOptions {
+  rejectedBy?: string
+  rejectionReason?: string
+}
+
+export async function rejectProposal(
+  hashInput: string,
+  _options: RejectProposalOptions = {}
+): Promise<void> {
+  const projectRoot = requireProjectRoot()
+  await initializeDatabase(projectRoot, { syncProposals: true })
+  const db = getDb(projectRoot)
+
+  const proposalHash = normalizeHash(hashInput)
+
+  const proposal = getRequiredRow(
+    db
+      .prepare('SELECT id, status FROM proposals WHERE hash = ?')
+      .get(proposalHash) as { id: string; status: string } | undefined,
+    'Proposal not found',
+    { hash: proposalHash }
+  )
+
+  if (proposal.status === 'rejected') {
+    throw new ValidationError('Proposal is already rejected', 'VALIDATION_STATE_CONFLICT', {
+      hash: proposalHash,
+      status: proposal.status,
+    })
+  }
+  if (proposal.status === 'completed') {
+    throw new ValidationError('Cannot reject a completed proposal', 'VALIDATION_STATE_CONFLICT', {
+      hash: proposalHash,
+      status: proposal.status,
+    })
+  }
+
+  db.prepare(
+    `UPDATE proposals SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+  ).run(proposal.id)
+}
+
+export interface StartGateOptions {
+  startedBy?: string
+}
+
+export async function startGate(
+  gateIdInput: string,
+  _options: StartGateOptions = {}
+): Promise<void> {
+  const projectRoot = requireProjectRoot()
+  await initializeDatabase(projectRoot, { syncProposals: false })
+  const db = getDb(projectRoot)
+
+  const gateId = normalizeGateId(gateIdInput)
+
+  const gate = getRequiredRow(
+    db
+      .prepare('SELECT id, name, sequence, hash, status FROM gates WHERE id = ?')
+      .get(gateId) as { id: string; name: string; sequence: number; hash: string; status: string } | undefined,
+    'Gate not found',
+    { gateId }
+  )
+
+  if (gate.status === 'in_progress') {
+    throw new ValidationError('Gate is already in progress', 'VALIDATION_STATE_CONFLICT', {
+      gateId,
+      status: gate.status,
+    })
+  }
+  if (gate.status === 'completed' || gate.status === 'rejected') {
+    throw new ValidationError(
+      `Cannot start a ${gate.status} gate`,
+      'VALIDATION_STATE_CONFLICT',
+      { gateId, status: gate.status }
+    )
+  }
+
+  db.prepare(
+    `UPDATE gates SET status = 'in_progress' WHERE id = ?`
+  ).run(gate.id)
+
+  // Sync currentGate to project-overview.json
+  try {
+    const overview = await readProjectOverview(projectRoot)
+    overview.currentGate = gateId
+    await saveProjectOverview(overview)
+  } catch (error) {
+    logger.warn(`Failed to sync gate start to project-overview.json: ${String(error)}`)
+  }
+
+  // Sync to state.json
+  try {
+    await updateCurrentGateInState(gate.id, gate.name, gate.sequence, gate.hash)
+  } catch (error) {
+    logger.warn(`Failed to sync gate start to state.json: ${String(error)}`)
+  }
+
+  // Sync gates back to project-overview.json
+  try {
+    await syncGatesToProjectOverview()
+  } catch (error) {
+    logger.debug(`Failed to sync gates to project-overview: ${String(error)}`)
+  }
+}
+
+export async function regenerateGates(): Promise<void> {
+  // Sync first to ensure current data
+  try {
+    await syncGatesToProjectOverview()
+  } catch (error) {
+    logger.debug(`Failed to sync gates before regeneration: ${String(error)}`)
+  }
+
+  let recentGateId: string | undefined
+
+  try {
+    const overview = await readProjectOverview()
+    if (overview.completedGates.length > 0) {
+      const last = overview.completedGates[overview.completedGates.length - 1]
+      if (last) {
+        recentGateId = `gate-${last.sequence.toString().padStart(2, '0')}`
+      }
+    }
+  } catch {
+    // No project-overview.json — proceed without base gate
+  }
+
+  if (recentGateId) {
+    await regenerateGatesWithAnalysis(recentGateId)
+  } else {
+    await regenerateGatesTheoreticalFromProject()
   }
 }

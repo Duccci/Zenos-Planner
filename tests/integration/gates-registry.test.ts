@@ -28,6 +28,12 @@ vi.mock('../../src/integration/command-invoker.js', () => ({
   invokeCommand: vi.fn().mockResolvedValue({ success: true }),
 }))
 
+vi.mock('../../src/core/completions.js', () => ({
+  startGate: vi.fn().mockResolvedValue(undefined),
+  completeGate: vi.fn().mockResolvedValue(undefined),
+  regenerateGates: vi.fn().mockResolvedValue(undefined),
+}))
+
 describe('gates-registry coverage', () => {
   let registry: FunctionRegistry
 

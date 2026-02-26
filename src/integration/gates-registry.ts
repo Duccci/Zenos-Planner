@@ -8,7 +8,6 @@
 /* eslint-disable @typescript-eslint/unbound-method */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
-import { invokeCommand } from './command-invoker.js'
 import { normalizeGateId } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
 
@@ -158,10 +157,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         }
       }
 
-      const result = await invokeCommand('gates_start', { gateId: validated.gateId, startedBy })
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      const { startGate } = await import('../core/completions.js')
+      await startGate(validated.gateId, { startedBy })
     },
     {
       description: 'Start working on a gate (changes status from pending to in_progress)',
@@ -200,10 +197,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         }
       }
 
-      const result = await invokeCommand('gates_complete', { gateId: validated.gateId, completedBy })
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      const { completeGate } = await import('../core/completions.js')
+      await completeGate(validated.gateId)
     },
     {
       description: 'Mark a gate as completed and create a release tag',
@@ -225,10 +220,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   registry.register(
     'gates_regenerate',
     async () => {
-      const result = await invokeCommand('gates_regenerate')
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      const { regenerateGates } = await import('../core/completions.js')
+      await regenerateGates()
     },
     {
       description: 'Regenerate future gates based on current project state',

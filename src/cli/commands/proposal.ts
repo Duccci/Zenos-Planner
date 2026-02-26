@@ -6,7 +6,6 @@
 
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
-import { approveProposal } from '../../core/completions.js'
 import { getDatabase } from '../../storage/database.js'
 import { findProjectRoot, loadConfig } from '../../utils/config.js'
 import { normalizeHash } from '../../utils/normalize.js'
@@ -14,8 +13,7 @@ import { readFile } from '../../utils/file.js'
 import { readdir } from 'node:fs/promises'
 import path from 'path'
 import { syncProposalsFromDisk } from '../../storage/proposal-sync.js'
-
-
+import { invokeProposalAction } from '../cli-tool-invoker.js'
 
 interface ProposalRecord {
   id: string
@@ -26,62 +24,6 @@ interface ProposalRecord {
   created_at: string
   approved_at?: string
   requirement_id?: string
-}
-
-/**
- * List proposals from database
- */
-function listProposalsFromDb(gateFilter?: string, statusFilter?: string): ProposalRecord[] {
-  const projectRoot = findProjectRoot(process.cwd())
-  if (!projectRoot) {
-    logger.error('Not a Zeno project')
-    return []
-  }
-
-  const db = getDatabase(projectRoot)
-
-  let query =
-    'SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals'
-  const params: (string | null)[] = []
-
-  if (gateFilter || statusFilter) {
-    const conditions: string[] = []
-    if (gateFilter) {
-      conditions.push('gate_id LIKE ?')
-      params.push(`%${gateFilter}%`)
-    }
-    if (statusFilter) {
-      conditions.push('status = ?')
-      params.push(statusFilter)
-    }
-    query += ' WHERE ' + conditions.join(' AND ')
-  }
-
-  query += ' ORDER BY created_at DESC'
-
-  return db.prepare(query).all(...params) as ProposalRecord[]
-}
-
-/**
- * Get proposal details from database and file
- */
-function getProposalDetails(hash: string): ProposalRecord | null {
-  const projectRoot = findProjectRoot(process.cwd())
-  if (!projectRoot) {
-    logger.error('Not a Zeno project')
-    return null
-  }
-
-  const db = getDatabase(projectRoot)
-  const normalizedHash = normalizeHash(hash)
-
-  const proposal = db
-    .prepare(
-      'SELECT id, gate_id, title, status, hash, created_at, approved_at, requirement_id FROM proposals WHERE hash = ?'
-    )
-    .get(normalizedHash) as ProposalRecord | undefined
-
-  return proposal ?? null
 }
 
 /**
@@ -100,7 +42,7 @@ async function readProposalFile(
       if (file.endsWith('.md')) {
         const filePath = path.join(gateDir, file)
         const content = await readFile(filePath)
-        if (content.includes(`#${proposal.hash}`)) {
+        if (content.includes(`#${proposal.hash}`) || content.includes(`**Hash**: ${proposal.hash}`)) {
           return content
         }
       }
@@ -127,8 +69,18 @@ export function registerProposalCommands(program: Command): void {
     .description('List proposals')
     .option('--gate <gate-id>', 'Filter by gate')
     .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected/cancelled/backlog)')
-    .action((options: { gate?: string; status?: string }) => {
-      const proposals = listProposalsFromDb(options.gate, options.status)
+    .action(async (options: { gate?: string; status?: string }) => {
+      const result = await invokeProposalAction<{ proposals: ProposalRecord[] }>('list', {
+        ...(options.gate && { gateId: options.gate }),
+        ...(options.status && { status: options.status }),
+      })
+
+      if (!result.success) {
+        logger.error(`Failed to list proposals: ${result.error ?? 'Unknown error'}`)
+        return
+      }
+
+      const proposals = result.data?.proposals ?? []
 
       if (proposals.length === 0) {
         logger.info('No proposals found')
@@ -156,12 +108,14 @@ export function registerProposalCommands(program: Command): void {
     .command('show <hash>')
     .description('Show proposal details')
     .action(async (hash: string) => {
-      const proposal = getProposalDetails(hash)
+      const result = await invokeProposalAction<ProposalRecord>('show', { hash })
 
-      if (!proposal) {
+      if (!result.success || !result.data) {
         logger.error(`Proposal not found: ${hash}`)
         return
       }
+
+      const proposal = result.data
 
       logger.info(`\n# Proposal: ${proposal.title}`)
       logger.info(`**Hash**: #${proposal.hash}`)
@@ -253,8 +207,9 @@ export function registerProposalCommands(program: Command): void {
 
         // Post-generation format validation (fast)
         try {
-          const { ArtifactValidationService } =
-            await import('../../analysis/artifact-validation-service.js')
+          const { ArtifactValidationService } = await import(
+            '../../analysis/artifact-validation-service.js'
+          )
           const svc = new ArtifactValidationService()
           const validation = await svc.validate({
             artifactPath: filePath,
@@ -282,34 +237,15 @@ export function registerProposalCommands(program: Command): void {
   proposalCmd
     .command('start <hash>')
     .description('Start implementation (status: pending -> in_progress)')
-    .action((hash: string) => {
-      const projectRoot = findProjectRoot(process.cwd())
-      if (!projectRoot) {
-        logger.error('Not a Zeno project')
+    .action(async (hash: string) => {
+      const result = await invokeProposalAction('start', { hash })
+
+      if (!result.success) {
+        logger.error(`Failed to show proposal: ${result.error ?? 'Unknown error'}`)
         return
       }
 
-      const db = getDatabase(projectRoot)
-      const normalizedHash = normalizeHash(hash)
-
-      const proposal = db
-        .prepare('SELECT id, status FROM proposals WHERE hash = ?')
-        .get(normalizedHash) as { id: string; status: string } | undefined
-
-      if (!proposal) {
-        logger.error(`Proposal not found: ${hash}`)
-        return
-      }
-
-      if (proposal.status !== 'pending') {
-        logger.error(`Cannot start proposal with status: ${proposal.status}`)
-        return
-      }
-
-      db.prepare(
-        'UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run('in_progress', proposal.id)
-      logger.info(`Proposal started: #${normalizedHash}`)
+      logger.info(`Proposal started: #${normalizeHash(hash)}`)
     })
 
   proposalCmd
@@ -323,99 +259,52 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
+      const normalizedHash = hash.startsWith('#') ? hash.slice(1) : hash
       const db = getDatabase(projectRoot)
-      const normalizedHash = normalizeHash(hash)
-      const strict = Boolean(options.strict)
-
       const proposal = db
-        .prepare('SELECT id, gate_id, title FROM proposals WHERE hash = ?')
-        .get(normalizedHash) as { id: string; gate_id: string | null; title: string } | undefined
+        .prepare('SELECT * FROM proposals WHERE hash = ?')
+        .get(normalizedHash) as ProposalRecord | undefined
 
       if (!proposal) {
-        logger.error(`Proposal not found: ${hash}`)
+        logger.error(`Proposal not found: #${normalizedHash}`)
         return
       }
 
-      logger.info(`\nValidating proposal: ${proposal.title}`)
-      logger.info('Running automated checks...\n')
-      logger.info('  Linting: passed (0 errors)')
-      logger.info('  Type checking: passed')
-      logger.info('  Tests: passed (12/12)')
-      logger.info('  Coverage: 94% (threshold: 90%) PASS')
-      logger.info('  Security: 0 vulnerabilities PASS')
-      logger.info('  Dependencies: no conflicts\n')
-
-      // Lightweight proposal file checks (warnings become errors in --strict mode)
       const warnings: string[] = []
-      try {
-        const content = await readProposalFile(projectRoot, {
-          id: proposal.id,
-          gate_id: proposal.gate_id,
-          title: proposal.title,
-          status: 'pending',
-          hash: normalizedHash,
-          created_at: '',
-        })
-        if (!content) {
-          warnings.push(
-            'Could not read proposal file or proposal markdown is missing. Ensure the proposal includes an up-to-date `## Completion Summary` before approval.'
-          )
-        } else {
-          const hasCompletion = content.includes('## Completion Summary')
-          if (!hasCompletion) {
-            warnings.push('Proposal file is missing a `## Completion Summary` section.')
-          }
 
-          const tasksCompletedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
-          const checkedBoxes = (content.match(/- \[[xX]\]/g) ?? []).length
-          if (tasksCompletedMatch) {
-            const completed = parseInt(tasksCompletedMatch[1] ?? '0', 10)
-            const total = parseInt(tasksCompletedMatch[2] ?? '0', 10)
-            if (completed !== checkedBoxes) {
+      const content = await readProposalFile(projectRoot, proposal)
+
+      if (!content) {
+        warnings.push('Proposal file not found: could not locate file in proposals directory')
+      } else {
+        if (!content.includes('## Completion Summary')) {
+          warnings.push('Missing ## Completion Summary section in proposal file')
+        } else {
+          const tasksClaimedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
+          if (tasksClaimedMatch) {
+            const claimed = parseInt(tasksClaimedMatch[1] ?? '0', 10)
+            const total = parseInt(tasksClaimedMatch[2] ?? '0', 10)
+            const actualChecked = (content.match(/- \[x\]/gi) ?? []).length
+            if (actualChecked !== claimed || claimed !== total) {
               warnings.push(
-                `**Tasks Completed** shows ${String(completed)}/${String(total)} but ${String(checkedBoxes)} acceptance items are checked.`
+                `Tasks Completed: ${String(claimed)}/${String(total)} claimed but ${String(actualChecked)} checked tasks found`
               )
             }
-          } else if (hasCompletion) {
-            warnings.push(
-              '`## Completion Summary` exists but does not contain a `**Tasks Completed**: X/Y` line.'
-            )
           }
         }
+      }
 
-        if (warnings.length > 0) {
-          if (strict) {
-            logger.error(
-              '\nValidation failed: the proposal has issues that must be resolved before approval:'
-            )
-            for (const w of warnings) {
-              logger.error(` - ${w}`)
-            }
-            // Fail with non-zero exit so programmatic invocations can enforce correctness.
-            throw new Error('Proposal validation failed (strict mode)')
-          } else {
-            logger.warn('\nValidation warnings:')
-            for (const w of warnings) {
-              logger.warn(` - ${w}`)
-            }
-            logger.info(
-              '\nNote: Run `zeno proposal validate --strict <hash>` (or `--strict` via function invocation) to treat these warnings as errors.'
-            )
-            logger.info(
-              'Checks passed with warnings: address the warnings in the proposal file before approval.'
-            )
-            return
-          }
+      if (warnings.length > 0) {
+        for (const w of warnings) {
+          logger.warn(w)
         }
-
-        logger.info('All checks passed! Ready for approval.')
-      } catch (error) {
-        logger.warn(`Unexpected error while inspecting proposal file: ${String(error)}`)
-        if (strict) {
-          logger.error('Validation failed due to unexpected error while inspecting proposal file.')
-          throw new Error('Proposal validation failed (strict mode)')
+        if (options.strict) {
+          logger.error('Validation failed: warnings treated as errors in strict mode')
+          throw new Error('Validation failed')
         }
-        logger.info('Checks passed with warnings: unable to fully validate proposal file.')
+        logger.info('Checks passed with warnings. Address warnings before approval.')
+      } else {
+        logger.info('All checks passed!')
       }
     })
 
@@ -429,55 +318,51 @@ export function registerProposalCommands(program: Command): void {
       if (!projectRoot) {
         logger.error('Not a Zeno project')
         process.exit(1)
+        return
       }
 
       const config = await loadConfig(projectRoot)
       const workflowMode = config.workflowMode
+
       if (workflowMode === 'solo') {
-        // Solo mode: skip interactive prompt, enforce quality thresholds
         const qt = config.qualityThresholds
-        const qualityErrors: string[] = []
+        const failures: string[] = []
 
         if (qt.codeCoverage < 90) {
-          qualityErrors.push(`Code coverage ${String(qt.codeCoverage)}% is below required 90%`)
+          failures.push(`Code coverage ${String(qt.codeCoverage)}% is below 90% threshold`)
         }
         if (qt.securityVulnerabilities > 0) {
-          qualityErrors.push(
-            `${String(qt.securityVulnerabilities)} security vulnerabilities detected (must be 0)`
-          )
+          failures.push(`${String(qt.securityVulnerabilities)} security vulnerabilities found`)
         }
-        if (qt.lintingErrorRate >= 0.01) {
-          qualityErrors.push(
-            `Linting error rate ${String(qt.lintingErrorRate)} exceeds allowed 0.01%`
-          )
+        if (qt.lintingErrorRate > 0.01) {
+          failures.push(`Linting error rate ${String(qt.lintingErrorRate)} exceeds 0.01 threshold`)
         }
         if (qt.typeCheckingErrors > 0) {
-          qualityErrors.push(
-            `${String(qt.typeCheckingErrors)} TypeScript type errors detected (must be 0)`
-          )
+          failures.push(`${String(qt.typeCheckingErrors)} TypeScript type errors found`)
         }
 
-        if (qualityErrors.length > 0) {
-          logger.error('Auto-approval blocked: quality gate failures:')
-          for (const err of qualityErrors) {
-            logger.error(` - ${err}`)
+        if (failures.length > 0) {
+          if (failures.length === 1) {
+            logger.error(failures[0] ?? 'Quality gate failed')
+          } else {
+            logger.error('Auto-approval blocked: quality gate failures')
+            for (const f of failures) logger.error(f)
           }
           process.exit(1)
           return
         }
-
-        const result = await approveProposal(hash, { approver: 'solo-auto' })
-        logger.info(`auto-approved (solo mode)`)
-        logger.info(`Proposal completed: #${result.proposalHash}`)
-        logger.info(`Gate: ${result.gateId}`)
-        logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
-      } else {
-        // Team mode: preserve existing explicit confirmation behaviour
-        const result = await approveProposal(hash)
-        logger.info(`Proposal completed: #${result.proposalHash}`)
-        logger.info(`Gate: ${result.gateId}`)
-        logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
       }
+
+      const { approveProposal } = await import('../../core/completions.js')
+
+      if (workflowMode === 'solo') {
+        await approveProposal(hash, { approver: 'solo-auto' })
+        logger.info(`auto-approved (solo mode)`)
+      } else {
+        await approveProposal(hash)
+      }
+      logger.info(`Proposal completed: #${normalizeHash(hash)}`)
+      logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
     })
 
   proposalCmd
@@ -490,15 +375,14 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
+      const normalizedHash = hash.startsWith('#') ? hash.slice(1) : hash
       const db = getDatabase(projectRoot)
-      const normalizedHash = normalizeHash(hash)
-
       const proposal = db
-        .prepare('SELECT id, status FROM proposals WHERE hash = ?')
+        .prepare('SELECT * FROM proposals WHERE hash = ?')
         .get(normalizedHash) as { id: string; status: string } | undefined
 
       if (!proposal) {
-        logger.error(`Proposal not found: ${hash}`)
+        logger.error(`Proposal not found: #${normalizedHash}`)
         return
       }
 
@@ -507,9 +391,8 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
-      db.prepare(
-        'UPDATE proposals SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-      ).run('rejected', proposal.id)
-      logger.info(`Proposal rejected: #${normalizedHash}`)
+      db.prepare('UPDATE proposals SET status = ? WHERE hash = ?').run('rejected', normalizedHash)
+
+      logger.info(`Proposal rejected: #${normalizeHash(hash)}`)
     })
 }

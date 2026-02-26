@@ -83,26 +83,27 @@ src/
     config, errors, file, gate-consolidation, git, hash, logger, version
 ```
 
-## Gate Roadmap (from PROJECT_PRD.md)
-### Archived (completed, gates 1-4)
-- Gate 1: Core Infrastructure
-- Gate 2: Zeno Engine & Gate Generation
-- Gate 3: Requirements & Database Layer
-- Gate 4: Architecture & Mermaid Generation
+## Gate Roadmap (auto-updated from project-overview.json)
 
-### Active MVP (gates 5-12)
-- **Gate 5**: Architecture & Diagram Generation ← *currently in progress*
-- Gate 6: Multi-Repo & Subproject Detection
-- Gate 7: Proposal Generation & Management
-- Gate 8: Automated Validation & Quality Gates
-- Gate 9: Human Approval & Rejection Workflow
-- Gate 10: Git Integration & Commit Automation (includes worktree management)
+### Completed (5/14)
+- **Gate 01: Core Infrastructure** *(completed 2026-01-28)*
+- **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30)*
+- **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04)*
+- **Gate 04: Requirements & Database Layer** *(completed 2026-02-07)*
+- **Gate 05: Architecture & Diagram Generation** *(completed 2026-02-21)*
+
+### Current
+- **Gate 06: Multi-Repo & Subproject Detection** ← *pending*
+
+### Upcoming
+- Gate 07: Proposal Generation & Management
+- Gate 08: Automated Validation & Quality Gates
+- Gate 09: Human Approval & Rejection Workflow
+- Gate 10: Git Integration & Commit Automation
 - Gate 11: Rescope & Replan Engine
-- Gate 12: Status & Reporting
-
-### Post-MVP
-- Gate 13: Subagent Orchestration & Parallel Execution (DEFERRED)
-- Gate 14: Documentation Cleanup (DEFERRED)
+- Gate 12: Dashboard & Visualization
+- Gate 13: Subagent Orchestration & Parallel Execution
+- Gate 14: Documentation & Polish
 
 ## Quality Thresholds (Non-Configurable in MVP)
 - Code coverage: ≥90%

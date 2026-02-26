@@ -10,7 +10,6 @@ import { completeGate } from '../../core/completions.js'
 import { normalizeGateId } from '../../utils/normalize.js'
 import { listArchivedGates } from '../../utils/gate-consolidation.js'
 import { confirm } from '@inquirer/prompts'
-import { getDatabase } from '../../storage/database.js'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
@@ -26,6 +25,7 @@ import {
 } from '../../core/gate-generator.js'
 import { updateCurrentGateInState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
+import { invokeGatesAction } from '../cli-tool-invoker.js'
 
 /**
  * Gate status type
@@ -267,17 +267,16 @@ export function registerGatesCommands(program: Command): void {
           process.exit(1)
         }
 
-        const db = getDatabase()
+        // Get requirements and proposals count via MCP tools
+        const reqResult = await invokeGatesAction<{ count: number }>('list_requirements', {
+          gateId: gate.id,
+        })
+        const reqCount = reqResult.data?.count ?? 0
 
-        // Get requirements count
-        const reqCount = db
-          .prepare('SELECT COUNT(*) as count FROM requirements WHERE gate_id = ?')
-          .get(gate.id) as { count: number }
-
-        // Get proposals count
-        const proposalCount = db
-          .prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?')
-          .get(gate.id) as { count: number }
+        const propResult = await invokeGatesAction<{ count: number }>('list_proposals', {
+          gateId: gate.id,
+        })
+        const proposalCount = propResult.data?.count ?? 0
 
         // Dependencies were removed in migration 005 (gates table deprecated)
         const dependencies: { id: string; name: string; status: string }[] = []
@@ -288,6 +287,8 @@ export function registerGatesCommands(program: Command): void {
         logger.info(`Name:        ${gate.name}`)
         logger.info(`Status:      ${gate.status}`)
         logger.info(`Sequence:    #${gate.sequence.toString().padStart(2, '0')}`)
+        logger.info(`Requirements: ${String(reqCount)}`)
+        logger.info(`Proposals:    ${String(proposalCount)}`)
         logger.info(`Type:        ${gate.type}`)
         logger.info(`Hash:        ${gate.hash}`)
         if (gate.description) {
@@ -295,10 +296,10 @@ export function registerGatesCommands(program: Command): void {
         }
         logger.info('')
         logger.info(
-          `Requirements: ${String(reqCount.count)}${reqCount.count > 0 ? ` (run "zeno req list --gate ${gate.id}" to see)` : ''}`
+          `Requirements: ${String(reqCount)}${reqCount > 0 ? ` (run "zeno req list --gate ${gate.id}" to see)` : ''}`
         )
         logger.info(
-          `Proposals:    ${String(proposalCount.count)}${proposalCount.count > 0 ? ` (run "zeno proposal list --gate ${gate.id}" to see)` : ''}`
+          `Proposals:    ${String(proposalCount)}${proposalCount > 0 ? ` (run "zeno proposal list --gate ${gate.id}" to see)` : ''}`
         )
 
         if (dependencies.length > 0) {

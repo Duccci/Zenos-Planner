@@ -8,7 +8,6 @@
 /* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-condition */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
-import { invokeCommand } from './command-invoker.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
@@ -561,10 +560,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
-      const result = await invokeCommand('proposal_start', { hash: validated.hash, startedBy })
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      const { startProposal } = await import('../core/completions.js')
+      await startProposal(validated.hash, { startedBy })
 
       return { success: true, hash: validated.hash }
     },
@@ -744,7 +741,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_approve',
     async (params) => {
-      const validated = z.object({ hash: z.string(), approvedBy: z.string().optional() }).parse(params)
+      const validated = z.object({ hash: z.string() }).parse(params)
 
       // Import validators
       const { validateApplyPhase } = await import('../mcp/validators/apply-phase-validator.js')
@@ -806,22 +803,18 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         )
       }
 
-      // Pull git user info if not provided
-      let approvedBy = validated.approvedBy
-      if (!approvedBy) {
-        try {
-          const gitUser = await getGitUserInfo(process.cwd())
-          approvedBy = gitUser.name ?? gitUser.email ?? undefined
-        } catch {
-          // Silently ignore git user pull errors; approvedBy remains optional
-        }
+      // Pull git user info to get approver name
+      let approvedBy: string | undefined
+      try {
+        const gitUser = await getGitUserInfo(process.cwd())
+        approvedBy = gitUser.name ?? gitUser.email ?? undefined
+      } catch {
+        // Silently ignore git user pull errors; approvedBy remains undefined
       }
 
-      // Proceed with approval
-      const result = await invokeCommand('proposal_approve', { hash: validated.hash, approvedBy })
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      // Proceed with approval — call approveProposal directly to avoid invokeCommand recursion
+      const { approveProposal } = await import('../core/completions.js')
+      await approveProposal(validated.hash, { approver: approvedBy })
 
       return {
         hash: validated.hash,
@@ -869,10 +862,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
-      const result = await invokeCommand('proposal_reject', { hash: validated.hash, rejectedBy })
-      if (!result.success) {
-        throw new Error(result.error)
-      }
+      const { rejectProposal } = await import('../core/completions.js')
+      await rejectProposal(validated.hash, { rejectedBy, rejectionReason: validated.rejectionReason })
 
       return { success: true, hash: validated.hash }
     },

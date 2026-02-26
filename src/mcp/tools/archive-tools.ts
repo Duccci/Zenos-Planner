@@ -42,6 +42,10 @@ Call this tool when: a gate or proposal is complete and needs archival, or you n
 ]
 
 import { createEntityActionHandler } from './entity-action-handler.js'
+import {
+  ARCHIVAL_GUARDRAILS,
+  ARCHIVAL_WORKFLOW,
+} from '../content/index.js'
 
 export function archiveHandlers(
   registry: FunctionRegistry
@@ -54,8 +58,32 @@ export function archiveHandlers(
       outputSchema: ArchiveActionOutputSchema,
       actionOutputSchema: getArchiveActionOutputSchema,
       actionHandlers: {
-        gate: async (payload, r) => r.invoke('archive_action', { action: 'gate', payload }),
-        batch: async (payload, r) => r.invoke('archive_action', { action: 'batch', payload }),
+        gate: async (payload, r) => {
+          const result = await r.invoke('archive_action', { action: 'gate', payload })
+          if (result.success) {
+            return {
+              ...result,
+              data: {
+                ...(result.data as Record<string, unknown>),
+                guidance: { guardrails: ARCHIVAL_GUARDRAILS, workflow: ARCHIVAL_WORKFLOW },
+              },
+            }
+          }
+          return result
+        },
+        batch: async (payload, r) => {
+          const result = await r.invoke('archive_action', { action: 'batch', payload })
+          if (result.success) {
+            return {
+              ...result,
+              data: {
+                ...(result.data as Record<string, unknown>),
+                guidance: { guardrails: ARCHIVAL_GUARDRAILS, workflow: ARCHIVAL_WORKFLOW },
+              },
+            }
+          }
+          return result
+        },
       },
     },
     registry

@@ -40,18 +40,8 @@ export const GUARDRAIL_ALLOWLIST: AllowlistEntry[] = [
     pattern: /limit test changes to those that directly validate/i,
     reason: "Approval gate: validation falls to human review + automated coverage checks, not a runtime constraint",
   },
-  {
-    pattern: /gate-tied proposals.*do not create or modify test files unless.*dedicated test proposal/i,
-    reason: "Gate-specific rule: applies to gate-tied proposals only; enforced by proposal context, not a validator",
-  },
-  {
-    pattern: /solitary proposals.*tests are included inline/i,
-    reason: "Solitary-specific rule: tests belong in solitary proposals; human verifies at proposal start",
-  },
-  {
-    pattern: /if a task requires expanding the scope.*document.*obtain human approval/i,
-    reason: "Escalation process: human approval gate; agent documents and waits for user response",
-  },
+  // G9 (scopeExpansion structured field), G10 (validateTestFileScope gate-tied), G11 (validateTestFileScope solitary)
+  // — removed: these guardrails now have structured validators; no longer narrative-only.
   {
     pattern: /review dependencies for context only.*do not act on.*implement.*pre-empt work/i,
     reason: "Workflow instruction: agent behavioral principle; no validator needed (agent follows instructions)",
@@ -69,47 +59,16 @@ export const GUARDRAIL_ALLOWLIST: AllowlistEntry[] = [
     reason: "File convention rule: archival is automatic at gate completion; guardrail prevents manual moves (human enforced)",
   },
 
-  // zeno-apply/SKILL.md guardrails - Pre-Apply Review section
-  {
-    pattern: /flag any open questions.*unclear requirements.*contradictory statements/i,
-    reason: "Pre-apply review step: agent identifies and escalates ambiguities; requires human judgment to determine what constitutes 'unclear'",
-  },
-  {
-    pattern: /verify all files affected exist.*explicitly marked as new files/i,
-    reason: "Pre-apply check: agent can verify file existence; deciding whether to proceed is a user decision gate",
-  },
-  {
-    pattern: /identify any implicit assumptions.*ask the user to confirm they are correct/i,
-    reason: "Pre-apply validation: assumptions are implicit by definition; identifying and confirming them requires human review",
-  },
-  {
-    pattern: /check dependencies table.*for any blockers marked as incomplete/i,
-    reason: "Pre-apply blocker check: agent documents and escalates; no system enforcement needed (user provides guidance)",
-  },
+  // G1-G4 (pre-apply review: preReview structured preconditions on proposal_action: start)
+  // — removed: enforced via PreReviewSchema + proposal-tools.ts validators; no longer narrative-only.
 
-  // zeno-proposal/SKILL.md guardrails - Pre-Generation Gate Review section
-  {
-    pattern: /read the entire gate prd.*flag any open questions.*unclear requirements.*contradictory statements/i,
-    reason: "Pre-generation review step: agent identifies ambiguities before decomposition; human judgment required to assess clarity",
-  },
-  {
-    pattern: /verify all requirements.*complete and unambiguous.*vague acceptance criteria/i,
-    reason: "Pre-generation validation: agent flags incomplete specs; human provides quantified metrics or clarifications",
-  },
-  {
-    pattern: /identify any implicit assumptions in the gate prd.*ask the user to confirm/i,
-    reason: "Pre-generation assumption check: assumptions are implicit; identifying them and confirming correctness requires human involvement",
-  },
-  {
-    pattern: /check if any gate dependencies are incomplete or blocked.*request user guidance/i,
-    reason: "Pre-generation dependency review: agent documents blockers and waits for user guidance before proceeding",
-  },
+  // G5-G8 (pre-generation review: preReview structured preconditions on proposal_action: generate, gates_action: generate)
+  // — removed: enforced via PreReviewSchema + proposal-tools.ts/gate-tools.ts validators; no longer narrative-only.
 
+  // G12 (validateMarkdownOnly in scope-validator.ts for gates_action: generate)
+  // — removed: the 'create gate PRDs and update artifacts only — no implementation code' guardrail
+  //   is now enforced by validateMarkdownOnly; no longer narrative-only.
   // zeno-gate/SKILL.md guardrails
-  {
-    pattern: /create gate prds and update artifacts only.*no implementation code/i,
-    reason: "Scope rule: gate generation produces markdown only; agent-enforced via instructions, not a validator",
-  },
   {
     pattern: /gates are concrete deliverables.*not percentages or time estimates/i,
     reason: "Definitional principle: describes gate semantics; no validator needed",
@@ -119,11 +78,10 @@ export const GUARDRAIL_ALLOWLIST: AllowlistEntry[] = [
     reason: "Interaction instruction: agent behavior principle; documented in workflow",
   },
 
+  // G12 (validateMarkdownOnly in scope-validator.ts for proposal_action: generate)
+  // — removed: the 'only create markdown — no code, files, or commands' pattern is now enforced
+  //   by validateMarkdownOnly; no longer narrative-only.
   // zeno-proposal/SKILL.md guardrails
-  {
-    pattern: /only create markdown in.*no code.*files.*or commands/i,
-    reason: "Scope rule: proposal generation is markdown-only; enforced via instructions, proposal template structure",
-  },
   {
     pattern: /keep proposals as single coherent work units/i,
     reason: "Design principle: guidance for proposal decomposition; human reviews at proposal review phase",

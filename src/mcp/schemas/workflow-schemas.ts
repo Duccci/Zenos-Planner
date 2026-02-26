@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { GateIdSchema } from './common-schemas.js'
+import { PreReviewSummarySchema } from './pre-review-schemas.js'
 
 // PROPOSAL_GENERATE - Generate proposal documents from a gate PRD
 export const ProposalGenerateInputSchema = z.object({
@@ -27,7 +28,9 @@ export const ProposalGenerateOutputSchema = z.object({
     to: z.string(),
     type: z.string()
   })).optional(),
-  message: z.string()
+  message: z.string(),
+  /** Pre-review audit trail: echoes back agent-reported pre-review values for user verification */
+  preReviewSummary: PreReviewSummarySchema.optional(),
 })
 
 export type ProposalGenerateOutput = z.infer<typeof ProposalGenerateOutputSchema>
@@ -59,7 +62,13 @@ export const ProposalUpdateProgressOutputSchema = z.object({
       typeErrors: z.number().int().min(0)
     }).optional()
   }).optional(),
-  message: z.string()
+  message: z.string(),
+  /** Progress audit trail: current task, cumulative files modified, remaining files */
+  progressSummary: z.object({
+    currentTask: z.number().int().min(1),
+    cumulativeFilesModified: z.array(z.string()),
+    remainingFilesNotTouched: z.array(z.string()),
+  }).optional(),
 })
 
 export type ProposalUpdateProgressOutput = z.infer<typeof ProposalUpdateProgressOutputSchema>
@@ -88,7 +97,9 @@ export const GateGenerateOutputSchema = z.object({
   })),
   requirementsAttributed: z.number().int().min(0),
   diagramsUpdated: z.array(z.string()),
-  message: z.string()
+  message: z.string(),
+  /** Pre-review audit trail: echoes back agent-reported pre-review values for user verification */
+  preReviewSummary: PreReviewSummarySchema.optional(),
 })
 
 export type GateGenerateOutput = z.infer<typeof GateGenerateOutputSchema>

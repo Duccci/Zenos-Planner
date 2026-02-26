@@ -7,6 +7,7 @@ import {
   OptionalTimestampSchema,
   PaginationMetadataSchema,
 } from './common-schemas.js'
+import { PreReviewSummarySchema } from './pre-review-schemas.js'
 
 /**
  * Zod schemas for proposal management operations
@@ -191,6 +192,8 @@ export const ProposalStartOutputSchema = z.object({
   previousStatus: ProposalStatusEnum,
   newStatus: z.literal('in_progress'),
   startedAt: TimestampSchema,
+  /** Pre-review audit trail: echoes back agent-reported pre-review values for user verification */
+  preReviewSummary: PreReviewSummarySchema.optional(),
 })
 export type ProposalStartOutput = z.infer<typeof ProposalStartOutputSchema>
 

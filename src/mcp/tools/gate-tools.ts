@@ -1,10 +1,15 @@
 import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
-import {
-  validateDependencies,
+import { validateDependencies,
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
 import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
 import { createStateTransitionValidator } from './entity-action-handler.js'
+import type { PreReview } from '../schemas/pre-review-schemas.js'
+import { validateMarkdownOnly } from '../validators/scope-validator.js'
+import {
+  GATE_GENERATION_GUARDRAILS,
+  GATE_GENERATION_WORKFLOW,
+} from '../content/index.js'
 
 /** Valid gate statuses */
 type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
@@ -90,7 +95,25 @@ export function gateHandlers(
         list: async (payload, r) => r.invoke('gates_list', payload),
         show: async (payload, r) => r.invoke('gates_show', payload),
         create: async (payload, r) => r.invoke('gate_create', payload),
-        generate: async (payload, r) => r.invoke('generateGates', payload),
+        generate: async (payload, r) => {
+          // Inject preReviewSummary and gate-generation guidance into successful response
+          const generateResult = await r.invoke('generateGates', payload)
+          if (generateResult.success) {
+            const pre = (payload as { preReview?: unknown }).preReview
+            return {
+              ...generateResult,
+              data: {
+                ...(generateResult.data as Record<string, unknown>),
+                ...(pre ? { preReviewSummary: pre } : {}),
+                guidance: {
+                  guardrails: GATE_GENERATION_GUARDRAILS,
+                  workflow: GATE_GENERATION_WORKFLOW,
+                },
+              },
+            }
+          }
+          return generateResult
+        },
         start: async (payload, r) => {
           // Idempotent: if gate is already in_progress, return success without re-invoking CLI
           const gateId = (payload as { gateId?: string }).gateId ?? ''
@@ -120,6 +143,78 @@ export function gateHandlers(
         defer: async (payload, r) => r.invoke('gate_defer', payload),
       },
       validators: {
+        generate: (_payload, _r) => [
+          // PreReview enforcement: G5-G8 structured preconditions for gate generation
+          // eslint-disable-next-line @typescript-eslint/require-await
+          async () => {
+            const pre = (_payload as { preReview?: PreReview }).preReview
+            if (!pre) {
+              return {
+                allowed: false,
+                errors: [
+                  'preReview is required for gates_action: generate. ' +
+                    'Provide preReview with phase="generate" and: ' +
+                    'openQuestionsResolved (bool), questionsFound (string[]), ' +
+                    'gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), ' +
+                    'assumptionsDocumented (string[]), blockersIdentified (string[]). ' +
+                    'Read the full project PRD and requirements before generating gates (SKILL.md G5-G8).',
+                ],
+                guidance:
+                  'If you have reviewed the requirements, supply preReview with your findings.',
+              }
+            }
+
+            const errors: string[] = []
+            const warnings: string[] = []
+
+            // G5: unresolved questions
+            if (!pre.openQuestionsResolved && pre.questionsFound.length > 0) {
+              errors.push(
+                'Unresolved open questions. Resolve before generating gates: ' +
+                  pre.questionsFound.map((q) => `"${q}"`).join('; ')
+              )
+            }
+
+            // G5: gate PRD not reviewed (for generate, this is the requirements review)
+            if (pre.gateReviewed === false) {
+              errors.push(
+                'gateReviewed is false. Read the full project requirements before generating gates.'
+              )
+            }
+
+            // G6: vague requirements
+            if (
+              pre.requirementsVerified === false &&
+              pre.vagueRequirements &&
+              pre.vagueRequirements.length > 0
+            ) {
+              errors.push(
+                'Vague requirements found. Clarify before generating: ' +
+                  pre.vagueRequirements.map((r) => `"${r}"`).join('; ')
+              )
+            }
+
+            // G8: blockers (warning only)
+            if (pre.blockersIdentified.length > 0) {
+              warnings.push(
+                'Dependency blockers identified: ' +
+                  pre.blockersIdentified.map((b) => `"${b}"`).join('; ')
+              )
+            }
+
+            return {
+              allowed: errors.length === 0,
+              errors: errors.length > 0 ? errors : undefined,
+              warnings: warnings.length > 0 ? warnings : undefined,
+            }
+          },
+          // G12: gate generation must only produce markdown files
+          // eslint-disable-next-line @typescript-eslint/require-await
+          async () => {
+            const filesAffected = (_payload as { filesAffected?: string[] }).filesAffected ?? []
+            return validateMarkdownOnly(filesAffected)
+          },
+        ],
         start: (_payload, r) => [
           // Enforce state transition: only pending (or rejected) gates can be started
           // See MCP: entity-action-handler.ts#createStateTransitionValidator

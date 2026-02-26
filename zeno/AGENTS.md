@@ -115,7 +115,7 @@ MCP tools are the authoritative interface for all workflow actions. Use these in
 | `zeno gates complete` + archive | `archive_action` | `gate`, `batch` |
 | `zeno arch *` | `diagram_action` | *(see tool schema)* |
 | `zeno show <hash>` | `show_entity` | — |
-| `config_get()` in skills | `config_get` | — |
+| `config_get()` for quality thresholds | `config_get` | — |
 
 **Validator functions** (called by handlers; not invoked directly):
 
@@ -153,7 +153,7 @@ When starting proposal generation for a gate, read the entire Gate PRD and:
 - **List implicit assumptions** — Assumptions about existing systems, migration paths, or constraints that may not be correct
 - **Check for blocked dependencies** — Gate dependencies that are incomplete or blocked by other work
 
-**See**: `../AGENTS.md` step 9 (Gate Review Check); `../.claude/skills/zeno-proposal/SKILL.md` (Pre-Generation Gate Review guardrails)
+**See**: `../AGENTS.md` step 9 (Gate Review Check); guardrails injected via `proposal_action:generate` response (`guidance.guardrails` — `src/mcp/content/guardrails.ts` PROPOSAL_GENERATION_GUARDRAILS)
 
 ### Before Applying Proposals (Pre-Apply Review)
 
@@ -163,7 +163,7 @@ When starting proposal implementation, read the entire proposal and:
 - **Identify implicit assumptions** — Assumptions about installed packages, existing schemas, or system state
 - **Check for incomplete blockers** — Dependencies marked as incomplete that will prevent implementation
 
-**See**: `../AGENTS.md` step 14 (Pre-Apply Review); `../.claude/skills/zeno-apply/SKILL.md` (Pre-Apply Review guardrails)
+**See**: `../AGENTS.md` step 14 (Pre-Apply Review); guardrails injected via `proposal_action:start` response (`guidance.guardrails` — `src/mcp/content/guardrails.ts` APPLY_PHASE_GUARDRAILS)
 
 **Process**: If any issues are found, document them and escalate to the user for clarification BEFORE proceeding. Do not implement around unclear requirements.
 

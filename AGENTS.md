@@ -267,14 +267,14 @@ project-root/
 ### Review Phase
 8. **Check status**: `zeno gates list` to see current gate
 9. **Read gate PRD**: `zeno/gates/gate-XX-name.md`
-   - **Gate Review Check** (see `zeno-proposal/SKILL.md` guardrails): Identify any open questions, unclear requirements, or contradictory statements. Flag implicit assumptions and ask for confirmation. Check gate dependencies for blockers. Escalate clarifications to user before proceeding.
+   - **Gate Review Check** (guardrails injected via `proposal_action:generate` response — see `src/mcp/content/guardrails.ts` PROPOSAL_GENERATION_GUARDRAILS): Identify any open questions, unclear requirements, or contradictory statements. Flag implicit assumptions and ask for confirmation. Check gate dependencies for blockers. Escalate clarifications to user before proceeding.
 10. **Review requirements**: `zeno req list --gate "<id>"`
 11. **Review planning insights**: Check planning phase analysis in proposal summaries
 12. **View proposals**: `zeno proposal show "<hash>"`
 13. **Approve proposals**: User reviews and approves proposals before implementation begins (assumption: approval means user agrees with implementation strategy)
 
 ### Execution Phase
-14. **Pre-Apply Review** (see `zeno-apply/SKILL.md` guardrails): Before implementing each proposal:
+14. **Pre-Apply Review** (guardrails injected via `proposal_action:start` response — see `src/mcp/content/guardrails.ts` APPLY_PHASE_GUARDRAILS): Before implementing each proposal:
     - Read the entire proposal and check for open questions, unclear requirements, contradictory statements
     - Verify all Files Affected exist (or are marked as new)
     - Identify implicit assumptions and confirm correctness
