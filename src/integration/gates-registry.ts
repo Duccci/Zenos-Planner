@@ -10,20 +10,10 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { normalizeGateId } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
+import { normalizeDateTime } from '../utils/datetime.js'
 
 import { join } from 'node:path'
 import { getZenoDir } from '../utils/config.js'
-
-/**
- * Helper to convert YYYY-MM-DD dates to ISO 8601 format
- */
-function toISOTimestamp(dateStr: string | null | undefined): string | null {
-  if (!dateStr) return null
-  // If already in ISO format, return as-is
-  if (dateStr.includes('T')) return dateStr
-  // Convert YYYY-MM-DD to ISO 8601 with time 00:00:00Z
-  return `${dateStr}T00:00:00Z`
-}
 
 export function registerGatesOps(registry: FunctionRegistry): void {
   // In-process implementation for listing gates (faster than spawning CLI)
@@ -61,20 +51,14 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           sequence: g.sequence,
           status: g.status,
           type: 'feature',
-          created: toISOTimestamp(g.completedAt) ?? now,
+          created: g.completedAt ? normalizeDateTime(g.completedAt) : now,
           started: g.status === 'in_progress' ? now : null,
-          completed: toISOTimestamp(g.completedAt),
+          completed: g.completedAt ? normalizeDateTime(g.completedAt) : null,
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
           testedRequirementCount: 0,
         })),
-        pagination: {
-          total: summaries.length,
-          skip: 0,
-          take: Math.max(summaries.length, 1),
-          hasMore: false,
-        },
       }
     },
     {
@@ -117,9 +101,9 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         objectives: [],
         requirements: [],
         proposals: [],
-        created: toISOTimestamp(gate.completedAt) ?? now,
+        created: now,
         started: gate.status === 'in_progress' ? now : null,
-        completed: toISOTimestamp(gate.completedAt),
+        completed: gate.completedAt ? normalizeDateTime(gate.completedAt) : null,
       }
     },
     {
@@ -159,6 +143,14 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const { startGate } = await import('../core/completions.js')
       await startGate(validated.gateId, { startedBy })
+
+      const normalizedId = normalizeGateId(validated.gateId)
+      return {
+        gateId: normalizedId,
+        previousStatus: 'pending',
+        newStatus: 'in_progress' as const,
+        startedAt: new Date().toISOString(),
+      }
     },
     {
       description: 'Start working on a gate (changes status from pending to in_progress)',
@@ -199,6 +191,18 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const { completeGate } = await import('../core/completions.js')
       await completeGate(validated.gateId)
+
+      const normalizedId = normalizeGateId(validated.gateId)
+      return {
+        gateId: normalizedId,
+        previousStatus: 'in_progress' as const,
+        newStatus: 'completed' as const,
+        completedAt: new Date().toISOString(),
+        summary: {
+          proposalsCompleted: 0,
+          requirementsTested: 0,
+        },
+      }
     },
     {
       description: 'Mark a gate as completed and create a release tag',
@@ -222,6 +226,10 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     async () => {
       const { regenerateGates } = await import('../core/completions.js')
       await regenerateGates()
+      return {
+        mode: 'full' as const,
+        status: 'regenerated' as const,
+      }
     },
     {
       description: 'Regenerate future gates based on current project state',
@@ -235,15 +243,50 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     'gate_cancel',
     async (params) => {
       const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
-      const { getDatabase } = await import('../storage/database.js')
-      const { normalizeGateId } = await import('../utils/normalize.js')
-      const db = getDatabase()
+      const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
       const normalizedId = normalizeGateId(validated.gateId)
-      const gate = db.prepare('SELECT id, status FROM gates WHERE id = ?').get(normalizedId) as Record<string, unknown> | undefined
-      if (!gate) throw new Error(`Gate not found: ${validated.gateId}`)
-      const previousStatus = gate['status'] as string
-      db.prepare('UPDATE gates SET status = ?, updated_at = ? WHERE id = ?').run('cancelled', new Date().toISOString(), normalizedId)
-      return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt: new Date().toISOString(), reason: validated.reason }
+      const seqMatch = /\d+/.exec(normalizedId)
+      const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
+
+      const overview = await readProjectOverview()
+      let previousStatus = 'pending'
+      let gateName = normalizedId
+      let gateHash: string | undefined
+
+      // Find and remove gate from its current section
+      const upcomingIdx = overview.upcomingGates.findIndex(
+        (g) => `gate-${g.sequence.toString().padStart(2, '0')}` === normalizedId || g.sequence === seq
+      )
+      if (upcomingIdx !== -1) {
+        const gate = overview.upcomingGates[upcomingIdx]
+        gateName = gate?.name ?? gateName
+        previousStatus = 'pending'
+        overview.upcomingGates = [
+          ...overview.upcomingGates.slice(0, upcomingIdx),
+          ...overview.upcomingGates.slice(upcomingIdx + 1),
+        ]
+      } else if (
+        overview.currentGateInfo &&
+        (overview.currentGate === normalizedId ||
+          overview.currentGateInfo.sequence === seq)
+      ) {
+        gateName = overview.currentGateInfo.name
+        gateHash = overview.currentGateInfo.hash
+        previousStatus = overview.currentGate ? 'in_progress' : 'pending'
+        overview.currentGate = null
+        overview.currentGateInfo = null
+      } else {
+        throw new Error(`Gate not found or already completed/cancelled: ${validated.gateId}`)
+      }
+
+      const cancelledAt = new Date().toISOString()
+      overview.cancelledGates = [
+        ...(overview.cancelledGates ?? []),
+        { sequence: seq ?? 0, name: gateName, hash: gateHash, cancelledAt },
+      ]
+      await saveProjectOverview(overview)
+
+      return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt, reason: validated.reason }
     },
     {
       description: 'Cancel a gate (mark as cancelled/dropped from roadmap)',
@@ -260,15 +303,51 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     'gate_defer',
     async (params) => {
       const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
-      const { getDatabase } = await import('../storage/database.js')
-      const { normalizeGateId } = await import('../utils/normalize.js')
-      const db = getDatabase()
+      const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
       const normalizedId = normalizeGateId(validated.gateId)
-      const gate = db.prepare('SELECT id, status FROM gates WHERE id = ?').get(normalizedId) as Record<string, unknown> | undefined
-      if (!gate) throw new Error(`Gate not found: ${validated.gateId}`)
-      const previousStatus = gate['status'] as string
-      db.prepare('UPDATE gates SET status = ?, updated_at = ? WHERE id = ?').run('backlog', new Date().toISOString(), normalizedId)
-      return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt: new Date().toISOString(), reason: validated.reason }
+      const seqMatch = /\d+/.exec(normalizedId)
+      const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
+
+      const overview = await readProjectOverview()
+      let previousStatus = 'pending'
+      let gateName = normalizedId
+      let complexity: string | undefined
+
+      // Find and remove gate from its current section
+      const upcomingIdx = overview.upcomingGates.findIndex(
+        (g) => `gate-${g.sequence.toString().padStart(2, '0')}` === normalizedId || g.sequence === seq
+      )
+      if (upcomingIdx !== -1) {
+        const gate = overview.upcomingGates[upcomingIdx]
+        gateName = gate?.name ?? gateName
+        complexity = gate?.estimatedComplexity
+        previousStatus = 'pending'
+        overview.upcomingGates = [
+          ...overview.upcomingGates.slice(0, upcomingIdx),
+          ...overview.upcomingGates.slice(upcomingIdx + 1),
+        ]
+      } else if (
+        overview.currentGateInfo &&
+        (overview.currentGate === normalizedId ||
+          overview.currentGateInfo.sequence === seq)
+      ) {
+        gateName = overview.currentGateInfo.name
+        complexity = overview.currentGateInfo.estimatedComplexity
+        previousStatus = overview.currentGate ? 'in_progress' : 'pending'
+        overview.currentGate = null
+        overview.currentGateInfo = null
+      } else {
+        throw new Error(`Gate not found or already completed/cancelled: ${validated.gateId}`)
+      }
+
+      const deferredAt = new Date().toISOString()
+      overview.backlogGates = [
+        ...(overview.backlogGates ?? []),
+        { sequence: seq ?? 0, name: gateName, estimatedComplexity: complexity },
+      ]
+      await saveProjectOverview(overview)
+
+      return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt, reason: validated.reason }
     },
     {
       description: 'Defer a gate to backlog (off main implementation path, revisit later)',

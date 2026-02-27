@@ -8,8 +8,6 @@
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 export class GateRoadmapGenerator extends DiagramGeneratorBase {
   getType(): DiagramType {
@@ -25,18 +23,8 @@ export class GateRoadmapGenerator extends DiagramGeneratorBase {
    * Template provides structure; content is populated from project metadata.
    */
   generateContent(context: DiagramContext): string {
-    // Load template for structural guidance
-    const templatePath = join(
-      process.cwd(),
-      'templates/architecture-templates/gate-roadmap-template.md'
-    )
-    try {
-      readFileSync(templatePath, 'utf-8')
-    } catch {
-      // Template file not found; proceed with default generation
-    }
-
     // Build gate roadmap from context
+    // Note: templates are served to LLMs via template_get/arch_catalogue MCP tools
     const gates = context.gates ?? []
 
     // Generate a simple sequential roadmap; in practice this would analyze dependencies

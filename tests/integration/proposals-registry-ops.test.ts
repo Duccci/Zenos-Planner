@@ -55,7 +55,7 @@ vi.mock('../../src/mcp/validators/proposal-phases-validator.js', () => ({
   validateProposalPhases: (...args: unknown[]) => mockValidateProposalPhases(...args),
 }))
 
-vi.mock('../../src/core/proposal-locator.js', () => ({
+vi.mock('../../src/utils/artifact-locator.js', () => ({
   findProposalByHash: (...args: unknown[]) => mockFindProposalByHash(...args),
 }))
 
@@ -133,9 +133,8 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { proposals: unknown[]; pagination: unknown }
+      const data = result.data as { proposals: unknown[] }
       expect(data.proposals).toHaveLength(0)
-      expect(data.pagination).toBeDefined()
     })
 
     it('returns proposals without filters', async () => {
@@ -214,7 +213,7 @@ describe('proposals-registry operations', () => {
       expect(result.success).toBe(true)
     })
 
-    it('handles pagination with skip and take', async () => {
+    it('returns all proposals regardless of count', async () => {
       const rows = Array.from({ length: 10 }, (_, i) => ({
         hash: `hash${i}`,
         title: `P${i}`,
@@ -224,20 +223,16 @@ describe('proposals-registry operations', () => {
       }))
       mockAll.mockReturnValue(rows)
 
-      const result = (await registry.invoke('proposal_list', {
-        skip: 5,
-        take: 3,
-      })) as { success: boolean; data: unknown }
+      const result = (await registry.invoke('proposal_list', {})) as { success: boolean; data: unknown }
 
       expect(result.success).toBe(true)
-      const data = result.data as { proposals: unknown[]; pagination: { hasMore: boolean } }
-      expect(data.proposals).toHaveLength(3)
-      expect(data.pagination.hasMore).toBe(true)
+      const data = result.data as { proposals: unknown[] }
+      expect(data.proposals).toHaveLength(10)
     })
 
     it('filters out rows with missing required fields', async () => {
       const rows = [
-        // Valid row
+        // Valid gate-tied row
         {
           hash: 'abc12345',
           title: 'Good',
@@ -245,21 +240,21 @@ describe('proposals-registry operations', () => {
           gate_id: 'gate-01',
           created_at: '2026-01-01T00:00:00Z',
         },
-        // Missing hash
+        // Missing hash (invalid — should be filtered out)
         {
           title: 'No hash',
           status: 'pending',
           gate_id: 'gate-01',
           created_at: '2026-01-01T00:00:00Z',
         },
-        // Missing gate_id
+        // NULL gate_id — treated as solitary proposal (valid, should be included)
         {
           hash: 'xyz99999',
           title: 'No gate',
           status: 'pending',
           created_at: '2026-01-01T00:00:00Z',
         },
-        // Missing created_at
+        // Missing created_at (invalid — should be filtered out)
         { hash: 'zzz11111', title: 'No date', status: 'pending', gate_id: 'gate-01' },
       ]
       mockAll.mockReturnValue(rows)
@@ -269,8 +264,11 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { proposals: unknown[] }
-      expect(data.proposals).toHaveLength(1)
+      const data = result.data as { proposals: Array<{ hash: string; gateId: string }> }
+      // 2 valid rows: abc12345 (gate-tied) + xyz99999 (solitary / null gate_id)
+      expect(data.proposals).toHaveLength(2)
+      const solitaryRow = data.proposals.find((p) => p.hash === 'xyz99999')
+      expect(solitaryRow?.gateId).toBe('solitary')
     })
 
     it('maps null approved_at to null completedAt', async () => {
@@ -502,9 +500,9 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean; errors?: string[] }
+      const data = result.data as { passed: boolean; issues: { level: string; message: string }[] }
       expect(data.passed).toBe(false)
-      expect(data.errors).toContain('Circular dependency detected')
+      expect(data.issues.some(i => i.level === 'error' && i.message.includes('Circular dependency detected'))).toBe(true)
     })
 
     it('validates quality metrics when present', async () => {
@@ -530,8 +528,8 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean; warnings?: string[] }
-      expect(data.warnings).toContain('Low coverage')
+      const data = result.data as { passed: boolean; issues: { level: string; message: string }[] }
+      expect(data.issues.some(i => i.level === 'warning' && i.message.includes('Low coverage'))).toBe(true)
     })
 
     it('includes quality errors when quality validation fails', async () => {
@@ -668,9 +666,10 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { hash: string; status: string }
+      const data = result.data as { hash: string; previousStatus: string; newStatus: string; approvedAt: string }
       expect(data.hash).toBe('abc12345')
-      expect(data.status).toBe('approved')
+      expect(data.newStatus).toBe('completed')
+      expect(data.approvedAt).toBeDefined()
     })
 
     it('throws when approveProposal throws after validation passes', async () => {
@@ -711,8 +710,10 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { validation: { warnings: string[] } }
-      expect(data.validation.warnings).toContain('Approaching lint threshold')
+      const data = result.data as { hash: string; previousStatus: string; newStatus: string; approvedAt: string }
+      expect(data.hash).toBe('abc12345')
+      expect(data.newStatus).toBe('completed')
+      expect(data.approvedAt).toBeDefined()
     })
   })
 

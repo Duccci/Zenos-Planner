@@ -335,17 +335,16 @@ function extractField(content: string, pattern: string, maxLines: number): strin
 
 /**
  * Extract task descriptions from the Tasks section.
+ * Tasks use "### Task N: Description" headers, not bullet/numbered lines.
  */
 function extractTaskDescriptions(content: string): string[] {
-  const taskSection = extractField(content, '## Tasks', 100) ?? ''
-  // Simple extraction: each task is a bullet or numbered item
-  const tasks: string[] = []
-  for (const line of taskSection.split('\n')) {
-    if (/^[*-]\s+/.exec(line) || /^\d+\.\s+/.exec(line)) {
-      tasks.push(line.replace(/^[*\d+.-]\s+/, '').trim())
-    }
-  }
-  return tasks
+  const taskSection = extractField(content, '## Tasks', 200) ?? ''
+  // Split by '### Task N:' headers
+  return taskSection
+    .split(/###\s+Task\s+\d+:/)
+    .slice(1) // drop the empty segment before the first header
+    .map((t) => t.split('\n')[0]?.trim() ?? '') // first line of each section is the task title
+    .filter((t) => t.length > 0)
 }
 
 /**

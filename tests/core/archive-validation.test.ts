@@ -81,7 +81,7 @@ describe('archive-validation', () => {
     const solitaryDir = join(proposalsDir, 'solitary')
     mkdirSync(solitaryDir, { recursive: true })
     const proposalFile = join(solitaryDir, 'my-hash.md')
-    writeFileSync(proposalFile, '# Proposal\n\n**Status**: pending\n**Title**: Test Proposal\n')
+    writeFileSync(proposalFile, '# Proposal\n\n**Hash**: my-hash\n**Status**: pending\n**Title**: Test Proposal\n')
 
     const { validateProposalReady } = await import('../../src/core/archive-validation.js')
     await expect(validateProposalReady('my-hash')).rejects.toMatchObject({
@@ -127,7 +127,7 @@ describe('archive-validation', () => {
     const proposalFile = join(gatePropDir, 'abc123.md')
     writeFileSync(
       proposalFile,
-      '# Proposal: My Feature\n\n**Status**: completed\n**Title**: My Feature\n'
+      '# Proposal: My Feature\n\n**Hash**: abc123\n**Status**: completed\n**Title**: My Feature\n'
     )
 
     // Mock ArtifactValidationService to return passed=true
@@ -152,7 +152,7 @@ describe('archive-validation', () => {
     const proposalFile = join(gatePropDir, 'failhash.md')
     writeFileSync(
       proposalFile,
-      '# Proposal: Bad One\n\n**Status**: completed\n**Title**: Bad One\n'
+      '# Proposal: Bad One\n\n**Hash**: failhash\n**Status**: completed\n**Title**: Bad One\n'
     )
 
     // Mock ArtifactValidationService to return passed=false

@@ -84,8 +84,8 @@ export async function updateProposalProgress(
   }
 }
 
-// Helper functions moved to `proposal-locator.ts` and `proposal-progress.ts`
-import { findProposalByHash } from './proposal-locator.js'
+// Helper functions live in `src/utils/artifact-locator.ts` and `proposal-progress.ts`
+import { findProposalByHash } from '../utils/artifact-locator.js'
 import {
   updateTaskStatus,
   calculateCompletionSummary,

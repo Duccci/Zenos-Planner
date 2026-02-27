@@ -12,7 +12,7 @@ vi.mock('../../src/utils/file.js', () => ({
   writeFile: (...args: unknown[]) => mockWriteFile(...args),
 }))
 
-vi.mock('../../src/core/proposal-locator.js', () => ({
+vi.mock('../../src/utils/artifact-locator.js', () => ({
   findProposalByHash: (...args: unknown[]) => mockFindProposalByHash(...args),
 }))
 

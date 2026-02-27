@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { registerGatesCommands } from '../../../src/cli/commands/gates.js'
+import { validateTransition, GATE_TRANSITIONS } from '../../../src/core/transitions.js'
 import { Command } from 'commander'
 import type Database from 'better-sqlite3'
 
@@ -274,20 +275,23 @@ describe('Gates Commands', () => {
 
   describe('status transition validation', () => {
     it('should allow valid transitions', () => {
-      expect(validateStatusTransition('pending', 'in_progress').valid).toBe(true)
-      expect(validateStatusTransition('in_progress', 'completed').valid).toBe(true)
-      expect(validateStatusTransition('in_progress', 'rejected').valid).toBe(true)
-      expect(validateStatusTransition('rejected', 'pending').valid).toBe(true)
+      expect(validateTransition(GATE_TRANSITIONS, 'pending', 'in_progress').valid).toBe(true)
+      expect(validateTransition(GATE_TRANSITIONS, 'in_progress', 'completed').valid).toBe(true)
+      expect(validateTransition(GATE_TRANSITIONS, 'in_progress', 'rejected').valid).toBe(true)
+      // rejected gates resume as in_progress (not reset to pending)
+      expect(validateTransition(GATE_TRANSITIONS, 'rejected', 'in_progress').valid).toBe(true)
     })
 
     it('should reject invalid transitions', () => {
-      expect(validateStatusTransition('pending', 'completed').valid).toBe(false)
-      expect(validateStatusTransition('completed', 'in_progress').valid).toBe(false)
-      expect(validateStatusTransition('completed', 'pending').valid).toBe(false)
+      expect(validateTransition(GATE_TRANSITIONS, 'pending', 'completed').valid).toBe(false)
+      expect(validateTransition(GATE_TRANSITIONS, 'completed', 'in_progress').valid).toBe(false)
+      expect(validateTransition(GATE_TRANSITIONS, 'completed', 'pending').valid).toBe(false)
+      // rejected → pending is not valid; only in_progress is
+      expect(validateTransition(GATE_TRANSITIONS, 'rejected', 'pending').valid).toBe(false)
     })
 
     it('should provide error messages for invalid transitions', () => {
-      const result = validateStatusTransition('pending', 'completed')
+      const result = validateTransition(GATE_TRANSITIONS, 'pending', 'completed')
       expect(result.valid).toBe(false)
       expect(result.error).toContain('Cannot transition')
     })
@@ -408,27 +412,4 @@ function normalizeGateId(gateId: string): string {
     return `gate-${num.toString().padStart(2, '0')}`
   }
   return gateId
-}
-
-type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected'
-
-function validateStatusTransition(
-  currentStatus: GateStatus,
-  targetStatus: GateStatus
-): { valid: boolean; error?: string } {
-  const validTransitions: Record<GateStatus, GateStatus[]> = {
-    pending: ['in_progress'],
-    in_progress: ['completed', 'rejected'],
-    completed: [],
-    rejected: ['pending'],
-  }
-
-  if (validTransitions[currentStatus].includes(targetStatus)) {
-    return { valid: true }
-  }
-
-  return {
-    valid: false,
-    error: `Cannot transition from ${currentStatus} to ${targetStatus}. Valid transitions: ${validTransitions[currentStatus].join(', ') || 'none'}`,
-  }
 }

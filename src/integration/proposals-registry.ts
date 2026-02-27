@@ -9,6 +9,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
+import { normalizeDateTime } from '../utils/datetime.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -18,12 +19,15 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .object({
           gateId: z.string().optional(),
           status: z.string().optional(),
-          skip: z.number().int().min(0).default(0),
-          take: z.number().int().min(1).max(100).default(50),
         })
         .parse(params)
 
       const db = (await import('../storage/database.js')).getDatabase()
+
+      // Always sync from disk first so we surface newly-written proposal files
+      // without requiring a restart.  Lifecycle state (status, approved_at)
+      // is authoritative in the DB; the sync only adds missing rows.
+      syncProposalsFromDisk(db)
 
       let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at FROM proposals'
       const conditions: string[] = []
@@ -43,38 +47,28 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       query += ' ORDER BY created_at DESC'
 
       const allRows = db.prepare(query).all(...queryParams) as Record<string, unknown>[]
-      // Filter rows that have valid required fields
+      // Filter rows that have valid required fields.
+      // gate_id is nullable — NULL means solitary; do NOT exclude those rows.
       const validRows = allRows.filter(
         (row) =>
           row['hash'] &&
           typeof row['hash'] === 'string' &&
-          row['gate_id'] &&
-          typeof row['gate_id'] === 'string' &&
           row['created_at'] &&
           typeof row['created_at'] === 'string'
       )
-      const total = validRows.length
-      const paged = validRows.slice(validated.skip, validated.skip + validated.take)
 
       return {
-        proposals: paged.map((row) => ({
+        proposals: validRows.map((row) => ({
           hash: row['hash'] as string,
           title: (row['title'] as string) ?? '',
           description: (row['description'] as string) ?? undefined,
           status: (row['status'] as string) ?? 'pending',
-          gateId: row['gate_id'] as string,
+          gateId: (row['gate_id'] as string | null) ?? 'solitary',
           tasksCompleted: 0,
           totalTasks: 0,
-          created: row['created_at'] as string,
-          updated: null,
-          completedAt: (row['approved_at'] as string) ?? null,
+          created: normalizeDateTime(row['created_at'] as string | null),
+          completedAt: row['approved_at'] ? normalizeDateTime(row['approved_at'] as string) : null,
         })),
-        pagination: {
-          total,
-          skip: validated.skip,
-          take: validated.take,
-          hasMore: validated.skip + validated.take < total,
-        },
       }
     },
     {
@@ -97,8 +91,6 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       schema: z.object({
         gateId: z.string().optional(),
         status: z.string().optional(),
-        skip: z.number().int().min(0).default(0),
-        take: z.number().int().min(1).max(100).default(50),
       }),
     }
   )
@@ -186,24 +178,44 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         /* ignore parse errors */
       }
 
+      // Attempt to read task count from proposal file for bounds checking
+      let parsedTasks: { title: string; completed: boolean }[] = []
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        const { readFile } = await import('../utils/file.js')
+        const proposalFilePath = await findProposalByHash(normalizedHash)
+        if (proposalFilePath) {
+          const proposalContent = await readFile(proposalFilePath)
+          const taskHeaderMatches = proposalContent.match(/###\s+Task\s+\d+:[^\n]*/g)
+          if (taskHeaderMatches) {
+            parsedTasks = taskHeaderMatches.map((h) => ({
+              title: h.replace(/###\s+Task\s+\d+:\s*/, '').trim(),
+              completed: false,
+            }))
+          }
+        }
+      } catch {
+        // File read failure is non-critical; tasks defaults to []
+      }
+
       return {
         hash: (proposal['hash'] as string) || 'unknown00',
         title: (proposal['title'] as string) ?? '',
         description: (proposal['summary'] as string) ?? (proposal['title'] as string) ?? '',
         status: (proposal['status'] as string) ?? 'pending',
-        gateId: (proposal['gate_id'] as string) || 'gate-00',
+        gateId: (proposal['gate_id'] as string | null) ?? 'solitary',
+        solitary: !(proposal['gate_id'] as string | null) || (proposal['gate_id'] as string) === 'solitary',
         summary: (proposal['summary'] as string) ?? undefined,
         context: undefined,
-        tasks: [],
+        tasks: parsedTasks,
         dependencies:
           deps.length > 0 ? deps.map((d) => ({ hash: d, type: 'depends_on' as const })) : undefined,
         files:
           filesAffected.length > 0
             ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
             : undefined,
-        created: (proposal['created_at'] as string) || new Date().toISOString(),
-        updated: null,
-        completedAt: (proposal['approved_at'] as string) ?? null,
+        created: normalizeDateTime(proposal['created_at'] as string | null),
+        completedAt: proposal['approved_at'] ? normalizeDateTime(proposal['approved_at'] as string) : null,
       }
     },
     {
@@ -340,10 +352,14 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Replace template placeholders
       const createdDate = new Date().toISOString().split('T')[0] ?? ''
+      const gateLabel = validated.gateId ?? 'Solitary'
       proposalContent = proposalContent
         .replace(/\[Proposal Title\]/g, validated.title)
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
         .replace(/\[DATE\]/g, createdDate)
+        .replace(/\[Gate ID\] - \[Gate Name\]/g, gateLabel)
+        .replace(/pending \| in_progress \| completed \| rejected/g, 'pending')
+        .replace(/\*\*Requirement\*\*: #\[Requirement Hash\] \(optional - may address gate-level objective\) {2}\n/g, '')
 
       // Update summary section
       proposalContent = proposalContent.replace(
@@ -356,7 +372,25 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .map((task, index) => {
           const ac = Array.isArray(task.acceptanceCriteria) ? task.acceptanceCriteria : []
           const criteria = ac.map((c) => `- [ ] ${c}`).join('\n')
-          return `### Task ${String(index + 1)}: ${task.description}\n\n**Acceptance**:\n${criteria.length ? criteria : '- [ ] Implementation complete'}\n\n---`
+          const phase = task.phase ?? 'GREEN'
+          const filesStr = task.files?.length
+            ? task.files.map((f) => `\`${f}\``).join(' | ')
+            : '`src/[module]/[file].ts`'
+          const action = task.action ?? 'modify'
+          return [
+            `### Task ${String(index + 1)}: ${task.description}`,
+            '',
+            `**Phase**: ${phase}  `,
+            `**File(s)**: ${filesStr}  `,
+            `**Action**: ${action}`,
+            '',
+            task.description,
+            '',
+            '**Acceptance**:',
+            criteria.length ? criteria : '- [ ] Implementation complete',
+            '',
+            '---',
+          ].join('\n')
         })
         .join('\n\n')
 
@@ -367,14 +401,22 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Build files affected section
       const filesSection = validated.filesAffected
-        .map((file) => `| \`${file}\` | modify | Implementation file |`)
+        .map((file) => `| \`${file}\` | - | modify | Implementation file |`)
         .join('\n')
 
       if (filesSection) {
         const filesSectionContent = filesSection
         proposalContent = proposalContent.replace(
-          /\| File \| Action \| Description \|[\s\S]*?\n---/,
-          `| File | Action | Description |\n|------|--------|-------------|\n${filesSectionContent}\n\n---`
+          /\| File\s*\| Phase\s*\| Action\s*\| Description\s*\|[\s\S]*?\n---/,
+          `| File | Phase | Action | Description |\n| ---- | ----- | ------ | ----------- |\n${filesSectionContent}\n\n---`
+        )
+      }
+
+      // Replace context placeholder when context is provided
+      if (validated.context) {
+        proposalContent = proposalContent.replace(
+          '[1-2 sentences explaining the problem or need this addresses. Reference the gate objective or requirement.]',
+          validated.context
         )
       }
 
@@ -521,8 +563,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       const projectRoot = process.cwd()
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      const defaultPath = `zeno/proposals/gate-${(proposal['gate_id'] as string).split('-')[1]}/${((proposal['title'] as string) ?? 'proposal').replace(/\s+/g, '-').toLowerCase()}.md`
+      const gateFolder = (proposal['gate_id'] as string | null) ?? 'solitary'
+      const defaultPath = `zeno/proposals/${gateFolder}/${((proposal['title'] as string) ?? 'proposal').replace(/\s+/g, '-').toLowerCase()}.md`
       const proposalPath: string = (proposal['file_path'] as string | undefined) ?? defaultPath
 
       try {
@@ -560,10 +602,21 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      // Capture previous status before transition
+      const currentRow = db
+        .prepare('SELECT status FROM proposals WHERE hash = ? OR hash LIKE ?')
+        .get(validated.hash, `${validated.hash}%`) as { status: string } | undefined
+      const previousStatus = currentRow?.status ?? 'pending'
+
       const { startProposal } = await import('../core/completions.js')
       await startProposal(validated.hash, { startedBy })
 
-      return { success: true, hash: validated.hash }
+      return {
+        hash: validated.hash,
+        previousStatus,
+        newStatus: 'in_progress' as const,
+        startedAt: new Date().toISOString(),
+      }
     },
     {
       description: 'Start implementation of a proposal (status: pending -> in_progress)',
@@ -619,7 +672,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Proposal phases validation - check for multi-phased proposals
       try {
         // Try to find and read the proposal file to check for multi-phase language
-        const { findProposalByHash } = await import('../core/proposal-locator.js')
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
         const proposalFilePath = await findProposalByHash(validated.hash)
 
         if (proposalFilePath) {
@@ -717,8 +770,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       return {
         hash: validated.hash,
         passed: errors.length === 0,
-        errors: errors.length > 0 ? errors : undefined,
-        warnings: warnings.length > 0 ? warnings : undefined,
+        issues: [
+          ...errors.map(msg => ({ level: 'error' as const, category: 'validation', message: msg })),
+          ...warnings.map(msg => ({ level: 'warning' as const, category: 'validation', message: msg })),
+        ],
       }
     },
     {
@@ -741,7 +796,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
     'proposal_approve',
     async (params) => {
-      const validated = z.object({ hash: z.string() }).parse(params)
+      const validated = z
+        .object({ hash: z.string(), writeback: z.boolean().optional() })
+        .parse(params)
 
       // Import validators
       const { validateApplyPhase } = await import('../mcp/validators/apply-phase-validator.js')
@@ -812,17 +869,39 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         // Silently ignore git user pull errors; approvedBy remains undefined
       }
 
+      // Capture previous status before transition
+      const currentStatus = (proposal as unknown as Record<string, unknown>)['status'] as string ?? 'in_progress'
+
       // Proceed with approval — call approveProposal directly to avoid invokeCommand recursion
       const { approveProposal } = await import('../core/completions.js')
       await approveProposal(validated.hash, { approver: approvedBy })
 
+      // Option 5: writeback — patch **Status**: completed into the .md source file when
+      // the caller explicitly opts in.  The .md is the user's source of truth; we never
+      // mutate it automatically so as not to surprise users who track the file in git.
+      let wroteBack = false
+      if (validated.writeback) {
+        try {
+          const { findProposalByHash } = await import('../utils/artifact-locator.js')
+          const { readFileSync, writeFileSync } = await import('node:fs')
+          const filePath = await findProposalByHash(validated.hash)
+          if (filePath) {
+            const content = readFileSync(filePath, 'utf-8')
+            const updated = content.replace(/(\*\*Status\*\*:\s*)[a-z_]+/, '$1completed')
+            writeFileSync(filePath, updated, 'utf-8')
+            wroteBack = true
+          }
+        } catch {
+          // Non-fatal: writeback failure should not abort the approval result
+        }
+      }
+
       return {
         hash: validated.hash,
-        status: 'approved',
-        validation: {
-          passed: true,
-          warnings: qualityValidation.warnings ?? [],
-        },
+        previousStatus: currentStatus,
+        newStatus: 'completed' as const,
+        approvedAt: new Date().toISOString(),
+        wroteBack,
       }
     },
     {
@@ -834,10 +913,19 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           description: 'The hash identifier of the proposal',
           required: true,
         },
+        {
+          name: 'writeback',
+          type: 'boolean',
+          description:
+            'When true, patch **Status**: completed back into the proposal .md file. ' +
+            'Only pass when user explicitly requests file\u2194DB reconciliation. Default false.',
+          required: false,
+        },
       ],
       returnType: 'void',
       schema: z.object({
         hash: z.string().min(1, 'Hash is required'),
+        writeback: z.boolean().optional(),
       }),
     }
   )
@@ -862,10 +950,23 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      // Capture previous status before transition
+      const db = (await import('../storage/database.js')).getDatabase()
+      const currentRow = db
+        .prepare('SELECT status FROM proposals WHERE hash = ? OR hash LIKE ?')
+        .get(validated.hash, `${validated.hash}%`) as { status: string } | undefined
+      const previousStatus = currentRow?.status ?? 'in_progress'
+
       const { rejectProposal } = await import('../core/completions.js')
       await rejectProposal(validated.hash, { rejectedBy, rejectionReason: validated.rejectionReason })
 
-      return { success: true, hash: validated.hash }
+      return {
+        hash: validated.hash,
+        previousStatus,
+        newStatus: 'rejected' as const,
+        rejectedAt: new Date().toISOString(),
+        reason: validated.rejectionReason ?? 'No reason provided',
+      }
     },
     {
       description: 'Reject a proposal (status: in_progress -> rejected)',

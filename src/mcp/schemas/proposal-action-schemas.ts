@@ -29,7 +29,7 @@ import {
  * Flat input schema for the proposal_action tool.
  *
  * action required for all calls:
- *   list      — list proposals; optional: gateId, status, skip, take
+ *   list      — list proposals; optional: gateId, status
  *   show      — get proposal details; required: hash
  *   create    — new proposal; required: title, summary, tasks; optional: gateId, solitary, filesAffected, context, dependencies
  *   generate  — generate proposals (gate or solitary); required: gateId (for gate-tied) or solitary=true (for solitary); optional: title, summary, tasks, templateName, outputDir, filesAffected
@@ -71,7 +71,7 @@ export const ProposalActionInputSchema = z.object({
         'create=new proposal (needs: title, summary, tasks; optional: gateId, filesAffected). ' +
         'generate=generate proposals from gate PRD (gate-tied) or create solitary proposal (needs: gateId for gate-tied, solitary=true for solitary). ' +
         'validate=run quality checks (needs: hash). ' +
-        'approve=merge proposal (needs: hash). ' +
+        'approve=merge proposal (needs: hash; optional: writeback=true to patch status into .md file). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
         'start=create worktree for implementation (needs: hash, preReview with phase=apply). ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
@@ -84,8 +84,6 @@ export const ProposalActionInputSchema = z.object({
     .enum(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog'])
     .optional()
     .describe('Filter proposals by status (list action)'),
-  skip: z.number().int().min(0).optional().describe('Pagination offset (list action, default 0)'),
-  take: z.number().int().min(1).max(100).optional().describe('Page size (list action, default 50)'),
 
   // --- shared identifier ---
   hash: z
@@ -103,6 +101,9 @@ export const ProposalActionInputSchema = z.object({
       z.object({
         description: z.string().describe('Task description'),
         acceptanceCriteria: z.array(z.string()).optional().describe('Testable acceptance criteria'),
+        phase: z.enum(['RED', 'GREEN', 'Test Refinement']).optional().describe('Task phase (RED/GREEN/Test Refinement)'),
+        files: z.array(z.string()).optional().describe('File paths this task touches'),
+        action: z.enum(['create', 'modify', 'delete', 'refactor']).optional().describe('Change action for files (create/modify/delete/refactor)'),
       })
     )
     .optional()
@@ -126,6 +127,14 @@ export const ProposalActionInputSchema = z.object({
   // --- approve fields ---
   approverNotes: z.string().optional().describe('Optional notes from approver (approve)'),
   approvedBy: z.string().optional().describe('Approver identifier (approve)'),
+  writeback: z
+    .boolean()
+    .optional()
+    .describe(
+      'approve: when true, patches **Status**: completed back into the proposal .md file. ' +
+        'Default false. The .md file is the user\'s source of truth — only pass writeback: true ' +
+        'when the user explicitly asks for DB↔file reconciliation after an approval.'
+    ),
 
   // --- reject fields ---
   rejectionReason: z.string().optional().describe('Required reason for rejection (reject)'),

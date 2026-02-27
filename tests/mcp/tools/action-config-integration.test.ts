@@ -207,22 +207,17 @@ describe('Action Tool Config Integration', () => {
             },
           }
         }
-        if (name === 'gates_complete') {
+        if (name === 'gates_show') {
           return {
             success: true,
             data: {
-              gateId: 'gate-01',
-              previousStatus: 'in_progress',
-              newStatus: 'completed',
-              completedAt: now,
-              summary: {
-                proposalsCompleted: 0,
-                requirementsTested: 0,
-                qualityMetrics: {
-                  testCoverage: 50,
-                  lintErrors: 10,
-                  securityIssues: 1,
-                },
+              id: 'gate-01',
+              name: 'Test Gate',
+              status: 'in_progress',
+              qualityMetrics: {
+                testCoverage: 50,
+                lintErrors: 10,
+                securityIssues: 1,
               },
             },
           }

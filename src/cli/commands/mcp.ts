@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger.js'
  * Register MCP commands
  */
 export function registerMcpCommands(program: Command): void {
-  console.log('Registering MCP commands')
+  logger.debug('Registering MCP commands')
   const mcpCommand = program.command('mcp').description('Model Context Protocol server commands')
 
   mcpCommand

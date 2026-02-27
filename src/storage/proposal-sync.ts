@@ -15,6 +15,7 @@
 import type Database from 'better-sqlite3'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { normalizeDateTime } from '../utils/datetime.js'
 
 /** Walk `dir` recursively, yielding paths of .md files. Skips `archive` subdirectories and non-canonical proposal files. */
 function* walkMd(dir: string): Generator<string> {
@@ -71,9 +72,11 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
   const statusMatch = /\*\*Status\*\*:\s*([a-z_]+)/.exec(content)
   const status = statusMatch?.[1]?.trim() ?? 'pending'
 
-  // Gate ID: infer from directory path (e.g. zeno/proposals/gate-05/...)
-  const gateMatch = /[/\\]proposals[/\\](gate-\d+)[/\\]/.exec(filePath)
-  const gateId = gateMatch?.[1] ?? null
+  // Gate ID: infer from directory path.
+  // 'gate-NN' folder -> store as gate_id; 'solitary' folder -> store NULL (avoids FK violation).
+  const gateMatch = /[/\\]proposals[/\\](gate-\d+|solitary)[/\\]/.exec(filePath)
+  const folderName = gateMatch?.[1] ?? null
+  const gateId = folderName === 'solitary' ? null : folderName
 
   // Requirement: **Requirement**: <text> (informational only, not a FK in the schema)
   const reqMatch = /\*\*Requirement\*\*:\s*(.+)/.exec(content)
@@ -117,12 +120,17 @@ export function syncProposalsFromDisk(
 ): void {
   const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
 
+  const nowIso = new Date().toISOString()
   const upsert = db.prepare(`
     INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at)
-    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hash) DO UPDATE SET
       title      = excluded.title,
-      updated_at = CURRENT_TIMESTAMP
+      gate_id    = CASE
+        WHEN proposals.status IN ('approved', 'completed') THEN proposals.gate_id
+        ELSE excluded.gate_id
+      END,
+      updated_at = excluded.updated_at
   `)
 
   const syncAll = db.transaction(() => {
@@ -152,7 +160,7 @@ export function syncProposalsFromDisk(
       }
       seenHashes.set(meta.hash, filePath)
 
-      upsert.run(meta.gateId, meta.title, meta.status, meta.hash, meta.createdAt)
+      upsert.run(meta.gateId, meta.title, meta.status, meta.hash, normalizeDateTime(meta.createdAt, nowIso), nowIso)
     }
   })
 

@@ -5,6 +5,7 @@ import { registerGatesOps } from '../../src/integration/gates-registry.js'
 const mockPrepare = vi.fn()
 const mockGetDatabase = vi.fn()
 const mockReadProjectOverview = vi.fn()
+const mockSaveProjectOverview = vi.fn()
 const mockGetGatesFromOverview = vi.fn()
 const mockExistsSync = vi.fn()
 const mockReaddirSync = vi.fn()
@@ -16,7 +17,12 @@ vi.mock('../../src/storage/database.js', () => ({
 vi.mock('../../src/utils/config.js', () => ({
   getZenoDir: vi.fn().mockReturnValue('/project/zeno/.zeno'),
   readProjectOverview: (...args: unknown[]) => mockReadProjectOverview(...args),
+  saveProjectOverview: (...args: unknown[]) => mockSaveProjectOverview(...args),
   getGatesFromOverview: (...args: unknown[]) => mockGetGatesFromOverview(...args),
+}))
+
+vi.mock('../../src/utils/git.js', () => ({
+  getGitUserInfo: vi.fn().mockResolvedValue({ name: 'Test User', email: 'test@example.com' }),
 }))
 
 vi.mock('node:fs', () => ({
@@ -68,9 +74,8 @@ describe('gates-registry coverage', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { gates: unknown[]; pagination: unknown }
+      const data = result.data as { gates: unknown[] }
       expect(data.gates).toHaveLength(2)
-      expect(data.pagination).toBeDefined()
     })
 
     it('should fall back to empty list when overview unavailable and no archive dir', async () => {
@@ -206,6 +211,145 @@ describe('gates-registry coverage', () => {
     it('should regenerate gates', async () => {
       const result = (await registry.invoke('gates_regenerate', {})) as { success: boolean }
       expect(result.success).toBe(true)
+    })
+  })
+
+  describe('gate_cancel', () => {
+    beforeEach(() => {
+      mockSaveProjectOverview.mockResolvedValue(undefined)
+    })
+
+    it('cancels an upcoming gate', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [{ sequence: 1, name: 'Setup', hash: 'h1', estimatedComplexity: 'medium' }],
+        currentGate: null,
+        currentGateInfo: null,
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 1,
+      })
+
+      const result = (await registry.invoke('gate_cancel', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { gateId: string; previousStatus: string; newStatus: string }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('cancelled')
+      expect(result.data.previousStatus).toBe('pending')
+      expect(mockSaveProjectOverview).toHaveBeenCalledOnce()
+    })
+
+    it('cancels the current in-progress gate', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [],
+        currentGate: 'gate-02',
+        currentGateInfo: { sequence: 2, name: 'Core Feature', hash: 'h2', status: 'in_progress' },
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 2,
+      })
+
+      const result = (await registry.invoke('gate_cancel', {
+        gateId: 'gate-02',
+        reason: 'Scope change',
+      })) as { success: boolean; data: { previousStatus: string; newStatus: string } }
+
+      expect(result.success).toBe(true)
+      expect(result.data.previousStatus).toBe('in_progress')
+      expect(result.data.newStatus).toBe('cancelled')
+    })
+
+    it('returns error when gate is not found', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [],
+        currentGate: null,
+        currentGateInfo: null,
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 0,
+      })
+
+      const result = (await registry.invoke('gate_cancel', { gateId: 'gate-99' })) as {
+        success: boolean
+      }
+
+      expect(result.success).toBe(false)
+    })
+  })
+
+  describe('gate_defer', () => {
+    beforeEach(() => {
+      mockSaveProjectOverview.mockResolvedValue(undefined)
+    })
+
+    it('defers an upcoming gate to backlog', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [{ sequence: 3, name: 'Optimisation', hash: 'h3', estimatedComplexity: 'low' }],
+        currentGate: null,
+        currentGateInfo: null,
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 3,
+      })
+
+      const result = (await registry.invoke('gate_defer', { gateId: 'gate-03' })) as {
+        success: boolean
+        data: { gateId: string; previousStatus: string; newStatus: string }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('backlog')
+      expect(result.data.previousStatus).toBe('pending')
+      expect(mockSaveProjectOverview).toHaveBeenCalledOnce()
+    })
+
+    it('defers the current in-progress gate to backlog', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [],
+        currentGate: 'gate-02',
+        currentGateInfo: {
+          sequence: 2,
+          name: 'Core Feature',
+          hash: 'h2',
+          status: 'in_progress',
+          estimatedComplexity: 'high',
+        },
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 2,
+      })
+
+      const result = (await registry.invoke('gate_defer', { gateId: 'gate-02' })) as {
+        success: boolean
+        data: { newStatus: string }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('backlog')
+    })
+
+    it('returns error when gate is not found', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        upcomingGates: [],
+        currentGate: null,
+        currentGateInfo: null,
+        completedGates: [],
+        cancelledGates: [],
+        backlogGates: [],
+        totalGatesPlanned: 0,
+      })
+
+      const result = (await registry.invoke('gate_defer', { gateId: 'gate-88' })) as {
+        success: boolean
+      }
+
+      expect(result.success).toBe(false)
     })
   })
 })

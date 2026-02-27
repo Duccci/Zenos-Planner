@@ -3,14 +3,15 @@
  *
  * Generates sequence diagrams showing temporal interactions between actors and components.
  * Useful for visualizing workflows, API calls, and message sequences.
+ *
+ * Note: Templates for this diagram type are served to LLMs via template_get / arch_catalogue
+ * MCP tools, not read server-side by the generator.
  */
 
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
 import type { ComplexityAnalyzer } from '../complexity-analyzer.js'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 export class SequenceDiagramGenerator extends DiagramGeneratorBase {
   constructor(
@@ -30,20 +31,8 @@ export class SequenceDiagramGenerator extends DiagramGeneratorBase {
 
   /**
    * Generate a sequence diagram showing temporal interactions.
-   * Template provides structure; content is populated from context.
    */
   generateContent(_context: DiagramContext): string {
-    // Load template for structural guidance
-    const templatePath = join(
-      process.cwd(),
-      'templates/architecture-templates/sequence-diagram-template.md'
-    )
-    try {
-      readFileSync(templatePath, 'utf-8')
-    } catch {
-      // Template file not found; proceed with default generation
-    }
-
     // Generate Mermaid sequence diagram
     // Descriptor (if provided) is used for per-gate filename scoping: sequence-[gate-hash]-[descriptor].md
     const diagram = `sequenceDiagram

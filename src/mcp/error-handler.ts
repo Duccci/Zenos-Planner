@@ -8,6 +8,8 @@
  */
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { ZodError } from 'zod'
+
 import { logger } from '../utils/logger.js'
 import type { ErrorCode } from './schemas/common-schemas.js'
 
@@ -73,7 +75,7 @@ function mapErrorToCode(error: unknown): ErrorCode {
 /**
  * Generate actionable suggestions based on error type
  */
-function generateSuggestions(errorCode: string, context?: Record<string, unknown>): string[] {
+function generateSuggestions(errorCode: string): string[] {
   const suggestions: string[] = []
   const code = errorCode
 
@@ -123,20 +125,6 @@ function generateSuggestions(errorCode: string, context?: Record<string, unknown
       suggestions.push('The operation conflicts with current state')
       suggestions.push('Refresh your view of the resource and retry')
       break
-
-    case 'DEPENDENCY_BLOCKED':
-      suggestions.push('A dependency must be resolved before this operation')
-      suggestions.push('Check dependency chain with `zeno req deps <hash>`')
-      break
-  }
-
-  // Add VSCode-specific connection troubleshooting if this seems like a connection issue
-  if (context?.['function'] === 'connection' || errorCode === 'NETWORK_ERROR') {
-    suggestions.push('VSCode Troubleshooting:')
-    suggestions.push('  1. Check .vscode/mcp.json exists and points to correct executable')
-    suggestions.push('  2. Verify bin/mcp-server.js is executable (run: npm run build)')
-    suggestions.push('  3. Restart VSCode MCP server from command palette')
-    suggestions.push('  4. Check VSCode MCP output panel for startup errors')
   }
 
   return suggestions
@@ -148,7 +136,7 @@ function generateSuggestions(errorCode: string, context?: Record<string, unknown
 export function createMcpError(error: unknown, context?: Record<string, unknown>): McpError {
   const errorCode = mapErrorToCode(error)
   const message = error instanceof Error ? error.message : 'Unknown error occurred'
-  const suggestions = generateSuggestions(errorCode, context)
+  const suggestions = generateSuggestions(errorCode)
 
   const mcpError: McpError = {
     code: errorCode,
@@ -158,15 +146,29 @@ export function createMcpError(error: unknown, context?: Record<string, unknown>
     timestamp: new Date().toISOString(),
   }
 
+  // Expand ZodError into field-level issues for diagnostics
+  const zodIssues =
+    error instanceof ZodError
+      ? error.issues.map((issue) => ({
+          path: issue.path.length === 0 ? '(root)' : issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+          ...('expected' in issue ? { expected: (issue as unknown as Record<string, unknown>)['expected'] } : {}),
+          ...('received' in issue ? { received: (issue as unknown as Record<string, unknown>)['received'] } : {}),
+        }))
+      : undefined
+
   // Log the error with full context
   logger.error(`MCP Error: ${errorCode}`, {
     message,
     context,
     suggestions,
+    ...(zodIssues ? { zodIssues } : {}),
     originalError:
       error instanceof Error
         ? {
             name: error.name,
+            message: error.message,
             stack: error.stack,
           }
         : error,

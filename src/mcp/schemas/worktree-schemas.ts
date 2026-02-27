@@ -14,8 +14,6 @@ import { ProposalHashSchema, GateIdSchema, TimestampSchema, OptionalTimestampSch
 
 export const WorktreeListInputSchema = z.object({
   status: z.enum(['active', 'orphaned', 'all']).optional().default('active'),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50)
 })
 export type WorktreeListInput = z.infer<typeof WorktreeListInputSchema>
 
@@ -42,11 +40,6 @@ export const WorktreeListOutputSchema = z.object({
     orphaned: z.number().int().min(0),
     diskUsageMB: z.number().min(0).describe('Total disk usage for all worktrees')
   }),
-  pagination: z.object({
-    skip: z.number().int().min(0),
-    take: z.number().int().min(1),
-    total: z.number().int().min(0)
-  })
 })
 export type WorktreeListOutput = z.infer<typeof WorktreeListOutputSchema>
 

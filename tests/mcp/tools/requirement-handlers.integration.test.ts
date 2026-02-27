@@ -4,7 +4,7 @@ import { ReqActionOutputSchema } from '../../../src/mcp/schemas/req-action-schem
 
 describe('Requirement Handlers (integration)', () => {
   it('parses and validates requirement list outputs', async () => {
-    const mockData = { requirements: [{ hash: 'abcd1234', title: 'Req 1', type: 'feature', gateId: 'gate-01', created: new Date().toISOString() }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } }
+    const mockData = { requirements: [{ hash: 'abcd1234', title: 'Req 1', type: 'functional', gateId: 'gate-01', created: new Date().toISOString() }] }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }
@@ -21,7 +21,7 @@ describe('Requirement Handlers (integration)', () => {
   })
 
   it('parses dependency graph outputs', async () => {
-    const mockData = { root: 'abcd1234', nodes: [{ hash: 'abcd1234', title: 'Req 1', type: 'feature', gateId: 'gate-01' }], edges: [] }
+    const mockData = { graph: { root: 'abcd1234', nodes: [{ hash: 'abcd1234', title: 'Req 1', type: 'functional', gateId: 'gate-01' }], edges: [] } }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }
@@ -38,7 +38,7 @@ describe('Requirement Handlers (integration)', () => {
   })
 
   it('parses and validates requirement show output', async () => {
-    const mockData = { hash: 'abcd1234', title: 'Req 1', description: 'desc', type: 'feature', gateId: 'gate-01', created: new Date().toISOString() }
+    const mockData = { requirement: { hash: 'abcd1234', title: 'Req 1', description: 'desc', type: 'functional', gateId: 'gate-01', created: new Date().toISOString() }, children: [], ancestors: [] }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }

@@ -36,7 +36,7 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
               ),
               completionNotes: z.string().optional(),
             })
-            .parse(validated.payload)
+            .parse(validated.payload ?? {})
           const { archiveBatch } = await import('../core/archive-logic.js')
           const result = await archiveBatch(payload.artifacts, payload.completionNotes)
           return result

@@ -4,7 +4,7 @@ import { ProposalListOutputSchema, ProposalDetailSchema } from '../../../src/mcp
 
 describe('Proposal Handlers (integration)', () => {
   it('parses and validates proposal list outputs', async () => {
-    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, created: new Date().toISOString() }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } }
+    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, created: new Date().toISOString() }] }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }

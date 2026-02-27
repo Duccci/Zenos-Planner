@@ -17,7 +17,7 @@ describe('MCP entity-action integration smoke tests', () => {
     const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
     const registry = new MockFunctionRegistry() as any
     // Mock the underlying registry functions used by gates_action
-    registry.setMockResult('gates_list', { gates: [], pagination: { skip: 0, take: 50, total: 0, hasMore: false } })
+    registry.setMockResult('gates_list', { gates: [] })
 
     const handlers = gateHandlers(registry)
 
@@ -32,7 +32,7 @@ describe('MCP entity-action integration smoke tests', () => {
   it('proposal_action: list and create validations', async () => {
     const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
     const registry = new MockFunctionRegistry() as any
-    registry.setMockResult('proposal_list', { proposals: [], pagination: { skip: 0, take: 50, total: 0, hasMore: false } })
+    registry.setMockResult('proposal_list', { proposals: [] })
 
     const handlers = proposalHandlers(registry)
 
@@ -47,7 +47,7 @@ describe('MCP entity-action integration smoke tests', () => {
   it('req_action: list and show validations', async () => {
     const { requirementHandlers } = await import('../../../src/mcp/tools/requirement-tools.js')
     const registry = new MockFunctionRegistry() as any
-    registry.setMockResult('req_action', { requirements: [], pagination: { skip: 0, take: 50, total: 0, hasMore: false } })
+    registry.setMockResult('req_action', { requirements: [] })
 
     const handlers = requirementHandlers(registry)
 

@@ -3,14 +3,15 @@
  *
  * Generates component diagrams showing detailed module structure with interfaces,
  * internal components, and provided/required ports.
+ *
+ * Note: Templates for this diagram type are served to LLMs via template_get / arch_catalogue
+ * MCP tools, not read server-side by the generator.
  */
 
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
 import type { ComplexityAnalyzer } from '../complexity-analyzer.js'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 export class ComponentDiagramGenerator extends DiagramGeneratorBase {
   constructor(
@@ -30,21 +31,9 @@ export class ComponentDiagramGenerator extends DiagramGeneratorBase {
 
   /**
    * Generate a component diagram showing detailed module structure.
-   * Template provides structure; content is populated from context.
    */
   generateContent(_context: DiagramContext): string {
     const componentName = this.componentName ?? 'System'
-
-    // Load template for structural guidance
-    const templatePath = join(
-      process.cwd(),
-      'templates/architecture-templates/component-diagram-template.md'
-    )
-    try {
-      readFileSync(templatePath, 'utf-8')
-    } catch {
-      // Template file not found; proceed with default generation
-    }
 
     // Generate Mermaid component diagram
     const diagram = `graph TB

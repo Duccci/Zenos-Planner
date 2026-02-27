@@ -103,7 +103,7 @@ vi.mock('../../src/mcp/validators/apply-phase-validator.js', () => ({
 vi.mock('../../src/mcp/validators/artifact-validator.js', () => ({
   validateArtifactFile: vi.fn().mockResolvedValue({ allowed: true }),
 }))
-vi.mock('../../src/core/proposal-locator.js', () => ({
+vi.mock('../../src/utils/artifact-locator.js', () => ({
   findProposalByHash: vi.fn().mockResolvedValue(null),
 }))
 vi.mock('../../src/utils/file.js', () => ({

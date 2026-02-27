@@ -41,8 +41,6 @@ export const RepositoryActionInputSchema = z.object({
     .enum(['service', 'library', 'tool', 'app'])
     .optional()
     .describe('Filter repositories by type (list)'),
-  skip: z.number().int().min(0).optional().describe('Pagination offset (list, default 0)'),
-  take: z.number().int().min(1).max(100).optional().describe('Page size (list, default 50)'),
 
   // --- detect fields ---
   reanalyzeCrossRepo: z

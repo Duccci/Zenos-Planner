@@ -82,6 +82,31 @@ vi.mock('../../src/generation/requirement-storage.js', () => {
   }
 })
 
+// DB maintenance action mocks — used by db_status, db_sync, purge_orphans, reset_gate
+const mockGetDatabase = vi.fn()
+const mockSyncProposalsFromDisk = vi.fn()
+const mockReaddirSyncFs = vi.fn()
+const mockStatSyncFs = vi.fn()
+const mockReadFileSyncFs = vi.fn()
+const mockDbPrepare = vi.fn()
+const mockDbAll = vi.fn()
+const mockDbGet = vi.fn()
+const mockDbRun = vi.fn()
+
+vi.mock('../../src/storage/database.js', () => ({
+  getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
+}))
+
+vi.mock('../../src/storage/proposal-sync.js', () => ({
+  syncProposalsFromDisk: (...args: unknown[]) => mockSyncProposalsFromDisk(...args),
+}))
+
+vi.mock('node:fs', () => ({
+  readdirSync: (...args: unknown[]) => mockReaddirSyncFs(...args),
+  statSync: (...args: unknown[]) => mockStatSyncFs(...args),
+  readFileSync: (...args: unknown[]) => mockReadFileSyncFs(...args),
+}))
+
 describe('Requirements Registry wiring', () => {
   let registry: FunctionRegistry
 
@@ -259,8 +284,6 @@ describe('Requirements Registry wiring', () => {
 
         expect(result).toBeDefined()
         expect(result).toHaveProperty('requirements')
-        expect(result).toHaveProperty('total')
-        expect(result).toHaveProperty('pagination')
       })
 
       it('should support gateId filter', () => {
@@ -284,19 +307,6 @@ describe('Requirements Registry wiring', () => {
         expect(data.requirements).toBeDefined()
       })
 
-      it('should support pagination', () => {
-        const result = registry.get('req_action')?.implementation({
-          action: 'search',
-          payload: { query: 'test', skip: 0, take: 10 },
-        })
-
-        const data = result as any
-        expect(data.pagination).toBeDefined()
-        expect(data.pagination).toHaveProperty('skip')
-        expect(data.pagination).toHaveProperty('take')
-        expect(data.pagination).toHaveProperty('total')
-        expect(data.pagination).toHaveProperty('hasMore')
-      })
     })
 
     describe('error handling', () => {
@@ -386,6 +396,247 @@ describe('Requirements Registry wiring', () => {
       })
 
       expect(result.success).toBe(false)
+    })
+  })
+
+  describe('null-path branches', () => {
+    it('show — returns null requirement when hash not found', () => {
+      mockGetRequirementByHash.mockReturnValueOnce(null)
+
+      const result = registry.get('req_action')?.implementation({
+        action: 'show',
+        payload: { hash: 'missing-hash' },
+      }) as { requirement: null; children: unknown[]; ancestors: unknown[] }
+
+      expect(result.requirement).toBeNull()
+      expect(result.children).toEqual([])
+      expect(result.ancestors).toEqual([])
+    })
+
+    it('deps — returns null graph when requirement not found', () => {
+      mockGetRequirementByHash.mockReturnValueOnce(null)
+
+      const result = registry.get('req_action')?.implementation({
+        action: 'deps',
+        payload: { hash: 'missing-hash' },
+      }) as { graph: null }
+
+      expect(result.graph).toBeNull()
+    })
+
+    it('show — requirement without acceptanceCriteria omits acceptance field', () => {
+      mockGetRequirementByHash.mockReturnValueOnce({
+        hash: 'no-ac',
+        description: 'No criteria',
+        type: 'constraint',
+        priority: 'could',
+        gateId: 'gate-01',
+        acceptanceCriteria: null,
+        createdAt: null,
+      })
+      mockGetRequirementChildren.mockReturnValueOnce([])
+      mockGetRequirementAncestors.mockReturnValueOnce([])
+
+      const result = registry.get('req_action')?.implementation({
+        action: 'show',
+        payload: { hash: 'no-ac' },
+      }) as { requirement: { acceptance: unknown; parentRequirement: unknown } }
+
+      expect(result.requirement.acceptance).toBeUndefined()
+      expect(result.requirement.parentRequirement).toBeUndefined()
+    })
+  })
+
+  describe('DB maintenance actions', () => {
+    beforeEach(() => {
+      // Default: empty disk (readdirSync returns []) → every DB hash is an orphan
+      mockReaddirSyncFs.mockReturnValue([])
+      mockDbPrepare.mockReturnValue({ all: mockDbAll, get: mockDbGet, run: mockDbRun })
+      mockGetDatabase.mockReturnValue({ prepare: mockDbPrepare })
+      mockSyncProposalsFromDisk.mockReturnValue(undefined)
+    })
+
+    describe('db_status', () => {
+      it('reports orphans when DB rows have no matching disk hash', () => {
+        mockDbAll.mockReturnValue([
+          { hash: 'orphan-1', status: 'pending', gate_id: 'gate-01' },
+          { hash: 'orphan-2', status: 'in_progress', gate_id: null },
+        ])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'db_status',
+        }) as { total: number; orphaned: number; byStatus: Record<string, number>; message: string }
+
+        expect(result.total).toBe(2)
+        expect(result.orphaned).toBe(2)
+        expect(result.byStatus).toEqual({ pending: 1, in_progress: 1 })
+        expect(result.message).toContain('orphaned DB row(s) found')
+      })
+
+      it('reports consistent when all DB hashes exist on disk', () => {
+        // Configure disk to have the same hash as the DB row
+        mockReaddirSyncFs.mockReturnValue(['proposal.md'])
+        mockStatSyncFs.mockReturnValue({ isDirectory: () => false })
+        mockReadFileSyncFs.mockReturnValue('**Hash**: known-hash\n\nSome content')
+        mockDbAll.mockReturnValue([{ hash: 'known-hash', status: 'completed', gate_id: 'gate-01' }])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'db_status',
+        }) as { orphaned: number; message: string }
+
+        expect(result.orphaned).toBe(0)
+        expect(result.message).toContain('consistent with disk')
+      })
+
+      it('returns zero counts for empty proposals table', () => {
+        mockDbAll.mockReturnValue([])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'db_status',
+        }) as { total: number; orphaned: number; onDisk: number }
+
+        expect(result.total).toBe(0)
+        expect(result.orphaned).toBe(0)
+        expect(result.onDisk).toBe(0)
+      })
+    })
+
+    describe('db_sync', () => {
+      it('syncs proposals from disk and purges orphans', () => {
+        // Sequence of get() calls: before count, afterSync count, after purge count
+        mockDbGet
+          .mockReturnValueOnce({ count: 2 })
+          .mockReturnValueOnce({ count: 3 })
+          .mockReturnValueOnce({ count: 2 })
+        // SELECT hash FROM proposals → one orphan not on disk
+        mockDbAll.mockReturnValue([{ hash: 'orphan-hash' }])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'db_sync',
+        }) as { before: number; after: number; added: number; orphansRemoved: number; message: string }
+
+        expect(result.before).toBe(2)
+        expect(mockSyncProposalsFromDisk).toHaveBeenCalledOnce()
+        expect(result.orphansRemoved).toBe(1)
+        expect(result.message).toContain('Sync complete')
+      })
+
+      it('reports zero orphans when all hashes are on disk', () => {
+        mockDbGet
+          .mockReturnValueOnce({ count: 1 })
+          .mockReturnValueOnce({ count: 1 })
+          .mockReturnValueOnce({ count: 1 })
+        // Configure disk to contain the hash
+        mockReaddirSyncFs.mockReturnValue(['p.md'])
+        mockStatSyncFs.mockReturnValue({ isDirectory: () => false })
+        mockReadFileSyncFs.mockReturnValue('**Hash**: known-hash')
+        mockDbAll.mockReturnValue([{ hash: 'known-hash' }])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'db_sync',
+        }) as { orphansRemoved: number }
+
+        expect(result.orphansRemoved).toBe(0)
+      })
+    })
+
+    describe('purge_orphans', () => {
+      it('dry run reports orphans without deleting', () => {
+        mockDbAll.mockReturnValue([
+          { hash: 'o1', gate_id: 'gate-01', title: 'A', status: 'pending' },
+        ])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'purge_orphans',
+          payload: { dryRun: true },
+        }) as { dryRun: boolean; removed: number; orphans: unknown[]; message: string }
+
+        expect(result.dryRun).toBe(true)
+        expect(result.removed).toBe(0)
+        expect(result.orphans).toHaveLength(1)
+        expect(result.message).toContain('Dry run')
+        // DELETE should not have been called
+        expect(mockDbRun).not.toHaveBeenCalled()
+      })
+
+      it('removes orphans when dryRun is false (default)', () => {
+        mockDbAll.mockReturnValue([
+          { hash: 'o1', gate_id: null, title: 'B', status: 'pending' },
+          { hash: 'o2', gate_id: 'gate-01', title: 'C', status: 'in_progress' },
+        ])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'purge_orphans',
+          payload: {},
+        }) as { removed: number; dryRun: boolean; message: string }
+
+        expect(result.dryRun).toBe(false)
+        expect(result.removed).toBe(2)
+        expect(mockDbRun).toHaveBeenCalledTimes(2)
+        expect(result.message).toContain('Removed 2')
+      })
+
+      it('filters by gateId when provided', () => {
+        mockDbAll.mockReturnValue([
+          { hash: 'g1', gate_id: 'gate-02', title: 'D', status: 'pending' },
+        ])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'purge_orphans',
+          payload: { gateId: 'gate-02' },
+        }) as { gateId: string | null; message: string }
+
+        expect(result.gateId).toBe('gate-02')
+        expect(result.message).toContain('gate-02')
+        // prepare should be called with WHERE gate_id = ? SQL
+        const prepareCall = mockDbPrepare.mock.calls.find((c) =>
+          (c[0] as string).includes('WHERE gate_id = ?')
+        )
+        expect(prepareCall).toBeDefined()
+      })
+
+      it('filters solitary (gate_id IS NULL) when solitary=true', () => {
+        mockDbAll.mockReturnValue([])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'purge_orphans',
+          payload: { solitary: true },
+        }) as { solitary: boolean; message: string }
+
+        expect(result.solitary).toBe(true)
+        expect(result.message).toContain('solitary proposals')
+        const prepareCall = mockDbPrepare.mock.calls.find((c) =>
+          (c[0] as string).includes('WHERE gate_id IS NULL')
+        )
+        expect(prepareCall).toBeDefined()
+      })
+
+      it('throws when both gateId and solitary are provided', async () => {
+        const result = await registry.invoke('req_action', {
+          action: 'purge_orphans',
+          payload: { gateId: 'gate-01', solitary: true },
+        })
+
+        expect(result.success).toBe(false)
+      })
+    })
+
+    describe('reset_gate', () => {
+      it('deletes gate proposals and resyncs from disk', () => {
+        mockDbRun.mockReturnValue({ changes: 3 })
+        mockDbGet.mockReturnValue({ count: 2 })
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'reset_gate',
+          payload: { gateId: 'gate-03' },
+        }) as { gateId: string; deletedCount: number; resyncedCount: number; message: string }
+
+        expect(result.gateId).toBe('gate-03')
+        expect(result.deletedCount).toBe(3)
+        expect(result.resyncedCount).toBe(2)
+        expect(mockSyncProposalsFromDisk).toHaveBeenCalledOnce()
+        expect(result.message).toContain('gate-03')
+      })
     })
   })
 })

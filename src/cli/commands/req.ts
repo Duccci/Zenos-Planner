@@ -139,12 +139,10 @@ export function registerReqCommands(program: Command): void {
     .description('Search requirements by keyword')
     .option('--gate <gate-id>', 'Filter by gate')
     .option('--type <type>', 'Filter by requirement type')
-    .option('--skip <n>', 'Pagination offset', '0')
-    .option('--take <n>', 'Page size (max 100)', '50')
     .action(
       async (
         query: string,
-        options: { gate?: string; type?: string; skip?: string; take?: string }
+        options: { gate?: string; type?: string }
       ) => {
         try {
           const registry = getGlobalRegistry()
@@ -154,8 +152,6 @@ export function registerReqCommands(program: Command): void {
               query,
               gateId: options.gate,
               type: options.type,
-              skip: options.skip ? parseInt(options.skip, 10) : 0,
-              take: options.take ? parseInt(options.take, 10) : 50,
             },
           })
           if (result.success) {

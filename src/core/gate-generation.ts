@@ -81,7 +81,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
       sequence: number
       name: string
       hash: string
-      status: 'completed' | 'in_progress' | 'pending'
+      status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
     }[] = []
 
     try {
@@ -154,7 +154,7 @@ async function detectGateChangesAndNotify(
     sequence: number
     name: string
     hash: string
-    status: 'completed' | 'in_progress' | 'pending'
+    status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
   }[],
   currentGates: {
     id: string

@@ -417,3 +417,19 @@ export const ALL_GUARDRAILS: GuardrailEntry[] = [
   ...ARCHIVAL_GUARDRAILS,
   ...DATABASE_ACCESS_GUARDRAILS,
 ]
+
+// ─── Response Helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Extracts only the narrative rules from a guardrail set for injection into
+ * MCP response payloads.
+ *
+ * Schema-enforced guardrails (mustHaveValidator: true) are already enforced
+ * via Zod validation errors on the preReview field — they do not need to be
+ * repeated as text in the response body.
+ *
+ * @returns Array of plain rule strings — minimal LLM token cost.
+ */
+export function toNarrativeRules(entries: GuardrailEntry[]): string[] {
+  return entries.filter(g => !g.mustHaveValidator).map(g => g.rule)
+}

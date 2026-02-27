@@ -18,8 +18,10 @@ export type { ValidationResult }
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import type { ZodType } from 'zod'
-import type { FunctionErrorResponse } from '../../integration/function-registry.js'
+import { ZodError } from 'zod'
+import type { FunctionErrorResponse, FunctionResult } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { logger } from '../../utils/logger.js'
 
 /**
  * Safely parse JSON strings or return the value as-is
@@ -111,6 +113,14 @@ export function createSchemaValidatingHandler(
               content: [{ type: 'text', text: JSON.stringify(validated.data, null, 2) }],
               structuredContent: validated.data as Record<string, unknown>,
             }
+          } else {
+            logger.warn(`Output schema validation failed for "${functionName}"`, {
+              issues: validated.error.issues.map(i => ({
+                path: i.path.join('.') || '(root)',
+                message: i.message,
+                code: i.code,
+              })),
+            })
           }
         }
 
@@ -326,14 +336,33 @@ export function formatValidationError(
 
 /**
  * Convert an unknown error into a consistent CallToolResult error payload.
+ * ZodError instances are expanded to include per-field issue details.
  */
 export function handleError(error: unknown, context?: Record<string, unknown>): CallToolResult {
   const errorMessage = error instanceof Error ? error.message : String(error)
-  const payload = {
-    code: 'INTERNAL_ERROR',
+
+  // Extract per-field details from ZodError for actionable diagnostics
+  const zodIssues =
+    error instanceof ZodError
+      ? error.issues.map((issue) => ({
+          path: issue.path.join('.') || '(root)',
+          message: issue.message,
+          code: issue.code,
+          ...('expected' in issue ? { expected: (issue as unknown as Record<string, unknown>)['expected'] } : {}),
+          ...('received' in issue ? { received: (issue as unknown as Record<string, unknown>)['received'] } : {}),
+        }))
+      : undefined
+
+  if (zodIssues) {
+    logger.error('Zod validation error in handler', { issues: zodIssues, context })
+  }
+
+  const payload: Record<string, unknown> = {
+    code: error instanceof ZodError ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR',
     message: `Handler error: ${errorMessage}`,
     timestamp: new Date().toISOString(),
     context: context ?? {},
+    ...(zodIssues ? { zodIssues } : {}),
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
@@ -350,5 +379,41 @@ export function createNotImplementedHandler(msg?: string): CallToolResult {
   return {
     content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
     isError: true,
+  }
+}
+
+/**
+ * Inject guidance (guardrails + workflow) into a successful FunctionResult's data payload.
+ *
+ * Eliminates the repeated `if (result.success) { ...spread guidance... }` pattern
+ * across gate, proposal, and archive action handlers.
+ *
+ * Usage:
+ *   return withGuidance(
+ *     await r.invoke('generateGates', payload),
+ *     toNarrativeRules(GATE_GENERATION_GUARDRAILS),
+ *     toCompactWorkflow(GATE_GENERATION_WORKFLOW),
+ *     (payload as { preReview?: unknown }).preReview   // optional
+ *   )
+ *
+ * @param result       The FunctionResult from r.invoke().
+ * @param guardrails   Narrative rules array from toNarrativeRules().
+ * @param workflow     Compact workflow string from toCompactWorkflow().
+ * @param preReview    Optional preReview object to echo back as preReviewSummary.
+ */
+export function withGuidance(
+  result: FunctionResult,
+  guardrails: unknown,
+  workflow: unknown,
+  preReview?: unknown
+): FunctionResult {
+  if (!result.success) return result
+  return {
+    success: true,
+    data: {
+      ...(result.data as Record<string, unknown>),
+      ...(preReview !== undefined ? { preReviewSummary: preReview } : {}),
+      guidance: { guardrails, workflow },
+    },
   }
 }

@@ -26,15 +26,41 @@ interface ProposalRecord {
   requirement_id?: string
 }
 
+// Shape returned by the MCP registry (camelCase)
+interface ProposalSummaryResult {
+  hash: string
+  gateId: string | null
+  title: string
+  status: string
+  created: string
+  updated: string | null
+  completedAt: string | null
+}
+
+interface ProposalDetailResult {
+  hash: string
+  gateId: string | null
+  title: string
+  status: string
+  created: string
+  updated: string | null
+  completedAt: string | null
+  summary?: string
+  context?: string
+  tasks?: unknown[]
+  dependencies?: string[]
+  files?: string[]
+}
+
 /**
  * Read proposal file content
  */
 async function readProposalFile(
   projectRoot: string,
-  proposal: ProposalRecord
+  proposal: { gate_id?: string | null; gateId?: string | null; hash: string }
 ): Promise<string | null> {
   try {
-    const gateFolder = proposal.gate_id ?? 'solitary'
+    const gateFolder = (proposal.gate_id ?? proposal.gateId) ?? 'solitary'
     const gateDir = path.join(projectRoot, 'zeno', 'proposals', gateFolder)
     const files = await readdir(gateDir)
 
@@ -70,7 +96,7 @@ export function registerProposalCommands(program: Command): void {
     .option('--gate <gate-id>', 'Filter by gate')
     .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected/cancelled/backlog)')
     .action(async (options: { gate?: string; status?: string }) => {
-      const result = await invokeProposalAction<{ proposals: ProposalRecord[] }>('list', {
+      const result = await invokeProposalAction<{ proposals: ProposalSummaryResult[] }>('list', {
         ...(options.gate && { gateId: options.gate }),
         ...(options.status && { status: options.status }),
       })
@@ -100,7 +126,7 @@ export function registerProposalCommands(program: Command): void {
                   ? 'BACKLOG'
                   : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
-        logger.info(`  Gate: ${proposal.gate_id ?? 'solitary'}, Created: ${proposal.created_at}`)
+        logger.info(`  Gate: ${proposal.gateId ?? 'solitary'}, Created: ${proposal.created}`)
       }
     })
 
@@ -108,7 +134,7 @@ export function registerProposalCommands(program: Command): void {
     .command('show <hash>')
     .description('Show proposal details')
     .action(async (hash: string) => {
-      const result = await invokeProposalAction<ProposalRecord>('show', { hash })
+      const result = await invokeProposalAction<ProposalDetailResult>('show', { hash })
 
       if (!result.success || !result.data) {
         logger.error(`Proposal not found: ${hash}`)
@@ -119,19 +145,16 @@ export function registerProposalCommands(program: Command): void {
 
       logger.info(`\n# Proposal: ${proposal.title}`)
       logger.info(`**Hash**: #${proposal.hash}`)
-      logger.info(`**Gate**: ${proposal.gate_id ?? 'solitary'}`)
+      logger.info(`**Gate**: ${proposal.gateId ?? 'solitary'}`)
       logger.info(`**Status**: ${proposal.status}`)
-      logger.info(`**Created**: ${proposal.created_at}`)
-      if (proposal.approved_at) {
-        logger.info(`**Approved**: ${proposal.approved_at}`)
-      }
-      if (proposal.requirement_id) {
-        logger.info(`**Requirement**: #${proposal.requirement_id}`)
+      logger.info(`**Created**: ${proposal.created}`)
+      if (proposal.completedAt) {
+        logger.info(`**Completed**: ${proposal.completedAt}`)
       }
 
       const projectRoot = findProjectRoot(process.cwd())
       if (projectRoot) {
-        const content = await readProposalFile(projectRoot, proposal)
+        const content = await readProposalFile(projectRoot, { gateId: proposal.gateId, hash: proposal.hash })
         if (content) {
           logger.info('\n--- Content ---')
           logger.info(content)
@@ -355,14 +378,23 @@ export function registerProposalCommands(program: Command): void {
 
       const { approveProposal } = await import('../../core/completions.js')
 
-      if (workflowMode === 'solo') {
-        await approveProposal(hash, { approver: 'solo-auto' })
-        logger.info(`auto-approved (solo mode)`)
-      } else {
-        await approveProposal(hash)
+      try {
+        if (workflowMode === 'solo') {
+          await approveProposal(hash, { approver: 'solo-auto' })
+          logger.info(`auto-approved (solo mode)`)
+        } else {
+          await approveProposal(hash)
+        }
+        logger.info(`Proposal completed: #${normalizeHash(hash)}`)
+        logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        if (msg.includes('already completed')) {
+          logger.info(`Proposal #${normalizeHash(hash)} is already completed (no-op)`)
+        } else {
+          throw err
+        }
       }
-      logger.info(`Proposal completed: #${normalizeHash(hash)}`)
-      logger.info('Note: Git commit will occur when gate is completed (requires human approval)')
     })
 
   proposalCmd

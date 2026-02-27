@@ -9,19 +9,67 @@ export function updateTaskStatus(
   notes?: string
 ): string {
   const lines = content.split('\n')
-  let taskCount = 0
+
+  // Find the Nth '### Task N:' section (taskIndex is 0-based)
+  let sectionCount = -1
+  let inTargetSection = false
+  let foundSection = false
 
   for (let i = 0; i < lines.length; i++) {
     const current = lines[i] ?? ''
-    if (/^- \[[ x]\]/.exec(current)) {
-      if (taskCount === taskIndex) {
-        lines[i] = current.replace(/^- \[[ x]\]/, completed ? '- [x]' : '- [ ]')
-        if (notes) {
-          lines[i] = (lines[i] ?? '') + ` (${notes})`
+
+    // Detect task section headers
+    if (/^###\s+Task\s+\d+:/.exec(current)) {
+      sectionCount++
+      inTargetSection = sectionCount === taskIndex
+      if (inTargetSection) foundSection = true
+      continue
+    }
+
+    // A new ## (but not ###) heading ends the current section
+    if (/^##\s/.exec(current) && !/^###/.exec(current)) {
+      inTargetSection = false
+    }
+
+    // Within the target section: mark all checkboxes completed/incomplete
+    if (inTargetSection && /^- \[[ x]\]/.exec(current)) {
+      lines[i] = current.replace(/^- \[[ x]\]/, completed ? '- [x]' : '- [ ]')
+    }
+  }
+
+  // Append notes as a line after the target task header, if supplied
+  if (foundSection && notes) {
+    let headerIdx = -1
+    let count = -1
+    for (let i = 0; i < lines.length; i++) {
+      if (/^###\s+Task\s+\d+:/.exec(lines[i] ?? '')) {
+        count++
+        if (count === taskIndex) {
+          headerIdx = i
+          break
         }
-        break
       }
-      taskCount++
+    }
+    if (headerIdx >= 0) {
+      lines.splice(headerIdx + 1, 0, `> ${notes}`)
+    }
+  }
+
+  // Fallback: if no '### Task N:' sections exist, fall back to global checkbox count
+  if (!foundSection) {
+    let taskCount = 0
+    for (let i = 0; i < lines.length; i++) {
+      const current = lines[i] ?? ''
+      if (/^- \[[ x]\]/.exec(current)) {
+        if (taskCount === taskIndex) {
+          lines[i] = current.replace(/^- \[[ x]\]/, completed ? '- [x]' : '- [ ]')
+          if (notes) {
+            lines[i] = (lines[i] ?? '') + ` (${notes})`
+          }
+          break
+        }
+        taskCount++
+      }
     }
   }
 

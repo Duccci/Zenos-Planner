@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import {
   RepositoryTypeEnum,
-  PaginationMetadataSchema,
   FilePathSchema
 } from './common-schemas.js'
 
@@ -16,8 +15,6 @@ import {
 
 export const ReposListInputSchema = z.object({
   type: RepositoryTypeEnum.optional(),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50)
 })
 export type ReposListInput = z.infer<typeof ReposListInputSchema>
 
@@ -36,7 +33,6 @@ export type RepositorySummary = z.infer<typeof RepositorySummarySchema>
 
 export const ReposListOutputSchema = z.object({
   repositories: z.array(RepositorySummarySchema),
-  pagination: PaginationMetadataSchema
 })
 export type ReposListOutput = z.infer<typeof ReposListOutputSchema>
 

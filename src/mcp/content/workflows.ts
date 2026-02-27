@@ -509,3 +509,22 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
       'Include the proposal hash in the commit message for full traceability via git log --grep.',
   },
 ]
+
+// ─── Response Helper ───────────────────────────────────────────────────────────
+
+/**
+ * Strips verbose optional fields from workflow steps for injection into MCP
+ * response payloads.
+ *
+ * `prerequisites`, `actions`, `errorHandling`, and `guidance` duplicate
+ * information already present in the tool's Zod schema and validation error
+ * messages.  Sending only `order`, `title`, and `description` gives the LLM
+ * the procedural sequence it needs at minimal token cost.
+ *
+ * @returns Compact step objects safe to embed in any MCP response.
+ */
+export function toCompactWorkflow(
+  steps: WorkflowStep[]
+): { order: number; title: string; description: string }[] {
+  return steps.map(({ order, title, description }) => ({ order, title, description }))
+}

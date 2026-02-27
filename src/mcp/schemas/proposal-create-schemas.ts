@@ -11,11 +11,20 @@ import { ProposalHashSchema, GateIdSchema, TimestampSchema } from './common-sche
  * Schema for a proposal task
  */
 export const ProposalTaskInputSchema = z.object({
-  /** Task description */
+  /** Task description (also used as the task title heading) */
   description: z.string().min(1),
 
   /** Acceptance criteria (unchecked by default) */
   acceptanceCriteria: z.array(z.string()).default([]),
+
+  /** Proposal phase: RED (write tests), GREEN (implement), or Test Refinement (validate) */
+  phase: z.enum(['RED', 'GREEN', 'Test Refinement']).optional(),
+
+  /** File paths this task touches */
+  files: z.array(z.string()).optional(),
+
+  /** Change action for this task's files */
+  action: z.enum(['create', 'modify', 'delete', 'refactor']).optional(),
 })
 
 export type ProposalTaskInput = z.infer<typeof ProposalTaskInputSchema>

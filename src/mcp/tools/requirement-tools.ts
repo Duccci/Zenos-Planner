@@ -1,24 +1,30 @@
 export const requirementToolDefinitions = [
   {
     name: 'req_action',
-    description: `REQUIRED TOOL: Use req_action whenever you need to work with requirements—this is the ONLY way to query the requirements database.
+    description: `REQUIRED TOOL: Use req_action whenever you need to work with requirements or maintain the proposals database.
 
 Actions: list (retrieve all requirements, optionally filter by gate), show (get requirement details by hash), deps (view requirement dependency graph), transfer (move requirement to different gate), search (full-text search across description and acceptance criteria).
 
-Call this tool whenever: you need to see requirements, check a specific requirement's details, understand requirement relationships, move requirements between gates, or find requirements matching a keyword.`,
+DB maintenance actions (call when proposals appear stale or after manual file edits / git operations):
+  db_status — report proposals DB health: orphan count, per-status breakdown, disk vs DB row counts.
+  db_sync   — full reconciliation: upsert new .md files, remove orphaned DB rows in one operation.
+  purge_orphans — delete DB rows with no matching .md file. Optional: { gateId } to scope to one gate; { dryRun: true } to preview without deleting.
+  reset_gate — wipe all proposal rows for one gate then re-sync from disk. Required: { gateId }.
+
+Call db_status first to diagnose, then db_sync or purge_orphans to fix.`,
     inputSchema: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['list', 'show', 'deps', 'transfer', 'search'],
+          enum: ['list', 'show', 'deps', 'transfer', 'search', 'db_status', 'db_sync', 'purge_orphans', 'reset_gate'],
           description:
-            'Action to perform: "list" (retrieve requirements), "show" (details for hash), "deps" (dependency graph), "transfer" (move to gate), "search" (keyword search)',
+            'Action to perform: "list" (requirements), "show" (details for hash), "deps" (dependency graph), "transfer" (move to gate), "search" (keyword search), "db_status" (proposals DB health), "db_sync" (reconcile DB with disk), "purge_orphans" (remove stale rows), "reset_gate" (wipe+resync one gate)',
         },
         payload: {
           type: 'object',
           description:
-            'Action-specific parameters. For list: {gateId?, type?, skip?, take?}. For show/deps: {hash}. For transfer: {hash, targetGateId}. For search: {query, gateId?, type?, skip?, take?}',
+            'Action-specific parameters. list: {gateId?, type?, skip?, take?}. show/deps: {hash}. transfer: {hash, targetGateId}. search: {query, gateId?, type?, skip?, take?}. purge_orphans: {gateId?, solitary?, dryRun?} — gateId and solitary are mutually exclusive. reset_gate: {gateId}.',
         },
       },
       required: ['action'],
@@ -41,7 +47,7 @@ export function requirementHandlers(
   const reqActionHandler = createEntityActionHandler(
     {
       entity: 'requirement',
-      actions: ['list', 'show', 'deps', 'transfer', 'search'] as const,
+      actions: ['list', 'show', 'deps', 'transfer', 'search', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'] as const,
       inputSchema: ReqActionInputSchema,
       outputSchema: ReqActionOutputSchema,
       actionOutputSchema: getReqActionOutputSchema,
@@ -62,6 +68,17 @@ export function requirementHandlers(
             action: 'transfer',
             payload: { ...rest, gateId: targetGateId },
           })
+        },
+        // DB maintenance actions — delegate directly to the registry handler
+        db_status: async (payload, r) =>
+          r.invoke('req_action', { action: 'db_status', payload: payload ?? {} }),
+        db_sync: async (payload, r) =>
+          r.invoke('req_action', { action: 'db_sync', payload: payload ?? {} }),
+        purge_orphans: async (payload, r) =>
+          r.invoke('req_action', { action: 'purge_orphans', payload: payload ?? {} }),
+        reset_gate: async (payload, r) => {
+          if (!payload) throw new Error('reset_gate requires a gateId')
+          return r.invoke('req_action', { action: 'reset_gate', payload })
         },
       },
     },

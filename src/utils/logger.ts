@@ -55,6 +55,7 @@ export const logger = {
 
   /**
    * Log an informational message. Default level.
+   * Uses console.error (stderr) to preserve stdout for MCP JSON-RPC protocol.
    */
   info(message: string, ...args: unknown[]): void {
     if (!shouldLog('info')) return

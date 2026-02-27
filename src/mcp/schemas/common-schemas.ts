@@ -44,7 +44,7 @@ export type GateType = z.infer<typeof GateTypeEnum>
 /**
  * Requirement types for categorization
  */
-export const RequirementTypeEnum = z.enum(['feature', 'infrastructure', 'test', 'documentation'])
+export const RequirementTypeEnum = z.enum(['functional', 'non_functional', 'constraint'])
 export type RequirementType = z.infer<typeof RequirementTypeEnum>
 
 // ============================================================================
@@ -61,10 +61,12 @@ export const RequirementHashSchema = z
   .regex(/^[a-z0-9]{8}$/, 'Requirement hash must be 8 alphanumeric characters')
 export type RequirementHash = z.infer<typeof RequirementHashSchema>
 
-/** Proposal hash identifier (e.g., "#g01p01hash") */
+/** Proposal hash identifier (e.g., "a6aca3c1", "p05g04conddiag0", "p0209mcp-util-extract") */
 export const ProposalHashSchema = z
   .string()
-  .regex(/^[a-z0-9]{8}$/, 'Proposal hash must be 8 alphanumeric characters')
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, 'Proposal hash must be lowercase alphanumeric with optional hyphens')
 export type ProposalHash = z.infer<typeof ProposalHashSchema>
 
 /** Git commit hash */
@@ -152,26 +154,6 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>
 export type ToolResponse<T> = { success: true; data: T } | { success: false; error: ErrorResponse }
 
 // ============================================================================
-// PAGINATION - List operation support
-// ============================================================================
-
-/** Pagination parameters for list operations */
-export const PaginationInputSchema = z.object({
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(1000).default(100),
-})
-export type PaginationInput = z.infer<typeof PaginationInputSchema>
-
-/** Pagination metadata in list responses */
-export const PaginationMetadataSchema = z.object({
-  total: z.number().int().min(0),
-  skip: z.number().int().min(0),
-  take: z.number().int().min(1),
-  hasMore: z.boolean(),
-})
-export type PaginationMetadata = z.infer<typeof PaginationMetadataSchema>
-
-// ============================================================================
 // TEMPLATE SCHEMAS
 // ============================================================================
 
@@ -200,7 +182,6 @@ export type TemplateContent = z.infer<typeof TemplateContentSchema>
 /** List of templates */
 export const TemplateListSchema = z.object({
   templates: z.array(TemplateMetadataSchema),
-  pagination: PaginationMetadataSchema,
 })
 export type TemplateList = z.infer<typeof TemplateListSchema>
 

@@ -93,7 +93,7 @@ beforeEach(() => {
   vi.mocked(unlink).mockResolvedValue(undefined);
   vi.mocked(existsSync).mockReturnValue(true);
   vi.mocked(readdirSync).mockReturnValue([]);
-  vi.mocked(validateGateReady).mockResolvedValue(undefined);
+  vi.mocked(validateGateReady).mockResolvedValue({ filePath: '/project/zeno/gates/gate-01-test-gate.md' } as any);
   vi.mocked(validateProposalReady).mockResolvedValue({
     type: 'solitary',
     title: 'Test Proposal',
@@ -182,7 +182,7 @@ describe('archiveBatch', () => {
 
   it('continues on error and reports partial success', async () => {
     vi.mocked(validateGateReady)
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ filePath: '/project/zeno/gates/gate-01-test-gate.md' } as any)
       .mockRejectedValueOnce(new Error('gate-02 not ready'));
 
     const artifacts = [

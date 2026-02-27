@@ -85,16 +85,26 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     for (const [name, handler] of Object.entries(handlers)) {
       const meta = toolMetaMap.get(name)
       const description = meta?.description ?? ''
-      const inputSchema: z.ZodType = (meta?.inputSchema ?? z.any()) as z.ZodType
+      // z.any() must NOT be used here: normalizeObjectSchema(z.any()) returns undefined
+      // (def.type='any', not 'object'), which causes safeParseAsync(undefined, ...) →
+      // isZ4Schema(undefined) → TypeError: Cannot read properties of undefined (reading '_zod').
+      // z.object({}).passthrough() has def.type='object' and normalizes correctly.
+      const inputSchema: z.ZodType = meta?.inputSchema ?? z.looseObject({})
 
       if (!description) {
         logger.warn(`Tool "${name}" has no description — add it to its ToolDefinitions array`)
       }
 
-      // Register the handler-based tool (these take precedence)
+      // Register the handler-based tool (these take precedence).
+      // NOTE: outputSchema is intentionally omitted — passing z.any() causes
+      // the MCP SDK's validateToolOutput to call normalizeObjectSchema(z.any()),
+      // which returns undefined (z.any() has def.type='any', not 'object'),
+      // then calls safeParseAsync(undefined, ...) → isZ4Schema(undefined) →
+      // TypeError: Cannot read properties of undefined (reading '_zod').
+      // Handlers validate their own output via config.outputSchema.parse() instead.
       server.registerTool(
         name,
-        { description, inputSchema: inputSchema, outputSchema: z.any() as z.ZodType },
+        { description, inputSchema: inputSchema },
         async (args: unknown, extra: unknown): Promise<CallToolResult> =>
           (await handler(args as Record<string, unknown>, extra)) as CallToolResult
       )

@@ -2,10 +2,8 @@ import { z } from 'zod'
 import {
   ProposalHashSchema,
   ProposalStatusEnum,
-  GateIdSchema,
   TimestampSchema,
   OptionalTimestampSchema,
-  PaginationMetadataSchema,
 } from './common-schemas.js'
 import { PreReviewSummarySchema } from './pre-review-schemas.js'
 
@@ -18,10 +16,8 @@ import { PreReviewSummarySchema } from './pre-review-schemas.js'
 // ============================================================================
 
 export const ProposalListInputSchema = z.object({
-  gateId: GateIdSchema.optional(),
+  gateId: z.string().optional(), // permissive: accepts 'solitary' and 'gate-NN'
   status: ProposalStatusEnum.optional(),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50),
 })
 export type ProposalListInput = z.infer<typeof ProposalListInputSchema>
 
@@ -30,18 +26,16 @@ export const ProposalSummarySchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   status: ProposalStatusEnum,
-  gateId: GateIdSchema,
+  gateId: z.string(),   // permissive: DB gate_id may not always match gate-NN regex
   tasksCompleted: z.number().int().min(0),
   totalTasks: z.number().int().min(0),
   created: TimestampSchema,
-  updated: OptionalTimestampSchema,
   completedAt: OptionalTimestampSchema,
 })
 export type ProposalSummary = z.infer<typeof ProposalSummarySchema>
 
 export const ProposalListOutputSchema = z.object({
   proposals: z.array(ProposalSummarySchema),
-  pagination: PaginationMetadataSchema,
 })
 export type ProposalListOutput = z.infer<typeof ProposalListOutputSchema>
 
@@ -74,7 +68,8 @@ export const ProposalDetailSchema = z.object({
   title: z.string(),
   description: z.string(),
   status: ProposalStatusEnum,
-  gateId: GateIdSchema,
+  gateId: z.string(), // permissive: accepts 'solitary' as well as 'gate-NN'
+  solitary: z.boolean().optional(),
   summary: z.string().optional(),
   context: z.string().optional(),
   tasks: z.array(ProposalTaskSchema),
@@ -97,7 +92,6 @@ export const ProposalDetailSchema = z.object({
     )
     .optional(),
   created: TimestampSchema,
-  updated: OptionalTimestampSchema,
   completedAt: OptionalTimestampSchema,
 })
 export type ProposalDetail = z.infer<typeof ProposalDetailSchema>
@@ -153,6 +147,7 @@ export const ProposalApproveOutputSchema = z.object({
   newStatus: z.literal('completed'),
   approvedAt: TimestampSchema,
   nextSteps: z.string().optional(),
+  wroteBack: z.boolean().optional().describe('True when writeback=true was passed and the .md file was updated with completed status'),
 })
 export type ProposalApproveOutput = z.infer<typeof ProposalApproveOutputSchema>
 

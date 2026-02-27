@@ -17,10 +17,10 @@ import {
   validateApplyPhase,
   type ApplyPhaseValidationContext,
 } from '../validators/apply-phase-validator.js'
-import { validateQuality, type QualityValidationContext } from '../validators/quality-validator.js'
+import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationContext } from '../validators/quality-validator.js'
 import { type ZenoConfig } from '../../utils/config.js'
 import { createStateTransitionValidator } from './entity-action-handler.js'
-import type { PreReview } from '../schemas/pre-review-schemas.js'
+import { validatePreReviewGeneratePhase, type PreReview } from '../validators/pre-review-validator.js'
 import {
   validateTestFileScope,
   validateMarkdownOnly,
@@ -31,28 +31,10 @@ import {
   PROPOSAL_GENERATION_GUARDRAILS,
   PROPOSAL_GENERATION_WORKFLOW,
   DATABASE_ACCESS_GUARDRAILS,
+  toNarrativeRules,
+  toCompactWorkflow,
 } from '../content/index.js'
-
-/** Valid proposal statuses */
-type ProposalStatus =
-  | 'pending'
-  | 'in_progress'
-  | 'completed'
-  | 'rejected'
-  | 'cancelled'
-  | 'backlog'
-  | 'archived'
-
-/** Full proposal state transition map — used for helpful error messages */
-const PROPOSAL_TRANSITIONS: Partial<Record<ProposalStatus, ProposalStatus[]>> = {
-  pending: ['in_progress', 'cancelled', 'backlog'],
-  in_progress: ['completed', 'rejected', 'cancelled', 'backlog'],
-  rejected: ['pending'],
-  completed: [],
-  cancelled: [],
-  backlog: ['pending'],
-  archived: [],
-}
+import { type ProposalStatus, PROPOSAL_TRANSITIONS } from '../../core/transitions.js'
 
 /**
  * Unified proposal action tool definition.
@@ -81,11 +63,16 @@ const PROPOSAL_TRANSITIONS: Partial<Record<ProposalStatus, ProposalStatus[]>> = 
 export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
-    description: `REQUIRED TOOL: Use proposal_action for ALL proposal operations—this is the ONLY way to manage proposals.
-
-Actions: list (see proposals by gate), show (get proposal details by hash), create (new proposal from requirements), generate (generate from gate PRD), validate (run quality checks), approve (review & merge), reject (with feedback), start (create isolated worktree), progress (update task during implementation).
-
-Call this tool whenever: you need to manage proposals, create implementation plans, validate proposals, or check proposal details.`,
+    description: [
+      'REQUIRED TOOL: Use proposal_action for ALL proposal operations—this is the ONLY way to manage proposals.',
+      '',
+      'Actions: list (see proposals by gate), show (get proposal details by hash), create (new proposal from requirements), generate (generate from gate PRD), validate (run quality checks), approve (review & merge), reject (with feedback), start (create isolated worktree), progress (update task during implementation).',
+      '',
+      'Call this tool whenever: you need to manage proposals, create implementation plans, validate proposals, or check proposal details.',
+      '',
+      'Database access rules (always apply):',
+      ...DATABASE_ACCESS_GUARDRAILS.map(g => `- ${g.rule}`),
+    ].join('\n'),
     inputSchema: ProposalActionInputSchema,
   },
 ]
@@ -95,6 +82,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ProposalCreateOutputSchema } from '../schemas/proposal-create-schemas.js'
 import { ProposalActionOutputSchema } from '../schemas/proposal-action-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
+import { withGuidance } from './handler-factory.js'
 
 /**
  * Unified proposal action handler.
@@ -182,21 +170,12 @@ export function proposalHandlers(
           }
 
           // Inject preReviewSummary and proposal-generation guidance into successful response
-          if (invokeResult.success) {
-            const pre = (payload as { preReview?: unknown }).preReview
-            return {
-              ...invokeResult,
-              data: {
-                ...(invokeResult.data as Record<string, unknown>),
-                ...(pre ? { preReviewSummary: pre } : {}),
-                guidance: {
-                  guardrails: [...PROPOSAL_GENERATION_GUARDRAILS, ...DATABASE_ACCESS_GUARDRAILS],
-                  workflow: PROPOSAL_GENERATION_WORKFLOW,
-                },
-              },
-            }
-          }
-          return invokeResult
+          return withGuidance(
+            invokeResult,
+            toNarrativeRules(PROPOSAL_GENERATION_GUARDRAILS),
+            toCompactWorkflow(PROPOSAL_GENERATION_WORKFLOW),
+            (payload as { preReview?: unknown }).preReview
+          )
         },
         validate: async (payload, r) => r.invoke('proposal_validate', payload),
         approve: async (payload, r) => {
@@ -206,7 +185,17 @@ export function proposalHandlers(
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
             if (currentStatus === 'completed') {
-              return { success: true, data: { hash, status: 'completed', message: 'Proposal already completed (no-op)' } }
+              const showData = showResult.data as Record<string, unknown>
+              return {
+                success: true,
+                data: {
+                  hash,
+                  previousStatus: 'completed',
+                  newStatus: 'completed' as const,
+                  approvedAt:
+                    (showData['completedAt'] as string | undefined) ?? new Date().toISOString(),
+                },
+              }
             }
           }
           return r.invoke('proposal_approve', payload)
@@ -218,7 +207,18 @@ export function proposalHandlers(
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
             if (currentStatus === 'rejected') {
-              return { success: true, data: { hash, status: 'rejected', message: 'Proposal already rejected (no-op)' } }
+              const showData = showResult.data as Record<string, unknown>
+              return {
+                success: true,
+                data: {
+                  hash,
+                  previousStatus: 'rejected',
+                  newStatus: 'rejected' as const,
+                  rejectedAt:
+                    (showData['rejectedAt'] as string | undefined) ?? new Date().toISOString(),
+                  reason: 'Proposal already rejected (no-op)',
+                },
+              }
             }
           }
           return r.invoke('proposal_reject', payload)
@@ -230,32 +230,36 @@ export function proposalHandlers(
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
             if (currentStatus === 'in_progress') {
-              return { success: true, data: { hash, status: 'in_progress', message: 'Proposal already in progress (no-op)' } }
-            }
-          }
-          // Inject preReviewSummary and apply-phase guidance into successful response
-          const startResult = await r.invoke('proposal_start', payload)
-          if (startResult.success) {
-            const pre = (payload as { preReview?: unknown }).preReview
-            return {
-              ...startResult,
-              data: {
-                ...(startResult.data as Record<string, unknown>),
-                ...(pre ? { preReviewSummary: pre } : {}),
-                guidance: {
-                  guardrails: [...APPLY_PHASE_GUARDRAILS, ...DATABASE_ACCESS_GUARDRAILS],
-                  workflow: APPLY_PHASE_WORKFLOW,
+              const showData = showResult.data as Record<string, unknown>
+              return {
+                success: true,
+                data: {
+                  hash,
+                  previousStatus: 'in_progress',
+                  newStatus: 'in_progress' as const,
+                  startedAt:
+                    (showData['startedAt'] as string | undefined) ?? new Date().toISOString(),
                 },
-              },
+              }
             }
           }
-          return startResult
+          return withGuidance(
+            await r.invoke('proposal_start', payload),
+            toNarrativeRules(APPLY_PHASE_GUARDRAILS),
+            toCompactWorkflow(APPLY_PHASE_WORKFLOW),
+            (payload as { preReview?: unknown }).preReview
+          )
         },
         progress: async (payload, r) => {
-          const progressResult = await r.invoke('updateProposalProgress', payload)
+          // Map currentTask (1-based task section number) → taskIndex (0-based) for updateProposalProgress
+          const currentTask = (payload as { currentTask?: number }).currentTask
+          const mappedPayload =
+            currentTask !== undefined && (payload as { taskIndex?: number }).taskIndex === undefined
+              ? { ...(payload as object), taskIndex: currentTask - 1 }
+              : payload
+          const progressResult = await r.invoke('updateProposalProgress', mappedPayload)
           // Inject progressSummary for drift detection — shows currentTask + cumulative file state
           if (progressResult.success) {
-            const currentTask = (payload as { currentTask?: number }).currentTask
             const filesAffected = (payload as { filesAffected?: string[] }).filesAffected ?? []
             if (currentTask !== undefined) {
               return {
@@ -421,69 +425,11 @@ export function proposalHandlers(
         generate: (_payload, _r) => [
           // PreReview enforcement: G5-G8 structured preconditions for proposal generation
           // eslint-disable-next-line @typescript-eslint/require-await
-          async () => {
-            const pre = (_payload as { preReview?: PreReview }).preReview
-            if (!pre) {
-              return {
-                allowed: false,
-                errors: [
-                  'preReview is required for proposal_action: generate. ' +
-                    'Provide preReview with phase="generate" and: ' +
-                    'openQuestionsResolved (bool), questionsFound (string[]), ' +
-                    'gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), ' +
-                    'assumptionsDocumented (string[]), blockersIdentified (string[]). ' +
-                    'Read the full Gate PRD and all requirements before generating (SKILL.md G5-G8).',
-                ],
-                guidance:
-                  'If you have already reviewed the Gate PRD, supply preReview with your findings.',
-              }
-            }
-
-            const errors: string[] = []
-            const warnings: string[] = []
-
-            // G5: unresolved questions
-            if (!pre.openQuestionsResolved && pre.questionsFound.length > 0) {
-              errors.push(
-                'Unresolved open questions in Gate PRD. Resolve before generating: ' +
-                  pre.questionsFound.map((q) => `"${q}"`).join('; ')
-              )
-            }
-
-            // G5: gate not reviewed
-            if (pre.gateReviewed === false) {
-              errors.push(
-                'gateReviewed is false. Read the full Gate PRD before generating proposals.'
-              )
-            }
-
-            // G6: vague requirements
-            if (
-              pre.requirementsVerified === false &&
-              pre.vagueRequirements &&
-              pre.vagueRequirements.length > 0
-            ) {
-              errors.push(
-                'Vague or incomplete requirements found. Clarify before generating: ' +
-                  pre.vagueRequirements.map((r) => `"${r}"`).join('; ')
-              )
-            }
-
-            // G8: blockers (warning)
-            if (pre.blockersIdentified.length > 0) {
-              warnings.push(
-                'Gate dependency blockers: ' +
-                  pre.blockersIdentified.map((b) => `"${b}"`).join('; ') +
-                  '. Resolve before generating proposals.'
-              )
-            }
-
-            return {
-              allowed: errors.length === 0,
-              errors: errors.length > 0 ? errors : undefined,
-              warnings: warnings.length > 0 ? warnings : undefined,
-            }
-          },
+          async () =>
+            validatePreReviewGeneratePhase(
+              (_payload as { preReview?: PreReview }).preReview,
+              'proposal_action'
+            ),
           // G12: generate actions must only produce markdown files
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
@@ -575,11 +521,7 @@ export function proposalHandlers(
             const allErrors: string[] = []
             const allWarnings: string[] = []
 
-            const qualityMetrics = {
-              coverage: 95,
-              lintErrors: 2,
-              securityIssues: 0,
-            }
+            const qualityMetrics = { ...DEFAULT_QUALITY_STUB_METRICS }
 
             const qualityContext: QualityValidationContext = {
               metrics: qualityMetrics,

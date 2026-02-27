@@ -144,6 +144,25 @@ export const ProjectOverviewSchema = z.object({
       estimatedComplexity: z.string(),
     })
   ),
+  cancelledGates: z
+    .array(
+      z.object({
+        sequence: z.number(),
+        name: z.string(),
+        hash: z.string().optional(),
+        cancelledAt: z.string().optional(),
+      })
+    )
+    .optional(),
+  backlogGates: z
+    .array(
+      z.object({
+        sequence: z.number(),
+        name: z.string(),
+        estimatedComplexity: z.string().optional(),
+      })
+    )
+    .optional(),
   architecture: z.object({
     layers: z.array(z.string()),
     keyDependencies: z.record(z.string(), z.string()),
@@ -160,8 +179,8 @@ export interface GateSummary {
   id: string
   sequence: number
   name: string
-  /** Derived: 'completed' | 'in_progress' | 'pending' */
-  status: 'completed' | 'in_progress' | 'pending'
+  /** Derived: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog' */
+  status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
   hash: string
   completedAt: string | null
   estimatedComplexity?: string
@@ -457,6 +476,29 @@ export function getGatesFromOverview(overview: ProjectOverview): GateSummary[] {
       status: 'completed',
       hash: g.hash,
       completedAt: g.completedAt,
+    })
+  }
+
+  for (const g of overview.cancelledGates ?? []) {
+    gates.push({
+      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
+      sequence: g.sequence,
+      name: g.name,
+      status: 'cancelled',
+      hash: g.hash ?? '',
+      completedAt: null,
+    })
+  }
+
+  for (const g of overview.backlogGates ?? []) {
+    gates.push({
+      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
+      sequence: g.sequence,
+      name: g.name,
+      status: 'backlog',
+      hash: '',
+      completedAt: null,
+      estimatedComplexity: g.estimatedComplexity,
     })
   }
 

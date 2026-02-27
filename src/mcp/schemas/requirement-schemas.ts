@@ -5,7 +5,6 @@ import {
   GateIdSchema,
   TimestampSchema,
   OptionalTimestampSchema,
-  PaginationMetadataSchema,
 } from './common-schemas.js'
 
 /**
@@ -19,8 +18,6 @@ import {
 export const ReqListInputSchema = z.object({
   gateId: GateIdSchema.optional(),
   type: RequirementTypeEnum.optional(),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50),
 })
 export type ReqListInput = z.infer<typeof ReqListInputSchema>
 
@@ -30,7 +27,7 @@ export const RequirementSummarySchema = z.object({
   description: z.string().optional(),
   type: RequirementTypeEnum,
   gateId: GateIdSchema,
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  priority: z.enum(['must', 'should', 'could', 'wont']).optional(),
   created: TimestampSchema,
   updated: OptionalTimestampSchema,
   testedAt: OptionalTimestampSchema,
@@ -39,7 +36,6 @@ export type RequirementSummary = z.infer<typeof RequirementSummarySchema>
 
 export const ReqListOutputSchema = z.object({
   requirements: z.array(RequirementSummarySchema),
-  pagination: PaginationMetadataSchema,
 })
 export type ReqListOutput = z.infer<typeof ReqListOutputSchema>
 
@@ -58,7 +54,7 @@ export const RequirementDetailSchema = z.object({
   description: z.string(),
   type: RequirementTypeEnum,
   gateId: GateIdSchema,
-  priority: z.enum(['low', 'medium', 'high']).optional(),
+  priority: z.enum(['must', 'should', 'could', 'wont']).optional(),
   acceptance: z
     .array(
       z.object({
@@ -129,6 +125,54 @@ export const DependencyGraphSchema = z.object({
 export type DependencyGraph = z.infer<typeof DependencyGraphSchema>
 
 // ============================================================================
+// REQ_SHOW output — wrapped envelope returned by req_action show
+// Uses permissive string types for DB-sourced IDs to avoid strict regex failures
+// on real data. Only INPUT schemas need strict validation.
+// ============================================================================
+
+export const ReqShowOutputSchema = z.object({
+  requirement: z.object({
+    hash: z.string(),
+    title: z.string(),
+    description: z.string().optional(),
+    type: z.string(),
+    gateId: z.string(),
+    priority: z.string().optional(),
+    acceptance: z.array(z.object({ criteria: z.string(), completed: z.boolean() })).optional(),
+    parentRequirement: z.object({ hash: z.string(), title: z.string() }).optional(),
+    childRequirements: z.array(z.object({ hash: z.string(), title: z.string() })).optional(),
+    relatedProposals: z.array(z.object({ hash: z.string(), title: z.string() })).optional(),
+    created: z.string(),
+    updated: z.string().nullable().optional(),
+    testedAt: z.string().nullable().optional(),
+  }).nullable(),
+  children: z.array(z.any()).optional(),
+  ancestors: z.array(z.any()).optional(),
+})
+export type ReqShowOutput = z.infer<typeof ReqShowOutputSchema>
+
+// REQ_DEPS output — wrapped envelope returned by req_action deps
+export const ReqDepsWrapperSchema = z.object({
+  graph: z.object({
+    root: z.string(),
+    nodes: z.array(z.object({
+      hash: z.string(),
+      title: z.string(),
+      type: z.string(),
+      gateId: z.string(),
+    })),
+    edges: z.array(z.object({
+      from: z.string(),
+      to: z.string(),
+      type: z.string(),
+    })),
+    blocking: z.array(z.string()).optional(),
+    blockedBy: z.array(z.string()).optional(),
+  }).nullable(),
+})
+export type ReqDepsWrapper = z.infer<typeof ReqDepsWrapperSchema>
+
+// ============================================================================
 // REQ_TRANSFER - Transfer requirement to different gate
 // ============================================================================
 
@@ -156,15 +200,12 @@ export const ReqSearchInputSchema = z.object({
   query: z.string().min(1),
   gateId: GateIdSchema.optional(),
   type: RequirementTypeEnum.optional(),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50),
 })
 export type ReqSearchInput = z.infer<typeof ReqSearchInputSchema>
 
 export const ReqSearchOutputSchema = z.object({
   requirements: z.array(RequirementSummarySchema),
   total: z.number().int().min(0),
-  pagination: PaginationMetadataSchema,
 })
 export type ReqSearchOutput = z.infer<typeof ReqSearchOutputSchema>
 

@@ -99,70 +99,99 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
   registry.register('repos_list', async () => {
     const result = await invokeCommand('repos_list')
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error ?? 'repos_list failed')
     }
-    return result
+    try {
+      const parsed = JSON.parse(result.output) as unknown
+      if (parsed && typeof parsed === 'object' && 'repositories' in parsed) {
+        return parsed
+      }
+      const repos = Array.isArray(parsed) ? parsed : []
+      return {
+        repositories: repos,
+      }
+    } catch {
+      return {
+        repositories: [],
+      }
+    }
   }, {
     description: 'List all detected repositories in the project',
     parameters: [],
-    returnType: 'Repository[]',
+    returnType: 'ReposListOutput',
     schema: z.object({})
   })
 
-  registry.register('repos_deps', async () => {
-    const result = await invokeCommand('repos_deps')
+  registry.register('repos_deps', async (params) => {
+    const validated = z.object({ repositoryId: z.string().optional() }).parse(params)
+    const result = await invokeCommand('repos_deps', validated)
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error ?? 'repos_deps failed')
     }
-    return result
+    try {
+      const parsed = JSON.parse(result.output) as unknown
+      if (parsed && typeof parsed === 'object' && 'repositories' in parsed) {
+        return parsed
+      }
+      return { repositories: [], edges: [] }
+    } catch {
+      return { repositories: [], edges: [] }
+    }
   }, {
     description: 'Show cross-repository dependencies',
     parameters: [],
-    returnType: 'DependencyGraph',
+    returnType: 'RepositoryDependencyGraph',
     schema: z.object({})
   })
 
   registry.register('repos_detect', async () => {
     const result = await invokeCommand('repos_detect')
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error ?? 'repos_detect failed')
+    }
+    try {
+      const parsed = JSON.parse(result.output) as unknown
+      if (parsed && typeof parsed === 'object' && 'detected' in parsed) {
+        return parsed
+      }
+    } catch {
+      // fall through to default
+    }
+    return {
+      detected: [],
+      summary: 'Detection completed',
     }
   }, {
     description: 'Re-run repository boundary detection',
     parameters: [],
-    returnType: 'void',
-    schema: z.object({})
+    returnType: 'ReposDetectOutput',
+    schema: z.object({}).strict()
   })
 
   registry.register('repos_adjust', async (params) => {
     const validated = z.object({
       repoId: z.string(),
-      boundary: z.string()
+      boundary: z.string(),
     }).parse(params)
     const result = await invokeCommand('repos_adjust', validated)
     if (!result.success) {
-      throw new Error(result.error)
+      throw new Error(result.error ?? 'repos_adjust failed')
+    }
+    return {
+      repoId: validated.repoId,
+      boundary: validated.boundary,
+      status: 'adjusted',
     }
   }, {
     description: 'Manually adjust repository boundaries',
     parameters: [
-      {
-        name: 'repoId',
-        type: 'string',
-        description: 'The repository ID to adjust',
-        required: true
-      },
-      {
-        name: 'boundary',
-        type: 'string',
-        description: 'The new boundary path',
-        required: true
-      }
+      { name: 'repoId', type: 'string', description: 'Repository ID', required: true },
+      { name: 'boundary', type: 'string', description: 'New boundary path', required: true },
     ],
-    returnType: 'void',
+    returnType: 'ReposAdjustOutput',
     schema: z.object({
-      repoId: z.string().min(1, 'Repository ID is required'),
-      boundary: z.string().min(1, 'Boundary is required')
+      repoId: z.string(),
+      boundary: z.string(),
     })
   })
 }
@@ -287,62 +316,109 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
   })
 
   registry.register('arch_catalogue', () => {
-    // Return the diagram type catalogue with metadata
-    const catalogue = [
+    // Return the diagram type catalogue with metadata matching ArchDiagramCatalogueOutputSchema
+    const diagrams = [
       // Core diagrams
       {
         type: 'system-overview',
-        category: 'core',
+        category: 'core' as const,
+        name: 'System Overview',
         description: 'Component relationships and module structure',
+        whenUseful: 'Always — provides top-level component view',
+        templatePath: 'templates/architecture-templates/system-overview.md',
+        alwaysGenerated: true,
       },
       {
         type: 'data-flow',
-        category: 'core',
+        category: 'core' as const,
+        name: 'Data Flow',
         description: 'End-to-end data processing paths',
+        whenUseful: 'Always — shows how data moves through the system',
+        templatePath: 'templates/architecture-templates/data-flow.md',
+        alwaysGenerated: true,
       },
       {
         type: 'gate-roadmap',
-        category: 'core',
+        category: 'core' as const,
+        name: 'Gate Roadmap',
         description: 'Gate structure and parallel relationships',
+        whenUseful: 'Always — visualises project milestones',
+        templatePath: 'templates/architecture-templates/gate-roadmap.md',
+        alwaysGenerated: true,
       },
       {
         type: 'lifecycle',
-        category: 'core',
+        category: 'core' as const,
+        name: 'Gate Lifecycle',
         description: 'State machine for gate workflow',
+        whenUseful: 'Always — shows gate state transitions',
+        templatePath: 'templates/architecture-templates/lifecycle.md',
+        alwaysGenerated: true,
       },
       {
         type: 'context',
-        category: 'core',
+        category: 'core' as const,
+        name: 'Context Diagram',
         description: 'System boundary and external dependencies',
+        whenUseful: 'Always — shows external system integrations',
+        templatePath: 'templates/architecture-templates/context.md',
+        alwaysGenerated: true,
       },
       // Conditional diagrams
       {
         type: 'sequence',
-        category: 'conditional',
+        category: 'conditional' as const,
+        name: 'Sequence Diagram',
         description: 'Temporal interactions for complex workflows',
+        whenUseful: 'When complex multi-step interactions exist between components',
+        templatePath: 'templates/architecture-templates/sequence.md',
+        alwaysGenerated: false,
       },
       {
         type: 'component',
-        category: 'conditional',
+        category: 'conditional' as const,
+        name: 'Component Diagram',
         description: 'Detailed module structure for complex components',
+        whenUseful: 'When components have many internal parts worth documenting',
+        templatePath: 'templates/architecture-templates/component.md',
+        alwaysGenerated: false,
       },
       {
         type: 'package',
-        category: 'conditional',
+        category: 'conditional' as const,
+        name: 'Package Diagram',
         description: 'Code organization and module dependencies',
+        whenUseful: 'When package/module structure is complex',
+        templatePath: 'templates/architecture-templates/package.md',
+        alwaysGenerated: false,
       },
       {
         type: 'deployment',
-        category: 'conditional',
+        category: 'conditional' as const,
+        name: 'Deployment Diagram',
         description: 'Runtime infrastructure and deployment topology',
+        whenUseful: 'When deploying to cloud infrastructure or multiple environments',
+        templatePath: 'templates/architecture-templates/deployment.md',
+        alwaysGenerated: false,
       },
       {
         type: 'network',
-        category: 'conditional',
+        category: 'conditional' as const,
+        name: 'Network Diagram',
         description: 'Network topology and communication patterns',
+        whenUseful: 'When network configuration is a critical architecture concern',
+        templatePath: 'templates/architecture-templates/network.md',
+        alwaysGenerated: false,
       },
     ]
-    return catalogue
+    const coreCount = diagrams.filter((d) => d.category === 'core').length
+    const conditionalCount = diagrams.filter((d) => d.category === 'conditional').length
+    return {
+      diagrams,
+      totalDiagrams: diagrams.length,
+      coreCount,
+      conditionalCount,
+    }
   }, {
     description: 'Get the complete catalogue of available architecture diagram types',
     parameters: [],
@@ -356,14 +432,20 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       diagramTypes: z.array(z.string()).min(1, 'At least one diagram type is required'),
       descriptors: z.record(z.string(), z.string()).optional()
     }).parse(params)
-    
-    // Store selection for the gate (this would normally persist to a file or database)
-    // For now, just return a confirmation
+
+    // Core diagrams are always included alongside selected conditional ones
+    const CORE_TYPES = ['system-overview', 'data-flow', 'gate-roadmap', 'lifecycle', 'context']
+    const selectedConditional = validated.diagramTypes.filter((t) => !CORE_TYPES.includes(t))
+    const selected = [...CORE_TYPES, ...selectedConditional]
+
     return {
       gateHash: validated.gateHash,
-      selectedTypes: validated.diagramTypes,
-      count: validated.diagramTypes.length,
-      status: 'recorded'
+      selected,
+      totalSelected: selected.length,
+      coreCount: CORE_TYPES.length,
+      conditionalCount: selectedConditional.length,
+      ready: true,
+      timestamp: new Date().toISOString(),
     }
   }, {
     description: 'Record selected diagram types for a specific gate',

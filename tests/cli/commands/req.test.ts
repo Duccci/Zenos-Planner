@@ -211,14 +211,12 @@ describe('Requirements Commands', () => {
       query: 'performance',
       gateId: 'gate-01',
       type: 'functional',
-      skip: 0,
-      take: 50
     }
     expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'search', payload })
     expect(logger.info).toHaveBeenCalled()
   })
 
-  it('req search with pagination options', async () => {
+  it('req search without pagination options', async () => {
     const searchOut = { success: true, data: { requirements: [] } }
 
     const registry: Partial<FunctionRegistry> = {
@@ -236,11 +234,11 @@ describe('Requirements Commands', () => {
     program.exitOverride()
     registerReqCommands(program)
 
-    await program.parseAsync(['node', 'test', 'req', 'search', 'test', '--skip', '10', '--take', '25'])
+    await program.parseAsync(['node', 'test', 'req', 'search', 'test'])
 
     expect(registry.invoke).toHaveBeenCalledWith('req_action', { 
       action: 'search', 
-      payload: { query: 'test', skip: 10, take: 25 }
+      payload: { query: 'test' }
     })
   })
 

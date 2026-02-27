@@ -8,6 +8,21 @@ import {
 const sample = `# Proposal\n\n- [ ] Implement feature x\n- [x] Add tests\n\n## Completion Summary\n
 **Tasks Completed**: 1/2\n`
 
+const sampleWithSections = `# Proposal
+
+## Tasks
+
+### Task 1: Implement feature
+- [ ] Write the code
+- [ ] Add error handling
+
+### Task 2: Add tests
+- [ ] Unit tests
+- [ ] Integration tests
+
+## Completion Summary
+`
+
 describe('Proposal Progress', () => {
   it('updates task status', () => {
     const updated = updateTaskStatus(sample, 0, true, 'done')
@@ -18,6 +33,21 @@ describe('Proposal Progress', () => {
     const updated = updateTaskStatus(sample, 1, false)
     expect(updated).toContain('- [ ] Add tests')
     expect(updated).not.toContain('(undefined)')
+  })
+
+  it('updates task status in a task-section format', () => {
+    const updated = updateTaskStatus(sampleWithSections, 0, true)
+    expect(updated).toContain('- [x] Write the code')
+    expect(updated).toContain('- [x] Add error handling')
+    // Task 2 should be unchanged
+    expect(updated).toContain('- [ ] Unit tests')
+  })
+
+  it('appends notes after the task header in task-section format', () => {
+    const updated = updateTaskStatus(sampleWithSections, 1, true, 'completed via integration test')
+    expect(updated).toContain('> completed via integration test')
+    expect(updated).toContain('- [x] Unit tests')
+    expect(updated).toContain('- [x] Integration tests')
   })
 
   it('calculates completion summary', () => {

@@ -4,7 +4,6 @@ import {
   GateStatusEnum,
   TimestampSchema,
   OptionalTimestampSchema,
-  PaginationMetadataSchema
 } from './common-schemas.js'
 
 /**
@@ -17,8 +16,6 @@ import {
 
 export const GatesListInputSchema = z.object({
   status: GateStatusEnum.optional(),
-  skip: z.number().int().min(0).default(0),
-  take: z.number().int().min(1).max(100).default(50)
 })
 export type GatesListInput = z.infer<typeof GatesListInputSchema>
 
@@ -41,7 +38,6 @@ export type GateSummary = z.infer<typeof GateSummarySchema>
 
 export const GatesListOutputSchema = z.object({
   gates: z.array(GateSummarySchema),
-  pagination: PaginationMetadataSchema
 })
 export type GatesListOutput = z.infer<typeof GatesListOutputSchema>
 

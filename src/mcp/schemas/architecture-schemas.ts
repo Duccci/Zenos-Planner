@@ -195,6 +195,8 @@ export function getDiagramActionOutputSchema(action: string): z.ZodType {
     case 'show':
       return ArchDiagramShowOutputSchema
     default:
-      return z.unknown()
+      // z.unknown() has def.type='unknown' → normalizeObjectSchema returns undefined → _zod TypeError.
+      // Use passthrough object: accepts any shape and normalizes correctly.
+      return z.looseObject({})
   }
 }

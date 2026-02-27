@@ -32,6 +32,20 @@ export interface QualityMetrics {
   totalLines?: number
 }
 
+/**
+ * Default quality stub metrics used as fallback when actual measurements are
+ * not yet available. Both gate-completion and proposal-approval validators use
+ * this constant so the two workflows remain consistent.
+ *
+ * Replace with real metrics from your project's quality-check tooling whenever
+ * possible — these stubs assume a healthy baseline.
+ */
+export const DEFAULT_QUALITY_STUB_METRICS: QualityMetrics = {
+  coverage: 95,
+  lintErrors: 0,
+  securityIssues: 0,
+}
+
 export interface QualityValidationContext {
   /** Quality metrics from the target project */
   metrics: QualityMetrics

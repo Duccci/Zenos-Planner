@@ -12,7 +12,7 @@
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 import { loadConfig } from '../utils/config.js'
 import { getZenoDir } from '../utils/config.js'
@@ -158,7 +158,7 @@ export async function archiveGate(
   logger.info(`Starting gate archive for ${gateId}`)
 
   // Step 1: Validate using dedicated validation module
-  await validateGateReady(gateId)
+  const { filePath: gatePath } = await validateGateReady(gateId)
 
   const config = await loadConfig()
   const timestamp = getCurrentTimestamp()
@@ -166,8 +166,8 @@ export async function archiveGate(
   // Step 2: Prepare paths
   const gatesDir = join(getZenoDir(), '..', 'gates')
   const archiveDir = join(gatesDir, 'archive')
-  const gatePath = join(gatesDir, `${gateId}.md`)
-  const archivePath = join(archiveDir, `${gateId}.md`)
+  // Preserve the original filename in the archive directory
+  const archivePath = join(archiveDir, basename(gatePath))
 
   await mkdir(archiveDir, { recursive: true })
 
@@ -254,13 +254,9 @@ export async function archiveProposal(
   const proposalsBaseDir = join(getZenoDir(), '..', 'proposals')
   const archiveDir = join(proposalsBaseDir, 'archive')
 
-  // Step 2: Find and move proposal file
-  let sourcePath: string
-  if (proposalInfo.type === 'gate-tied' && proposalInfo.gateId) {
-    sourcePath = join(proposalsBaseDir, proposalInfo.gateId, `${proposalHash}.md`)
-  } else {
-    sourcePath = join(proposalsBaseDir, 'solitary', `${proposalHash}.md`)
-  }
+  // Step 2: Use the file path resolved by validateProposalReady (content-addressed by hash,
+  // not filename — files are date-named, e.g. 2026-02-24-01-title.md).
+  const sourcePath = proposalInfo.filePath
 
   if (!existsSync(sourcePath)) {
     throw new Error(`Proposal file not found at ${sourcePath}`)

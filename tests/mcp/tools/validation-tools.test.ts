@@ -132,7 +132,7 @@ describe('validation-tools', () => {
     const res = await handlers.artifact_validate({})
 
     const text = getText(res as any)
-    expect(text).toContain('INTERNAL_ERROR')
+    expect(text).toContain('VALIDATION_ERROR')
   })
 
   it('handles mock result when _mockResult is provided', async () => {

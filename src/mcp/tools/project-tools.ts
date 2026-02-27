@@ -10,6 +10,8 @@ import type { FunctionRegistry } from '../../integration/function-registry.js'
 import {
   ProjectActionInputSchema,
   ProjectActionOutputSchema,
+  ProjectInitOutputSchema,
+  ProjectStatusOutputSchema,
 } from '../schemas/project-action-schemas.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
@@ -42,7 +44,13 @@ export function projectHandlers(
       actions: ['init', 'status'] as const,
       inputSchema: ProjectActionInputSchema,
       outputSchema: ProjectActionOutputSchema,
-      actionOutputSchema: () => ProjectActionOutputSchema,
+      actionOutputSchema: (action) => {
+        switch (action) {
+          case 'init': return ProjectInitOutputSchema
+          case 'status': return ProjectStatusOutputSchema
+          default: throw new Error(`Unknown project action: ${String(action)}`)
+        }
+      },
       actionHandlers: {
         init: async (payload, r) => r.invoke('project_init', payload),
         status: async (payload, r) => r.invoke('project_status', payload),

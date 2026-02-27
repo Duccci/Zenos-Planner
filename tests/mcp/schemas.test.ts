@@ -129,12 +129,6 @@ describe('Common Schemas', () => {
             version: '1.0.0'
           }
         ],
-        pagination: {
-          total: 1,
-          skip: 0,
-          take: 50,
-          hasMore: false
-        }
       }
       expect(() => common.TemplateListSchema.parse(list)).not.toThrow()
     })
@@ -308,7 +302,7 @@ describe('Requirement Schemas', () => {
       const summary = {
         hash: 'abc12345',
         title: 'Requirement 1',
-        type: 'feature',
+        type: 'functional',
         gateId: 'gate-01',
         created: new Date().toISOString()
       }
@@ -324,7 +318,7 @@ describe('Requirement Schemas', () => {
           {
             hash: 'abc12345',
             title: 'Req 1',
-            type: 'feature',
+            type: 'functional',
             gateId: 'gate-01'
           }
         ],
@@ -609,7 +603,7 @@ describe('Analysis Schemas', () => {
 describe('Schema Integration', () => {
   it('should handle realistic gate list and show workflow', () => {
     // List gates
-    const listInput = { skip: 0, take: 50 }
+    const listInput = {}
     expect(() => gate.GatesListInputSchema.parse(listInput)).not.toThrow()
 
     // Show specific gate

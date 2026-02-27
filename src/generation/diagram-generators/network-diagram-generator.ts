@@ -3,14 +3,15 @@
  *
  * Generates network diagrams showing network topology: subnets, load balancers,
  * firewalls, services, and communication patterns using DOT syntax.
+ *
+ * Note: Templates for this diagram type are served to LLMs via template_get / arch_catalogue
+ * MCP tools, not read server-side by the generator.
  */
 
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
 import type { ComplexityAnalyzer } from '../complexity-analyzer.js'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 export class NetworkDiagramGenerator extends DiagramGeneratorBase {
   constructor(
@@ -31,21 +32,9 @@ export class NetworkDiagramGenerator extends DiagramGeneratorBase {
   /**
    * Generate a network diagram showing topology and security boundaries.
    * Uses DOT syntax for complex network visualizations.
-   * Template provides structure; content is populated from context.
    */
   generateContent(_context: DiagramContext): string {
     const networkName = this.networkName ?? 'Enterprise'
-
-    // Load template for structural guidance
-    const templatePath = join(
-      process.cwd(),
-      'templates/architecture-templates/network-diagram-template.md'
-    )
-    try {
-      readFileSync(templatePath, 'utf-8')
-    } catch {
-      // Template file not found; proceed with default generation
-    }
 
     // Generate DOT-based network topology
     const diagram = `digraph ${networkName}Network {

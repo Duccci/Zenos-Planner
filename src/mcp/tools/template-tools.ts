@@ -2,17 +2,18 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 
-// Template schemas are provided by template subsystem; default to loose input schema
+// Template schemas: use passthrough object so MCP SDK normalizeObjectSchema resolves
+// correctly (z.any() has def.type='any' → normalizeObjectSchema returns undefined → _zod TypeError).
 export const templateToolDefinitions = [
   {
     name: 'template_list',
     description: 'List templates by category',
-    inputSchema: z.any(),
+    inputSchema: z.looseObject({}),
   },
   {
     name: 'template_get',
     description: 'Get template content with optional contextual metadata for LLM',
-    inputSchema: z.any(),
+    inputSchema: z.looseObject({ name: z.string(), includeContext: z.boolean().optional() }),
   },
 ]
 

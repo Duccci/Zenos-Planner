@@ -34,6 +34,7 @@ import { archiveCompletedGateInState, updateCurrentGateInState } from '../utils/
 import { readProjectOverview, saveProjectOverview } from '../utils/config.js'
 import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
+import { findGateByGateId } from '../utils/artifact-locator.js'
 
 
 
@@ -110,9 +111,11 @@ async function updateGateObjectivesFromProposal(
   gateId: string,
   proposalContent: string
 ): Promise<void> {
-  const gatePath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+  // Gate files are named gate-NN-full-name.md; resolve via prefix scan.
+  const gatePath = await findGateByGateId(gateId, projectRoot)
 
   try {
+    if (!gatePath) return
     const gateContent = await readFile(gatePath)
 
     // Extract proposal summary
@@ -385,10 +388,11 @@ export async function completeGate(
     const consolidationMd = generateConsolidationMarkdown(consolidation)
 
     // Read the gate PRD
-    const gatePrdPath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+    // Gate files are named gate-NN-full-name.md; resolve via prefix scan.
+    const gatePrdPath = await findGateByGateId(gateId, projectRoot)
     let gateContent = ''
     try {
-      gateContent = await readFile(gatePrdPath)
+      if (gatePrdPath) gateContent = await readFile(gatePrdPath)
     } catch {
       // If no PRD exists, create basic one
       const dateStr: string = new Date().toISOString().split('T')[0] ?? ''
@@ -407,11 +411,11 @@ export async function completeGate(
     await writeFile(archivePath, newGateContent)
 
     // Remove the original gate PRD from gates/
-    const originalGatePath = path.join(projectRoot, 'zeno', 'gates', `${gateId}.md`)
+    const originalGatePath = gatePrdPath
     try {
-      await unlink(originalGatePath)
+      if (originalGatePath) await unlink(originalGatePath)
     } catch (error) {
-      logger.warn(`Failed to remove original gate PRD ${originalGatePath}: ${String(error)}`)
+      logger.warn(`Failed to remove original gate PRD ${String(originalGatePath)}: ${String(error)}`)
     }
 
     // Delete proposals from database after consolidation

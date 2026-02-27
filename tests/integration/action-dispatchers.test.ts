@@ -78,12 +78,6 @@ describe('Proposal Action Dispatcher', () => {
 
     const mockListResult = {
       proposals: mockProposals,
-      pagination: {
-        total: 2,
-        skip: 0,
-        take: 50,
-        hasMore: false,
-      },
     }
 
     registry.setMockResult('proposal_list', mockListResult)
@@ -348,12 +342,6 @@ describe('Gates Action Dispatcher', () => {
 
     const mockListResult = {
       gates: mockGates,
-      pagination: {
-        total: 2,
-        skip: 0,
-        take: 50,
-        hasMore: false,
-      },
     }
 
     registry.setMockResult('gates_list', mockListResult)
@@ -628,12 +616,6 @@ describe('Action Dispatcher Output Schema Validation', () => {
           created: now,
         },
       ],
-      pagination: {
-        total: 1,
-        skip: 0,
-        take: 50,
-        hasMore: false,
-      },
     }
     registry.setMockResult('proposal_list', mockListResult)
 
@@ -671,12 +653,6 @@ describe('Action Dispatcher Output Schema Validation', () => {
           testedRequirementCount: 0,
         },
       ],
-      pagination: {
-        total: 1,
-        skip: 0,
-        take: 50,
-        hasMore: false,
-      },
     }
     registry.setMockResult('gates_list', mockListResult)
 

@@ -26,11 +26,7 @@ import {
 import { updateCurrentGateInState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 import { invokeGatesAction } from '../cli-tool-invoker.js'
-
-/**
- * Gate status type
- */
-type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected'
+import { type GateStatus, GATE_TRANSITIONS, validateTransition } from '../../core/transitions.js'
 
 /**
  * Gate database record
@@ -47,32 +43,6 @@ interface GateRecord {
   created_at: string
   completed_at: string | null
 }
-
-/**
- * Validate gate status transitions
- */
-function validateStatusTransition(
-  currentStatus: GateStatus,
-  targetStatus: GateStatus
-): { valid: boolean; error?: string } {
-  const validTransitions: Record<GateStatus, GateStatus[]> = {
-    pending: ['in_progress'],
-    in_progress: ['completed', 'rejected'],
-    completed: [],
-    rejected: ['pending'], // can restart rejected gates
-  }
-
-  if (validTransitions[currentStatus].includes(targetStatus)) {
-    return { valid: true }
-  }
-
-  return {
-    valid: false,
-    error: `Cannot transition from ${currentStatus} to ${targetStatus}. Valid transitions: ${validTransitions[currentStatus].join(', ') || 'none'}`,
-  }
-}
-
-
 
 /**
  * Get gate by ID or name from project-overview.json
@@ -341,7 +311,7 @@ export function registerGatesCommands(program: Command): void {
         }
 
         // Validate status transition
-        const transition = validateStatusTransition(gate.status, 'in_progress')
+        const transition = validateTransition(GATE_TRANSITIONS, gate.status, 'in_progress')
         if (!transition.valid) {
           logger.error(transition.error ?? 'Invalid status transition')
           logger.info(`Current status: ${gate.status}`)

@@ -42,9 +42,12 @@ Call this tool when: a gate or proposal is complete and needs archival, or you n
 ]
 
 import { createEntityActionHandler } from './entity-action-handler.js'
+import { withGuidance } from './handler-factory.js'
 import {
   ARCHIVAL_GUARDRAILS,
   ARCHIVAL_WORKFLOW,
+  toNarrativeRules,
+  toCompactWorkflow,
 } from '../content/index.js'
 
 export function archiveHandlers(
@@ -58,32 +61,18 @@ export function archiveHandlers(
       outputSchema: ArchiveActionOutputSchema,
       actionOutputSchema: getArchiveActionOutputSchema,
       actionHandlers: {
-        gate: async (payload, r) => {
-          const result = await r.invoke('archive_action', { action: 'gate', payload })
-          if (result.success) {
-            return {
-              ...result,
-              data: {
-                ...(result.data as Record<string, unknown>),
-                guidance: { guardrails: ARCHIVAL_GUARDRAILS, workflow: ARCHIVAL_WORKFLOW },
-              },
-            }
-          }
-          return result
-        },
-        batch: async (payload, r) => {
-          const result = await r.invoke('archive_action', { action: 'batch', payload })
-          if (result.success) {
-            return {
-              ...result,
-              data: {
-                ...(result.data as Record<string, unknown>),
-                guidance: { guardrails: ARCHIVAL_GUARDRAILS, workflow: ARCHIVAL_WORKFLOW },
-              },
-            }
-          }
-          return result
-        },
+        gate: async (payload, r) =>
+          withGuidance(
+            await r.invoke('archive_action', { action: 'gate', payload }),
+            toNarrativeRules(ARCHIVAL_GUARDRAILS),
+            toCompactWorkflow(ARCHIVAL_WORKFLOW)
+          ),
+        batch: async (payload, r) =>
+          withGuidance(
+            await r.invoke('archive_action', { action: 'batch', payload }),
+            toNarrativeRules(ARCHIVAL_GUARDRAILS),
+            toCompactWorkflow(ARCHIVAL_WORKFLOW)
+          ),
       },
     },
     registry

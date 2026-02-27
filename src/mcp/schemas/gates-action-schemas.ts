@@ -63,8 +63,6 @@ export const GatesActionInputSchema = z.object({
     .enum(['pending', 'in_progress', 'completed', 'archived', 'cancelled', 'backlog'])
     .optional()
     .describe('Filter gates by status (list action)'),
-  skip: z.number().int().min(0).optional().describe('Pagination offset (list, default 0)'),
-  take: z.number().int().min(1).max(100).optional().describe('Page size (list, default 50)'),
 
   // --- create fields ---
   name: z.string().optional().describe('Human-readable gate name (create)'),

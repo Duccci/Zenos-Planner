@@ -1,4 +1,4 @@
-# Consolidate SKILL.md Guidance into Core Zeno Documentation
+# Proposal: Consolidate SKILL.md Guidance into Core Zeno Documentation
 
 ## Metadata
 
@@ -7,6 +7,12 @@
 - **Status**: in_progress
 - **Created**: 2026-02-24
 - **Summary**: Extract guardrail and workflow guidance from IDE-specific SKILL.md files into TypeScript constants in `src/mcp/content/`, push them contextually via MCP tool responses, and remove IDE-specific `.claude/skills/` dependencies to make Zeno environment-agnostic.
+
+## Summary
+
+Extract guardrail and workflow guidance from IDE-specific SKILL.md files into TypeScript constants in `src/mcp/content/`, push them contextually via MCP tool responses, and remove IDE-specific `.claude/skills/` dependencies to make Zeno environment-agnostic.
+
+---
 
 ## Context
 
@@ -32,7 +38,7 @@ The SKILL.md files in `.claude/skills/` contain critical workflow guidance (pre-
 ### Task 1: Create Guardrail Constants
 Create `src/mcp/content/guardrails.ts` with all guardrail content from all four SKILL.md files as typed TypeScript constants
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `GuardrailEntry` interface defined with fields: `id`, `topic`, `rule`, `mustHaveValidator`, `validatorRef` (optional), `reason`
 - [x] `APPLY_PHASE_GUARDRAILS` constant exported — all Pre-Apply Review items and Implementation Constraints from `zeno-apply/SKILL.md`
 - [x] `PROPOSAL_GENERATION_GUARDRAILS` constant exported — all Pre-Generation Gate Review items and Proposal Generation Constraints from `zeno-proposal/SKILL.md`
@@ -57,7 +63,7 @@ export interface GuardrailEntry {
 ### Task 2: Create Workflow Step Constants
 Create `src/mcp/content/workflows.ts` with all workflow step content from all four SKILL.md files as typed TypeScript constants
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `WorkflowStep` interface defined with fields: `order`, `title`, `description`, `prerequisites`, `actions`, `errorHandling`, `guidance`
 - [x] `APPLY_PHASE_WORKFLOW` constant exported — all 9 steps from `zeno-apply/SKILL.md` (Identify → Run Checks → Request Approval)
 - [x] `PROPOSAL_GENERATION_WORKFLOW` constant exported — all 11 steps from `zeno-proposal/SKILL.md`
@@ -82,7 +88,7 @@ export interface WorkflowStep {
 ### Task 3: Wire MCP Contextual Injection
 Update MCP action tool handlers to inject applicable guardrails and workflow steps into their structured responses so any agent receives guidance regardless of IDE
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `src/mcp/tools/proposal-tools.ts`: `proposal_action` responses for `create`, `generate`, and `start` include `PROPOSAL_GENERATION_GUARDRAILS` + `PROPOSAL_GENERATION_WORKFLOW` in a `guidance` field
 - [x] `src/mcp/tools/proposal-tools.ts`: `proposal_action` response for `start` includes `APPLY_PHASE_GUARDRAILS` + `APPLY_PHASE_WORKFLOW` in `guidance`
 - [x] `src/mcp/tools/gate-tools.ts`: `gates_action` responses for `create` and `generate` include `GATE_GENERATION_GUARDRAILS` + `GATE_GENERATION_WORKFLOW` in `guidance`
@@ -106,7 +112,7 @@ return {
 ### Task 4: Convert Guardrail Coverage Script to Vitest Test
 Replace `scripts/validate-guardrail-coverage.ts` (scans `.claude/skills/**/*.md`) with `tests/mcp/guardrail-coverage.test.ts` (imports TypeScript constants and asserts validator linkage)
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `tests/mcp/guardrail-coverage.test.ts` created
 - [x] Test imports `ALL_GUARDRAILS` from `src/mcp/content/guardrails.ts`
 - [x] Test asserts every entry where `mustHaveValidator: true` has a non-empty `validatorRef`
@@ -118,7 +124,7 @@ Replace `scripts/validate-guardrail-coverage.ts` (scans `.claude/skills/**/*.md`
 ### Task 5: Update Documentation and Templates
 Remove all `.claude/skills/` references from AGENTS files and agents template; add MCP injection guidance
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `zeno/AGENTS.md` Quick Navigation table updated: replace skill file rows with "Guardrails and Workflows are injected by MCP tool responses; source of truth: `src/mcp/content/`"
 - [x] `zeno/AGENTS.md` removes any `<skills>` block or `.claude/skills/` path references
 - [x] Root `AGENTS.md` Skills section updated to describe MCP contextual injection pattern instead of SKILL.md files
@@ -128,7 +134,7 @@ Remove all `.claude/skills/` references from AGENTS files and agents template; a
 ### Task 6: Delete SKILL.md Files
 Delete all four SKILL.md files after verifying Tasks 1–5 are complete and injection is confirmed working
 
-**Acceptance Criteria**:
+**Acceptance**:
 - [x] `tests/mcp/guardrail-coverage.test.ts` passes (Task 4 complete)
 - [x] All tool handler tests pass with `guidance` field additions (Task 3 complete)
 - [ ] `.claude/skills/zeno-apply/SKILL.md` deleted — **DEFERRED**: user skipped file deletion; SKILL.md files remain but are no longer referenced; deletion can be done manually

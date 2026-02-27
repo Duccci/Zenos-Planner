@@ -4,7 +4,7 @@ import { GatesListOutputSchema, GateDetailSchema } from '../../../src/mcp/schema
 
 describe('Gate Handlers Integration', () => {
   it('parses and validates structured gates list output', async () => {
-    const mockData = { gates: [{ id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, created: new Date().toISOString(), started: null, completed: null, proposalCount: 0, completedProposalCount: 0, requirementCount: 0, testedRequirementCount: 0 }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } }
+    const mockData = { gates: [{ id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, created: new Date().toISOString(), started: null, completed: null, proposalCount: 0, completedProposalCount: 0, requirementCount: 0, testedRequirementCount: 0 }] }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = gateHandlers(fakeRegistry)
 

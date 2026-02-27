@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import type { ZodType } from 'zod'
+import { ZodError } from 'zod'
 import type { FunctionRegistry, FunctionResult } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -10,6 +11,7 @@ import {
   createNotImplementedHandler,
 } from './handler-factory.js'
 import type { ValidationResult } from './handler-factory.js'
+import { logger } from '../../utils/logger.js'
 
 export interface EntityActionConfig<T extends string> {
   entity: string
@@ -144,6 +146,21 @@ export function createEntityActionHandler<T extends string>(
         structuredContent: validatedOutput as Record<string, unknown>,
       }
     } catch (e) {
+      if (e instanceof ZodError) {
+        logger.error(`Zod validation error in ${config.entity}_action`, {
+          issues: e.issues.map((issue) => ({
+            path: issue.path.join('.') || '(root)',
+            message: issue.message,
+            code: issue.code,
+          })),
+          receivedArgs: args,
+        })
+      } else {
+        logger.error(`Unexpected error in ${config.entity}_action`, {
+          error: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+        })
+      }
       return handleError(e)
     }
   }

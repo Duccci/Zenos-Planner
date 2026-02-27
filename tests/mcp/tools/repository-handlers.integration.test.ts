@@ -4,7 +4,7 @@ import { ReposListOutputSchema } from '../../../src/mcp/schemas/repository-schem
 
 describe('Repository Handlers (integration)', () => {
   it('parses and validates structured repo list outputs', async () => {
-    const mockData = { repositories: [{ id: 'r1', name: 'repo1', type: 'service' as const, path: 'src/repo1', fileCount: 10, lineCount: 200 }], pagination: { skip: 0, take: 50, total: 1, hasMore: false } }
+    const mockData = { repositories: [{ id: 'r1', name: 'repo1', type: 'service' as const, path: 'src/repo1', fileCount: 10, lineCount: 200 }] }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
 
     const handlers = repositoryHandlers(fakeRegistry)
@@ -31,7 +31,7 @@ describe('Repository Handlers (integration)', () => {
   })
 
   it('repos_list with non-json fallback returns text output', async () => {
-    const mockData = { repositories: [], pagination: { skip: 0, take: 50, total: 0, hasMore: false } }
+    const mockData = { repositories: [] }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
     const res = await handlers.repos_action({ action: 'list', payload: {} })
