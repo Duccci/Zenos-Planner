@@ -20,6 +20,8 @@
 
 Implements proposal generation and management system that decomposes gate-specific requirements into actionable implementation proposals. Proposals are standardized markdown documents generated from requirement decomposition. Design decisions and specification changes made during a proposal are recorded as requirement updates in the SQLite database following RFC 2119 keyword conventions (MUST, SHOULD, MAY, etc.). Proposals serve as the handoff between planning (gates/requirements) and execution (implementation, git commits).
 
+During proposal generation the **task-distributor** agent (`agents/categories/09-meta-orchestration/task-distributor.md`) is invoked to analyse the full proposal set, classify dependencies, and produce an optimal execution plan that maximises parallel throughput. Tasks that share no file-level or logical dependencies are grouped into parallel execution sets; the dependency graph is annotated with these sets so downstream gates and agents can consume the plan directly without re-analysis.
+
 ## Objectives
 
 - [ ] Create proposal template system (markdown structure, sections, formatting)
@@ -28,6 +30,8 @@ Implements proposal generation and management system that decomposes gate-specif
 - [ ] Record design decisions during proposal/gate as RFC 2119 requirement updates in SQLite
 - [ ] Implement proposal storage in `zeno/proposals/gate-XX/` with proposal-to-requirement mapping
 - [ ] Implement proposal dependency analysis, parallel detection, and circular dependency detection
+- [ ] Invoke `task-distributor` agent post-generation to classify proposals into parallel execution sets and annotate the dependency graph
+- [ ] Expose parallel execution sets in proposal list output and MCP response
 - [ ] Implement `zeno proposal list`, `zeno proposal show`, `zeno proposal start` commands
 
 ## Context
@@ -57,6 +61,7 @@ Gate 01-06 established:
 - Proposal storage in `zeno/proposals/gate-XX/`
 - Proposal-to-requirement mapping
 - Proposal dependency analysis and sequencing
+- `task-distributor` agent invocation to produce parallel execution sets from the dependency graph
 - `zeno proposal list`, `zeno proposal show`, `zeno proposal start` commands
 - Proposal status tracking (pending, in_progress, completed, rejected)
 - Comprehensive test coverage (90% minimum)
@@ -195,6 +200,14 @@ graph LR
 - **Impact**: Dependency graph drives proposal execution order and parallel work identification
 - **Trade-offs**: Gained sequencing intelligence; added graph analysis complexity
 
+### 5. task-distributor Agent for Parallel Execution Planning
+
+- **Choice**: Invoke the `task-distributor` agent (`agents/categories/09-meta-orchestration/task-distributor.md`) immediately after the dependency graph is built to classify proposals into parallel execution sets
+- **Alternatives Considered**: Static topological sort only, manual parallelization annotation by the LLM caller
+- **Rationale**: `task-distributor` applies load-balancing and priority-scheduling algorithms specialised for distributed work allocation. Using it as a dedicated step decouples parallelization logic from proposal generation and reuses a vetted agent rather than duplicating its heuristics inside `ProposalGenerator`.
+- **Impact**: Each generated proposal set carries a `parallelSets: string[][]` field (ordered arrays of proposal hashes). Consumers (Gate 08 validation, Gate 09 approval, Gate 10 git integration) read the sets directly without re-computing ordering.
+- **Trade-offs**: Gained principled parallelization with load-balance variance <10% target; requires an agent call per gate generation (acceptable — runs once, results persisted)
+
 ### 4. Gate-Centric Historical Archival
 
 - **Choice**: Gate artifacts are the sole long-term archive target; proposals are completed in place and summarized in gate archives
@@ -226,6 +239,12 @@ graph LR
   - Purpose: Analyze proposal dependencies and detect parallelizable work
   - Changes: New component
   - Interfaces: `buildGraph(proposals)`, `getExecutionOrder()`, `getParallelSets()`
+
+- **TaskDistributorIntegration** (`src/generation/task-distributor-integration.ts`)
+  - Purpose: Bridge between `ProposalDependencyGraph` output and the `task-distributor` agent; formats the dependency graph as agent input, invokes the agent, parses the returned parallel execution plan, and annotates proposals with `parallelSetIndex`
+  - Changes: New component
+  - Interfaces: `distributeProposals(graph: ProposalDependencyGraph): Promise<ParallelExecutionPlan>`, `annotateProposals(proposals, plan): AnnotatedProposal[]`
+  - Agent Reference: `agents/categories/09-meta-orchestration/task-distributor.md`
 
 ### Diagram Updates
 
@@ -285,12 +304,19 @@ No new external dependencies required.
    - Build proposal dependency graph analyzer
    - Implement RFC 2119 requirement recording for spec changes
 
-5. **Implement CLI Commands**
+5. **Integrate task-distributor for Parallelization**
+   - Implement `TaskDistributorIntegration` to invoke `task-distributor` agent after graph build
+   - Format dependency graph as structured agent input (task list with dependency edges, priorities)
+   - Parse agent response: extract `parallelSets[][]` — ordered parallel execution buckets
+   - Annotate proposals with `parallelSetIndex` and persist via `ProposalStorage`
+   - Surface parallel sets in `zeno proposal list` output and MCP `proposal_action` response
+
+6. **Implement CLI Commands**
    - `zeno proposal list` with filtering (--gate, --status)
    - `zeno proposal show <hash>`
    - `zeno proposal start <hash>`
 
-6. **Test Cleanup**
+7. **Test Cleanup**
    - Refine tests, add edge cases, ensure coverage ≥90%
    - Validates all gate deliverables meet quality thresholds
 
@@ -347,6 +373,8 @@ No new external dependencies required.
 - [ ] Proposals created from requirements capture all essential implementation details
 - [ ] Proposal-to-requirement mapping covers all gate requirements
 - [ ] Proposal dependency graph correctly identifies parallel and sequential work
+- [ ] `task-distributor` agent invoked post-graph-build; parallel execution sets produced and stored
+- [ ] Proposals annotated with `parallelSetIndex`; sets visible in `zeno proposal list` and MCP responses
 - [ ] Design decisions recorded as RFC 2119 requirement updates in SQLite
 - [ ] Proposal status transitions (pending → in_progress) work correctly
 - [ ] Gate completion integrates completed proposal summaries into gate archival artifacts
@@ -375,18 +403,19 @@ Gate 08 (Automated Validation & Quality Gates) will implement automated validati
 
 ---
 
-**Document Version**: 1.1.0
-**Last Updated**: 2026-02-27
+**Document Version**: 1.2.0
+**Last Updated**: 2026-02-28
 **Versioning**: SemVer; bump on any change (minimum: PATCH).
 **Owner**: Zeno
 **Reviewers**: Zeno
 
 ### Change Log
 
-| Version | Date       | Summary                            | Author |
-| ------- | ---------- | ---------------------------------- | ------ |
-| 1.0.0   | 2026-02-04 | Initial version                    | Zeno   |
-| 1.1.0   | 2026-02-27 | Aligned with gate-prd-template.md  | Zeno   |
+| Version | Date       | Summary                                                          | Author |
+| ------- | ---------- | ---------------------------------------------------------------- | ------ |
+| 1.0.0   | 2026-02-04 | Initial version                                                  | Zeno   |
+| 1.1.0   | 2026-02-27 | Aligned with gate-prd-template.md                                | Zeno   |
+| 1.2.0   | 2026-02-28 | Integrate task-distributor agent for parallel proposal execution | Zeno   |
 
 **Related Documents**:
 

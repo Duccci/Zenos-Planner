@@ -23,10 +23,10 @@ export function extractRequirements(content: string): { id: string; description:
     .split('\n')
     .filter((line) => line.includes('#'))
     .map((line) => {
-      const hashMatch = /#([a-z0-9]{8})/.exec(line)
+      const hashMatch = /#([a-z0-9]{16})/.exec(line)
       return {
         id: hashMatch?.[1] ?? '',
-        description: line.replace(/.*#([a-z0-9]{8})/, '').trim(),
+        description: line.replace(/.*#([a-z0-9]{16})/, '').trim(),
       }
     })
     .filter((req) => req.id)

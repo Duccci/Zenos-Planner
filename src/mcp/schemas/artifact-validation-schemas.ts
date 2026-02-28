@@ -20,10 +20,10 @@ export type OutputFormat = z.infer<typeof OutputFormatEnum>
 export const ArtifactValidateInputSchema = z.object({
   /** Path to the artifact file on disk */
   artifactPath: z.string().min(1).optional(),
-  /** Hash reference (e.g. "a3f9c2d1") identifying the artifact */
+  /** Hash reference (e.g. "02e2ad5d6ecd6f46") identifying the artifact */
   artifactHash: z
     .string()
-    .regex(/^[a-z0-9]{8}$/, 'Artifact hash must be 8 lowercase alphanumeric characters')
+    .regex(/^[a-z0-9]{16}$/, 'Artifact hash must be 16 lowercase alphanumeric characters')
     .optional(),
   /** Type of artifact being validated */
   artifactType: ArtifactTypeEnum,

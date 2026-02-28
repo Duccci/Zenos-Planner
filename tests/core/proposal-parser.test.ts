@@ -8,8 +8,8 @@ const sampleGate = `# Gate: Example
 - Add logging support
 
 ## Requirements
-- #abcd1234: Add API endpoint
-- #ef567890: Update DB schema
+- #abcd12340ef56789: Add API endpoint
+- #ef5678901234abcd: Update DB schema
 
 ---
 `
@@ -23,8 +23,8 @@ describe('Proposal Parser', () => {
   it('extracts requirements', () => {
     const reqs = extractRequirements(sampleGate)
     expect(reqs.length).toBe(2)
-    expect(reqs[0].id).toBe('abcd1234')
-    expect(reqs[1].id).toBe('ef567890')
+    expect(reqs[0].id).toBe('abcd12340ef56789')
+    expect(reqs[1].id).toBe('ef5678901234abcd')
   })
 
   // ---------------------------------------------------------------------------
@@ -50,9 +50,9 @@ describe('Proposal Parser', () => {
     expect(result).toEqual([])
   })
 
-  it('extractRequirements filters out entries with no valid 8-char hash', () => {
-    // Lines with # but no valid 8-char alphanumeric hash trigger hashMatch?.[1] ?? '' path
-    // Use 3-char and 5-char fragments that are too short to match [a-z0-9]{8}
+  it('extractRequirements filters out entries with no valid 16-char hash', () => {
+    // Lines with # but no valid 16-char alphanumeric hash trigger hashMatch?.[1] ?? '' path
+    // Use 3-char and 5-char fragments that are too short to match [a-z0-9]{16}
     const content =
       '# Gate\n\n## Requirements\n- #abc: too short (3 chars)\n- #12345: five chars\n\n---\n'
     const result = extractRequirements(content)

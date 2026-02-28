@@ -8,7 +8,7 @@
 
 ## Overview
 
-Implements multi-repository and subproject support for distributed systems. Rather than building a static analysis engine, this gate leverages Zeno's MCP server to expose project structure to LLMs, which perform boundary analysis and recommend repository separation. Delivers repository declaration and CRUD in SQLite, cross-repo dependency tracking, LLM-driven boundary recommendation via MCP tools, and CLI commands for managing repositories. The coupling-analyzer agent (`agents/pipeline-agents/03-validation/coupling-analyzer.md`) handles coupling analysis as an LLM task rather than hardcoded metrics.
+Implements multi-repository and subproject detection for distributed systems. Combines Gate 02's static analysis engine (`CodeAnalyzer` — AST parsing, coupling metrics, dependency graph, LOC, import/export topology) with LLM-driven boundary analysis via the `architect-reviewer` subagent, giving the LLM structured, grounded codebase data to make well-informed boundary recommendations. Delivers repository CRUD in SQLite, cross-repo dependency tracking, a hybrid `detect` workflow (static analysis → LLM recommendation → human confirmation via `repos adjust`), and full `zeno repos` CLI commands including `add` and `remove` for manual declaration.
 
 ## Objectives
 
@@ -22,11 +22,11 @@ Implements multi-repository and subproject support for distributed systems. Rath
 
 ### LLM-Driven Boundary Recommendation
 
-- [ ] Expose project structure via MCP tool (`read_project_structure`) for LLM analysis
-- [ ] Leverage `coupling-analyzer` agent for boundary recommendations
-- [ ] LLM analyzes codebase via MCP and suggests repository boundaries with rationale
-- [ ] Support human override of LLM-recommended boundaries
-- [ ] No hardcoded coupling metrics calculator, domain boundary analyzer, or module size analyzer
+- [ ] Invoke Gate 02 `CodeAnalyzer` to produce structured codebase data (coupling, dependency graph, LOC, file counts, import/export topology)
+- [ ] Feed structured analysis output to `architect-reviewer` subagent (`awesome-claude-code-subagents/categories/04-quality-security/architect-reviewer.md`) for boundary recommendations
+- [ ] LLM receives grounded metrics and suggests repository boundaries with rationale
+- [ ] Support human confirmation or override of LLM-recommended boundaries via `repos adjust`
+- [ ] No automated boundary persistence without human confirmation (LLM recommendations are advisory only)
 
 ### Cross-Repository Dependency Tracking
 
@@ -39,7 +39,9 @@ Implements multi-repository and subproject support for distributed systems. Rath
 
 - [ ] Implement `zeno repos list` command (display declared repositories)
 - [ ] Implement `zeno repos deps` command (show cross-repo dependency graph)
-- [ ] Implement `zeno repos add` command (declare a new repository)
+- [ ] Implement `zeno repos detect` command (run hybrid: CodeAnalyzer → architect-reviewer LLM → present recommendations)
+- [ ] Implement `zeno repos adjust` command (apply or override LLM-recommended boundaries)
+- [ ] Implement `zeno repos add` command (manually declare a repository)
 - [ ] Implement `zeno repos remove` command (remove a repository declaration)
 
 ### Integration with Proposals
@@ -77,17 +79,18 @@ Gate 01-05 established:
 **In Scope**:
 
 - SQLite repositories table and CRUD operations
-- Manual and LLM-recommended repository declaration
+- Manual repository declaration (`repos add`, `repos remove`)
+- Hybrid detect workflow: Gate 02 `CodeAnalyzer` output → `architect-reviewer` subagent LLM recommendation → human confirmation
 - Cross-repository dependency tracking
 - Circular dependency detection
-- `zeno repos` commands (list, deps, add, remove)
-- File-level conflict detection for concurrent proposals
-- Leveraging existing `coupling-analyzer` agent for boundary analysis
+- `zeno repos` commands (list, deps, detect, adjust, add, remove)
+- File-level conflict detection for concurrent proposals (foundation for Gate 07)
+- Creating `architect-reviewer` agent configuration for coupling analysis use case
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
 
-- Hardcoded static analysis engine (coupling metrics, domain boundary analysis, module size analysis)
+- Automated boundary persistence without human confirmation (no threshold-based auto-classify)
 - Confidence scoring algorithms
 - Repository scaffolding (package.json, tsconfig generation — not Zeno's job)
 - Monorepo tooling integration (Turborepo, Nx)
@@ -114,12 +117,13 @@ Gate 01-05 established:
 
 [Project-level requirements were defined during `zeno init` at project inception. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.]
 
-| Hash    | Name                                     | Type            | Priority | How This Gate Addresses It                                              |
-| ------- | ---------------------------------------- | --------------- | -------- | ----------------------------------------------------------------------- |
-| #[hash] | Repository Declaration                   | functional      | must     | SQLite repositories table + CRUD operations                             |
-| #[hash] | Cross-Repo Dependency Tracking           | functional      | must     | Dependency tracking queries in SQLite                                   |
-| #[hash] | Concurrent Proposal Conflict Prevention  | non_functional  | must     | File-level conflict detection for concurrent proposals                  |
-| #[hash] | LLM-Driven Boundary Analysis             | functional      | should   | MCP tool exposing project structure for LLM consumption                 |
+| Hash                   | Name                                                                          | Type       | Priority | How This Gate Addresses It                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------- | ---------- | -------- | ------------------------------------------------------------------------------------------ |
+| #4bc74e36854c4221      | SQLite database stores requirements and repositories with no server dependency | constraint | must     | Adds `repositories` and `repo_dependencies` tables; implements RepositoryRegistry CRUD     |
+| #9b4ecdb42908c10f      | Use content-addressable SHA-256 hashes (16 chars) for all entity references   | constraint | must     | Repository hash registry — each declared repo gets a 16-char SHA-256 hash reference        |
+| #9c5150bf8e008175      | Track dependencies between requirements using content-addressed hashes        | functional | must     | Cross-repo dependency tracking and circular dependency detection in SQLite                  |
+| #10a621a3715172ae      | Expose all operations as MCP tools for LLM invocation                         | functional | must     | `repos_action` MCP tool handler with detect, list, deps, adjust, add, remove sub-actions   |
+| #cb19655eee60ab38      | Provide CLI interface for all Zeno operations via Commander.js                 | functional | must     | `zeno repos` CLI subcommands: list, deps, detect, adjust, add, remove                      |
 
 ### Gate-Specific Requirements
 
@@ -133,7 +137,11 @@ Gate 01-05 established:
 
 [Requirements transferred from other gates or shared across gates.]
 
-- None at this time.
+| Hash              | Title                                                                          | Source Gate | Relationship  | Consumed By                                                                   |
+| ----------------- | ------------------------------------------------------------------------------ | ----------- | ------------- | ----------------------------------------------------------------------------- |
+| #ac3ffa69e28bfed4 | Create SQLite database with complete schema and migration system               | gate-01     | depends-on    | Gate-06 adds `repositories` and `repo_dependencies` tables via schema migration |
+| #ebc7a086e26b111c | Create code analyzer using AST parsing for existing codebase analysis         | gate-02     | depends-on    | `detect` workflow invokes `CodeAnalyzer` to produce structured codebase data  |
+| #66db8316e02beb71 | Implement code metrics calculator for coupling, cohesion, and complexity       | gate-02     | depends-on    | Coupling / dependency metrics are serialized and fed to `architect-reviewer`  |
 
 ### Requirement-to-Task Breakdown
 
@@ -173,10 +181,10 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 **Key Deliverables**:
 
 - SQLite repository storage with CRUD operations and hash references
-- `zeno repos` CLI commands (list, deps, add, remove)
-- MCP `read_project_structure` tool for LLM boundary analysis
+- `zeno repos` CLI commands (list, deps, detect, adjust, add, remove)
+- Hybrid `detect` workflow: `CodeAnalyzer` metrics → `architect-reviewer` LLM recommendation → human confirmation
 - Cross-repository dependency tracking with circular dependency detection
-- File-level conflict detection for concurrent proposals
+- File-level conflict detection for concurrent proposals (foundation for Gate 07)
 
 **Quality Metrics**: Coverage [X]%, Security 0 issues, Lint <0.01%
 
@@ -198,12 +206,12 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 ## Technical Decisions for This Gate
 
-### 1. LLM-Driven Boundary Analysis via MCP
+### 1. Hybrid Boundary Analysis: Gate 02 Static Analysis + LLM Recommendation
 
-- **Choice**: Expose project structure via MCP tools; LLMs (with agent scripts like `coupling-analyzer`) analyze and recommend boundaries
-- **Alternatives Considered**: Hardcoded metrics-based detection (afferent/efferent coupling, domain boundaries, module size), heuristics-based (directory structure)
-- **Rationale**: LLMs understand project context, domain boundaries, and architectural intent better than threshold-based static analysis. Keeps Zeno lightweight — no metrics engine. Leverages existing agent infrastructure.
-- **Trade-offs**: Gained simplicity and context-awareness; depends on LLM capability for analysis quality
+- **Choice**: Gate 02's `CodeAnalyzer` produces structured codebase data (coupling metrics via `calculateCoupling`, dependency graph, file counts, LOC, import/export topology). This structured output is serialized and fed to the `architect-reviewer` subagent (`awesome-claude-code-subagents/categories/04-quality-security/architect-reviewer.md`) which recommends repository boundaries with rationale. Human confirms or overrides via `repos adjust` before any boundary is persisted to SQLite.
+- **Alternatives Considered**: (a) Pure LLM analysis against raw source — hallucination risk, excessive token overhead; (b) Hardcoded threshold-based auto-classification — no domain context, no human confirmation
+- **Rationale**: Gate 02 already built the analysis engine (`src/analysis/`); Gate 06 consumes it as structured LLM input. The `architect-reviewer` subagent specializes in coupling assessment, cohesion evaluation, component boundaries, and dependency management — directly aligned with this task. Boundaries remain advisory-only until human-confirmed.
+- **Trade-offs**: Gained recommendation quality and grounding via real metrics; LLM still required for boundary decisions; `detect` requires active MCP/agent connection
 
 ### 2. Repository Storage in SQLite
 
@@ -225,10 +233,10 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
   - Changes: New module mirroring GateRegistry/RequirementRegistry patterns
   - Interfaces: `declare()`, `remove()`, `list()`, `getByHash()`, `getDependencies()`
 
-- **read_project_structure MCP tool** (`src/mcp/tools/repos.ts`)
-  - Purpose: Exposes project file tree and existing declarations to LLM for boundary analysis
-  - Changes: New MCP tool registered in function registry
-  - Interfaces: Returns directory tree, file counts, existing repo declarations
+- **repos_detect workflow** (within `src/mcp/tools/repository-tools.ts` / `src/cli/commands/repos.ts`)
+  - Purpose: Orchestrates hybrid boundary detection: invokes `CodeAnalyzer` → serializes structured metrics → invokes `architect-reviewer` subagent → returns recommendations for human review
+  - Changes: Implement `detect` action handler that calls `src/analysis/code-analyzer.ts`, formats output, and delegates to subagent
+  - Interfaces: Returns `ReposDetectOutput` with `detected[]` boundaries, `changes` diff, and `summary` from LLM rationale
 
 - **ConflictDetector** (`src/core/conflict-detector.ts`)
   - Purpose: Detects overlapping file sets between concurrent proposals across repositories
@@ -237,8 +245,8 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 - **repos CLI commands** (`src/cli/commands/repos.ts`)
   - Purpose: User-facing `zeno repos` subcommands
-  - Changes: New command module registered with CLI router
-  - Interfaces: `list`, `deps`, `add`, `remove` subcommands
+  - Changes: Implement all repo subcommands (stubs exist from prior scaffold)
+  - Interfaces: `list`, `deps`, `detect`, `adjust`, `add`, `remove` subcommands
 
 ### Diagram Updates Required
 
@@ -248,8 +256,8 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 ### Integration Points
 
-- **MCP Function Registry** (`src/mcp/index.ts`): Register `read_project_structure` tool
-- **CLI Router** (`src/cli/index.ts`): Register `repos` command module
+- **MCP Function Registry** (`src/mcp/index.ts`): `repos_action` handler scaffold exists; implement `detect` subagent invocation
+- **CLI Router** (`src/cli/index.ts`): `repos` command module scaffold exists; implement all subcommands
 - **SQLite Schema** (`src/storage/schema.ts`): Add `repositories` and `repo_dependencies` tables
 - **Proposal System** (`src/core/proposals.ts`): Integrate ConflictDetector during proposal creation
 
@@ -258,7 +266,7 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 ### Security Considerations
 
 - Repository `path` fields must be validated to prevent path traversal (resolve to absolute paths, reject `..` sequences)
-- MCP `read_project_structure` must respect `.gitignore` / `.zenoignore` to avoid exposing sensitive files to LLMs
+- `CodeAnalyzer` output passed to `architect-reviewer` subagent must not include raw file contents — only structured metrics (file counts, LOC, coupling scores, import graph) to avoid leaking sensitive data
 - SQLite queries must use parameterized statements to prevent injection
 
 ### Performance Requirements
@@ -286,13 +294,13 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 ## Implementation Steps
 
-1. Add repositories table to SQLite schema
-2. Implement repository CRUD operations
-3. Expose project structure via MCP tool for LLM analysis
-4. Implement cross-repo dependency tracking queries
-5. Implement `zeno repos` commands (list, deps, add, remove)
-6. Implement file conflict detection for concurrent proposals
-7. Write comprehensive tests (unit tests for CRUD, dependency queries, conflict detection; integration tests for CLI commands and MCP tool)
+1. Add `repositories` and `repo_dependencies` tables to SQLite schema
+2. Implement `RepositoryRegistry` with CRUD operations (mirroring `GateRegistry`/`RequirementRegistry` patterns)
+3. Implement `detect` workflow: serialize `CodeAnalyzer` output → invoke `architect-reviewer` subagent → return structured recommendations
+4. Implement cross-repo dependency tracking queries with circular dependency detection
+5. Implement `zeno repos` commands: `list`, `deps`, `detect`, `adjust`, `add`, `remove`
+6. Implement `ConflictDetector` for concurrent proposal file-set overlap detection (foundation for Gate 07)
+7. Write comprehensive tests (unit tests for CRUD, dependency queries, conflict detection; integration tests for CLI commands and MCP `repos_action` tool)
 
 ## Known Issues & Limitations
 
@@ -305,7 +313,7 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 ### Technical Debt
 
 - Repository type enum (`main/service/library/tool`) may need extension for monorepo workspaces — deferred to Gate 10.
-- `read_project_structure` returns full directory tree; pagination/filtering deferred to a future gate.
+- `CodeAnalyzer` output size grows with codebase; filtering/summarization of metrics passed to LLM may be needed for very large codebases — deferred to a future gate.
 
 ### Future Improvements
 
@@ -319,9 +327,9 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 1. **LLM Boundary Quality**
    - **Impact**: Medium
-   - **Probability**: Medium
-   - **Mitigation**: Provide structured project structure output (file counts, directory depth, language breakdown) to improve LLM analysis quality; use `coupling-analyzer` agent prompt
-   - **Contingency**: Allow full manual override via `zeno repos add/remove`; LLM recommendations are advisory only
+   - **Probability**: Low-Medium
+   - **Mitigation**: Feed `CodeAnalyzer` structured metrics (coupling scores, dependency counts, LOC, import graph) rather than raw source — grounded inputs significantly improve recommendation quality; use `architect-reviewer` subagent which specializes in coupling assessment and component boundaries
+   - **Contingency**: Allow full manual override via `zeno repos add/remove/adjust`; LLM recommendations are advisory only
 
 2. **SQLite Schema Migration**
    - **Impact**: Low
@@ -331,11 +339,11 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 
 ### Process Risks
 
-1. **Scope Creep into Static Analysis**
+1. **Scope Creep into Auto-Classification (Boundary Persistence Without Human Confirmation)**
    - **Impact**: High
-   - **Probability**: Medium
-   - **Mitigation**: Requirements explicitly exclude hardcoded coupling metrics, domain boundary analysis, and module size calculators; enforce in code review
-   - **Contingency**: Reject PRs that introduce threshold-based static analysis; defer to coupling-analyzer agent
+   - **Probability**: Low
+   - **Mitigation**: `detect` workflow only returns recommendations; boundaries are persisted only via `repos adjust` or `repos add` with explicit human action
+   - **Contingency**: Reject PRs that auto-persist boundaries from LLM output; enforce human-confirmation gate in code review
 
 ## Gate Completion Criteria
 
@@ -344,7 +352,9 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 - [ ] Circular dependencies correctly detected and reported
 - [ ] `zeno repos list` shows all declared repositories with metadata
 - [ ] `zeno repos deps` displays dependency graph
-- [ ] `zeno repos add/remove` manage repository declarations
+- [ ] `zeno repos detect` runs `CodeAnalyzer` → invokes `architect-reviewer` subagent → returns boundary recommendations
+- [ ] `zeno repos adjust` persists human-confirmed boundary changes
+- [ ] `zeno repos add/remove` manage manual repository declarations
 - [ ] LLM can analyze project structure via MCP and recommend boundaries
 - [ ] File conflict detection prevents concurrent proposals from overlapping
 - [ ] All tests passing with TypeScript strict mode
@@ -356,8 +366,10 @@ Multi-repo and subproject detection capability delivered. Repositories can be de
 ### Implementation Notes
 
 - Follow the existing `GateRegistry` and `RequirementRegistry` patterns when implementing `RepositoryRegistry` to maintain consistency.
-- The `read_project_structure` MCP tool should return a stable JSON schema so the `coupling-analyzer` agent prompt can reference field names deterministically.
+- The `detect` workflow serializes `CodeAnalyzer`'s `AnalysisResult` to a stable JSON schema before passing to the `architect-reviewer` subagent; field names should be documented so the agent prompt can reference them deterministically.
+- The `architect-reviewer` subagent is located at `awesome-claude-code-subagents/categories/04-quality-security/architect-reviewer.md` (uses `opus` model, tools: Read/Write/Edit/Bash/Glob/Grep). The subagent's coupling assessment, component boundaries, and dependency management capabilities make it directly applicable to this task.
 - Conflict detection should be integrated as a non-blocking check that warns rather than hard-blocks proposal creation; hard enforcement can be added in Gate 07.
+- Scaffold for `repos_action` MCP tool, schemas, and CLI stub commands already exists and needs implementation (not creation from scratch).
 
 ### Proposal Summary
 
@@ -385,6 +397,8 @@ Gate 07 (Proposal Generation) will build on the repository and dependency founda
 | ------- | ---------- | ------------------------------------- | ------ |
 | 1.0.0   | 2026-02-04 | Initial version                       | zeno   |
 | 1.1.0   | 2026-02-27 | Added missing template sections       | zeno   |
+| 1.2.0   | 2026-02-28 | Hybrid detect approach; scope fix     | zeno   |
+| 1.3.0   | 2026-02-28 | Populate req hashes; inherited reqs   | zeno   |
 
 **Related Documents**:
 

@@ -49,11 +49,12 @@ describe('Common Schemas', () => {
     })
 
     it('should validate requirement hashes', () => {
-      expect(() => common.RequirementHashSchema.parse('abc12345')).not.toThrow()
-      expect(() => common.RequirementHashSchema.parse('12345678')).not.toThrow()
-      expect(() => common.RequirementHashSchema.parse('abcdefgh')).not.toThrow()
+      expect(() => common.RequirementHashSchema.parse('abc123450def5678')).not.toThrow()
+      expect(() => common.RequirementHashSchema.parse('1234567890abcdef')).not.toThrow()
+      expect(() => common.RequirementHashSchema.parse('abcdefghijklmnop')).not.toThrow()
       expect(() => common.RequirementHashSchema.parse('short')).toThrow()
-      expect(() => common.RequirementHashSchema.parse('ABC12345')).toThrow()
+      expect(() => common.RequirementHashSchema.parse('ABC1234567890DEF')).toThrow()
+      expect(() => common.RequirementHashSchema.parse('abc12345')).toThrow() // 8 chars no longer valid
     })
 
     it('should validate commit hashes', () => {
@@ -300,7 +301,7 @@ describe('Requirement Schemas', () => {
 
     it('should validate requirement summary', () => {
       const summary = {
-        hash: 'abc12345',
+        hash: 'abc123450def5678',
         title: 'Requirement 1',
         type: 'functional',
         gateId: 'gate-01',
@@ -313,10 +314,10 @@ describe('Requirement Schemas', () => {
   describe('req_deps', () => {
     it('should validate dependency graph', () => {
       const graph = {
-        root: 'abc12345',
+        root: 'abc123450def5678',
         nodes: [
           {
-            hash: 'abc12345',
+            hash: 'abc123450def5678',
             title: 'Req 1',
             type: 'functional',
             gateId: 'gate-01'
@@ -324,8 +325,8 @@ describe('Requirement Schemas', () => {
         ],
         edges: [
           {
-            from: 'abc12345',
-            to: 'def67890',
+            from: 'abc123450def5678',
+            to: 'def678901234abcd',
             type: 'blocks'
           }
         ]
@@ -621,11 +622,11 @@ describe('Schema Integration', () => {
     expect(() => requirement.ReqListInputSchema.parse(listInput)).not.toThrow()
 
     // Show requirement details
-    const showInput = { hash: 'abc12345' }
+    const showInput = { hash: 'abc123450def5678' }
     expect(() => requirement.ReqShowInputSchema.parse(showInput)).not.toThrow()
 
     // Check dependencies
-    const depsInput = { hash: 'abc12345' }
+    const depsInput = { hash: 'abc123450def5678' }
     expect(() => requirement.ReqDepsInputSchema.parse(depsInput)).not.toThrow()
 
     // Requirement lifecycle updates are recorded via proposal approvals and gate archival (no DB status schema to validate)

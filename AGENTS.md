@@ -117,14 +117,14 @@ A relationship between any two Zeno entities (gates, requirements, proposals, re
 Query dependencies: `zeno req deps #hash` shows dependency graph for a requirement.
 
 **Multi-Repo**
-Project spanning multiple independent repositories (services, libraries, tools). Zeno detects boundaries automatically:
+Project spanning multiple independent repositories (services, libraries, tools). Zeno uses a hybrid detection approach:
 
-- Coupling metrics (afferent/efferent coupling)
-- Domain boundaries (bounded contexts)
-- Module size (LOC, complexity)
-- Confidence scoring (0.0-1.0)
+- Gate 02's `CodeAnalyzer` produces structured metrics (coupling, dependency graph, LOC, file counts, import/export topology)
+- Structured metrics are fed to the `architect-reviewer` specialist agent, which recommends repository boundaries with rationale
+- Human confirms or overrides recommendations via `zeno repos adjust`
+- Manual declaration always available via `zeno repos add` / `zeno repos remove`
 
-Use `zeno repos list` to see detected repositories and `zeno repos deps` for cross-repo dependency visualization.
+Use `zeno repos list` to see declared repositories, `zeno repos detect` to run hybrid detection, and `zeno repos deps` for cross-repo dependency visualization.
 
 **Git Worktree**
 Isolated working directory for a proposal, stored at `.local/worktrees/{proposal-hash}/` (not version-controlled). Enables:
@@ -240,10 +240,12 @@ project-root/
 | | `zeno req transfer <hash> <gate-id>` | Transfer requirement to another gate |
 | **Architecture** | `zeno arch generate` | Generate all diagrams |
 | | `zeno arch show <type>` | Show specific diagram type |
-| **Repositories** | `zeno repos list` | List detected repositories |
-| | `zeno repos deps` | Show cross-repo dependencies |
-| | `zeno repos detect` | Re-run boundary detection |
-| | `zeno repos adjust` | Manually adjust boundaries |
+| **Repositories** | `zeno repos list` | List declared repositories |
+| | `zeno repos deps` | Show cross-repo dependency graph |
+| | `zeno repos detect` | Run hybrid: CodeAnalyzer → architect-reviewer LLM → present boundary recommendations |
+| | `zeno repos adjust` | Apply or override LLM-recommended boundaries |
+| | `zeno repos add` | Manually declare a new repository |
+| | `zeno repos remove` | Remove a repository declaration |
 | **Proposals** | `zeno proposal list [--gate <id>]` | List proposals |
 | | `zeno proposal show <hash>` | Show proposal details |
 | | `zeno proposal start <hash>` | Start proposal (creates worktree) |

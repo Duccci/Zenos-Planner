@@ -260,6 +260,24 @@ export const PROPOSAL_GENERATION_WORKFLOW: WorkflowStep[] = [
     guidance:
       'Resolve all hashes to human-readable names in user-facing output. Never expose raw hash values without context.',
   },
+  {
+    order: 12,
+    title: 'Render Proposal Dependency Graph',
+    description:
+      'After all proposals and their dependencies are established, render a Mermaid graph (left-to-right) showing every proposal as a node and each requires/blocks relationship as a directed edge. This graph gives the user a visual overview of the execution order before implementation begins.',
+    actions: [
+      'Collect all proposals for this gate (title only — no hashes in the diagram)',
+      'Collect all dependency relationships (requires/blocks) from each proposal\'s Dependencies section',
+      'Render as a Mermaid diagram using `graph LR` direction',
+      'Each node ID: camelCase or short slug derived from the proposal title (e.g., "schemaMigration")',
+      'Each node label: plain text title in quotes (e.g., `schemaMigration["Schema Migration"]`)',
+      'Each dependency edge: `A --> B` using node IDs (A must complete before B)',
+      'Standalone proposals (no dependencies): include as isolated nodes',
+      'Never use hash values (#abc123) as node IDs or labels',
+    ],
+    guidance:
+      'Use graph LR so the diagram reads left-to-right reflecting execution order. All node IDs and labels must be human-readable titles — never raw hashes. Example:\n\n```mermaid\ngraph LR\n  schemaMigration["Schema Migration"]\n  repositoryCrud["Repository CRUD"]\n  cliCommands["CLI Commands"]\n  tests["Tests"]\n  schemaMigration --> repositoryCrud\n  repositoryCrud --> cliCommands\n  repositoryCrud --> tests\n```',
+  },
 ]
 
 // ─── Gate Generation Workflow ──────────────────────────────────────────────────

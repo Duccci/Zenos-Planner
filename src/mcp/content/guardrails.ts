@@ -24,6 +24,13 @@ export interface GuardrailEntry {
   validatorRef?: string
   /** Explanation of why it is or isn't validator-enforced */
   reason: string
+  /**
+   * Agent(s) from agents/categories/ to consult or delegate to when this
+   * narrative guardrail fires. Drawn from 04-quality-security and
+   * 09-meta-orchestration so vague principles have a concrete escalation path.
+   * Format: '<category-slug>/<agent-name>' — matches the agent's .md filename.
+   */
+  agentRef?: string[]
 }
 
 // ─── Apply Phase Guardrails ────────────────────────────────────────────────────
@@ -71,6 +78,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Assume user approval: proposals are reviewed and approved before apply begins (no separate approval step required)',
     mustHaveValidator: false,
     reason: 'Process assumption: documented in approval workflow; not a runtime constraint',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
   },
   {
     id: 'apply-006',
@@ -78,6 +86,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Implement straightforward solutions; add complexity only when required',
     mustHaveValidator: false,
     reason: 'Design principle: agent guidance, not a system-enforceable constraint',
+    agentRef: ['04-quality-security/code-reviewer', '04-quality-security/architect-reviewer'],
   },
   {
     id: 'apply-007',
@@ -85,6 +94,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Keep changes tightly scoped to proposal tasks',
     mustHaveValidator: false,
     reason: 'Design principle: scope discipline; reinforced by validateScope but "tightly scoped" is subjective',
+    agentRef: ['09-meta-orchestration/task-distributor', '04-quality-security/code-reviewer'],
   },
   {
     id: 'apply-008',
@@ -108,6 +118,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Limit test changes to those that directly validate the updated target objects; do not broadly alter the test suite without explicit approval.',
     mustHaveValidator: false,
     reason: 'Approval gate: validation falls to human review + automated coverage checks; "directly validates" is subjective',
+    agentRef: ['04-quality-security/qa-expert', '04-quality-security/test-automator'],
   },
   {
     id: 'apply-011',
@@ -131,6 +142,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Solitary proposals – Requirement updates: Solitary proposals have no parent gate and must directly update requirements via zeno req status <hash> implemented (not through gate completion).',
     mustHaveValidator: false,
     reason: 'Process instruction: operational procedure for requirement tracking; not a runtime constraint',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/context-manager'],
   },
   {
     id: 'apply-014',
@@ -146,6 +158,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Review dependencies for context only; do not act on, implement, or pre-empt work that belongs to other proposals or later gates.',
     mustHaveValidator: false,
     reason: 'Behavioral principle: agent workflow guidance; no deterministic validator can enforce intent',
+    agentRef: ['09-meta-orchestration/multi-agent-coordinator', '09-meta-orchestration/context-manager'],
   },
   {
     id: 'apply-016',
@@ -153,6 +166,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Use quality thresholds from config_get() instead of hard-coded values',
     mustHaveValidator: false,
     reason: 'Development practice: configuration hygiene; validated at quality check time via quality-validator.ts',
+    agentRef: ['09-meta-orchestration/performance-monitor', '04-quality-security/code-reviewer'],
   },
   {
     id: 'apply-017',
@@ -160,6 +174,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Wait for human approval if automated checks fail',
     mustHaveValidator: false,
     reason: 'Approval gate: human decision point; documented in workflow, not a runtime constraint',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/error-coordinator'],
   },
   {
     id: 'apply-018',
@@ -175,6 +190,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'DO NOT rename proposal files — proposals remain in active proposals directory until gate completion',
     mustHaveValidator: false,
     reason: 'File convention: human enforces via git review; inexpensive to violate and caught in git review',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
   },
   {
     id: 'apply-020',
@@ -182,6 +198,7 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     rule: 'DO NOT move proposal files to archive — archival happens automatically when gate is completed',
     mustHaveValidator: false,
     reason: 'File convention: archival is automatic at gate completion; this prevents premature manual moves',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
   },
 ]
 
@@ -380,6 +397,7 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
     rule: 'NEVER use direct database access (better-sqlite3, execSync, or raw SQL). All database queries must use MCP tools: proposal_action, gates_action, requirement_action, or config_get.',
     mustHaveValidator: false,
     reason: 'Architectural principle: enforced via code review and tool design. MCP tools provide single source of truth for all database operations with schema validation via Zod.',
+    agentRef: ['04-quality-security/security-auditor', '04-quality-security/code-reviewer'],
   },
   {
     id: 'apply-022',
@@ -387,6 +405,7 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
     rule: 'CLI commands that need data must invoke MCP tools via invokeCliTool() helper, never getDatabase() or .prepare().get().',
     mustHaveValidator: false,
     reason: 'Implementation guidance: CLI commands use invokeProposalAction(), invokeGatesAction(), etc. to access data through the MCP layer with proper validation.',
+    agentRef: ['04-quality-security/architect-reviewer', '04-quality-security/code-reviewer'],
   },
   {
     id: 'apply-023',
@@ -394,6 +413,7 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
     rule: 'When implementing new handlers or functions, validate all inputs with Zod schemas defined in src/mcp/schemas/ before querying the database.',
     mustHaveValidator: false,
     reason: 'Best practice: schema-first approach ensures type safety and prevents invalid queries from reaching the database layer.',
+    agentRef: ['04-quality-security/code-reviewer', '04-quality-security/security-auditor'],
   },
   {
     id: 'proposal-011',
@@ -428,8 +448,38 @@ export const ALL_GUARDRAILS: GuardrailEntry[] = [
  * via Zod validation errors on the preReview field — they do not need to be
  * repeated as text in the response body.
  *
- * @returns Array of plain rule strings — minimal LLM token cost.
+ * When a narrative rule has an `agentRef`, the agent name(s) are appended as
+ * a delegation hint so agents know who to consult rather than guessing.
+ *
+ * @returns Array of rule strings with optional agent delegation hints.
  */
 export function toNarrativeRules(entries: GuardrailEntry[]): string[] {
-  return entries.filter(g => !g.mustHaveValidator).map(g => g.rule)
+  return entries
+    .filter((g) => !g.mustHaveValidator)
+    .map((g) => {
+      if (g.agentRef && g.agentRef.length > 0) {
+        const agents = g.agentRef.map((a) => `/${a.split('/').pop()}`).join(', ')
+        return `${g.rule} (consult: ${agents})`
+      }
+      return g.rule
+    })
+}
+
+/**
+ * Returns all narrative guardrail entries that carry an `agentRef`.
+ * Useful for building delegation tables or populating structured responses
+ * with specific agent escalation paths.
+ *
+ * @returns Map of guardrail ID → agent name list.
+ */
+export function toAgentDelegationMap(
+  entries: GuardrailEntry[]
+): Map<string, string[]> {
+  const map = new Map<string, string[]>()
+  for (const g of entries) {
+    if (!g.mustHaveValidator && g.agentRef && g.agentRef.length > 0) {
+      map.set(g.id, g.agentRef)
+    }
+  }
+  return map
 }
