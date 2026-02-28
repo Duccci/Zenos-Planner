@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
 import { Command } from 'commander'
 import { registerDbCommands } from '../../../src/cli/commands/db.js'
 
-const mockGetDatabasePath = vi.fn().mockReturnValue('/test/requirements.db')
+const mockGetDatabasePath = vi.fn().mockReturnValue('/test/registry.db')
 const mockCleanupStaleFiles = vi.fn()
 const mockValidateDatabaseIntegrity = vi.fn()
 const mockCheckpointWAL = vi.fn()
@@ -46,13 +46,13 @@ describe('DB commands action coverage', () => {
 
       await program.parseAsync(['node', 'test', 'db', 'cleanup'])
 
-      expect(mockCleanupStaleFiles).toHaveBeenCalledWith('/test/requirements.db')
+      expect(mockCleanupStaleFiles).toHaveBeenCalledWith('/test/registry.db')
     })
 
     it('should report stale files removed', async () => {
       mockCleanupStaleFiles.mockReturnValue({
         deleted: 2,
-        files: ['requirements.db-wal', 'requirements.db-shm'],
+        files: ['registry.db-wal', 'registry.db-shm'],
       })
 
       await program.parseAsync(['node', 'test', 'db', 'cleanup'])

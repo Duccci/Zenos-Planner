@@ -14,7 +14,7 @@ Implements the requirements database and CRUD layer that powers Zeno's project m
 ### Requirements Fulfilled
 
 | Hash | Name | Fulfilled By |
-|------|------|-------------|
+| ---- | ---- | ------------ |
 | #p04reqmgmt | Requirements Management System | #p04g03storage |
 | #p04deptrack | Dependency Tracking | #p04g02hash, #p04g04depgraph |
 | #p04decomp | Requirement Decomposition | #p04g05reqgen |
@@ -31,7 +31,7 @@ Implements the requirements database and CRUD layer that powers Zeno's project m
 - **Challenges Resolved**:
   - Null/undefined type conversion in dependency graph fixed during schema migration
   - Circular dependency detection via DFS with recursion stack tracking, transaction rollback on detection
-  - Hash collision handling via versioned suffixes (_v2, _v3)
+  - Hash collision handling via versioned suffixes (`_v2`, `_v3`)
   - WAL checkpoint on graceful shutdown prevents file accumulation
 - **Test Dependencies**:
   - MCP tool integration tests and CLI command integration tests deferred from proposal #p04g09test (tasks 5 & 6)
@@ -52,7 +52,7 @@ Proposals/gates unblocked by this gate:
 
 **#p04g01dbmig** - Database Schema Migration: Removed status column from requirements table per approval semantics design. Database regenerated with 14-column schema, idempotent migration script created.
 
-**#p04g02hash** - Hash Implementation: SHA-256 hash generation (first 16 chars) with collision detection and versioning (_v2, _v3 suffixes). Integrated into requirement storage for content-addressable references.
+**#p04g02hash** - Hash Implementation: SHA-256 hash generation (first 16 chars) with collision detection and versioning (`_v2`, `_v3` suffixes). Integrated into requirement storage for content-addressable references.
 
 **#p04g03storage** - Requirement Storage Layer: Complete CRUD operations with better-sqlite3 transactions. Hierarchical queries (children, ancestors, by level), circular dependency validation, cascade deletion.
 
@@ -71,6 +71,7 @@ Proposals/gates unblocked by this gate:
 **#p04g10affprop** - Track Affected Proposals: findProposalsReferencingRequirement() scans proposals for requirement hash references. Integrated into transferRequirement() for impact analysis.
 
 **Artifacts Created**:
+
 - `src/storage/migrations/002_remove_status_column.sql` - Idempotent migration
 - `src/generation/requirement-storage.ts` - Complete CRUD with transactions, transfer, graph building
 - `src/generation/requirement-generator.ts` - Pattern-based extraction, decomposition, confidence scoring
@@ -94,6 +95,7 @@ Proposals/gates unblocked by this gate:
 - `vitest.config.ts` - Module-specific coverage thresholds
 
 **Quality Metrics**:
+
 - Total Tests: 974 passing (115 test files)
 - New Tests: 130+ test cases across gate-04 modules
 - Coverage: 90%+ for core modules (generation, storage, utils/hash)

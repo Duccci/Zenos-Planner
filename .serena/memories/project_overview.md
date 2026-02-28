@@ -1,31 +1,36 @@
 # Zeno's Planner - Project Overview
 
 ## Purpose
+
 Zeno's Planner is an AI-powered project management CLI tool and MCP server. It helps developers progressively approach project completion through iterative "gates" (milestones), inspired by Zeno's dichotomy paradox. It decomposes projects into: **Gates → Architecture → Requirements → Subprojects → Proposals**, with dependency tracking and multi-repository support.
 
 ## Core Concept: Gates Are the Unit of Progress
+
 - **Gates** are concrete, measurable milestones representing features delivered. They are permanent records.
 - **Proposals** are *transient* implementation planning documents. They are created per-gate to plan work, then archived or discarded once the gate completes. Do not treat proposal files as long-lived artifacts.
 - Gate completion is tracked via git tags; proposals are archived into `zeno/gates/archive/` on gate completion.
 
 ## Tech Stack
+
 - **Runtime**: Node.js >=24.0.0
 - **Language**: TypeScript 5.x (strict mode, ES2024, NodeNext modules)
 - **Build**: `tsc` → `dist/`
 - **CLI**: Commander.js (entry: `bin/zeno.js` → `dist/cli/index.js`)
 - **MCP Server**: `@modelcontextprotocol/sdk` (entry: `src/mcp/server.ts`)
-- **Database**: `better-sqlite3` (SQLite at `zeno/.zeno/requirements.db`)
+- **Database**: `better-sqlite3` (SQLite at `zeno/.zeno/registry.db`)
 - **Testing**: Vitest (v8 coverage, 90% threshold)
 - **Linting**: ESLint 9 + typescript-eslint (strict + stylistic)
 - **Formatting**: Prettier (no semicolons, single quotes, 2-space indent, 100 col)
 - **Git Hooks**: Husky
 
 ## Key Libraries
+
 `zod`, `chalk`, `ora`, `@inquirer/prompts`, `simple-git`, `js-yaml`, `commander`,
 `@babel/parser`, `@babel/traverse`, `dependency-cruiser`, `graphviz`
 
 ## Full Codebase Structure (verified 2026-02-17)
-```
+
+```text
 src/
   index.ts
   cli/
@@ -86,6 +91,7 @@ src/
 ## Gate Roadmap (auto-updated from project-overview.json)
 
 ### Completed (5/14)
+
 - **Gate 01: Core Infrastructure** *(completed 2026-01-28)*
 - **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30)*
 - **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04)*
@@ -93,9 +99,11 @@ src/
 - **Gate 05: Architecture & Diagram Generation** *(completed 2026-02-21)*
 
 ### Current
+
 - **Gate 06: Multi-Repo & Subproject Detection** ← *pending*
 
 ### Upcoming
+
 - Gate 07: Proposal Generation & Management
 - Gate 08: Automated Validation & Quality Gates
 - Gate 09: Human Approval & Rejection Workflow
@@ -106,6 +114,7 @@ src/
 - Gate 14: Documentation & Polish
 
 ## Quality Thresholds (Non-Configurable in MVP)
+
 - Code coverage: ≥90%
 - Security vulnerabilities: 0 known CVEs
 - Linting error rate: <0.01%
@@ -113,6 +122,7 @@ src/
 - All tests passing
 
 ## Architecture Principles
+
 1. Lightweight — minimal dependencies, fast, portable
 2. LLM-Driven Execution — CLI functions called by AI; humans only approve
 3. Human-in-the-Loop — approval at gate gen, repo boundaries, proposals, gate completion
@@ -123,25 +133,28 @@ src/
 8. Parallel-First — git worktrees for isolated concurrent proposal development
 
 ## Database (SQLite — 2 Core Tables in MVP)
+
 - `requirements` — hierarchical, project/gate level, with status (pending → implemented → tested)
 - `repositories` — multi-repo boundary tracking
 - No proposal table — proposals stored as Markdown files, tracked via Git
 - Full data model in PRD includes: User, Project, Gate, Requirement, Artifact, Dependency, Repository, RequirementRepository, Proposal, HashRegistry, StateHistory (all with indexes)
 
 ## MCP Handler-First Policy
+
 - `src/mcp/tools/*` handler-based tools take precedence over CLI-backed function implementations
 - Zod schemas in `src/mcp/schemas/*` validate all tool inputs/outputs
 - Handlers registered via `registerTools()` in `src/mcp/tool-handlers.ts`
 - Return validated `structuredContent`; function implementations are fallback only
 
 ## File Locations (Self-Hosted Project)
+
 | Artifact | Location |
-|----------|----------|
+| -------- | -------- |
 | Project PRD | `zeno/PROJECT_PRD.md` |
 | Architecture diagrams | `zeno/architecture/*.md` |
 | Gate PRDs (active) | `zeno/gates/gate-XX-name.md` |
 | Gate archives | `zeno/gates/archive/<gate-id>.md` |
 | Proposals (transient) | `zeno/proposals/gate-XX/<name>.md` |
 | Proposal archive | `zeno/proposals/archive/` |
-| Requirements DB | `zeno/.zeno/requirements.db` |
+| Requirements DB | `zeno/.zeno/registry.db` |
 | Configuration | `zeno/.zeno/config.json` |

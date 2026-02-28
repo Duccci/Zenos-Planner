@@ -10,7 +10,7 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { normalizeGateId } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
-import { normalizeDateTime } from '../utils/datetime.js'
+import { resolveLastUpdated } from '../utils/datetime.js'
 
 import { join } from 'node:path'
 import { getZenoDir } from '../utils/config.js'
@@ -51,9 +51,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           sequence: g.sequence,
           status: g.status,
           type: 'feature',
-          created: g.completedAt ? normalizeDateTime(g.completedAt) : now,
-          started: g.status === 'in_progress' ? now : null,
-          completed: g.completedAt ? normalizeDateTime(g.completedAt) : null,
+          lastUpdated: resolveLastUpdated(g.completedAt, now),
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
@@ -101,9 +99,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         objectives: [],
         requirements: [],
         proposals: [],
-        created: now,
-        started: gate.status === 'in_progress' ? now : null,
-        completed: gate.completedAt ? normalizeDateTime(gate.completedAt) : null,
+        lastUpdated: resolveLastUpdated(gate.completedAt, now),
       }
     },
     {

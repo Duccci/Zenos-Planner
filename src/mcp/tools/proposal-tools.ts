@@ -193,7 +193,7 @@ export function proposalHandlers(
                   previousStatus: 'completed',
                   newStatus: 'completed' as const,
                   approvedAt:
-                    (showData['completedAt'] as string | undefined) ?? new Date().toISOString(),
+                    (showData['lastUpdated'] as string | undefined) ?? new Date().toISOString(),
                 },
               }
             }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { FunctionRegistry } from '../../src/integration/function-registry.js'
 import { registerGatesOps } from '../../src/integration/gates-registry.js'
 
@@ -167,7 +167,7 @@ describe('gates-registry coverage', () => {
       expect(result.success).toBe(true)
     })
 
-    it('should set started date for in_progress gate', async () => {
+    it('should set lastUpdated for in_progress gate', async () => {
       const gateSummary = {
         id: 'gate-02',
         name: 'Core',
@@ -184,8 +184,8 @@ describe('gates-registry coverage', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { started: string | null }
-      expect(data.started).not.toBeNull()
+      const data = result.data as { lastUpdated: string }
+      expect(data.lastUpdated).toBeTruthy()
     })
   })
 

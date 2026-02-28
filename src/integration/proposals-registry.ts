@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
-import { normalizeDateTime } from '../utils/datetime.js'
+import { resolveLastUpdated } from '../utils/datetime.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -66,8 +66,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           gateId: (row['gate_id'] as string | null) ?? 'solitary',
           tasksCompleted: 0,
           totalTasks: 0,
-          created: normalizeDateTime(row['created_at'] as string | null),
-          completedAt: row['approved_at'] ? normalizeDateTime(row['approved_at'] as string) : null,
+          lastUpdated: resolveLastUpdated(row['approved_at'] as string | null, row['created_at'] as string | null),
         })),
       }
     },
@@ -214,8 +213,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           filesAffected.length > 0
             ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
             : undefined,
-        created: normalizeDateTime(proposal['created_at'] as string | null),
-        completedAt: proposal['approved_at'] ? normalizeDateTime(proposal['approved_at'] as string) : null,
+        lastUpdated: resolveLastUpdated(proposal['approved_at'] as string | null, proposal['created_at'] as string | null),
       }
     },
     {
@@ -706,6 +704,20 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
           if (phasesValidation.errors) errors.push(...phasesValidation.errors)
           if (phasesValidation.warnings) warnings.push(...phasesValidation.warnings)
+
+          // Template section validation — compare proposal headings against proposal-template.md
+          try {
+            const { loadTemplateSections, validateTemplateSections } =
+              await import('../mcp/validators/template-sections-validator.js')
+            const templateSections = await loadTemplateSections('proposal')
+            const sectionResult = validateTemplateSections(proposalContent, templateSections)
+            if (sectionResult.errors) errors.push(...sectionResult.errors)
+            if (sectionResult.warnings) warnings.push(...sectionResult.warnings)
+          } catch (templateErr) {
+            // Non-fatal: template file may be absent in restricted environments
+            const msg = templateErr instanceof Error ? templateErr.message : String(templateErr)
+            warnings.push(`Could not validate proposal sections against template: ${msg}`)
+          }
         }
       } catch (err) {
         // If we can't read the file or proposal locator doesn't exist, skip phase validation

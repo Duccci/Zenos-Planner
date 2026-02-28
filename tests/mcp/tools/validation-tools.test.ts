@@ -20,7 +20,11 @@ describe('validation-tools', () => {
     const handlers = validationHandlers({} as any)
     await mkdir(tmpDir, { recursive: true })
     const filePath = path.join(tmpDir, 'proposal-small.md')
-    await writeFile(filePath, '## Summary\n## Tasks\n## Files Affected\n## Dependencies\n', 'utf8')
+    await writeFile(
+      filePath,
+      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Single-Phase Requirement\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
+      'utf8'
+    )
     const res = await handlers.artifact_validate({
       artifactPath: filePath,
       artifactType: 'proposal',
@@ -40,7 +44,11 @@ describe('validation-tools', () => {
     const handlers = validationHandlers({} as any)
     await mkdir(tmpDir, { recursive: true })
     const filePath = path.join(tmpDir, 'proposal-json.md')
-    await writeFile(filePath, '## Summary\n## Tasks\n## Files Affected\n## Dependencies\n', 'utf8')
+    await writeFile(
+      filePath,
+      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Single-Phase Requirement\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
+      'utf8'
+    )
 
     const res = await handlers.artifact_validate({
       artifactPath: filePath,
@@ -81,12 +89,23 @@ describe('validation-tools', () => {
     expect(text).toContain('Missing required section')
   })
 
-  it('returns text with warnings for gate missing optional sections', async () => {
+  it('returns text PASSED for gate with all required template sections', async () => {
     const handlers = validationHandlers({} as any)
     await mkdir(tmpDir, { recursive: true })
-    const filePath = path.join(tmpDir, 'gate-warn.md')
-    // Include Status but omit optional sections to trigger warnings
-    await writeFile(filePath, '# Gate\n**Status**: pending\n', 'utf8')
+    const filePath = path.join(tmpDir, 'gate-valid.md')
+    // Include Status and every required section from gate-prd-template.md
+    const gateContent = [
+      '# Gate 01: Test',
+      '',
+      '**Status**: pending',
+      '',
+      '## Overview', '## Objectives', '## Context', '## Requirements', '## Proposals',
+      '## Architecture Diagrams', '## Technical Decisions for This Gate',
+      '## Architecture Updates', '## Gate-Specific Quality Considerations',
+      '## Dependencies', '## Implementation Steps', '## Known Issues & Limitations',
+      '## Risks & Mitigation', '## Gate Completion Criteria', '## Notes',
+    ].join('\n')
+    await writeFile(filePath, gateContent, 'utf8')
 
     const res = await handlers.artifact_validate({
       artifactPath: filePath,
@@ -100,8 +119,7 @@ describe('validation-tools', () => {
     } catch {}
 
     const text = getText(res as any)
-    expect(text).toContain('Warnings:')
-    expect(text).toContain('missing section')
+    expect(text).toContain('PASSED')
   })
 
   it('returns JSON with errors for invalid gate', async () => {

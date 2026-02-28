@@ -39,6 +39,11 @@ import { readFile } from '../../utils/file.js'
 import { logger } from '../../utils/logger.js'
 import type { ValidationResult } from './types.js'
 import {
+  loadTemplateSections,
+  validateTemplateSections,
+  type TemplateSections,
+} from './template-sections-validator.js'
+import {
   validateProposalPhases,
   type ProposalPhasesValidationContext,
 } from './proposal-phases-validator.js'
@@ -91,30 +96,16 @@ export interface ArtifactValidationContext {
   gateProposals?: { hash: string; role?: string; createdAt: string }[]
   /** For dependency validation: all nodes in the system */
   allNodes?: Map<string, DependencyNode>
+  /**
+   * Pre-loaded template sections for section-presence validation.
+   * Populated automatically by validateArtifactFile, which reads the
+   * appropriate md-template and calls parseTemplateSections.
+   *
+   * When absent (e.g., validateArtifact called directly in tests), section
+   * validation is skipped and a warning is emitted.
+   */
+  templateSections?: TemplateSections
 }
-
-/**
- * Required sections for proposals (from template).
- * These must be present for the proposal to be valid.
- */
-const PROPOSAL_REQUIRED_SECTIONS = [
-  '## Summary',
-  '## Tasks',
-  '## Files Affected',
-  '## Dependencies',
-]
-
-/**
- * Required sections for gates.
- * These must be present for the gate to be valid.
- */
-const GATE_REQUIRED_SECTIONS: string[] = []
-const GATE_OPTIONAL_SECTIONS = [
-  '## Objectives',
-  '## Requirements',
-  '## Architecture',
-  'Scope Boundaries',
-]
 
 /**
  * Validate a proposal artifact comprehensively.
@@ -131,11 +122,18 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // PHASE 1: FORMAT VALIDATION (always enforced)
   // =========================================================================
 
-  // Check 1: Required sections
-  for (const section of PROPOSAL_REQUIRED_SECTIONS) {
-    if (!content.includes(section)) {
-      errors.push(`Missing required section: "${section}"`)
-    }
+  // Check 1: Section presence — driven entirely by the parsed template.
+  // templateSections is populated by validateArtifactFile; if absent (e.g.,
+  // direct validateArtifact call without file I/O), skip and warn.
+  if (context.templateSections) {
+    const sectionResult = validateTemplateSections(content, context.templateSections)
+    errors.push(...(sectionResult.errors ?? []))
+    warnings.push(...(sectionResult.warnings ?? []))
+  } else {
+    warnings.push(
+      'Template sections not loaded; section-presence validation skipped. ' +
+        'Use validateArtifactFile to enable template-driven section checks.'
+    )
   }
 
   // Check 2: Single-phase only (detect multi-phase language)
@@ -234,21 +232,19 @@ function validateGateArtifact(context: ArtifactValidationContext): ValidationRes
   // PHASE 1: FORMAT VALIDATION (always enforced)
   // =========================================================================
 
-  // Check 1: Required sections
-  for (const section of GATE_REQUIRED_SECTIONS) {
-    if (!content.includes(section)) {
-      errors.push(`Gate: missing required section: "${section}"`)
-    }
+  // Check 1: Section presence — driven entirely by the parsed template.
+  if (context.templateSections) {
+    const sectionResult = validateTemplateSections(content, context.templateSections)
+    errors.push(...(sectionResult.errors ?? []))
+    warnings.push(...(sectionResult.warnings ?? []))
+  } else {
+    warnings.push(
+      'Gate template sections not loaded; section-presence validation skipped. ' +
+        'Use validateArtifactFile to enable template-driven section checks.'
+    )
   }
 
-  // Check 1b: Optional sections (missing → warning, not error)
-  for (const section of GATE_OPTIONAL_SECTIONS) {
-    if (!content.includes(section)) {
-      warnings.push(`Gate: missing section: "${section}"`)
-    }
-  }
-
-  // Check 2: Valid Status field
+  // Check 2: Valid Status field (structural constraint, not in template sections)
   if (!/\*\*Status\*\*:\s*(pending|in_progress|completed|rejected|archived|cancelled|backlog)/i.test(content)) {
     errors.push(
       'Gate Status field missing or invalid (expected **Status**: one of pending|in_progress|completed|rejected|archived|cancelled|backlog)'
@@ -426,6 +422,17 @@ export async function validateArtifactFile(
   try {
     const content = await readFile(filePath)
 
+    // Load template sections for proposal/gate artifacts unless already supplied.
+    let templateSections: TemplateSections | undefined = additionalContext?.templateSections
+    if (!templateSections && (artifactType === 'proposal' || artifactType === 'gate')) {
+      try {
+        templateSections = await loadTemplateSections(artifactType)
+      } catch {
+        // Non-fatal: template file may not be present in all environments.
+        // Fall back to PROPOSAL_REQUIRED_SECTIONS inside validateProposalArtifact.
+      }
+    }
+
     return validateArtifact({
       artifactType,
       artifactPath: filePath,
@@ -433,6 +440,7 @@ export async function validateArtifactFile(
       /* eslint-disable-next-line @typescript-eslint/no-deprecated */
       validationMode, // Deprecated but passed through for backward compatibility
       ...additionalContext,
+      ...(templateSections !== undefined ? { templateSections } : {}),
     })
   } catch (err) {
     logger.error('Failed to validate artifact', { filePath, error: err })

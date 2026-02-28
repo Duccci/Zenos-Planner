@@ -29,6 +29,7 @@ Establishes the foundational infrastructure upon which all subsequent Zeno compo
 ## Context
 
 ### What Was Completed Before This Gate
+
 This is the first gate. No prior deliverables exist.
 
 - Fresh project initialization
@@ -42,7 +43,9 @@ This is the first gate. No prior deliverables exist.
 - **Development workflow**: Testing framework, linting, and TypeScript strict mode enable quality enforcement throughout project
 
 ### Scope Boundaries
+
 **In Scope**:
+
 - TypeScript project configuration (tsconfig.json, strict mode)
 - ESLint + Prettier configuration
 - Vitest test framework setup
@@ -58,6 +61,7 @@ This is the first gate. No prior deliverables exist.
 - Unit tests for all utility modules
 
 **Out of Scope**:
+
 - CLI command implementations beyond skeleton (deferred to Gate 2+)
 - Zeno engine logic (deferred to Gate 2)
 - Database CRUD operations beyond schema creation (deferred to Gate 3)
@@ -84,17 +88,17 @@ This is the first gate. No prior deliverables exist.
 Project-level requirements were primarily defined during `zeno init` at project inception. Requirements may be updated or added during rebaseline/rescope operations, but init is the primary source. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.
 
 | Hash | Name | Type | Priority | How This Gate Addresses It |
-|------|------|------|----------|---------------------------|
+| ---- | ---- | ---- | -------- | --------------------------- |
 | #p01quality | 90% Test Coverage | non_functional | must | Establishes Vitest framework with coverage thresholds |
 | #p01typesafe | TypeScript Strict Mode | non_functional | must | Configures tsconfig.json with all strict flags |
 | #p01linting | <0.01% Lint Error Rate | non_functional | must | Configures ESLint with @typescript-eslint rules |
 
 ### Gate-Specific Requirements
 
-Gate-specific requirements were generated when `zeno gates start gate-01` was called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/requirements.db` and queried via `zeno req list --gate gate-01`.
+Gate-specific requirements were generated when `zeno gates start gate-01` was called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/registry.db` and queried via `zeno req list --gate gate-01`.
 
 | Hash | Name | Type | Priority | Source | Status |
-|------|------|------|----------|--------|--------|
+| ---- | ---- | ---- | -------- | ------ | ------ |
 | #r01ts0001 | TypeScript Project Setup | non_functional | must | inherited | implemented |
 | #r01eslint | Linting and Formatting Configuration | non_functional | must | inherited | implemented |
 | #r01vitest | Test Framework Setup | non_functional | must | inherited | implemented |
@@ -114,12 +118,12 @@ Gate-specific requirements were generated when `zeno gates start gate-01` was ca
 
 Individual tasks are created during proposal generation (`/zeno-proposal`), not during gate generation. Each requirement may spawn multiple proposals (tasks) that implement it. See "Proposal Status" section below for tasks derived from these requirements.
 
-
 ---
 
 ## Technical Decisions for This Gate
 
 ### TypeScript Strict Mode
+
 - **Choice**: Enable all strict flags from project start
 - **Alternatives Considered**: Gradual strictness, JavaScript with JSDoc
 - **Rationale**: Strict mode catches errors early, provides better IDE support, and aligns with quality-first philosophy
@@ -127,6 +131,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Slightly higher initial development friction for significantly better maintainability
 
 ### SQLite Synchronous API
+
 - **Choice**: Use better-sqlite3 synchronous API rather than async wrappers
 - **Alternatives Considered**: better-sqlite3 async, sql.js, sqlite3 (async)
 - **Rationale**: Synchronous API is simpler, eliminates callback complexity, and is faster for typical use cases. CLI operations are sequential by nature.
@@ -134,6 +139,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Lost async parallelism for gained simplicity and performance
 
 ### Zod for Runtime Validation
+
 - **Choice**: Use Zod for all runtime schema validation
 - **Alternatives Considered**: Joi, Yup, io-ts, manual validation
 - **Rationale**: Zod has excellent TypeScript integration (z.infer), small bundle size, and clear error messages
@@ -141,6 +147,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Additional dependency, but provides type safety at runtime boundaries
 
 ### Commander.js Command Structure
+
 - **Choice**: Use nested command pattern (zeno [category] [action])
 - **Alternatives Considered**: Flat commands, Yargs, oclif
 - **Rationale**: Commander.js is lightweight, well-documented, and supports the nested pattern naturally. Matches common CLI conventions (git, npm).
@@ -207,6 +214,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
   - Interfaces: createProjectStructure()
 
 ### Architecture Diagrams
+
 - System Overview: `zeno/architecture/system-overview.md` - Storage Layer and UI Layer components are implemented in this gate
 - Data Flow: `zeno/architecture/data-flow.md` - No changes (data flow not yet active)
 - Gate Roadmap: `zeno/architecture/gate-roadmap.md` - Gate 1 marked as in_progress
@@ -366,7 +374,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 ### Proposal Status
 
 | Proposal | Hash | Status | Archived |
-|----------|------|--------|----------|
+| -------- | ---- | ------ | -------- |
 | Project Configuration | #p01projconf01 | completed | 2026-01-05 |
 | Error Handling & Logging | #p01errlogs02 | completed | 2026-01-05 |
 | File & Hash Utilities | #p01fileutil03 | completed | 2026-01-05 |
@@ -392,7 +400,7 @@ All proposals for this gate have been completed and archived. See **Consolidated
 ### Requirements Fulfilled
 
 | Requirement | Proposal |
-|-------------|----------|
+| ----------- | -------- |
 | #r01config | #p01config04 |
 | #r01git | #p01config04 |
 | #r01errors | #p01errlogs02 |
@@ -422,6 +430,7 @@ All proposals for this gate have been completed and archived. See **Consolidated
 Establishes foundational infrastructure for all Zeno development: TypeScript strict mode, ESLint/Prettier configuration, Vitest testing framework, SQLite schema with complete data models, and CLI skeleton with command structure. Implements core utilities (file system, hashing, configuration, logging, git integration) and error handling patterns. These capabilities enable all subsequent development and enforce quality standards from project start.
 
 **Key Deliverables**:
+
 - TypeScript project with strict mode, comprehensive linting, and formatting
 - SQLite schema with all data models: gates, requirements, proposals, dependencies, repositories, hash registry
 - Core utility modules: file I/O, SHA-256 hashing, configuration management, logging, git operations
@@ -441,11 +450,12 @@ Establishes foundational infrastructure for all Zeno development: TypeScript str
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | 2026-01-28 | Initial version | Development Team |
+| Version | Date       | Summary         | Author           |
+| ------- | ---------- | --------------- | ---------------- |
+| 1.0.0   | 2026-01-28 | Initial version | Development Team |
 
 **Related Documents**:
+
 - Project PRD: `zeno/PROJECT_PRD.md`
 - Previous Gate: None (first gate)
 - Next Gate: `zeno/gates/gate-02-zeno-engine.md`
@@ -460,7 +470,7 @@ Establishes foundational infrastructure for all Zeno development: TypeScript str
 - Use consistent naming: kebab-case for files, PascalCase for classes, camelCase for functions
 - All modules should have corresponding .test.ts files in tests/ mirror structure
 
-### Lessons Learned
+### Gate Retrospective
 
 #### Development Environment & Tooling
 
@@ -519,73 +529,9 @@ Establishes foundational infrastructure for all Zeno development: TypeScript str
 ### Next Gate Preview
 
 Gate 2 (Zeno Engine & Gate Generation) builds on this infrastructure to implement the core Zeno algorithm. It will add:
+
 - `zeno init` command with interactive prompts
 - `zeno analyze` command for codebase analysis
 - Gate generation algorithm using iterative decomposition
 - LLM integration layer for command-based interaction
 - Code analyzer for existing codebases (AST parsing)
-
-## Gate Completion Criteria
-
-- [x] All must-have requirements implemented and tested
-- [x] All should-have requirements implemented or explicitly deferred
-- [x] All proposals completed and approved
-- [x] All acceptance criteria met
-- [x] Architecture diagrams updated
-- [x] Gate-specific quality considerations addressed
-- [x] Stakeholder approval obtained
-
-## Gate Completion Summary
-
-**Completed**: 2026-01-28  
-**Proposals Completed**: 6  
-**Requirements Fulfilled**: 12  
-**Quality Metrics**: Coverage 92.70%, Security 0, Lint <0.01%
-
-All proposals for this gate have been completed and archived. See **Consolidated Proposals Summary** section for detailed breadcrumbs.
-
-## Consolidated Proposals Summary
-
-*This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
-
-### Requirements Fulfilled
-
-| Requirement | Proposal |
-|-------------|----------|
-| #r01config | #p01config04 |
-| #r01git | #p01config04 |
-| #r01errors | #p01errlogs02 |
-| #r01logging | #p01errlogs02 |
-| #r01fileutils | #p01fileutil03 |
-| #r01hash | #p01fileutil03 |
-| #r01ts0001 | #p01projconf01 |
-| #r01eslint | #p01projconf01 |
-| #r01vitest | #p01projconf01 |
-| #r01cli | #p01scaffold06 |
-| #r01scaffold | #p01scaffold06 |
-| #r01sqlite | #p01sqlite05 |
-
-### Lessons Learned
-
-*No implementation notes captured.*
-
-### Next Dependencies
-
-*Proposals that are unblocked by this gate (identified from proposal dependency tables):*
-
-*No downstream dependencies identified.*
-
-### High-Level Delta
-
-**Summary**:
-Establishes foundational infrastructure for all Zeno development: TypeScript strict mode, ESLint/Prettier configuration, Vitest testing framework, SQLite schema with complete data models, and CLI skeleton with command structure. Implements core utilities (file system, hashing, configuration, logging, git integration) and error handling patterns. These capabilities enable all subsequent development and enforce quality standards from project start.
-
-**Key Deliverables**:
-- TypeScript project with strict mode, comprehensive linting, and formatting
-- SQLite schema with all data models: gates, requirements, proposals, dependencies, repositories, hash registry
-- Core utility modules: file I/O, SHA-256 hashing, configuration management, logging, git operations
-- Commander.js CLI framework with extensible command structure
-- Error handling system with typed error hierarchy
-- Vitest test framework with 90%+ coverage enforcement
-
-**Quality Metrics**: Coverage 92.70%, Security 0, Lint <0.01%

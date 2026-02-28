@@ -3,99 +3,56 @@
 **Status**: pending  
 **Type**: feature  
 **Created**: 2026-02-04  
-**Updated**: 2026-02-23  
-**Sequence**: 6 of 14  
+**Sequence**: 6 of 12  
 **Hash**: #g06multirepo
 
 ## Overview
 
-Implements multi-repository and subproject support for distributed systems. This gate leverages Zeno's existing MCP server — which already exposes project scanning, architecture, and gate data to LLMs — for boundary analysis and repository recommendations. No dedicated `read_project_structure` tool is needed; the LLM uses existing MCP capabilities to understand project structure.
-
-Delivers repository declaration and CRUD in SQLite, cross-repo dependency tracking, interactive LLM-guided repository setup, CLI commands for managing repositories, and cross-project Zeno state synchronization. The `coupling-analyzer` agent (`agents/pipeline-agents/03-validation/coupling-analyzer.md`) handles coupling analysis as an LLM task rather than hardcoded metrics.
-
-**Key scoping principle**: Proposals are always scoped to the current working repository. Gates can span multiple repositories, but multi-repo gates produce separate proposals per repo.
+Implements multi-repository and subproject support for distributed systems. Rather than building a static analysis engine, this gate leverages Zeno's MCP server to expose project structure to LLMs, which perform boundary analysis and recommend repository separation. Delivers repository declaration and CRUD in SQLite, cross-repo dependency tracking, LLM-driven boundary recommendation via MCP tools, and CLI commands for managing repositories. The coupling-analyzer agent (`agents/pipeline-agents/03-validation/coupling-analyzer.md`) handles coupling analysis as an LLM task rather than hardcoded metrics.
 
 ## Objectives
 
 ### Repository Declaration & Storage
-- [ ] Create repositories table in SQLite database (name, path, type, url, metadata)
+
+- [ ] Create repositories table in SQLite database (name, path, type, metadata)
 - [ ] Implement repository CRUD operations (insert, update, delete, query)
 - [ ] Build repository hash registry (content-addressable references)
-- [ ] Support repository metadata (type suggestions: main/service/library/tool, description)
-- [ ] Repository type is an LLM suggestion, not a rigid classifier — e.g., if Zeno manages 5 subprojects with shared code, the LLM may suggest creating a `library` repo
-
-### Interactive Repository Declaration
-- [ ] Users declare repos interactively via LLM conversation (MCP or CLI)
-- [ ] Support local git repo paths and remote URLs as input
-- [ ] LLM validates paths/URLs and confirms with user before persisting
-- [ ] `zeno repos add` accepts path or URL argument for non-interactive use
-- [ ] No separate `read_project_structure` MCP tool — leverage existing scanning, architecture, and gate MCP tools already exposed to LLMs
+- [ ] Support repository metadata (type: main/service/library/tool, description)
+- [ ] Support manual repository declaration (user declares repos via CLI or MCP)
 
 ### LLM-Driven Boundary Recommendation
-- [ ] **Use Code Analyzer** (`src/analysis/ast-analyzer.ts`, Gate 02) to enumerate imports in candidate repositories
-- [ ] **Use Dependency Analyzer** (`src/analysis/dependency-analyzer.ts`, Gate 02) to build per-repo dependency graphs
-- [ ] **Use Metrics Calculator** (`src/analysis/metrics-calculator.ts`, Gate 02) to calculate afferent/efferent coupling for each module
-- [ ] **Use MCP Project Scanning** (`project_list`, `project_show` from Gate 03) to expose project structure to LLM
-- [ ] LLM analyzes metrics and structure to identify natural boundaries (via coupling-analyzer agent guidance)
-- [ ] Leverage `coupling-analyzer` agent for boundary recommendations with rationale
-- [ ] LLM suggests repository boundaries with rationale (suggestions, not enforced rules)
+
+- [ ] Expose project structure via MCP tool (`read_project_structure`) for LLM analysis
+- [ ] Leverage `coupling-analyzer` agent for boundary recommendations
+- [ ] LLM analyzes codebase via MCP and suggests repository boundaries with rationale
 - [ ] Support human override of LLM-recommended boundaries
-- [ ] No hardcoded coupling metrics calculator, domain boundary analyzer, or module size analyzer (Gate 2 metrics feed LLM, not hardcoded rules)
+- [ ] No hardcoded coupling metrics calculator, domain boundary analyzer, or module size analyzer
 
 ### Cross-Repository Dependency Tracking
+
 - [ ] Implement cross-repository relationship tracking in SQLite
 - [ ] Create repository dependency resolution queries
-- [ ] **Use Dependency Graph utilities** (`src/generation/dependency-graph.ts`, Gate 04) to render cross-repo relationships
 - [ ] Build dependency visualization (via architecture diagram system from Gate 05)
-- [ ] **Use Circular Dependency Detection** logic from Gate 04 (DFS with transaction rollback) for repository graphs
-- [ ] Circular dependency detection triggers on project initialization and rebase/rescope
-- [ ] Dependencies determined via: explicit user declaration, **import/file reference analysis using AST + Dependency Analyzer from Gate 02** (with user confirmation — not every import is a team-owned repo)
+- [ ] Detect circular dependencies between declared repositories
 
 ### Repository Management Commands
+
 - [ ] Implement `zeno repos list` command (display declared repositories)
-- [ ] Implement `zeno repos show` command (display specific repository details)
-- [ ] Implement `zeno repos add <path|url>` command (declare a new repository)
-- [ ] Implement `zeno repos remove` command (remove a repository declaration)
 - [ ] Implement `zeno repos deps` command (show cross-repo dependency graph)
-- [ ] Implement `zeno repos sync` command (check/trigger cross-project Zeno state sync)
+- [ ] Implement `zeno repos add` command (declare a new repository)
+- [ ] Implement `zeno repos remove` command (remove a repository declaration)
 
-### Repository Analysis Commands
-- [ ] Implement `zeno repos analyze imports <repo_id>` command (analyze imports in repository using AST + Dependency Analyzer from Gate 02)
-- [ ] Implement `zeno repos analyze boundaries` command (validate proposed repository boundaries for circular dependencies using Gate 04 detection logic)
-- [ ] Analyze and suggest internal vs. external dependencies with user confirmation
-- [ ] Generate import analysis report with coupling metrics informing boundary recommendations
-- [ ] Detect and report circular repository dependencies
+### Integration with Proposals
 
-### MCP Tool Exposure
-- [ ] Register all repository operations as actions under single `repos_action` MCP tool via function registry (8 actions: list, show, add, remove, deps, sync, analyze_imports, validate_boundaries)
-- [ ] Implement function-registry handler for `repos_action` with Zod schema validation for all action parameters
-- [ ] Expose repository CRUD operations and dependency queries to LLM via MCP for interactive boundary analysis
-- [ ] Wire `repos_action analyze_imports` with imported analysis tools from Gate 02:
-  - ast-analyzer for import enumeration
-  - dependency-analyzer for per-repo graph building
-  - metrics-calculator for coupling analysis
-- [ ] Wire `repos_action validate_boundaries` with Gate 04 utilities:
-  - Circular dependency detection (DFS algorithm with transaction rollback)
-  - Dependency Graph utilities for visualization
-
-### Cross-Project Zeno State Sync
-- [ ] Store Zeno project references in each subproject's database (which other Zeno projects exist)
-- [ ] Track gate completion status across subprojects
-- [ ] When a gate is completed in one subproject, signal dependent subprojects
-- [ ] Expose sync status via MCP tool for LLM-driven coordination
-- [ ] Detailed git-level sync operations deferred to Gate 10
-
-### Proposal-Repository Scoping
-- [ ] Proposals are always scoped to the current working repository
-- [ ] Gates can reference multiple repositories
-- [ ] Multi-repo gates produce separate proposals per repo (one proposal per working repo)
-- [ ] Track which repository each proposal targets
+- [ ] Track which repositories each proposal modifies
+- [ ] Identify file conflicts between concurrent proposals across repos
+- [ ] Support proposal-to-repository mapping for conflict detection
 
 ### Testing & Quality
+
 - [ ] Write unit tests for repository CRUD operations
 - [ ] Test cross-repo dependency queries
-- [ ] Test circular dependency detection
-- [ ] Test cross-project state sync logic
+- [ ] Test conflict detection logic
 - [ ] Achieve 90% test coverage for multi-repo module
 
 ## Context
@@ -103,263 +60,335 @@ Delivers repository declaration and CRUD in SQLite, cross-repo dependency tracki
 ### What Was Completed Before This Gate
 
 Gate 01-05 established:
-- **Gate 01**: Core infrastructure, CLI framework, SQLite database with migration system
-- **Gate 02**: Zeno engine with iterative gate generation, code analysis capabilities:
-  - Code analyzer using AST parsing (`src/analysis/ast-analyzer.ts`)
-  - Dependency graph generation from AST analysis (`src/analysis/dependency-analyzer.ts`)
-  - Code metrics calculator for coupling/cohesion/complexity (`src/analysis/metrics-calculator.ts`)
-  - Project-level requirement generation from end state analysis
-  - Available MCP tools: `project_analyze`, `analyze_dependencies`, `calculate_metrics`
-- **Gate 03**: MCP server with function registry exposing Zeno operations as invocable functions
-  - Project scanning via existing MCP tools (`project_list`, `project_show`)
-  - Architecture data queryable via MCP (`arch_show`, `arch_catalogue`)
-- **Gate 04**: Requirements database with CRUD and dependency tracking
-  - Dependency graph utilities with ASCII tree and Mermaid rendering (`src/generation/dependency-graph.ts`)
-  - Hierarchical requirement queries (children, ancestors, by level)
-  - Circular dependency detection via DFS with transaction rollback
-  - Available MCP tools: `req_list`, `req_show`, `req_deps`
-- **Gate 05**: Architecture diagram generation system
-  - Complexity analyzer for threshold-based scoring (`src/generation/complexity-analyzer.ts`)
-  - Gate change detector for structural analysis (`src/generation/gate-change-detector.ts`)
-  - 10 diagram types (5 core + 5 conditional) enabling visual relationship mapping
-  - Available MCP tools: `arch_generate`, `arch_show`, `arch_list`
 
-### Analysis Features Available for Import/Coupling Analysis
-
-Gate-06 leverages these specific analysis tools from earlier gates:
-
-| Analysis Tool | Source | Purpose for Gate-06 |
-|---|---|---|
-| **Code Analyzer** (`ast-analyzer.ts`) | Gate 02 | Parse repository files to extract import statements |
-| **Dependency Analyzer** (`dependency-analyzer.ts`) | Gate 02 | Build internal import graph within each repository |
-| **Metrics Calculator** (`metrics-calculator.ts`) | Gate 02 | Calculate afferent/efferent coupling for boundary recommendations |
-| **MCP Project Scanning** (`project_list`, `project_show`) | Gate 03 | Enumerate repository structure and file organization |
-| **Requirements Dependency Graph** (`dependency-graph.ts`) | Gate 04 | Model cross-repo requirement dependencies and inheritance |
-| **Gate Change Detector** (`gate-change-detector.ts`) | Gate 05 | Identify code changes that cross repository boundaries |
-| **coupling-analyzer agent** | External | Guide LLM in interpreting metrics for boundary recommendations |
-
-### MCP Tools Consumed & Exposed
-
-**MCP Tools Consumed (From Earlier Gates)**
-
-Gate-06 integrates with MCP tools already exposed by earlier gates:
-
-| MCP Tool | Source Gate | Purpose in Gate-06 |
-|---|---|---|
-| `project_list` | Gate 03 | Enumerate project repositories and structure |
-| `project_show` | Gate 03 | Inspect specific project details and metadata |
-| `req_list` | Gate 04 | Query requirements by gate to understand cross-repo dependencies |
-| `req_deps` | Gate 04 | Visualize requirement dependency graphs across repositories |
-| `arch_show` | Gate 05 | Display architecture diagrams showing module coupling |
-| `arch_catalogue` | Gate 05 | List available diagram types for dependency visualization |
-| `analyze_dependencies` | Gate 02 | Analyze code dependencies from AST (via function registry) |
-| `calculate_metrics` | Gate 02 | Calculate coupling metrics for boundary recommendations (via function registry) |
-
-**MCP Tools Exposed (New in Gate-06)**
-
-Gate-06 will expose one unified MCP tool for repository management:
-
-| MCP Tool | Actions | Purpose |
-|---|---|---|
-| `subrepos_action` | list, show, add, remove, deps, sync, analyze_imports, validate_boundaries | Unified repository management (CRUD, dependency analysis, boundary validation, cross-project sync) |
-
-**Action Specifications**:
-
-- `subrepos_action list` (optional: filter) — List all declared repositories with metadata (path, type, URL, zeno_project_ref)
-- `subrepos_action show` (repo_hash or repo_id) — Show detailed information for a specific repository
-- `subrepos_action add` (path OR url, optional: type) — Declare a new repository (interactive LLM flow or CLI)
-- `subrepos_action remove` (repo_hash or repo_id) — Remove a repository declaration
-- `subrepos_action deps` (optional: repo_id) — Display cross-repository dependency graph (ASCII tree or Mermaid)
-- `subrepos_action sync` (optional: repo_id) — Check/trigger cross-project Zeno state sync across subprojects
-- `subrepos_action analyze_imports` (repo_id, optional: path_pattern) — Analyze imports in repository; suggest internal vs. external dependencies (integrates Code Analyzer, Dependency Analyzer, Metrics Calculator from Gate 02)
-- `subrepos_action validate_boundaries` (optional: config) — Validate proposed repository boundaries for circular dependencies and coupling issues (integrates Circular Dependency Detection, Dependency Graph Utilities from Gate 04)
+- Core infrastructure, CLI framework, SQLite database
+- Zeno engine with iterative gate generation
+- MCP server with function registry
+- Requirements database with CRUD and dependency tracking
+- Architecture diagram generation
 
 ### What This Gate Enables
 
-- **Gate 7 (Proposal Generation)**: Repository information scopes proposals to working repo; multi-repo gates split into per-repo proposals
-- **Gate 10 (Git Integration)**: Multi-repo context enables subproject git syncing — pulling gate changes from completed subprojects into working directory
-- **Gate 11 (Rescope)**: Cross-project state sync allows rescoping to account for changes in dependent subprojects
+- **Gate 7 (Proposal Generation)**: Repository information helps decompose proposals and assign to repos
+- **Gate 10 (Git Integration)**: Multi-repo context enables conflict detection during parallel execution
 
 ### Scope Boundaries
 
 **In Scope**:
+
 - SQLite repositories table and CRUD operations
-- Interactive and CLI-based repository declaration (local paths, remote URLs)
-- LLM-driven boundary recommendations via existing MCP capabilities
-- Cross-repository dependency tracking (explicit + import-based with user confirmation)
-- Circular dependency detection (triggered on init and rebase)
+- Manual and LLM-recommended repository declaration
+- Cross-repository dependency tracking
+- Circular dependency detection
 - `zeno repos` commands (list, deps, add, remove)
-- Cross-project Zeno state references and gate completion signaling
-- Proposal scoping: always current working repo; multi-repo gates produce per-repo proposals
+- File-level conflict detection for concurrent proposals
 - Leveraging existing `coupling-analyzer` agent for boundary analysis
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
+
 - Hardcoded static analysis engine (coupling metrics, domain boundary analysis, module size analysis)
 - Confidence scoring algorithms
 - Repository scaffolding (package.json, tsconfig generation — not Zeno's job)
 - Monorepo tooling integration (Turborepo, Nx)
-- Git-level subproject sync operations (pulling/pushing gate changes — handled in Gate 10)
+- Git repository operations (handled in Gate 10)
 - Package publishing or distribution
 - Cross-repo TypeScript path resolution
-- File-level conflict detection between concurrent proposals (handled in Gate 10/13)
 
 ## Requirements
 
-1. **Repository Declaration** — Users and LLMs can declare repository boundaries interactively or via CLI
-2. **Cross-Repository Dependency Tracking** — All inter-repo dependencies visible, determined by explicit declaration and import analysis with user confirmation
-3. **Proposal Scoping** — Proposals are always scoped to current working repo; multi-repo gates produce per-repo proposals
-4. **LLM-Driven Analysis** — Boundary recommendations come from LLM analysis via existing MCP tools, not static metrics
-5. **Cross-Project State Sync** — Zeno tracks gate completion across subprojects and signals dependencies
+<!-- Requirements-First Workflow:
+  1. Project-level requirements: PRIMARILY defined during `zeno init` at project inception (BEFORE gates).
+     These are high-level, cross-cutting requirements derived from the end state.
+  2. Gate generation (`/zeno-gate`): Attributes existing project-level requirements to gates.
+     Requirements are PRIMARILY mapped and attributed here, not created.
+     During rebaseline/rescope: Requirements may be updated or added as part of rescoping.
+  3. Gate start (`zeno gates start`): Generates gate-specific requirements that decompose
+     project requirements and gate objectives into actionable items.
+  4. Proposal generation (`/zeno-proposal`): Breaks requirements down into individual tasks.
 
-## Technical Decisions
+  Workflow: Requirements (init - PRIMARY) → Gates (attribute, may update/add during rescope) → Gate Requirements (decompose) → Tasks (proposals)
+-->
 
-### Analysis Feature Integration from Gates 1-3
+### Project Requirements (Attributed to This Gate)
 
-**Code Analysis (`ast-analyzer.ts` from Gate 02)**
-- **Purpose**: Parse each repository to extract module structure and imports
-- **Usage in Gate-06**: Enumerate imports per file; build import map showing inter-module references
-- **Example**: `astAnalyzer.parse(filePath)` returns ESTree AST; traverse to find all `ImportDeclaration` nodes
-- **Gate-06 Responsibility**: Determine which imports are internal (team-owned) vs. external (third-party)
+[Project-level requirements were defined during `zeno init` at project inception. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.]
 
-**Dependency Analysis (`dependency-analyzer.ts` from Gate 02)**
-- **Purpose**: Build dependency graph from AST-parsed imports
-- **Usage in Gate-06**: Per-repository analysis to identify internal dependencies
-- **Example**: Feed parsed imports through `dependencyAnalyzer.buildGraph()` to get: `{ module: string, dependsOn: string[], dependents: string[] }`
-- **Gate-06 Responsibility**: Aggregate per-repo graphs into cross-repo relationships
+| Hash    | Name                                     | Type            | Priority | How This Gate Addresses It                                              |
+| ------- | ---------------------------------------- | --------------- | -------- | ----------------------------------------------------------------------- |
+| #[hash] | Repository Declaration                   | functional      | must     | SQLite repositories table + CRUD operations                             |
+| #[hash] | Cross-Repo Dependency Tracking           | functional      | must     | Dependency tracking queries in SQLite                                   |
+| #[hash] | Concurrent Proposal Conflict Prevention  | non_functional  | must     | File-level conflict detection for concurrent proposals                  |
+| #[hash] | LLM-Driven Boundary Analysis             | functional      | should   | MCP tool exposing project structure for LLM consumption                 |
 
-**Metrics Calculator (`metrics-calculator.ts` from Gate 02)**
-- **Purpose**: Calculate code metrics (afferent, efferent coupling, complexity)
-- **Usage in Gate-06**: Identify high-coupling modules that might belong in separate repositories
-- **Example**: `metricsCalculator.calculateCoupling(dependencyGraph)` returns metrics informing boundary analysis
-- **Gate-06 Responsibility**: Pass metrics to coupling-analyzer agent to recommend repo boundaries
-- **Note**: Metrics inform LLM recommendations; final decision is LLM + user confirmation
+### Gate-Specific Requirements
 
-**MCP Project Scanning (Gate 03)**
-- **Purpose**: Enumerate project structure, file organization, module layout
-- **Available in Gate-06**: `project_list`, `project_show` MCP tools expose repo metadata to LLM
-- **Usage**: LLM uses these to understand codebase organization before boundaries are declared
-- **Gate-06 Responsibility**: Ensure MCP tools are callable from within boundary analysis workflow
+[Gate-specific requirements are generated when `zeno gates start <gate-id>` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/registry.db` and queried via `zeno req list --gate <id>`.]
 
-**Dependency Graph Utilities (`dependency-graph.ts` from Gate 04)**
-- **Purpose**: Render dependency graphs as ASCII trees or Mermaid diagrams
-- **Usage in Gate-06**: Visualize cross-repository dependencies for user review
-- **Example**: `dependencyGraph.renderMermaid()` creates Mermaid diagram from repo dependency data
-- **Gate-06 Responsibility**: Wire up cross-repo graph rendering into `zeno repos deps` command
+**Status**: Requirements will be generated when gate is started.
 
-**Circular Dependency Detection (from Gate 04)**
-- **Purpose**: Detect cycles in dependency graphs using DFS
-- **Usage in Gate-06**: Enforce acyclic repository dependency graph
-- **Example**: `dependencyGraph.detectCycles()` returns cycle paths; abort repo declaration if cycle detected
-- **Gate-06 Responsibility**: Integrate cycle detection into repo add/update operations with user notification
+[After gate start, view detailed requirement information via: `zeno req show <hash>`]
 
-### 1. LLM-Driven Boundary Analysis via Existing MCP Tools
-- **Choice**: LLMs use existing MCP tools (project scanning, architecture, gates) to analyze codebase and recommend boundaries; no dedicated `read_project_structure` tool needed
-- **Alternatives Considered**: Dedicated MCP analysis tool, hardcoded metrics-based detection, heuristics-based (directory structure)
-- **Rationale**: Zeno is an MCP server — all project scanning, architecture, and gate data is already exposed to the LLM. Adding another tool would be redundant. The `coupling-analyzer` agent provides structured guidance for the LLM's analysis. Code analysis from Gate 2 (AST parsing, metrics) feeds the LLM's understanding.
-- **Trade-offs**: Gained simplicity (no new MCP tool); depends on LLM capability and existing tool coverage
+### Inherited/Transferred Requirements
+
+[Requirements transferred from other gates or shared across gates.]
+
+- None at this time.
+
+### Requirement-to-Task Breakdown
+
+[Individual tasks are created during proposal generation (`/zeno-proposal`), not during gate generation. Each requirement may spawn multiple proposals (tasks) that implement it.]
+
+---
+
+## Proposals
+
+**Status**: Proposals will be generated when gate is started.
+
+[After gate start, view detailed proposal information via: `zeno proposal show <hash>`]
+
+### Proposal Status
+
+| Proposal        | Hash    | Status  | Notes            |
+| --------------- | ------- | ------- | ---------------- |
+| [proposal-name] | #[hash] | pending | [Optional notes] |
+
+### Proposal Dependency Graph
+
+<!-- Generated by /zeno-proposal when proposals are created. Shows requires relationships between proposals. -->
+
+```mermaid
+graph LR
+    hash1["01 Repository CRUD & Schema"]
+    hash2["02 MCP Project Structure Tool"] --> hash1
+    hash3["03 Cross-Repo Dependency Tracking"] --> hash1
+    hash4["04 CLI repos Commands"] --> hash3
+    hash5["05 File Conflict Detection"] --> hash3
+```
+
+### High-Level Delta (Gate Completion Summary)
+
+Multi-repo and subproject detection capability delivered. Repositories can be declared, queried, and cross-referenced, with LLM-driven boundary recommendations via MCP and file-level conflict prevention for concurrent proposals.
+
+**Key Deliverables**:
+
+- SQLite repository storage with CRUD operations and hash references
+- `zeno repos` CLI commands (list, deps, add, remove)
+- MCP `read_project_structure` tool for LLM boundary analysis
+- Cross-repository dependency tracking with circular dependency detection
+- File-level conflict detection for concurrent proposals
+
+**Quality Metrics**: Coverage [X]%, Security 0 issues, Lint <0.01%
+
+---
+
+## Architecture Diagrams
+
+| Name                              | Type               | Order | Status    |
+| --------------------------------- | ------------------ | ----- | --------- |
+| System Overview                   | system-overview    | 1     | pending   |
+| Data Flow Diagram                 | data-flow          | 2     | pending   |
+| Gate Lifecycle State Machine      | gate-lifecycle     | 3     | pending   |
+| Gate Roadmap                      | gate-roadmap       | 4     | pending   |
+| System Context Diagram            | context            | 5     | pending   |
+| Component Diagram (Multi-Repo)    | component          | 6     | pending   |
+| Dependency Graph (Cross-Repo)     | package            | 7     | pending   |
+
+---
+
+## Technical Decisions for This Gate
+
+### 1. LLM-Driven Boundary Analysis via MCP
+
+- **Choice**: Expose project structure via MCP tools; LLMs (with agent scripts like `coupling-analyzer`) analyze and recommend boundaries
+- **Alternatives Considered**: Hardcoded metrics-based detection (afferent/efferent coupling, domain boundaries, module size), heuristics-based (directory structure)
+- **Rationale**: LLMs understand project context, domain boundaries, and architectural intent better than threshold-based static analysis. Keeps Zeno lightweight — no metrics engine. Leverages existing agent infrastructure.
+- **Trade-offs**: Gained simplicity and context-awareness; depends on LLM capability for analysis quality
 
 ### 2. Repository Storage in SQLite
+
 - **Choice**: Repositories table in SQLite for queryability
 - **Alternatives Considered**: JSON files, pure file-based tracking
-- **Rationale**: SQLite enables efficient querying for dependency resolution. Consistent with existing requirements storage approach.
+- **Rationale**: SQLite enables efficient querying for dependency resolution and conflict detection. Consistent with existing requirements storage approach.
 
-### 3. Proposal Scoping to Working Repository
-- **Choice**: Proposals always target the current working repo; multi-repo gates split into per-repo proposals
-- **Alternatives Considered**: Cross-repo proposals, monorepo-style single proposals
-- **Rationale**: Keeps proposals atomic and testable within their repo context. Multi-repo coordination happens at the gate level, not the proposal level. Simplifies conflict detection and git operations.
-- **Trade-offs**: Gained clarity in proposal ownership; requires gate-level orchestration for cross-repo work
+## Architecture Updates
 
-### 4. Import-Based Dependency Detection with User Confirmation
-- **Choice**: Analyze imports and file references to suggest dependencies, but prompt user for confirmation since not every import represents a team-owned repository
-- **Alternatives Considered**: Fully automatic detection, manual-only declaration
-- **Rationale**: Automatic detection catches obvious dependencies but may flag third-party packages as team repos. User confirmation prevents false positives.
-- **Trade-offs**: Gained accuracy; adds interactive step
+### Components Modified or Created
 
-### 5. Repository Types as Suggestions
-- **Choice**: Repository types (main/service/library/tool) are LLM-generated suggestions, not enforced categories
-- **Alternatives Considered**: Rigid type system with different behavior per type, no types
-- **Rationale**: The LLM recognizes patterns (e.g., 5 subprojects sharing common code → suggest a `library` repo) without needing hardcoded classifier logic. Types inform recommendations but don't gate behavior.
-- **Trade-offs**: Gained flexibility; lost deterministic type-based rules (not needed for MVP)
+- **repositories table** (`src/storage/schema.ts`)
+  - Purpose: Persistent storage for declared repositories and their metadata
+  - Changes: New table with columns: id, hash, name, path, type, description, metadata, created_at
+  - Interfaces: insert/update/delete/query via storage module
+
+- **RepositoryRegistry** (`src/registry/repository-registry.ts`)
+  - Purpose: Hash-addressable CRUD for repository entities
+  - Changes: New module mirroring GateRegistry/RequirementRegistry patterns
+  - Interfaces: `declare()`, `remove()`, `list()`, `getByHash()`, `getDependencies()`
+
+- **read_project_structure MCP tool** (`src/mcp/tools/repos.ts`)
+  - Purpose: Exposes project file tree and existing declarations to LLM for boundary analysis
+  - Changes: New MCP tool registered in function registry
+  - Interfaces: Returns directory tree, file counts, existing repo declarations
+
+- **ConflictDetector** (`src/core/conflict-detector.ts`)
+  - Purpose: Detects overlapping file sets between concurrent proposals across repositories
+  - Changes: New module, queries proposals-to-files mapping
+  - Interfaces: `detectConflicts(proposalHash: string): ConflictReport`
+
+- **repos CLI commands** (`src/cli/commands/repos.ts`)
+  - Purpose: User-facing `zeno repos` subcommands
+  - Changes: New command module registered with CLI router
+  - Interfaces: `list`, `deps`, `add`, `remove` subcommands
+
+### Diagram Updates Required
+
+- System Overview: `zeno/architecture/system-overview.md` — add repositories layer to component diagram
+- Data Flow: `zeno/architecture/data-flow.md` — add cross-repo dependency resolution flow
+- Gate Roadmap: `zeno/architecture/gate-roadmap.md` — updated with Gate 06 position
+
+### Integration Points
+
+- **MCP Function Registry** (`src/mcp/index.ts`): Register `read_project_structure` tool
+- **CLI Router** (`src/cli/index.ts`): Register `repos` command module
+- **SQLite Schema** (`src/storage/schema.ts`): Add `repositories` and `repo_dependencies` tables
+- **Proposal System** (`src/core/proposals.ts`): Integrate ConflictDetector during proposal creation
+
+## Gate-Specific Quality Considerations
+
+### Security Considerations
+
+- Repository `path` fields must be validated to prevent path traversal (resolve to absolute paths, reject `..` sequences)
+- MCP `read_project_structure` must respect `.gitignore` / `.zenoignore` to avoid exposing sensitive files to LLMs
+- SQLite queries must use parameterized statements to prevent injection
+
+### Performance Requirements
+
+- `zeno repos list` must return results in <100ms for up to 50 declared repositories
+- Cross-repo dependency graph queries must complete in <500ms for up to 200 nodes
+- File conflict detection must complete in <200ms for 10 concurrent proposals
+
+## Dependencies
+
+### External Dependencies (New or Updated)
+
+- No new npm packages required; leverages existing `better-sqlite3`, `commander`, and MCP infrastructure.
+
+### Internal Dependencies
+
+- **Depends on Gate(s)**: Gate 01 (Core Infrastructure & SQLite schema), Gate 03 (MCP Server), Gate 04 (Requirements Database)
+- **Blocks Gate(s)**: Gate 07 (Proposal Generation — needs repo-to-proposal mapping), Gate 10 (Git Integration — needs multi-repo context)
+- **Requires Modules**: Storage module (`src/storage/`), MCP function registry (`src/mcp/`), CLI router (`src/cli/`)
+
+### Infrastructure Dependencies
+
+- No new environment variables or external services required.
+- SQLite schema migration: adds `repositories` and `repo_dependencies` tables.
 
 ## Implementation Steps
 
-### Phase 1: Repository Storage & Basic CRUD
-1. Add `repositories` table to SQLite schema (name, path, url, type, metadata, zeno_project_ref)
-2. Implement repository CRUD operations (insert, update, delete, query)
-3. Implement repository hash registry (content-addressable references)
+1. Add repositories table to SQLite schema
+2. Implement repository CRUD operations
+3. Expose project structure via MCP tool for LLM analysis
+4. Implement cross-repo dependency tracking queries
+5. Implement `zeno repos` commands (list, deps, add, remove)
+6. Implement file conflict detection for concurrent proposals
+7. Write comprehensive tests (unit tests for CRUD, dependency queries, conflict detection; integration tests for CLI commands and MCP tool)
 
-### Phase 2: Interactive Repository Declaration
-4. Build interactive repository declaration through LLM conversation (via MCP)
-5. Support local git repo paths and remote URLs as input
-6. Implement `zeno repos add <path|url>` CLI command for non-interactive use
-7. Implement `zeno repos show` and `zeno repos list` CLI commands
-8. Implement `zeno repos remove` CLI command
-9. LLM validates paths/URLs and confirms with user before persisting
+## Known Issues & Limitations
 
-### Phase 3: Repository Analysis Commands (Leveraging Gate 2-4 Analysis Features)
-10. Implement `zeno repos analyze imports <repo_id>` command:
-    - **Use Code Analyzer** (`src/analysis/ast-analyzer.ts`) to enumerate imports in repository
-    - **Use Dependency Analyzer** (`src/analysis/dependency-analyzer.ts`) to build per-repository dependency graph
-    - **Use Metrics Calculator** (`src/analysis/metrics-calculator.ts`) to calculate coupling metrics (afferent/efferent)
-    - Analyze and suggest internal vs. external dependencies with user confirmation
-    - Generate import analysis report informing boundary recommendations
-11. Implement `zeno repos analyze boundaries` command:
-    - **Use Circular Dependency Detection** logic from Gate 04 (DFS with transaction rollback)
-    - Validate proposed repository boundaries for circular dependencies
-    - Report coupling issues and suggest boundary refinements
-    - Trigger detection on project initialization and rebase/rescope
+### Current Limitations
 
-### Phase 4: Cross-Repository Dependency Tracking & Management
-12. Implement cross-repository relationship tracking in SQLite
-13. **Use Dependency Graph utilities** (`src/generation/dependency-graph.ts`) from Gate 04 for visualization
-14. Create repository dependency resolution queries
-15. Implement `zeno repos deps` command (show cross-repo dependency graph)
-16. Implement `zeno repos sync` command (check/trigger cross-project Zeno state sync)
-17. Store Zeno project references in each subproject's database
-18. Track gate completion status across subprojects
-19. Signal dependent subprojects when a gate completes
+- LLM boundary recommendations require an active MCP connection; offline analysis is not supported in this gate.
+- Repository paths are stored as-is; symlink resolution is not handled in MVP.
+- Conflict detection operates on declared file sets from proposals, not on actual filesystem state.
 
-### Phase 5: MCP Tool Exposure (Function Registry Integration)
-20. Implement unified function-registry handler for `repos_action` tool (8 actions: list, show, add, remove, deps, sync, analyze_imports, validate_boundaries)
-21. Define Zod schemas for `repos_action` parameters (action select, shared args: repo_id/path/url/filter; action-specific args for add, analyze_imports, validate_boundaries)
-22. Wire `repos_action analyze_imports` to Gate 02 analysis modules:
-    - Code Analyzer (ast-analyzer.ts) — Parse imports from candidate repositories
-    - Dependency Analyzer (dependency-analyzer.ts) — Build per-repo dependency graphs
-    - Metrics Calculator (metrics-calculator.ts) — Calculate coupling metrics
-23. Wire `repos_action validate_boundaries` to Gate 04 utilities:
-    - Circular Dependency Detection — Enforce acyclic repository dependencies
-    - Dependency Graph Utilities — Render cross-repo relationships as ASCII trees or Mermaid diagrams
-24. Expose `repos_action` to LLM via MCP for interactive boundary analysis workflow
+### Technical Debt
 
-### Phase 6: Proposal-Repository Scoping
-25. Implement proposal-repository scoping logic (proposals scoped to current working repo)
-26. Multi-repo gates produce separate proposals per repo
-27. Track which repository each proposal targets
+- Repository type enum (`main/service/library/tool`) may need extension for monorepo workspaces — deferred to Gate 10.
+- `read_project_structure` returns full directory tree; pagination/filtering deferred to a future gate.
 
-### Phase 7: Testing & Quality (Target 90% Coverage)
-28. Write unit tests for repository CRUD operations
-29. Write integration tests for import analysis using Gate 02 analysis tools
-30. Write tests for analysis commands (`analyze_imports`, `analyze_boundaries`)
-31. Write tests for cross-repo dependency queries and visualization
-32. Write tests for circular dependency detection
-33. Write tests for cross-project state sync logic
-34. Achieve 90% test coverage for multi-repo module
+### Future Improvements
+
+- Confidence scoring for LLM boundary recommendations — deferred to post-MVP.
+- Automatic re-recommendation when project structure changes significantly — deferred to Gate 10.
+- Monorepo tooling integration (Turborepo, Nx) — explicitly out of scope for this project.
+
+## Risks & Mitigation
+
+### Technical Risks
+
+1. **LLM Boundary Quality**
+   - **Impact**: Medium
+   - **Probability**: Medium
+   - **Mitigation**: Provide structured project structure output (file counts, directory depth, language breakdown) to improve LLM analysis quality; use `coupling-analyzer` agent prompt
+   - **Contingency**: Allow full manual override via `zeno repos add/remove`; LLM recommendations are advisory only
+
+2. **SQLite Schema Migration**
+   - **Impact**: Low
+   - **Probability**: Low
+   - **Mitigation**: Add migration script for existing databases; test migration against existing test fixtures
+   - **Contingency**: Rebuild schema from scratch if migration fails (no production data at this stage)
+
+### Process Risks
+
+1. **Scope Creep into Static Analysis**
+   - **Impact**: High
+   - **Probability**: Medium
+   - **Mitigation**: Requirements explicitly exclude hardcoded coupling metrics, domain boundary analysis, and module size calculators; enforce in code review
+   - **Contingency**: Reject PRs that introduce threshold-based static analysis; defer to coupling-analyzer agent
 
 ## Gate Completion Criteria
 
-- [ ] Repositories can be declared interactively (via LLM) or via `zeno repos add <path|url>`
-- [ ] Repository CRUD operations work (create, read, update, delete)
-- [ ] Cross-repo dependency graph generated from declared relationships and import analysis
-- [ ] Circular dependencies detected and reported on init and rebase
+- [ ] Repositories can be declared, queried, updated, and deleted
+- [ ] Cross-repo dependency graph generated from declared relationships
+- [ ] Circular dependencies correctly detected and reported
 - [ ] `zeno repos list` shows all declared repositories with metadata
 - [ ] `zeno repos deps` displays dependency graph
 - [ ] `zeno repos add/remove` manage repository declarations
-- [ ] LLM can analyze project structure via existing MCP tools and recommend boundaries
-- [ ] Proposals are scoped to current working repo
-- [ ] Multi-repo gates produce separate proposals per repo
-- [ ] Cross-project Zeno state references stored and queryable
-- [ ] Gate completion in one subproject signals dependent subprojects
+- [ ] LLM can analyze project structure via MCP and recommend boundaries
+- [ ] File conflict detection prevents concurrent proposals from overlapping
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for multi-repo module
 - [ ] Zero lint errors, zero type errors
+
+## Notes
+
+### Implementation Notes
+
+- Follow the existing `GateRegistry` and `RequirementRegistry` patterns when implementing `RepositoryRegistry` to maintain consistency.
+- The `read_project_structure` MCP tool should return a stable JSON schema so the `coupling-analyzer` agent prompt can reference field names deterministically.
+- Conflict detection should be integrated as a non-blocking check that warns rather than hard-blocks proposal creation; hard enforcement can be added in Gate 07.
+
+### Proposal Summary
+
+[Populated during proposal archival. Contains 1-2 sentence summaries of completed proposals as they are cleaned up.]
+
+| Proposal Hash | Summary                                           |
+| ------------- | ------------------------------------------------- |
+| #[hash]       | [1-2 sentence summary of proposal work completed] |
+
+### Next Gate Preview
+
+Gate 07 (Proposal Generation) will build on the repository and dependency foundation established here, generating structured implementation proposals scoped to specific repositories and leveraging conflict detection to safely parallelize work.
+
+---
+
+**Document Version**: 1.1.0  
+**Last Updated**: 2026-02-27  
+**Versioning**: SemVer; bump on any change (minimum: PATCH).  
+**Owner**: zeno  
+**Reviewers**: zeno
+
+### Change Log
+
+| Version | Date       | Summary                               | Author |
+| ------- | ---------- | ------------------------------------- | ------ |
+| 1.0.0   | 2026-02-04 | Initial version                       | zeno   |
+| 1.1.0   | 2026-02-27 | Added missing template sections       | zeno   |
+
+**Related Documents**:
+
+- Project PRD: `zeno/PROJECT_PRD.md`
+- Previous Gate: `zeno/gates/gate-05-architecture-diagrams.md`
+- Next Gate: `zeno/gates/gate-07-proposal-generation.md`
+- Architecture: `zeno/architecture/`

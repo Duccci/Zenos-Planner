@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+﻿import { describe, it, expect, vi } from 'vitest'
 import { proposalHandlers } from '../../../src/mcp/tools/proposal-tools.js'
 import { ProposalListOutputSchema, ProposalDetailSchema } from '../../../src/mcp/schemas/proposal-schemas.js'
 
 describe('Proposal Handlers (integration)', () => {
   it('parses and validates proposal list outputs', async () => {
-    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, created: new Date().toISOString() }] }
+    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, lastUpdated: new Date().toISOString() }] }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }
@@ -20,7 +20,7 @@ describe('Proposal Handlers (integration)', () => {
   })
 
   it('parses and validates proposal show output', async () => {
-    const mockData = { hash: 'abcd1234', title: 'My Proposal', description: 'desc', status: 'pending' as const, gateId: 'gate-01', tasks: [], created: new Date().toISOString() }
+    const mockData = { hash: 'abcd1234', title: 'My Proposal', description: 'desc', status: 'pending' as const, gateId: 'gate-01', tasks: [], lastUpdated: new Date().toISOString() }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }

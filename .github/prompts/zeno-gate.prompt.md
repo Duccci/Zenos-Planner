@@ -96,7 +96,7 @@ Track these steps as TODOs using the manage_todo_list tool. **CRITICAL:**
 2. **Gather context**
    - Read `zeno/PROJECT_PRD.md` for end state definition and project scope
    - Read `zeno/AGENTS.md` for project conventions
-   - **Verify requirements exist**: **Invoke** `zeno req list --project` or query `zeno/.zeno/requirements.db` to confirm project-level requirements are defined
+   - **Verify requirements exist**: **Invoke** `zeno req list --project` or query `zeno/.zeno/registry.db` to confirm project-level requirements are defined
    - If requirements don't exist for new projects, STOP and inform user: Requirements should be defined at project inception (`zeno init`) before gates can be generated
    - For rebaseline operations: Requirements may be updated or added as part of rescoping
    - **Invoke** `zeno gates list` or inspect `zeno/gates/` for existing gates

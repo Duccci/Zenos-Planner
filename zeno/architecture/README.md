@@ -3,21 +3,19 @@
 This directory contains **forward-looking architecture diagrams and design documents** for Zeno's Planner (Gates 1-14). These documents describe the **target end state**, not just the current implementation. Architecture guides implementation, not the reverse.
 
 **Implementation Status**:
+
 - IMPLEMENTED (Gates 1-5 complete) — shown in green (#4CAF50)
 - IN_PROGRESS (Gate 6 started) — shown in amber (#FFC107)
 - PLANNED (Gates 7-14, in sequence) — shown in blue (#2196F3)
 
 ---
 
-## Core Documents
-
 ---
 
 ## Core Documents
 
 | Document | Purpose | Status | Gates |
-|----------|---------|--------|-------|
-|----------|---------|--------|-------|
+| ---------- | ------- | ------ | ----- |
 | **`system-overview.md`** | Component architecture with all layers (UI, Orchestration, Core, Analysis, Generation, Validation, Storage, Integration) showing implementation status | 2.0.0 | 1-14 |
 | **`data-flow.md`** | Workflow paths: happy path, error recovery, rejection/replan, parallel execution, rescope | 2.0.0 | 1-14 |
 | **`gate-lifecycle.md`** | State machine for gate/proposal lifecycles with all transitions and recovery scenarios | 2.0.0 | 1-14 |
@@ -115,6 +113,7 @@ Update the following in the affected documents:
 - **Link between documents**: Reference related diagrams and decisions
 - **Date all updates**: Always update footer when changing content
 - **Version semantically**: PATCH for clarifications, MINOR for gate completions, MAJOR for design changes
+
 ---
 
 ## Architecture Alignment Checklist
@@ -134,17 +133,20 @@ After each gate completion, verify the following:
 ## Viewing Diagrams
 
 ### In Visual Studio Code
+
 1. Install "Markdown Preview Mermaid Support" extension
 2. Open any `.md` file
 3. Press `Ctrl+Shift+V` (Windows/Linux) or `Cmd+Shift+V` (Mac)
 4. Mermaid diagrams will render automatically
 
 ### In GitHub
+
 - GitHub natively renders Mermaid diagrams in markdown files
 - SVG images (from DOT) render inline without additional setup
 - View raw `.md` files to see Mermaid source code
 
 ### In Other Viewers
+
 - Most modern markdown viewers support Mermaid (Obsidian, Typora, etc.)
 - SVG images render in any markdown viewer
 - Use [Mermaid Live Editor](https://mermaid.live/) to edit/test diagrams
@@ -156,7 +158,7 @@ After each gate completion, verify the following:
 - **Project Scope & Decisions**: [`../PROJECT_PRD.md`](../PROJECT_PRD.md) — Technical decisions with rationale (why, not what)
 - **Gate Research & Details**: [`../gates/`](../gates/) — Gate-specific objectives and requirements
 - **Implementation**: [`../../src/`](../../src/) — Actual code organized by layer
-- **Requirements Database**: `.zeno/requirements.db` — Queryable requirements per gate
+- **Requirements Database**: `.zeno/registry.db` — Queryable requirements per gate
 - **Agents Guide**: [`../AGENTS.md`](../AGENTS.md) — How AI agents should read/navigate this project
 
 ---
@@ -164,4 +166,3 @@ After each gate completion, verify the following:
 **Last Updated**: 2026-02-23  
 **Maintained By**: jamesonBatworker  
 **Status**: Lives! Updated after each gate (target: within 1 week of completion)
-

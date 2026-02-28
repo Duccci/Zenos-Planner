@@ -83,7 +83,7 @@
 
 ### Gate-Specific Requirements
 
-[Gate-specific requirements are generated when `zeno gates start <gate-id>` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/requirements.db` and queried via `zeno req list --gate <id>`.]
+[Gate-specific requirements are generated when `zeno gates start <gate-id>` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/registry.db` and queried via `zeno req list --gate <id>`.]
 
 **Status**: Requirements will be generated when gate is started.
 
@@ -186,7 +186,7 @@ graph LR
   - Changes: [What's being added or modified]
   - Interfaces: [Key APIs or contracts]
 
-### Architecture Diagrams
+### Diagram Update Requirements
 
 [Specify which diagrams need updates and what changes are required.]
 

@@ -12,7 +12,7 @@ Implemented the full architecture diagram generation system for Zeno's Planner. 
 ## Proposals Completed (9/9)
 
 | # | Proposal | Hash | Notes |
-|---|----------|------|-------|
+| --- | -------- | ---- | ----- |
 | 01 | Complexity Analyzer & Configuration | #p05g01complxcf0 | Threshold-based complexity scoring, config defaults |
 | 02 | Rendering Base Classes & Graphviz Integration | #p05g02rendbase0 | MermaidRenderer, GraphvizRenderer, SVG collapse |
 | 03 | Core Diagram Generators | #p05g03corediag0 | 5 core types: system-overview, data-flow, gate-lifecycle, gate-roadmap, context |

@@ -1,9 +1,10 @@
 # Testing Patterns & Configuration
 
 ## Test Runner: Vitest
+
 Config: `vitest.config.ts`
 
-```
+```yaml
 include:    tests/**/*.test.ts
 exclude:    node_modules, dist
 setupFiles: tests/setup.ts
@@ -12,7 +13,8 @@ globals:    false  (use explicit imports: import { describe, it, expect } from '
 ```
 
 ## Coverage (v8 provider)
-```
+
+```yaml
 include: src/**/*.ts
 exclude: src/**/*.d.ts, src/**/__tests__/**
 thresholds:
@@ -23,8 +25,10 @@ thresholds:
 ```
 
 ## Directory Layout
+
 Tests mirror `src/` structure under `tests/`:
-```
+
+```text
 tests/
   setup.ts                       # Global test setup (runs before all tests)
   index.test.ts                  # Library exports smoke test
@@ -43,6 +47,7 @@ tests/
 ```
 
 ## Commands
+
 ```powershell
 npm test                  # vitest run (single pass)
 npm run test:watch        # vitest --watch
@@ -51,6 +56,7 @@ npm run test:ui           # vitest --ui
 ```
 
 ## Patterns & Conventions
+
 - Test files: `*.test.ts` only (no `.spec.ts`)
 - Naming: `test<Unit><Scenario><ExpectedResult>` (e.g. `testCreateGateValidInputReturnsGate`)
 - One test file per source file (co-located by directory mirror, not by source file)
@@ -59,8 +65,9 @@ npm run test:ui           # vitest --ui
 - No shared mutable state between tests — each test is fully isolated
 - Use `vi.mock()` for external dependencies (better-sqlite3, simple-git, fs)
 - `tests/setup.ts` handles global before/after hooks (check before adding new global state)
-- SQLite tests use in-memory DB (`:memory:`) — never write to `zeno/.zeno/requirements.db` in tests
+- SQLite tests use in-memory DB (`:memory:`) — never write to `zeno/.zeno/registry.db` in tests
 
 ## Coverage Enforcement
+
 CI enforces thresholds via `npm run test:coverage`. Failing below 90% statements/functions/lines
 or 85% branches blocks the build. New modules must include tests in the same PR/proposal.

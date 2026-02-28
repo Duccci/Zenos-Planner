@@ -48,6 +48,7 @@ Gate 01 (Core Infrastructure) established the foundational infrastructure:
 ### Scope Boundaries
 
 **In Scope**:
+
 - Iterative gate generation algorithm (Zeno's paradox-inspired decomposition)
 - Project initialization via `zeno init` with interactive prompts
 - Code analyzer using @babel/parser and @babel/traverse for AST parsing
@@ -67,6 +68,7 @@ Gate 01 (Core Infrastructure) established the foundational infrastructure:
 - Integration tests for gate generation workflow
 
 **Out of Scope**:
+
 - Database CRUD operations beyond schema (deferred to Gate 3)
 - Architecture diagram generation (deferred to Gate 4)
 - Multi-repo detection logic (deferred to Gate 5)
@@ -81,7 +83,7 @@ Gate 01 (Core Infrastructure) established the foundational infrastructure:
 Project-level requirements were primarily defined during `zeno init` at project inception. Requirements may be updated or added during rebaseline/rescope operations, but init is the primary source. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.
 
 | Hash | Name | Type | Priority | How This Gate Addresses It |
-|------|------|------|----------|---------------------------|
+| ---- | ---- | ---- | -------- | --------------------------- |
 | #p02gategen | Gate Generation Algorithm | functional | must | Implements iterative decomposition algorithm |
 | #p02init | Project Initialization | functional | must | Implements `zeno init` command with prompts |
 | #p02codeanalysis | Code Analysis Capabilities | functional | must | Implements AST parsing and code metrics |
@@ -91,7 +93,7 @@ Project-level requirements were primarily defined during `zeno init` at project 
 
 ### Gate-Specific Requirements
 
-Gate-specific requirements will be generated when `zeno gates start gate-02` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/requirements.db` and queried via `zeno req list --gate gate-02`.
+Gate-specific requirements will be generated when `zeno gates start gate-02` is called. These decompose project requirements and gate objectives into actionable items. Stored in `.zeno/registry.db` and queried via `zeno req list --gate gate-02`.
 
 **Status**: Requirements will be generated when gate is started.
 
@@ -106,6 +108,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 ## Technical Decisions for This Gate
 
 ### Iterative Decomposition Algorithm
+
 - **Choice**: Use recursive decomposition that splits remaining work in half conceptually until concrete deliverables emerge
 - **Alternatives Considered**: Fixed percentage gates, Fibonacci sequence, user-defined milestones, complexity-based sizing
 - **Rationale**: Natural decomposition that adapts to actual complexity. Each gate represents concrete deliverables, not arbitrary percentages. Algorithm continues until remaining work is small enough to be a single gate.
@@ -113,6 +116,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Gained adaptive structure; lost rigid predictability but gained realistic progress tracking
 
 ### AST Parsing with Babel
+
 - **Choice**: Use @babel/parser and @babel/traverse for JavaScript/TypeScript code analysis
 - **Alternatives Considered**: TypeScript compiler API, ESLint parser, Acorn, manual regex parsing
 - **Rationale**: Babel handles both JavaScript and TypeScript, provides rich AST traversal, widely used and maintained. Supports modern syntax and experimental features.
@@ -120,6 +124,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Additional dependency; gained comprehensive syntax support
 
 ### Command-Based LLM Integration
+
 - **Choice**: LLM integration via function invocation, not API calls or external services
 - **Alternatives Considered**: OpenAI API integration, Anthropic API, local LLM server, prompt-based only
 - **Rationale**: Zeno functions are invoked by AI agents (like Cursor) during workflow execution. No API keys needed - LLM calls Zeno functions directly. Humans provide prompts; LLMs execute commands.
@@ -127,6 +132,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Requires LLM to understand function signatures; gained simplicity and no API costs
 
 ### Gate Template System
+
 - **Choice**: Markdown templates with optional sections, filled via template engine
 - **Alternatives Considered**: Handlebars, Mustache, custom DSL, code generation
 - **Rationale**: Markdown is human-readable, version-controllable, and LLM-friendly. Template system allows consistent structure while supporting gate-specific variations.
@@ -134,6 +140,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 - **Trade-offs**: Template parsing overhead; gained consistency and maintainability
 
 ### Write-Time Analysis for Greenfield Projects
+
 - **Choice**: Auto-trigger code analysis on `zeno gates complete <gate-id>` to capture newly written code metrics, then use those metrics to inform future gate generation
 - **Alternatives Considered**: Manual analysis only, postpone analysis until all gates complete, scan only at init
 - **Rationale**: Greenfield projects benefit from deterministic analysis like brownfield projects. By analyzing code after each gate completes, future gates are generated based on real metrics (coupling, complexity, LOC) rather than theoretical decomposition alone. This creates a data-driven feedback loop: vision → Gate 1 → analyze → Gate 2 (informed by data) → analyze → Gate 3 (informed by data) → etc.
@@ -210,6 +217,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
   - Interfaces: `invokeZenoFunction(name, args)`, `getFunctionSignatures()`
 
 ### Architecture Diagrams
+
 - System Overview: `zeno/architecture/system-overview.md` - Core Layer and Analysis Layer components are implemented in this gate
 - Data Flow: `zeno/architecture/data-flow.md` - Initialization and gate generation flows are implemented
 - Gate Roadmap: `zeno/architecture/gate-roadmap.md` - Gate 2 marked as pending
@@ -396,7 +404,7 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 ### Proposal Status
 
 | Proposal | Hash | Status | Archived |
-|----------|------|--------|----------|
+| -------- | ---- | ------ | -------- |
 | 03-requirement-generation | #g02p03reqgen | completed | 2026-01-30 |
 | 04-gate-engine | #g02p04engine | completed | 2026-01-30 |
 | 05-template-system | #g02p05templates | completed | 2026-01-30 |
@@ -418,7 +426,7 @@ All proposals for this gate have been completed and archived. See **Consolidated
 ### Requirements Fulfilled
 
 | Requirement | Proposal |
-|-------------|----------|
+| ----------- | -------- |
 | #p02writeanalysis | #g02p09writeanalysis |
 | #p02codeanalysis | #g02p04engine |
 | #p02init | #g02p06cli |
@@ -442,6 +450,7 @@ All proposals for this gate have been completed and archived. See **Consolidated
 Implements core Zeno engine with iterative gate decomposition, project initialization command, code analysis capabilities, and CLI gate management. Delivers `zeno init` for interactive project setup, AST-based code analysis with metrics calculation (coupling, complexity, LOC), gate generation algorithm, gate template system, LLM integration layer for command-based interaction, and write-time analysis that auto-triggers on gate completion to enable data-driven future gate generation for greenfield projects.
 
 **Key Deliverables**:
+
 - `zeno init` command with interactive prompts for project setup
 - Core gate generation engine with iterative decomposition algorithm
 - Code analyzer using @babel/parser for JavaScript/TypeScript AST parsing
@@ -464,13 +473,14 @@ Implements core Zeno engine with iterative gate decomposition, project initializ
 - Interactive prompts should provide clear examples and validation
 - LLM integration layer is documentation-focused; actual invocation happens via AI agents
 
-### Lessons Learned
+### Implementation Retrospective
 
 - [To be filled during/after implementation]
 
 ### Next Gate Preview
 
 Gate 3 (Requirements & Database Layer) builds on gate generation to implement requirement decomposition, database CRUD operations, and hash registry. It will add:
+
 - Gate-specific requirement generation (decompose project requirements + gate objectives)
 - Requirement inheritance and transfer between gates
 - SQLite CRUD operations with better-sqlite3
@@ -488,11 +498,12 @@ Gate 3 (Requirements & Database Layer) builds on gate generation to implement re
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | 2026-01-30 | Initial version | Development Team |
+| Version | Date       | Summary         | Author           |
+| ------- | ---------- | --------------- | ---------------- |
+| 1.0.0   | 2026-01-30 | Initial version | Development Team |
 
 **Related Documents**:
+
 - Project PRD: `zeno/PROJECT_PRD.md`
 - Previous Gate: `zeno/gates/gate-01-core-infrastructure.md`
 - Next Gate: `zeno/gates/gate-03-requirements-db.md` (to be generated)

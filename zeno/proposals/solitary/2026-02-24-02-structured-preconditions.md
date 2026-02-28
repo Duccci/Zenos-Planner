@@ -4,7 +4,7 @@
 
 - **Hash**: #s20260224precond02
 - **Type**: Solitary
-- **Status**: in_progress
+- **Status**: completed
 - **Created**: 2026-02-24
 - **Summary**: Convert narrative-only guardrails into required structured precondition fields on MCP tool call schemas and deterministic validators, enforcing agent compliance through schema validation and runtime checks rather than trust.
 
@@ -23,6 +23,7 @@ Narrative-only guardrails rely on the agent reading instructions and choosing to
 ### Analysis Approach
 
 Each of the 25 allowlisted guardrails was evaluated against three criteria:
+
 1. **Can it be a specific validator?** — Does the check have deterministic, machine-verifiable conditions?
 2. **Can it be a structured precondition?** — Can the agent be forced to produce evidence of compliance via a required schema field (Option A from prior analysis)?
 3. **Must it remain narrative?** — Is it purely a design principle, approval gate, or subjective judgment call?
@@ -38,7 +39,7 @@ This proposal depends on `s20260224skill01` (Consolidate SKILL.md Guidance). Tha
 These guardrails describe concrete pre-checks with observable outputs. The agent must produce structured evidence of compliance to make the tool call.
 
 | # | Guardrail | Source | Current Status | Promotion Target |
-|---|-----------|--------|----------------|------------------|
+| --- | --------- | ------ | -------------- | ---------------- |
 | G1 | "Flag any open questions, unclear requirements, or contradictory statements" | apply/SKILL.md Pre-Apply | Narrative | `proposal_action: start` requires `preReview.openQuestionsResolved: boolean` + `preReview.questionsFound: string[]` |
 | G2 | "Verify all Files Affected exist (or are explicitly marked as new files)" | apply/SKILL.md Pre-Apply | Narrative | `proposal_action: start` requires `preReview.filesVerified: boolean` |
 | G3 | "Identify any implicit assumptions" | apply/SKILL.md Pre-Apply | Narrative | `proposal_action: start` requires `preReview.assumptionsDocumented: string[]` |
@@ -54,7 +55,7 @@ These guardrails describe concrete pre-checks with observable outputs. The agent
 These guardrails can be machine-verified at runtime without relying on agent self-reporting. The system checks conditions directly against proposal metadata and file lists.
 
 | # | Guardrail | Source | Current Status | Promotion Target |
-|---|-----------|--------|----------------|------------------|
+| --- | --------- | ------ | -------------- | ---------------- |
 | G10 | "Gate-tied proposals: do not create or modify test files unless dedicated test proposal" | apply/SKILL.md Constraints | Narrative (was N4) | `scope-validator.ts#validateTestFileScope` — reject `filesAffected` entries matching `tests/**`, `**/*.test.ts`, `**/*.spec.ts` when proposal is gate-tied and not a test proposal |
 | G11 | "Solitary proposals: tests are included inline" | apply/SKILL.md Constraints | Narrative (was N5) | `scope-validator.ts#validateTestFileScope` — warn when solitary proposal has zero test files in `filesAffected` |
 | G12 | "Only create markdown; no code, files, or commands" (gate + proposal generation) | gate/SKILL.md + proposal/SKILL.md | Narrative (was N10, N13, N15) | `scope-validator.ts#validateMarkdownOnly` — reject `filesAffected` entries not ending in `.md` during `generate` actions |
@@ -64,7 +65,7 @@ These guardrails can be machine-verified at runtime without relying on agent sel
 These guardrails already have runtime enforcement. Included for completeness.
 
 | # | Guardrail | Source | Validator |
-|---|-----------|--------|-----------|
+| --- | --------- | ------ | --------- |
 | V1 | "Only modify files explicitly listed in Files Affected" | apply/SKILL.md | `scope-validator.ts#validateScope` + `apply-phase-validator.ts` Rule 2 |
 | V2 | "All Files Affected entries must be explicit file paths (no wildcards)" | apply/SKILL.md | `scope-validator.ts#validateExplicitPaths` |
 | V3 | "No git operations during apply phase" | apply/SKILL.md | `apply-phase-validator.ts#validateApplyPhase` Rule 1 |
@@ -78,7 +79,7 @@ These guardrails already have runtime enforcement. Included for completeness.
 These are design principles, definitional statements, or human approval gates that cannot meaningfully be structured. They remain as injected content per `s20260224skill01`.
 
 | # | Guardrail | Source | Why Narrative |
-|---|-----------|--------|---------------|
+| --- | --------- | ------ | ------------- |
 | N1 | "Assume user approval before apply begins" | apply/SKILL.md | Process assumption — by the time `start` is called, approval is assumed |
 | N2 | "Implement straightforward solutions; add complexity only when required" | apply/SKILL.md | Subjective judgment call — no measurable threshold |
 | N3 | "Limit test changes to those that directly validate" | apply/SKILL.md | Scope judgment — coverage thresholds catch violations, but what "directly validates" is subjective |
@@ -100,9 +101,11 @@ These are design principles, definitional statements, or human approval gates th
 ## Tasks
 
 ### Task 1: Define PreReview Schema
+
 Create `src/mcp/schemas/pre-review-schemas.ts` with a unified `PreReviewSchema` and supporting schemas
 
 **Acceptance**:
+
 - [x] Single `PreReviewSchema` defined with `phase: z.enum(['apply', 'generate'])` discriminator — applies/generate-specific fields are conditionally present based on phase rather than separate schemas, eliminating the G1/G3/G4 ? G5/G7/G8 duplication
 - [x] `PreReviewSchema` fields: `phase`, `openQuestionsResolved: boolean`, `questionsFound: string[]`, `filesVerified: boolean` (apply only — validated conditionally), `requirementsVerified: boolean` (generate only — validated conditionally), `vagueRequirements: string[]`, `assumptionsDocumented: string[]`, `blockersIdentified: string[]`, `gateReviewed: boolean` (generate only)
 - [x] `ScopeExpansionSchema` defined: `filesAdded: string[]`, `justification: string`
@@ -110,9 +113,11 @@ Create `src/mcp/schemas/pre-review-schemas.ts` with a unified `PreReviewSchema` 
 - [x] `tests/mcp/schemas/pre-review-schemas.test.ts` created with validation tests for valid/invalid inputs, including cross-phase field validation
 
 ### Task 2: Wire PreReview into Proposal Action Input Schema
+
 Add `preReview` field to `ProposalActionInputSchema` in `src/mcp/schemas/proposal-action-schemas.ts` and `scopeExpansion` to progress action
 
 **Acceptance**:
+
 - [x] `preReview` field added as optional on the flat schema (per existing pattern where handler decides what's required per action)
 - [x] `scopeExpansion` field added as optional for `progress` action
 - [x] `currentTask: number` field added as optional on the flat schema — required by handler on every `progress` call; represents the 1-based index of the task currently being applied
@@ -121,18 +126,22 @@ Add `preReview` field to `ProposalActionInputSchema` in `src/mcp/schemas/proposa
 - [x] Schema backward-compatible: existing calls without new fields still parse (handler enforces requirement, not schema)
 
 ### Task 3: Wire PreReview into Gates Action Input Schema
+
 Add `preReview` field to `GatesActionInputSchema` in `src/mcp/schemas/gates-action-schemas.ts` for `generate` and `start` actions
 
 **Acceptance**:
+
 - [x] `preReview` field added as optional on the flat schema (handler enforces per action)
 - [x] Schema description updated to document: "`preReview` required for `generate`"
 - [x] Existing tests in `tests/mcp/schemas/` updated to cover new fields
 - [x] Schema backward-compatible
 
 ### Task 4: Enforce PreReview in Proposal Tool Handlers
+
 Update `src/mcp/tools/proposal-tools.ts` to validate `preReview` presence on `start` and `generate` actions, and `scopeExpansion` on `progress` when scope expands
 
 **Acceptance**:
+
 - [x] `proposal_action: start` handler: if `preReview` is absent, return structured error with message explaining what fields are required and why (not a silent failure)
 - [x] `proposal_action: start` handler: if `preReview.openQuestionsResolved === false` and `preReview.questionsFound.length > 0`, return error listing the unresolved questions and instructing the agent to resolve them first
 - [x] `proposal_action: start` handler: if `preReview.filesVerified === false`, return error instructing agent to verify file existence
@@ -149,9 +158,11 @@ Update `src/mcp/tools/proposal-tools.ts` to validate `preReview` presence on `st
 - [x] `tests/mcp/tools/proposal-tools.test.ts` updated with tests for preReview enforcement (missing, incomplete, valid) and that success responses include `preReviewSummary`
 
 ### Task 5: Enforce PreReview in Gate Tool Handlers
+
 Update `src/mcp/tools/gate-tools.ts` to validate `preReview` presence on `generate` action
 
 **Acceptance**:
+
 - [x] `gates_action: generate` handler: if `preReview` is absent, return structured error
 - [x] `gates_action: generate` handler: if `preReview.gateReviewed === false`, return error
 - [x] Enforcement returns structured `ValidationResult`
@@ -159,9 +170,11 @@ Update `src/mcp/tools/gate-tools.ts` to validate `preReview` presence on `genera
 - [x] `tests/mcp/tools/gates.test.ts` updated with tests for preReview enforcement and that success responses include `preReviewSummary`
 
 ### Task 6: Update Guardrail Constants and Coverage Test
+
 Update `src/mcp/content/guardrails.ts` (from `s20260224skill01`) to mark G1—G12 as `mustHaveValidator: true` with `validatorRef` pointing to the new enforcement, and update the coverage test
 
 **Acceptance**:
+
 - [x] G1–G9 entries in guardrails constants updated: `mustHaveValidator: true`, `validatorRef: 'proposal-tools.ts#preReview'` (or `gate-tools.ts#preReview`)
 - [x] G10–G11 entries updated: `mustHaveValidator: true`, `validatorRef: 'scope-validator.ts#validateTestFileScope'`
 - [x] G12 entry updated: `mustHaveValidator: true`, `validatorRef: 'scope-validator.ts#validateMarkdownOnly'`
@@ -170,9 +183,11 @@ Update `src/mcp/content/guardrails.ts` (from `s20260224skill01`) to mark G1—G1
 - [x] Guardrail allowlist entries for G1–G12 patterns can be removed from `src/mcp/allowlists/guardrail-allowlist.ts` (they are no longer narrative-only)
 
 ### Task 7: Implement Test File Scope Validator (G10 + G11)
+
 Add `validateTestFileScope` to `src/mcp/validators/scope-validator.ts` to enforce test file rules based on proposal type
 
 **Acceptance**:
+
 - [x] `validateTestFileScope(filesAffected: string[], isSolitary: boolean): ValidationResult` exported from `scope-validator.ts`
 - [x] Gate-tied mode (`isSolitary === false`): returns `{ allowed: false }` if any entry matches test patterns (`tests/**`, `**/*.test.ts`, `**/*.spec.ts`, `**/*.test.tsx`, `**/*.spec.tsx`) — error message explains gate-tied proposals must not include test files
 - [x] Solitary mode (`isSolitary === true`): returns `{ allowed: true, warnings: [...] }` if zero entries match test patterns — warning message explains solitary proposals should include inline tests
@@ -181,9 +196,11 @@ Add `validateTestFileScope` to `src/mcp/validators/scope-validator.ts` to enforc
 - [x] `tests/mcp/validators/scope-validator.test.ts` updated with test cases: gate-tied with test files (reject), gate-tied without test files (pass), solitary with test files (pass), solitary without test files (warn)
 
 ### Task 8: Implement Markdown-Only Output Validator (G12)
+
 Add `validateMarkdownOnly` to `src/mcp/validators/scope-validator.ts` to enforce markdown-only output during generation actions
 
 **Acceptance**:
+
 - [x] `validateMarkdownOnly(filesAffected: string[]): ValidationResult` exported from `scope-validator.ts`
 - [x] Returns `{ allowed: false }` if any entry does not end with `.md` — error message lists the non-markdown files and explains generation actions must only produce markdown
 - [x] Wire into `proposal_action: generate` handler — validate output `filesAffected` before writing
@@ -191,9 +208,11 @@ Add `validateMarkdownOnly` to `src/mcp/validators/scope-validator.ts` to enforce
 - [x] `tests/mcp/validators/scope-validator.test.ts` updated with test cases: all `.md` files (pass), mixed files (reject), empty list (pass)
 
 ### Task 9: Enforce Database Access Guardrails (DB1—DB4)
+
 Refactor CLI commands to use MCP tools exclusively instead of direct database access; inject database guardrails into MCP tool responses
 
 **Acceptance**:
+
 - [x] Create `src/cli/cli-tool-invoker.ts` with `invokeCliTool()`, `invokeProposalAction()`, `invokeGatesAction()`, and `invokeRequirementAction()` helpers
 - [x] Refactor `src/cli/commands/proposal.ts`: remove direct database calls (`getDatabase()`, `.prepare().get()`, `.prepare().all()`); use `invokeProposalAction()` for all list/show/start/validate/approve/reject operations
 - [x] Refactor `src/cli/commands/gates.ts`: remove direct database calls; use `invokeGatesAction()` for requirements and proposals count queries
@@ -206,17 +225,19 @@ Refactor CLI commands to use MCP tools exclusively instead of direct database ac
 ## Dependencies
 
 | Hash | Description | Status |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | s20260224skill01 | Consolidate SKILL.md Guidance — creates `src/mcp/content/guardrails.ts` constants that this proposal modifies | pending |
 
 ## Files Affected
 
 **New Files**:
+
 - `src/mcp/schemas/pre-review-schemas.ts` (PreReview Zod schemas)
 - `src/cli/cli-tool-invoker.ts` (CLI tool invocation helpers)
 - `tests/mcp/schemas/pre-review-schemas.test.ts` (schema validation tests)
 
 **Modified Files**:
+
 - `src/mcp/schemas/proposal-action-schemas.ts` (add preReview + scopeExpansion + currentTask fields)
 - `src/mcp/schemas/gates-action-schemas.ts` (add preReview field)
 - `src/mcp/tools/proposal-tools.ts` (enforce preReview on start/generate, currentTask + cumulative file tracking on progress, + wire test file scope validator, + inject DATABASE_ACCESS_GUARDRAILS)
@@ -256,7 +277,7 @@ Refactor CLI commands to use MCP tools exclusively instead of direct database ac
 ### What was implemented
 
 | Task | Status | Notes |
-|------|--------|-------|
+| ---- | ------ | ----- |
 | 1 — PreReviewSchema | ? Done | `src/mcp/schemas/pre-review-schemas.ts` — unified schema with `phase` discriminator; 19 tests passing |
 | 2 — ProposalActionInputSchema | ? Done | `preReview`, `currentTask`, `scopeExpansion` fields added |
 | 3 — GatesActionInputSchema | ? Done | `preReview` field added |
@@ -283,6 +304,7 @@ Task 6 was initially deferred pending `src/mcp/content/guardrails.ts` from `s202
 ### Database Access Guardrails Implementation (Task 9)
 
 Task 9 enforces guardrails DB1—DB4 as narrative guidance:
+
 - **DB1 & DB4** (No direct SQL/execSync): Enforced through code review; CLI tools now exclusively use `invokeCliTool()` via `src/cli/cli-tool-invoker.ts`
 - **DB2** (Use MCP tools): `invokeProposalAction()`, `invokeGatesAction()` helpers eliminate footgun of direct DB calls
 - **DB3** (Validate before query): Zod schemas in `src/mcp/schemas/` enforce input validation; handlers validate before invoking functions

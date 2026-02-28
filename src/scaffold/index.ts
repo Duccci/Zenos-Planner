@@ -73,7 +73,7 @@ export async function createProjectStructure(
 
           const initResult = await initializeDatabase(projectRoot, { syncProposals: true })
           if (initResult.created) {
-            createdPaths.push('zeno/.zeno/requirements.db')
+            createdPaths.push('zeno/.zeno/registry.db')
             logger.debug(
               `Database initialized: ${String(initResult.migrationsApplied)} migrations applied`
             )

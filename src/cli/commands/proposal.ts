@@ -32,9 +32,7 @@ interface ProposalSummaryResult {
   gateId: string | null
   title: string
   status: string
-  created: string
-  updated: string | null
-  completedAt: string | null
+  lastUpdated: string
 }
 
 interface ProposalDetailResult {
@@ -42,9 +40,7 @@ interface ProposalDetailResult {
   gateId: string | null
   title: string
   status: string
-  created: string
-  updated: string | null
-  completedAt: string | null
+  lastUpdated: string
   summary?: string
   context?: string
   tasks?: unknown[]
@@ -126,7 +122,7 @@ export function registerProposalCommands(program: Command): void {
                   ? 'BACKLOG'
                   : 'PENDING'
         logger.info(`${badge} #${proposal.hash.slice(0, 8)} [${proposal.status}] ${proposal.title}`)
-        logger.info(`  Gate: ${proposal.gateId ?? 'solitary'}, Created: ${proposal.created}`)
+        logger.info(`  Gate: ${proposal.gateId ?? 'solitary'}, Updated: ${proposal.lastUpdated}`)
       }
     })
 
@@ -147,10 +143,7 @@ export function registerProposalCommands(program: Command): void {
       logger.info(`**Hash**: #${proposal.hash}`)
       logger.info(`**Gate**: ${proposal.gateId ?? 'solitary'}`)
       logger.info(`**Status**: ${proposal.status}`)
-      logger.info(`**Created**: ${proposal.created}`)
-      if (proposal.completedAt) {
-        logger.info(`**Completed**: ${proposal.completedAt}`)
-      }
+      logger.info(`**Updated**: ${proposal.lastUpdated}`)
 
       const projectRoot = findProjectRoot(process.cwd())
       if (projectRoot) {

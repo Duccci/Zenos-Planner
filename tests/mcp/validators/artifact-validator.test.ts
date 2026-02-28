@@ -21,6 +21,7 @@ const mockValidateTestFirstPattern = vi.fn()
 const mockValidateScope = vi.fn()
 const mockValidateDependencies = vi.fn()
 const mockReadFile = vi.fn()
+const mockLoadTemplateSections = vi.fn()
 
 vi.mock('../../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
@@ -46,6 +47,16 @@ vi.mock('../../../src/utils/logger.js', () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }))
 
+// Mock only loadTemplateSections (file I/O) while keeping validateTemplateSections real.
+// validateArtifact tests pass templateSections directly so they bypass loadTemplateSections.
+vi.mock('../../../src/mcp/validators/template-sections-validator.js', async (importOriginal) => {
+  const mod = await importOriginal() as Record<string, unknown>
+  return {
+    ...mod,
+    loadTemplateSections: (...args: unknown[]) => mockLoadTemplateSections(...args),
+  }
+})
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -60,6 +71,34 @@ const VALID_PROPOSAL = `# Proposal: Test Proposal
 ## Summary
 
 This is a test proposal summary.
+
+---
+
+## Proposal Type
+
+Solitary
+
+---
+
+## Coverage & Estimates
+
+### Target Coverage
+
+- **Coverage Threshold**: 90%
+
+---
+
+## Single-Phase Requirement
+
+Single phase only.
+
+---
+
+## Context
+
+### Why This Change
+
+Because.
 
 ---
 
@@ -80,25 +119,62 @@ This is a test proposal summary.
 
 ---
 
-## Dependencies
+## Rollback
 
-No dependencies.
+No rollback needed.
 `
+
+/**
+ * Mirrors the required/optional sections from proposal-template.md.
+ * Used in unit tests that call validateArtifact directly.
+ */
+const PROPOSAL_TEMPLATE_SECTIONS = {
+  required: [
+    '## Summary',
+    '## Proposal Type',
+    '## Coverage & Estimates',
+    '## Single-Phase Requirement',
+    '## Context',
+    '## Tasks',
+    '## Files Affected',
+    '## Rollback',
+  ],
+  optional: ['## Implementation Notes'],
+}
+
+/**
+ * Mirrors the required sections from gate-prd-template.md.
+ * Used in unit tests that call validateArtifact directly.
+ */
+const GATE_TEMPLATE_SECTIONS = {
+  required: [
+    '## Overview',
+    '## Objectives',
+    '## Context',
+    '## Requirements',
+    '## Proposals',
+  ],
+  optional: [],
+}
 
 const VALID_GATE = `# Gate 01: Test Gate
 
 **Status**: pending
 
+## Overview
+Gate overview.
+
 ## Objectives
 - [ ] Objective 1
+
+## Context
+Context notes.
 
 ## Requirements
 - REQ-001: Requirement
 
-## Architecture
-Architecture notes here.
-
-Scope Boundaries: Core module only.
+## Proposals
+- Proposal 1
 `
 
 describe('artifact-validator', () => {
@@ -108,6 +184,8 @@ describe('artifact-validator', () => {
     mockValidateTestFirstPattern.mockReturnValue({ errors: [], warnings: [] })
     mockValidateScope.mockReturnValue({ errors: [], warnings: [] })
     mockValidateDependencies.mockReturnValue({ errors: [], warnings: [] })
+    // Default: return empty sections so validateArtifactFile tests don't add unexpected errors.
+    mockLoadTemplateSections.mockResolvedValue({ required: [], optional: [] })
   })
 
   // -------------------------------------------------------------------------
@@ -121,6 +199,7 @@ describe('artifact-validator', () => {
         artifactType: 'proposal',
         artifactPath: '/test.md',
         content: '# Proposal: Test\n\nOnly a title, no required sections.',
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
       })
 
       expect(result.allowed).toBe(false)
@@ -134,9 +213,6 @@ describe('artifact-validator', () => {
       expect(
         result.errors!.some((e) => e.includes('Missing required section: "## Files Affected"'))
       ).toBe(true)
-      expect(
-        result.errors!.some((e) => e.includes('Missing required section: "## Dependencies"'))
-      ).toBe(true)
     })
 
     it('passes when all required sections are present', async () => {
@@ -146,6 +222,7 @@ describe('artifact-validator', () => {
         artifactType: 'proposal',
         artifactPath: '/test.md',
         content: VALID_PROPOSAL,
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
       })
 
       expect(result.allowed).toBe(true)
@@ -323,7 +400,26 @@ describe('artifact-validator', () => {
       expect(result.errors!.some((e) => e.includes('Status field'))).toBe(true)
     })
 
-    it('returns warnings for missing optional sections', async () => {
+    it('returns warnings for missing optional sections when templateSections is provided', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content: '# Gate 01\n\n**Status**: pending',
+        templateSections: {
+          required: [],
+          optional: ['## Objectives', '## Requirements'],
+        },
+      })
+
+      // Passes (no required sections), but warns about missing optionals
+      expect(result.allowed).toBe(true)
+      expect(result.warnings).toBeDefined()
+      expect(result.warnings!.some((w) => w.includes('Missing optional section'))).toBe(true)
+    })
+
+    it('returns warning when templateSections is absent (no file I/O)', async () => {
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
 
       const result = validateArtifact({
@@ -332,19 +428,18 @@ describe('artifact-validator', () => {
         content: '# Gate 01\n\n**Status**: pending',
       })
 
-      // Passes (no required sections for gates), but warns about missing optionals
       expect(result.allowed).toBe(true)
-      expect(result.warnings).toBeDefined()
-      expect(result.warnings!.some((w) => w.includes('missing section'))).toBe(true)
+      expect(result.warnings?.some((w) => w.includes('template sections not loaded'))).toBe(true)
     })
 
-    it('passes when gate has Status and all optional sections', async () => {
+    it('passes when gate has Status and all template sections', async () => {
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
 
       const result = validateArtifact({
         artifactType: 'gate',
         artifactPath: '/gate.md',
         content: VALID_GATE,
+        templateSections: GATE_TEMPLATE_SECTIONS,
       })
 
       expect(result.allowed).toBe(true)
@@ -358,7 +453,8 @@ describe('artifact-validator', () => {
         const result = validateArtifact({
           artifactType: 'gate',
           artifactPath: '/gate.md',
-          content: `# Gate 01\n\n**Status**: ${status}\n\n## Objectives\n## Requirements\n## Architecture\nScope Boundaries:`,
+          content: `# Gate 01\n\n**Status**: ${status}\n\n## Overview\n## Objectives\n## Context\n## Requirements\n## Proposals`,
+          templateSections: GATE_TEMPLATE_SECTIONS,
         })
         expect(result.allowed).toBe(true)
       }

@@ -3,7 +3,6 @@ import {
   GateIdSchema,
   GateStatusEnum,
   TimestampSchema,
-  OptionalTimestampSchema,
 } from './common-schemas.js'
 
 /**
@@ -26,9 +25,7 @@ export const GateSummarySchema = z.object({
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
   type: z.enum(['feature', 'infrastructure', 'migration']),
-  created: TimestampSchema,
-  started: OptionalTimestampSchema,
-  completed: OptionalTimestampSchema,
+  lastUpdated: TimestampSchema,
   proposalCount: z.number().int().min(0),
   completedProposalCount: z.number().int().min(0),
   requirementCount: z.number().int().min(0),
@@ -80,9 +77,7 @@ export const GateDetailSchema = z.object({
       totalTasks: z.number().int().min(0),
     })
   ),
-  created: TimestampSchema,
-  started: OptionalTimestampSchema,
-  completed: OptionalTimestampSchema,
+  lastUpdated: TimestampSchema,
 })
 export type GateDetail = z.infer<typeof GateDetailSchema>
 

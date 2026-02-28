@@ -118,7 +118,7 @@ The tool bridges the gap between high-level project vision and detailed implemen
 
 **Delegation Flow**:
 
-```
+```text
 Planning Agents (Specialized Gate Analysis)
     ↓ Hand off planning insights (MCP: agent_delegate)
 Local Agent (Orchestration & Coordination)
@@ -202,7 +202,7 @@ Merge Orchestration & Worktree Cleanup
 
 **Storage Structure**:
 
-```
+```text
 .local/
   worktrees/
     {proposal-hash-1}/
@@ -330,7 +330,7 @@ Zeno tracks dependencies across multiple repositories using content-addressable 
 
 **Example Multi-Repo Scenario:**
 
-```
+```text
 Main Application Repo
 ├── AuthModule (#a3f9c2d1) → requires CoreLib (#b7e4d8f2)
 ├── APIModule (#c8d4e1f5) → requires CoreLib (#b7e4d8f2)
@@ -475,21 +475,21 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 
 ### Primary Users
 
-**As a solo developer working on a large project**
+#### As a solo developer working on a large project
 
 - I want to describe my end goal and have Zeno generate a roadmap so that I don't get overwhelmed by scope
 - I want automated quality checks before commits so that I maintain high code quality without manual verification
 - I want to track dependencies across modules so that I avoid breaking changes
 - I want to rescope my project mid-development so that I can adapt to changing requirements
 
-**As a tech lead managing multiple repositories**
+#### As a tech lead managing multiple repositories
 
 - I want automatic repository boundary detection so that I can maintain proper separation of concerns
 - I want dependency graphs across repos so that I can visualize system architecture
 - I want hash-based references so that my LLM can navigate large codebases efficiently
 - I want gate-based releases so that I can coordinate deployments across services
 
-**As an AI coding assistant (LLM)**
+#### As an AI coding assistant (LLM)
 
 - I want to invoke Zeno functions during workflow execution so that I can manage gates, requirements, and proposals programmatically
 - I want structured requirements with hashes so that I can reference specific items without full file paths
@@ -503,7 +503,7 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 - **I want isolated git worktrees for each independent proposal so that I can work without branch switching delays and merge conflicts**
 - **I want the orchestrator to manage merge ordering and conflict detection so that I can focus on implementation while safety is automated**
 
-**As a project stakeholder**
+#### As a project stakeholder
 
 - I want visual architecture diagrams so that I can understand system design
 - I want gate-based progress tracking so that I can see project status at a glance
@@ -803,7 +803,7 @@ _MVP consists of Gates 05-12 (8 active gates). Gates 01-04 archived. Gates 13-14
 
 SQLite database path for detailed requirements and specifications:
 
-- Database: `zeno/.zeno/requirements.db`
+- Database: `zeno/.zeno/registry.db`
 - Query: `SELECT * FROM requirements WHERE project_id = '[project_id]'`
 - Schema: See "Schema" section above for complete table definitions
 - Indexes: Optimized for hash lookups, gate filtering, dependency traversal
@@ -843,11 +843,11 @@ Each architecture document includes the diagram source, description, and related
 
 ## Data Models
 
-### Data Models
+### Conceptual Entities
 
 #### User
 
-```
+```text
 id: TEXT (UUID, primary key)
 git_email: TEXT (unique, not null, from git config user.email)
 git_name: TEXT (from git config user.name)
@@ -855,11 +855,11 @@ created_at: TIMESTAMP
 last_seen_at: TIMESTAMP
 ```
 
-**Rationale**: Normalizes user identity for StateHistory audit trails and Proposal approvals. Derived automatically from git configuration; no manual user management required. Single source of truth prevents inconsistencies like "alice@example.com" vs "Alice".
+**Rationale**: Normalizes user identity for StateHistory audit trails and Proposal approvals. Derived automatically from git configuration; no manual user management required. Single source of truth prevents inconsistencies like `alice@example.com` vs "Alice".
 
 #### Project
 
-```
+```text
 id: TEXT (UUID, primary key)
 name: TEXT (not null)
 description: TEXT
@@ -873,13 +873,13 @@ updated_at: TIMESTAMP
 
 ## Data Models (Final 4-Table Schema)
 
-This section documents the actual database schema implemented in `zeno/.zeno/requirements.db`. The schema follows a minimalist design: only tables that provide query efficiency are stored in the database. Gates and project metadata live in version-controlled JSON files.
+This section documents the actual database schema implemented in `zeno/.zeno/registry.db`. The schema follows a minimalist design: only tables that provide query efficiency are stored in the database. Gates and project metadata live in version-controlled JSON files.
 
 ### Core Tables
 
 #### Requirement
 
-```
+```text
 id: TEXT (UUID, primary key)
 gate_id: TEXT (foreign key, nullable - null for project-level requirements)
 parent_id: TEXT (foreign key, nullable, self-reference for hierarchical decomposition)
@@ -917,7 +917,7 @@ created_at: TIMESTAMP
 
 #### Repository
 
-```
+```text
 id: TEXT (UUID, primary key)
 name: TEXT (not null)
 path: TEXT (relative to workspace root, not null, unique)
@@ -933,7 +933,7 @@ created_at: TIMESTAMP
 
 #### Proposal
 
-```
+```text
 id: TEXT (UUID, primary key)
 title: TEXT (not null)
 summary: TEXT
@@ -967,7 +967,7 @@ implemented_at: TIMESTAMP
 
 #### MetricsSnapshot
 
-```
+```text
 id: TEXT (UUID, primary key)
 gate_id: TEXT (foreign key, not null)
 snapshot_type: ENUM('gate_completion', 'milestone')
@@ -1020,14 +1020,14 @@ Gates and project metadata are stored as version-controlled files, not in the da
 | Gates              | `zeno/gates/gate-{sequence}-{name}.md`              | Markdown | Yes                |
 | Gate Archive       | `zeno/gates/archive/{gate-id}.md`                   | Markdown | Yes                |
 | Proposals (Active) | `zeno/proposals/gate-{sequence}/{proposal-name}.md` | Markdown | Yes                |
-| Requirements DB    | `zeno/.zeno/requirements.db`                        | SQLite   | Yes                |
+| Registry DB        | `zeno/.zeno/registry.db`                            | SQLite   | Yes                |
 | Migrations         | `src/storage/migrations/*.sql`                      | SQL      | Yes                |
 
 **Design Rationale**: Gates stored as markdown files enable version control history, human readability, and easy integration with git workflows. Project metadata in JSON provides queryable state while remaining human-editable. This hybrid approach combines benefits of files (versioning, readability) with database queries (requirements indices, hash-based lookups).
 
 ### API Contracts (if applicable)
 
-```
+```text
 Command: zeno init
 Input: Interactive prompts (name, end state, codebase path)
 Output: {
@@ -1080,7 +1080,7 @@ Output: {
 - Support for non-git version control systems
 - Built-in LLM API integration (user provides LLM via Cursor/Claude/etc.)
 - Automatic code generation (LLM does this, Zeno orchestrates)
-- Database migrations for production databases (only for requirements.db)
+- Database migrations for production databases (only for registry.db)
 - Team permission and role management
 - Billing or licensing system
 - Mobile app or mobile-optimized interface

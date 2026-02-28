@@ -99,11 +99,11 @@ describe('database utilities', () => {
   })
 
   describe('getDatabasePath', () => {
-    it('returns path to requirements.db in zeno/.zeno directory', () => {
+    it('returns path to registry.db in zeno/.zeno directory', () => {
       const path = getDatabasePath(TEST_DIR)
       expect(path).toContain('zeno')
       expect(path).toContain('.zeno')
-      expect(path).toContain('requirements.db')
+      expect(path).toContain('registry.db')
     })
   })
 

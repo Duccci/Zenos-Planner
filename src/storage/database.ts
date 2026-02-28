@@ -19,7 +19,7 @@ let dbInstance: Database.Database | null = null
 let walCheckpointInterval: NodeJS.Timeout | null = null
 
 /** Database file name */
-const DB_FILE = 'requirements.db'
+const DB_FILE = 'registry.db'
 
 /**
  * Get the database file path.

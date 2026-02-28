@@ -5,12 +5,12 @@ Project-specific guide for AI coding assistants working on [Project Name].
 ## Quick Reference
 
 | Document | Purpose | Location |
-|----------|---------|----------|
+| -------- | ------- | -------- |
 | **This File** | Project-specific AI context | `zeno/AGENTS.md` |
 | **Project PRD** | Single source of truth for project scope | `zeno/PROJECT_PRD.md` |
 | **Architecture Docs** | System design and diagrams | `zeno/architecture/*.md` |
 | **Gates** | Milestone specifications | `zeno/gates/gate-*.md` |
-| **Requirements DB** | Queryable requirements | `zeno/.zeno/requirements.db` |
+| **Requirements DB** | Queryable requirements | `zeno/.zeno/registry.db` |
 
 ## Core Terminology
 
@@ -20,6 +20,7 @@ Project-specific guide for AI coding assistants working on [Project Name].
 [Project-specific definition: What does a gate represent for your project? E.g., "For our microservices platform, each gate represents a deployable service or infrastructure layer."]
 
 Example gates in this project:
+
 - Gate 1: [name]
 - Gate 2: [name]
 - (insert remaining gates)
@@ -41,12 +42,14 @@ Diagrams: See `zeno/architecture/`
 
 **Multi-Repo Structure** (if applicable)
 [List detected repositories and their roles:]
+
 - `main-repo`: [description]
 - `service-auth`: [description]
 - `shared-libs`: [description]
 (use `zeno repos list` for current structure)
 
 **Quality Thresholds** (non-configurable, enforced)
+
 - Code Coverage: ≥90% (fail if <90%)
 - Security Vulnerabilities: 0 (fail if any found)
 - Linting Error Rate: <0.01% (fail if higher)
@@ -56,11 +59,11 @@ Diagrams: See `zeno/architecture/`
 ## File Locations
 
 | Artifact | Location | Purpose |
-|----------|----------|---------|
+| -------- | -------- | ------- |
 | Project Overview | `zeno/PROJECT_PRD.md` | Vision, technical decisions, timeline |
 | Gate Specifications | `zeno/gates/gate-XX-name.md` | Gate-specific PRD |
 | Architecture | `zeno/architecture/*.md` | System design diagrams |
-| Requirements Database | `zeno/.zeno/requirements.db` | Queryable requirements |
+| Requirements Database | `zeno/.zeno/registry.db` | Queryable requirements |
 | Active Proposals | `zeno/proposals/gate-XX/*.md` | Implementation proposals |
 | Completed Proposals | `zeno/proposals/archive/<hash>.md` | Historical record |
 | Configuration | `zeno/.zeno/config.json` | Project settings |
@@ -69,7 +72,8 @@ Diagrams: See `zeno/architecture/`
 ## Database Schema Summary
 
 ### requirements Table
-```
+
+```sql
 id, parent_id, type (functional/non_functional/constraint), 
 priority (must/should/could/won't), level (project/gate),
 source (generated/inherited/transferred), description,
@@ -77,12 +81,14 @@ acceptance_criteria, hash (unique), created_at, updated_at
 ```
 
 ### repositories Table
-```
+
+```sql
 id, name, path, type (main/service/library/tool), 
 hash (unique), metadata (JSON), created_at
 ```
 
 **Query Examples**:
+
 ```sql
 -- Find all requirements for a gate
 SELECT * FROM requirements WHERE gate_id = '[gate-id]';
@@ -100,12 +106,14 @@ SELECT * FROM repositories;
 ## Hash-Based References
 
 All entities are referenced by hash (first 16 chars of SHA-256):
+
 - Requirements: `#a3f9c2d1` instead of `/long/path/to/requirements.md`
 - Proposals: `#b7e4d8f2` for implementation proposals
 - Gates: `#c8d4e1f5` for milestones
 - Artifacts: `#f2a7b3c9` for diagrams and docs
 
 **Resolve a hash**:
+
 ```bash
 zeno show #a3f9c2d1
 ```
@@ -126,6 +134,7 @@ This reduces LLM context by 50%+ while maintaining precise, immutable references
 5. **Reject**: Human runs `zeno proposal reject <hash>` → proposal rejected with feedback, replan triggered with error context
 
 **Proposal Files**:
+
 - Active: `zeno/proposals/gate-XX/<name>.md`
 - Archived: `zeno/proposals/archive/<hash>.md` (immutable, content-addressable)
 
@@ -140,11 +149,13 @@ When implementing proposals:
 5. **Cleanup**: Worktree automatically deleted after successful merge
 
 **Active Worktrees**:
+
 ```bash
 zeno worktree list
 ```
 
 **Worktree Management**:
+
 - `zeno worktree prune` - Remove expired worktrees
 - `zeno worktree remove <hash>` - Manually delete specific worktree
 - `zeno worktree merge <hash>` - Merge branch with conflict handling
@@ -154,7 +165,7 @@ Worktrees enable 4+ agents to work simultaneously on independent proposals witho
 ## Command Reference
 
 | Command | Purpose | MCP Tool |
-|---------|---------|----------|
+| ------- | ------- | -------- |
 | `zeno init` | Initialize project | `project_action` (`init`) |
 | `zeno status` | Show project overview | `project_action` (`status`) |
 | `zeno gates list` | List all gates | `gates_action` (`list`) |
@@ -199,19 +210,23 @@ Failing even one check rejects the proposal; error details guide replanning.
 [Add any project-specific patterns here:]
 
 ### Naming Conventions
+
 - [Gates: Gate-{number}-{kebab-case-name}]
 - [Requirements: {domain}-{capability-description}]
 - [Proposals: proposal-{gate-id}-{short-name}]
 
 ### Directory Structure
+
 - [Where are source files?]
 - [Test directory?]
 - [Configuration?]
 
 ### Key Dependencies
+
 [List critical libraries and their purpose]
 
 ### Architecture Patterns
+
 [Describe architectural style: microservices, monolith, modular, etc.]
 
 ## Typical Workflow for AI Agents
@@ -262,4 +277,4 @@ Failing even one check rejects the proposal; error details guide replanning.
 **Last Updated**: [TIMESTAMP]  
 **Status**: Active
 
-**Custom instructions for this project generated by Zeno's Planner**
+Custom instructions for this project generated by Zeno's Planner

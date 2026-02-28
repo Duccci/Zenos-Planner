@@ -84,24 +84,24 @@ Zeno's workflow consists of three phases: **Planning**, **Review**, and **Execut
 
 ### Review Phase
 
-6. **Check Status** — `zeno gates list` shows all gates and their status
-7. **Read Gate PRD** — `zeno gates show <gate-id>` displays detailed gate requirements
-8. **Review Requirements** — `zeno req list --gate <gate-id>` shows assigned tasks
-9. **View Proposals** — `zeno proposal show <hash>` displays implementation strategies
-10. **Approve Proposals** — Human reviews and approves each proposal before implementation
+1. **Check Status** — `zeno gates list` shows all gates and their status
+2. **Read Gate PRD** — `zeno gates show <gate-id>` displays detailed gate requirements
+3. **Review Requirements** — `zeno req list --gate <gate-id>` shows assigned tasks
+4. **View Proposals** — `zeno proposal show <hash>` displays implementation strategies
+5. **Approve Proposals** — Human reviews and approves each proposal before implementation
 
 ### Execution Phase
 
-11. **Start Gate** — `zeno gates start <gate-id>` marks milestone as in-progress
-12. **Implement Proposals** — Apply approved proposals; Zeno validates they match specification
-13. **Validate Quality** — `zeno proposal validate <hash>` runs automated checks:
+1. **Start Gate** — `zeno gates start <gate-id>` marks milestone as in-progress
+2. **Implement Proposals** — Apply approved proposals; Zeno validates they match specification
+3. **Validate Quality** — `zeno proposal validate <hash>` runs automated checks:
     - Code coverage >= 90%
     - Zero known vulnerabilities
     - Lint error rate < 0.01%
     - All tests passing
-14. **Reject or Approve** — Proposals are approved if quality gates pass
-15. **Complete Gate** — `zeno gates complete <gate-id>` archives proposals and creates git tag
-16. **Repeat** — Move to the next gate
+4. **Reject or Approve** — Proposals are approved if quality gates pass
+5. **Complete Gate** — `zeno gates complete <gate-id>` archives proposals and creates git tag
+6. **Repeat** — Move to the next gate
 
 ### Key Workflow Principles
 
@@ -117,7 +117,7 @@ Zeno's workflow consists of three phases: **Planning**, **Review**, and **Execut
 
 Use kebab-case branch names following the pattern:
 
-```
+```text
 <type>/<ticket-id>-<description>
 ```
 
@@ -148,7 +148,7 @@ Write clear, descriptive commit messages:
 
 **Format:**
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -156,7 +156,7 @@ Write clear, descriptive commit messages:
 
 **Reference related issues/artifacts:**
 
-```
+```text
 feat(gate): implement authentication layer
 
 - Add JWT middleware for request validation
@@ -200,14 +200,14 @@ zeno gates complete gate-04
 
 ## Project Structure
 
-```
+```text
 my-project/
 ├── zeno/
 │   ├── .zeno/                  # Internal state (version controlled)
 │   │   ├── config.json         # Project configuration
 │   │   ├── state.json          # Historical snapshot of gate progress (synced with workflow)
 │   │   ├── project-overview.json
-│   │   └── requirements.db     # SQLite requirements database
+│   │   └── registry.db         # SQLite registry database
 │   ├── AGENTS.md               # Project-specific AI context guide
 │   ├── PROJECT_PRD.md          # Single source of truth for scope
 │   ├── architecture/           # Mermaid diagram docs

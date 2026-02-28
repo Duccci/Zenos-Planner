@@ -17,7 +17,8 @@ describe('ArtifactValidationService', () => {
     const tmpDir = path.join(process.cwd(), 'tests', 'tmp')
     await mkdir(tmpDir, { recursive: true })
     const filePath = path.join(tmpDir, 'proposal-good.md')
-    await writeFile(filePath, '## Summary\n\n## Tasks\n\n## Files Affected\n\n## Dependencies\n', 'utf8')
+    const FULL_SECTIONS = '## Summary\n\n## Proposal Type\n\n## Coverage & Estimates\n\n## Single-Phase Requirement\n\n## Context\n\n## Tasks\n\n## Files Affected\n\n## Rollback\n'
+    await writeFile(filePath, FULL_SECTIONS, 'utf8')
     const res = await svc.validate({ artifactPath: filePath, artifactType: 'proposal', validationMode: 'format' })
     await unlink(filePath)
     expect(res.passed).toBe(true)
@@ -28,7 +29,8 @@ describe('ArtifactValidationService', () => {
     const tmpDir = path.join(process.cwd(), 'tests', 'tmp')
     await mkdir(tmpDir, { recursive: true })
     const filePath = path.join(tmpDir, 'proposal-multi.md')
-    await writeFile(filePath, '## Summary\nPhase 1: do this\n## Tasks\n## Files Affected\n## Dependencies\n', 'utf8')
+    const FULL_SECTIONS = '## Summary\nPhase 1: do this\n## Proposal Type\n\n## Coverage & Estimates\n\n## Single-Phase Requirement\n\n## Context\n\n## Tasks\n\n## Files Affected\n\n## Rollback\n'
+    await writeFile(filePath, FULL_SECTIONS, 'utf8')
     const res = await svc.validate({ artifactPath: filePath, artifactType: 'proposal', validationMode: 'format' })
     await unlink(filePath)
     expect(res.passed).toBe(false)

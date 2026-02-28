@@ -14,19 +14,19 @@ How to read and navigate artifacts in this Zeno project. For tool usage and term
 | Requirements for gate             | `zeno req list --gate <id>` |
 | Specific requirement              | `zeno req show <hash>`      |
 | Proposal details                  | `zeno proposal show <hash>` |
-| Requirements database             | `.zeno/requirements.db`     |
+| Requirements database             | `.zeno/registry.db`         |
 | Project config                    | `.zeno/config.json`         |
 | Hash lookup                       | `zeno show <hash>`          |
 
 ## Project Structure
 
-```
+```text
 zeno/
 ├── .zeno/                      # Internal state (version controlled)
 │   ├── config.json             # Project configuration
 │   ├── state.json              # Historical snapshot of gate progress (synced with gate workflow)
 │   ├── project-overview.json   # LLM-optimized project memory (source of truth)
-│   └── requirements.db         # SQLite requirements database
+│   └── registry.db             # SQLite registry database
 ├── AGENTS.md                   # This file
 ├── PROJECT_PRD.md              # Single source of truth for scope
 ├── architecture/               # Mermaid diagram docs
@@ -51,7 +51,7 @@ zeno/
 
 Each gate file contains objectives, deliverables, requirements references, and dependencies. Gates are sequential — complete in order. Requirements use `#hash` references. Quality thresholds are enforced automatically (see `PROJECT_PRD.md` for thresholds).
 
-### Requirements (`zeno/.zeno/requirements.db`)
+### Requirements (`zeno/.zeno/registry.db`)
 
 Query via CLI or directly in SQLite:
 
@@ -148,6 +148,7 @@ Before generating proposals or applying them, AI agents must perform validation 
 ### Before Generating Proposals (Gate Review)
 
 When starting proposal generation for a gate, read the entire Gate PRD and:
+
 - **Flag open questions** — Any ambiguous or incomplete requirement descriptions
 - **Identify unclear acceptance criteria** — Requirements saying "should be fast" without quantified metrics need clarification
 - **List implicit assumptions** — Assumptions about existing systems, migration paths, or constraints that may not be correct
@@ -158,6 +159,7 @@ When starting proposal generation for a gate, read the entire Gate PRD and:
 ### Before Applying Proposals (Pre-Apply Review)
 
 When starting proposal implementation, read the entire proposal and:
+
 - **Flag open questions** — Unclear tasks, contradictory acceptance criteria, or vague requirements
 - **Verify Files Affected** — Ensure all target files exist or are explicitly marked as new; flag non-existent paths
 - **Identify implicit assumptions** — Assumptions about installed packages, existing schemas, or system state
@@ -172,7 +174,7 @@ When starting proposal implementation, read the entire proposal and:
 Use this checklist when performing pre-action reviews (gate review before proposal generation, pre-apply review before implementation):
 
 | Check | Gate Review | Pre-Apply Review | Action if Found |
-|-------|-----------|-----------------|-----------------|
+| ----- | ----------- | ---------------- | --------------- |
 | **Open Questions** | Any ambiguous/incomplete requirements | Unclear tasks, contradictory acceptance criteria | Document and escalate for clarification |
 | **Vague Acceptance Criteria** | "Should be fast" without metrics | Missing quantified thresholds | Flag and request specific measurements |
 | **Implicit Assumptions** | Assumed existing systems, migration paths | Assumed installed packages, schemas | List assumptions and request confirmation |

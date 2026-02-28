@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Proposals Registry Operations Tests
  *
  * Covers proposal_list, proposal_show, proposal_validate,
@@ -271,7 +271,7 @@ describe('proposals-registry operations', () => {
       expect(solitaryRow?.gateId).toBe('solitary')
     })
 
-    it('maps null approved_at to null completedAt', async () => {
+    it('uses created_at for lastUpdated when approved_at is null', async () => {
       mockAll.mockReturnValue([
         {
           hash: 'abc12345',
@@ -287,8 +287,8 @@ describe('proposals-registry operations', () => {
         success: boolean
         data: unknown
       }
-      const data = result.data as { proposals: Array<{ completedAt: null }> }
-      expect(data.proposals[0].completedAt).toBeNull()
+      const data = result.data as { proposals: Array<{ lastUpdated: string }> }
+      expect(data.proposals[0].lastUpdated).toBe('2026-01-01T00:00:00Z')
     })
   })
 

@@ -3,7 +3,6 @@ import {
   ProposalHashSchema,
   ProposalStatusEnum,
   TimestampSchema,
-  OptionalTimestampSchema,
 } from './common-schemas.js'
 import { PreReviewSummarySchema } from './pre-review-schemas.js'
 
@@ -29,8 +28,7 @@ export const ProposalSummarySchema = z.object({
   gateId: z.string(),   // permissive: DB gate_id may not always match gate-NN regex
   tasksCompleted: z.number().int().min(0),
   totalTasks: z.number().int().min(0),
-  created: TimestampSchema,
-  completedAt: OptionalTimestampSchema,
+  lastUpdated: TimestampSchema,
 })
 export type ProposalSummary = z.infer<typeof ProposalSummarySchema>
 
@@ -91,8 +89,7 @@ export const ProposalDetailSchema = z.object({
       })
     )
     .optional(),
-  created: TimestampSchema,
-  completedAt: OptionalTimestampSchema,
+  lastUpdated: TimestampSchema,
 })
 export type ProposalDetail = z.infer<typeof ProposalDetailSchema>
 

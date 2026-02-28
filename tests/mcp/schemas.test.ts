@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+﻿import { describe, it, expect } from 'vitest'
 import * as common from '../../src/mcp/schemas/common-schemas.js'
 import * as gate from '../../src/mcp/schemas/gate-schemas.js'
 import * as requirement from '../../src/mcp/schemas/requirement-schemas.js'
@@ -182,7 +182,7 @@ describe('Gate Schemas', () => {
         sequence: 1,
         status: 'completed',
         type: 'feature',
-        created: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
         proposalCount: 3,
         completedProposalCount: 3,
         requirementCount: 10,
@@ -218,7 +218,7 @@ describe('Gate Schemas', () => {
         objectives: [{ title: 'Objective 1', completed: true }],
         requirements: [],
         proposals: [],
-        created: new Date().toISOString()
+        lastUpdated: new Date().toISOString()
       }
       expect(() => gate.GateDetailSchema.parse(detail)).not.toThrow()
     })
@@ -359,7 +359,7 @@ describe('Proposal Schemas', () => {
         gateId: 'gate-03',
         tasksCompleted: 0,
         totalTasks: 5,
-        created: new Date().toISOString()
+        lastUpdated: new Date().toISOString()
       }
       expect(() => proposal.ProposalSummarySchema.parse(summary)).not.toThrow()
     })
@@ -379,7 +379,7 @@ describe('Proposal Schemas', () => {
             completed: false
           }
         ],
-        created: new Date().toISOString()
+        lastUpdated: new Date().toISOString()
       }
       expect(() => proposal.ProposalDetailSchema.parse(detail)).not.toThrow()
     })

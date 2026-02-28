@@ -261,33 +261,33 @@ flowchart TD
 
 ## Data Locations & State Management
 
-| Artifact | Location | Format | Updated By | When |
-|----------|----------|--------|------------|------|
-| Project metadata | `.zeno/project-overview.json` | JSON | `zeno init`, `zeno gates start`, `zeno gates complete` | Gate creation, start, completion |
-| Gate PRDs | `zeno/gates/gate-XX-*.md` | Markdown | `zeno gates start` (generates) | Gate generation |
-| Requirements | `.zeno/requirements.db` | SQLite | `zeno req` commands, gate/proposal workflows | Requirement generation/updates |
-| Proposals | `zeno/proposals/gate-XX/*.md` | Markdown | `zeno proposal` commands, LLM implementations | Proposal generation/implementation |
-| Diagrams | `zeno/architecture/*.md` (Mermaid/SVG) | Markdown/SVG | `zeno arch generate` | Architecture generation |
-| Completed gates | `zeno/gates/archive/` | Markdown | `zeno gates complete` (archives proposals) | Gate completion |
-| Git history | `.git/` | Git objects | Git hooks, auto-commit on validation pass | Code changes, quality gate pass |
-| Worktree state | `.local/worktrees/{hash}/` | File system | `zeno proposal start`, `zeno proposal approve` | Proposal execution (transient) |
+|Artifact|Location|Format|Updated By|When|
+|---|---|---|---|---|
+|Project metadata|`.zeno/project-overview.json`|JSON|`zeno init`, `zeno gates start`, `zeno gates complete`|Gate creation, start, completion|
+|Gate PRDs|`zeno/gates/gate-XX-*.md`|Markdown|`zeno gates start` (generates)|Gate generation|
+|Requirements|`.zeno/registry.db`|SQLite|`zeno req` commands, gate/proposal workflows|Requirement generation/updates|
+|Proposals|`zeno/proposals/gate-XX/*.md`|Markdown|`zeno proposal` commands, LLM implementations|Proposal generation/implementation|
+|Diagrams|`zeno/architecture/*.md` (Mermaid/SVG)|Markdown/SVG|`zeno arch generate`|Architecture generation|
+|Completed gates|`zeno/gates/archive/`|Markdown|`zeno gates complete` (archives proposals)|Gate completion|
+|Git history|`.git/`|Git objects|Git hooks, auto-commit on validation pass|Code changes, quality gate pass|
+|Worktree state|`.local/worktrees/{hash}/`|File system|`zeno proposal start`, `zeno proposal approve`|Proposal execution (transient)|
 
 ---
 
 ## Implementation Phases
 
-| Phase | Gates | Status | Key Capability |
-|-------|-------|--------|-----------------|
-| **Initialization** | 1-5 | Complete | Project init + gate generation + diagram generation + requirement decomposition |
-| **Multi-Repo** | 6 | InProgress | Repository boundary detection and scaffolding |
-| **Proposals** | 7 | Planned | Proposal generation and artifact validation |
-| **Validation** | 8 | Planned | Automated checks (lint, type, test, coverage, security) |
-| **Approval** | 9 | Planned | Human approval workflow, rejection handling, error recovery replan |
-| **Git Integration** | 10 | Planned | Git hooks, auto-commit, worktree management, conflict detection |
-| **Rescope** | 11 | Planned | Mid-project end state changes, gate regeneration, delta analysis |
-| **Dashboard** | 12 | Planned | Web UI, progress visualization, gate/proposal status |
-| **Subagent Orch** | 13 | Planned | Cursor workflows, parallel agent execution, merge coordination |
-| **Documentation** | 14 | Planned | Final docs, performance tuning, quality assessment |
+|Phase|Gates|Status|Key Capability|
+|---|---|---|---|
+|**Initialization**|1-5|Complete|Project init + gate generation + diagram generation + requirement decomposition|
+|**Multi-Repo**|6|InProgress|Repository boundary detection and scaffolding|
+|**Proposals**|7|Planned|Proposal generation and artifact validation|
+|**Validation**|8|Planned|Automated checks (lint, type, test, coverage, security)|
+|**Approval**|9|Planned|Human approval workflow, rejection handling, error recovery replan|
+|**Git Integration**|10|Planned|Git hooks, auto-commit, worktree management, conflict detection|
+|**Rescope**|11|Planned|Mid-project end state changes, gate regeneration, delta analysis|
+|**Dashboard**|12|Planned|Web UI, progress visualization, gate/proposal status|
+|**Subagent Orch**|13|Planned|Cursor workflows, parallel agent execution, merge coordination|
+|**Documentation**|14|Planned|Final docs, performance tuning, quality assessment|
 
 ---
 
@@ -298,8 +298,7 @@ flowchart TD
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 2.0.0 | 2026-02-23 | Added error recovery, human rejection, subagent orchestration, and rescope workflow paths. Reorganized as forward-looking design with implementation phases. | jamesonBatworker |
-| 1.0.0 | 2026-01-04 | Initial simplified data flow diagram (Gates 1-5 path) | jamesonBatworker |
-
+|Version|Date|Summary|Author|
+|---|---|---|---|
+|2.0.0|2026-02-23|Added error recovery, human rejection, subagent orchestration, and rescope workflow paths. Reorganized as forward-looking design with implementation phases.|jamesonBatworker|
+|1.0.0|2026-01-04|Initial simplified data flow diagram (Gates 1-5 path)|jamesonBatworker|

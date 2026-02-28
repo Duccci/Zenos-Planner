@@ -36,3 +36,19 @@ export function normalizeDateTime(value: string | null | undefined, fallback?: s
 export function nowISO(): string {
   return new Date().toISOString()
 }
+
+/**
+ * Resolve the most-recent meaningful timestamp from an ordered list of candidates.
+ * Returns normalizeDateTime() of the first non-null / non-empty value,
+ * falling back to the current time.
+ *
+ * Usage:
+ *   resolveLastUpdated(row['approved_at'], row['created_at'])   // proposals
+ *   resolveLastUpdated(gate.completedAt, now)                   // gates
+ */
+export function resolveLastUpdated(...candidates: (string | null | undefined)[]): string {
+  for (const c of candidates) {
+    if (c != null && c !== '') return normalizeDateTime(c)
+  }
+  return new Date().toISOString()
+}

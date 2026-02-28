@@ -4,24 +4,28 @@
 > refactoring and reconsideration before implementation. It should not be worked on until
 > Gates 05-12 are complete and the MVP is stable.
 
-**Status**: deferred  
-**Type**: feature  
-**Created**: 2026-02-04  
-**Sequence**: post-MVP  
+**Status**: deferred
+**Type**: feature
+**Created**: 2026-02-04
+**Sequence**: post-MVP
 **Hash**: #g13subagent
 
 <!-- Status lifecycle:
-  - pending: Gate generated, project-level requirements attributed to gate
-  - in_progress: Gate started via `zeno gates start`, gate-specific requirements generated
+  - pending: Gate generated at init, requirements not yet decomposed
+  - in_progress: Gate started via `zeno gates start`, requirements generated
   - completed: All requirements tested, gate approved
+  - archived: Gate completed and moved to archive with final artifacts
   - rejected: Gate rejected during review
+  - cancelled: Gate cancelled/dropped with optional reason
+  - backlog: Gate deferred to later implementation
 -->
 
 ## Overview
 
-Implements multi-tier agent orchestration and parallel execution enabling Zeno to scale beyond single-agent constraints. Architecture layers complexity by tier: Zeno MCP Server (planning/state), Claude/Copilot API (large-context planning decisions), CrewAI (hierarchical agent teams with inter-agent communication via Python subprocess bridge), and Ollama models (local implementation workers). This gate delivers hierarchical agent team orchestration with role-based specialization, inter-agent communication for improved parallelization, intelligent task decomposition from proposal specs, dependency-based task sequencing, worktree-per-task isolation, orchestrator-level merge coordination, file-level conflict detection, and result consolidation. The layered architecture separates concerns: Zeno manages project state and gates, Claude handles complex planning analysis, CrewAI manages agent hierarchies and messaging, and Ollama handles focused implementation tasks.
+Implements multi-tier agent orchestration and parallel execution enabling Zeno to scale beyond single-agent constraints. Architecture layers complexity by tier: Zeno MCP Server (planning/state), Claude/Copilot API (large-context planning decisions), CrewAI (hierarchical agent teams with inter-agent communication via Python subprocess bridge), and Ollama models (local implementation workers). This gate delivers hierarchical agent team orchestration with role-based specialization, inter-agent communication for improved parallelization, intelligent task decomposition from proposal specs, dependency-based task sequencing, worktree-per-task isolation, orchestrator-level merge coordination, file-level conflict detection, and result consolidation.
 
 **Four-Layer Orchestration Architecture**:
+
 1. **Zeno MCP Server** (Planning/State): Gates, proposals, requirements, templates, artifact access, agent manifest
 2. **Claude/Copilot API** (Planning Phase): Reads gate PRD via MCP, generates proposal specs, validates acceptance criteria
 3. **CrewAI + Python Subprocess Bridge** (Agent Orchestration): Hierarchical agent teams, inter-agent communication, task coordination, role-based specialization from agent manifest
@@ -32,6 +36,7 @@ Implements multi-tier agent orchestration and parallel execution enabling Zeno t
 Gate 13 depends on the **Flexible Workflow Configuration System** (solitary proposal #w26021401) which provides critical infrastructure:
 
 ### 1. Agent-Orchestrated Workflow Mode
+
 - Workflow configuration defines `workflowMode: 'agent-orchestrated'` mode
 - Gate 13 orchestrator operates within this mode context
 - Mode-specific rules control:
@@ -40,6 +45,7 @@ Gate 13 depends on the **Flexible Workflow Configuration System** (solitary prop
   - Worktree allocation per CrewAI agent (via `worktreeEnabled: true`)
 
 ### 2. Strict Validation (Non-Negotiable)
+
 - Workflow configuration enforces **strict** validation for all modes (immutable)
 - Gate 13 guarantees validation on every agent task output:
   - TypeScript strict mode: 0 errors (catches syntax errors)
@@ -51,22 +57,26 @@ Gate 13 depends on the **Flexible Workflow Configuration System** (solitary prop
 - Prevents orphaned code, incomplete tasks, or security violations
 
 ### 3. Approval Rules Drive Orchestration
+
 - Workflow configuration defines approval strategy for agent-orchestrated mode:
+
   ```json
   "approval": {
     "type": "orchestrator",
     "autoApproveRules": {
-      "byAgent": true,      // Claude can auto-approve its own proposals
-      "priority": "must"    // Orchestrator only auto-approves 'must' priority tasks
+      "byAgent": true,
+      "priority": "must"
     }
   }
   ```
+
 - Gate 13 orchestrator uses these rules:
   - Claude-generated proposals auto-approved (skip human approval bottleneck)
   - Only 'must' priority tasks auto-merged (safety gate for 'should'/'could')
   - Enables fast feedback loop without slowing on human approvals
 
 ### 4. Worktree Decision Logic Enables Parallelization
+
 - Workflow configuration provides `shouldCreateWorktree()` logic:
   - Agent-orchestrated mode: `true` if `concurrency: 'parallel'`
   - Each CrewAI task gets isolated worktree (no file conflicts)
@@ -75,16 +85,20 @@ Gate 13 depends on the **Flexible Workflow Configuration System** (solitary prop
 - Without this: orchestrator would need custom worktree logic (duplication)
 
 ### 5. State Machine Consistency
+
 - Workflow configuration defines proposal state machine:
-  ```
+
+  ```text
   pending → validate (STRICT) → approval → in_progress → completed
   ```
+
 - Gate 13 follows this machine for all proposals:
   - Validation failures block orchestration (safety)
   - Approval rules determine transition timing
   - No custom state logic needed in Gate 13
 
 ### 6. Configuration-Driven Flexibility
+
 - Same orchestrator works for all workflow modes (inherited from config):
   - Solo mode: Fast single-agent feedback (if scaled to support it)
   - Team mode: Multi-developer coordination with worktrees
@@ -93,6 +107,7 @@ Gate 13 depends on the **Flexible Workflow Configuration System** (solitary prop
 
 **Why This Matters for Gate 13**:
 Gate 13 becomes a clean *orchestration layer* that reads configuration and doesn't need to define approval rules, validation strictness, state transitions, or worktree logic. These are standardized infrastructure from the workflow configuration proposal, enabling:
+
 - Simpler Gate 13 implementation (no cross-cutting concerns)
 - Type-safe configuration (Zod schemas from workflow config)
 - Consistent behavior across all gates (config-driven)
@@ -101,146 +116,16 @@ Gate 13 becomes a clean *orchestration layer* that reads configuration and doesn
 
 ## Objectives
 
-### Zeno MCP Server: Planning & State Management
-- [ ] Expose existing gates/proposal tools for Claude access via MCP
-- [ ] Add `read_gate_prd` tool to expose gate details for Claude analysis
-- [ ] Add `read_requirements` tool to expose gate requirements for Claude context
-- [ ] Add `read_project_overview` tool to expose system architecture for Claude decisions
-- [ ] Document which MCP tools Claude uses during planning phase
-- [ ] Implement proposal spec validation against gate requirements
-- [ ] Create proposal spec JSON schema (task breakdown, dependencies, acceptance criteria)
-
-### Claude/Copilot API: Planning Phase
-- [ ] Implement planning orchestrator that calls Zeno MCP tools
-- [ ] Design Claude system prompt guiding proposal spec generation
-- [ ] Parse gate PRD via `read_gate_prd` MCP tool
-- [ ] Parse requirements via `read_requirements` MCP tool
-- [ ] Parse architecture via `read_project_overview` MCP tool
-- [ ] Generate proposal specs as JSON (task list, dependencies, file assignments)
-- [ ] Validate proposal specs against gate acceptance criteria
-- [ ] Implement fallback for proposal generation errors
-
-### CrewAI + Python Service: Agent Orchestration & Coordination
-- [ ] Implement CrewAI Python service (subprocess runner)
-- [ ] Load agent definitions from `agents/agent-manifest.json`
-- [ ] Create agent-to-manifest mapping (backend, frontend, testing, security specializations)
-- [ ] Build CrewAI crew config from proposal specs (roles, goals, tasks, dependencies)
-- [ ] Implement task hierarchy in CrewAI (blocking relationships)
-- [ ] Enable inter-agent communication (agents ask each other questions)
-- [ ] Create CrewAI process selector (hierarchical for team coordination)
-- [ ] Build result parsing from CrewAI crew output
-- [ ] Implement error handling and timeout detection
-- [ ] Create graceful shutdown protocol for Python service
-
-### TypeScript-Python Bridge: Subprocess Communication
-- [ ] Implement subprocess spawning for crew_service.py
-- [ ] Build JSON serialization for proposal specs → Python
-- [ ] Create result deserialization from Python JSON
-- [ ] Implement process lifecycle management (startup, timeout, cleanup)
-- [ ] Build error propagation from Python service to TypeScript
-- [ ] Create health checks for Python service availability
-- [ ] Implement retry logic for subprocess failures
-
-### Ollama Models: Implementation Workers
-- [ ] Implement Ollama model initialization with Anthropic API compatibility endpoint
-- [ ] Create task spec formatter (convert orchestrator task to model prompt)
-- [ ] Implement local execution tool definitions (read_file, write_file, run_command, git_commit)
-- [ ] Build model tool-calling loop (handle Ollama tool_calls until task complete)
-- [ ] Implement task result reporting (status, diffs, test results back to orchestrator)
-- [ ] Create model context preservation per task (isolated context per agent, no cross-agent leakage)
-- [ ] Implement timeout handling (detect hung agents, escalate)
-- [ ] Create error formatting with context (preserve failure traces for debugging)
-
-### Dependency Graph Analysis for Parallelization
-- [ ] Build dependency graph analyzer (from LangGraph task graph)
-- [ ] Implement parallelization detection algorithm (find independent tasks)
-- [ ] Create critical path analysis (identify bottleneck tasks)
-- [ ] Build task prioritization (prioritize blocking tasks first)
-- [ ] Implement dynamic replanning on task completion
-
-### Worktree Management & Coordination (Using Gate 10 MCP Tools)
-**Leverages Existing MCP Tools**:
-- `worktree_list`, `worktree_prune`, `worktree_remove`, `worktree_merge` (from Gate 10)
-- `proposal_start` - Creates worktree per task
-- `proposal_approve` - Merges worktree, triggers cleanup
-
-- [ ] Create per-task worktree allocation (one per Ollama agent)
-- [ ] Implement worktree path tracking in orchestrator state
-- [ ] Build worktree isolation verification (file access validation)
-- [ ] Implement worktree cleanup after task completion
-- [ ] Create audit trail for worktree lifecycle
-
-### Orchestrator Merge Coordination (Using Gate 10 MCP Tools)
-**Orchestrator Responsibilities**:
-- Determine merge ordering from dependency graph
-- Invoke `worktree_merge` MCP tool per task
-- Handle merge conflicts (escalate to human)
-- Cleanup worktrees after merge
-
-- [ ] Create merge ordering engine (non-dependent tasks in parallel, dependent sequential)
-- [ ] Implement rebase strategy (rebase dependent tasks on parent merge)
-- [ ] Build conflict detection for file overlaps
-- [ ] Create merge coordination protocol (prevent race conditions)
-- [ ] Implement rollback on critical merge failures
-
-### Conflict Detection & Resolution
-- [ ] Build file-level conflict detection (parse proposal specs for file overlaps)
-- [ ] Implement dependency-based sequencing (from dependency graph)
-- [ ] Create conflict resolution strategy (serialize conflicting tasks)
-- [ ] Implement merge conflict handling (escalate file conflicts to human)
-- [ ] Build conflict prevention (inform agents of file restrictions)
-
-### Task Result Consolidation
-- [ ] Implement result collection from Ollama agents
-- [ ] Build result validation (ensure output meets quality standards)
-- [ ] Create integration protocol (merge task results via worktree_merge)
-- [ ] Implement partial failure handling (continue on agent failure)
-- [ ] Build rollback on critical failure (revert all task work)
-
-### Orchestrator Execution & Monitoring
-- [ ] Implement orchestrator main loop (manage task lifecycle)
-- [ ] Build task assignment logic (route tasks to available Ollama agents)
-- [ ] Create progress monitoring (track task completion %)
-- [ ] Implement timeout detection (stuck tasks escalation)
-- [ ] Build health checks (detect dead agents, mark unavailable)
-
-### Error Handling & Retry
-- [ ] Implement error context preservation (capture failure traces)
-- [ ] Build automatic retry logic (retry transient failures)
-- [ ] Create fallback to serial execution (if parallelization fails)
-- [ ] Implement maximum retry limit (prevent infinite loops)
-- [ ] Build escalation to human on persistent failures
-
-### Commands & Integration
-- [ ] Implement `zeno gate <id> execute` command with orchestrator
-- [ ] Build orchestrator status reporting (`zeno orchestrator status`)
-- [ ] Implement orchestrator shutdown protocol
-- [ ] Create Ollama health check command
-- [ ] Build task assignment visibility (`zeno orchestrator tasks`)
-
-### Configurable Model Delegation for Orchestration
-Extends Gate 10's `/delegate` mechanism to support multi-model orchestration:
-- [ ] Add `delegation.models` configuration to `zeno/.zeno/config.json` with tier-to-model mapping
-- [ ] Support delegation targets: claude-opus (planning), claude-sonnet (implementation), copilot, ollama (local), custom endpoints
-- [ ] Implement model selection by gate tier: PhD Tier → claude-opus, Expert Tier → claude-sonnet, Focused Tier → ollama
-- [ ] Read `delegation.defaultPlanningModel` and `delegation.defaultImplementationModel` from config
-- [ ] Allow `/delegate` to override model selection via --model flag
-- [ ] Implement model failover: if primary unavailable, try fallback from config
-- [ ] Support regional/deployed model endpoints via config (e.g., api.azure.openai.com for Copilot)
-- [ ] Create delegation routing: planning agents use planning model, background agents use implementation model
-- [ ] Log all delegation calls with model name and duration for cost analysis
-- [ ] Build Ollama integration for local model fallback (no API key required)
-- [ ] Test delegation with mixed models (Claude for planning, Ollama for implementation)
-
-### Testing & Quality
-- [ ] Write unit tests for dependency graph analysis
-- [ ] Write tests for parallelization detection
-- [ ] Write tests for worktree coordination
-- [ ] Test merge ordering and conflict detection
-- [ ] Test subagent creation and status tracking
-- [ ] Test result consolidation and validation
-- [ ] Write integration tests with multiple simulated subagents
-- [ ] Achieve 90% test coverage for orchestration module
+- [ ] Expose Zeno MCP tools for Claude planning access (read_gate_prd, read_requirements, read_project_overview)
+- [ ] Implement Claude/Copilot planning orchestrator for proposal spec generation
+- [ ] Implement CrewAI Python service with subprocess bridge for agent orchestration
+- [ ] Integrate Ollama models as implementation workers with tool-calling
+- [ ] Build dependency graph analysis for parallelization detection
+- [ ] Implement worktree-per-task isolation using Gate 10 MCP tools
+- [ ] Implement orchestrator-level merge coordination and conflict detection
+- [ ] Build result consolidation, error handling, and retry logic
+- [ ] Implement configurable model delegation (Claude, Copilot, Ollama, custom endpoints)
+- [ ] Implement `zeno gate <id> execute` and orchestrator status commands
 
 ## Context
 
@@ -291,24 +176,27 @@ TypeScript Orchestrator → Zeno MCP Server
 ### What Was Completed Before This Gate
 
 **MVPs (Gates 01-12)**:
+
 - Full planning, execution, validation, approval, git integration, rescope, monitoring workflow
 - Individual agent capabilities (gates, proposals, validation)
-- Dashboard for visibility
+- Status reporting for visibility
 
 **Prerequisite (Solitary Proposal #w26021401)**:
+
 - **Flexible Workflow Configuration System**: Provides configuration-driven workflow modes (solo/team/agent-orchestrated), approval rules for orchestrator decision-making, strict validation enforcement (always), worktree decision logic, and proposal state machine infrastructure—all required for Gate 13 orchestrator implementation.
 
 ### What This Gate Enables
 
-- **Parallel Execution at Scale** - Multiple Ollama agents work concurrently, completion time reduced 40-60% vs. serial
-- **Cost Efficiency** - Expensive Claude API only for planning, cheap local Ollama for implementation
-- **Agent Elasticity** - More Ollama agents = faster completion (scales linearly up to task count)
-- **Intelligent Decomposition** - Claude's reasoning produces task graphs optimized for parallelization
-- **Production Readiness** - Zeno scales from single-gate projects to enterprise multi-proposal gates
+- **Parallel Execution at Scale**: Multiple Ollama agents work concurrently, completion time reduced 40-60% vs. serial
+- **Cost Efficiency**: Expensive Claude API only for planning, cheap local Ollama for implementation
+- **Agent Elasticity**: More Ollama agents = faster completion (scales linearly up to task count)
+- **Intelligent Decomposition**: Claude's reasoning produces task graphs optimized for parallelization
+- **Production Readiness**: Zeno scales from single-gate projects to enterprise multi-proposal gates
 
 ### Scope Boundaries
 
 **In Scope**:
+
 - Zeno MCP exposure of gate/requirements/architecture for Claude analysis
 - Claude API planning orchestrator (proposal spec generation)
 - LangGraph/CrewAI/Mastra integration and task graph management
@@ -327,6 +215,7 @@ TypeScript Orchestrator → Zeno MCP Server
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
+
 - Agent auto-scaling or resource allocation
 - Network-distributed agent execution (local only via Ollama)
 - Custom orchestration framework (use open-source)
@@ -336,266 +225,366 @@ TypeScript Orchestrator → Zeno MCP Server
 
 ## Requirements
 
-This gate addresses scalability and efficiency requirements from project initialization:
+<!-- Requirements-First Workflow:
+  1. Project-level requirements: PRIMARILY defined during `zeno init` at project inception (BEFORE gates).
+     These are high-level, cross-cutting requirements derived from the end state.
+  2. Gate generation (`/zeno-gate`): Attributes existing project-level requirements to gates.
+     Requirements are PRIMARILY mapped and attributed here, not created.
+     During rebaseline/rescope: Requirements may be updated or added as part of rescoping.
+  3. Gate start (`zeno gates start`): Generates gate-specific requirements that decompose
+     project requirements and gate objectives into actionable items.
+  4. Proposal generation (`/zeno-proposal`): Breaks requirements down into individual tasks.
 
-1. **Multi-Agent Planning & Execution** - Claude (planning) + Ollama agents (implementation) work in parallel
-2. **Intelligent Task Decomposition** - Claude generates task graphs optimal for parallelization
-3. **Safe Merge Coordination** - Orchestrator ensures merges don't conflict, uses Gate 10 MCP tools
-4. **Automatic Parallelization** - Dependency analysis identifies independent work without manual planning
-5. **Cost-Efficient Scaling** - Expensive Claude API for planning, cheap local Ollama for execution
-6. **Graceful Degradation** - Partial failures don't block gate, continue with remaining tasks
-7. **Scale Linearly** - Completion time scales inversely with agent count (O(1/n))
+  Workflow: Requirements (init - PRIMARY) → Gates (attribute, may update/add during rescope) → Gate Requirements (decompose) → Tasks (proposals)
+-->
 
-## Technical Decisions
+### Project Requirements (Attributed to This Gate)
+
+| Hash | Name | Type | Priority | How This Gate Addresses It |
+| --- | --- | --- | --- | --- |
+| #[hash] | Multi-Agent Planning & Execution | functional | must | Claude (planning) + Ollama agents (implementation) work in parallel |
+| #[hash] | Intelligent Task Decomposition | functional | must | Claude generates task graphs optimal for parallelization |
+| #[hash] | Safe Merge Coordination | functional | must | Orchestrator ensures merges don't conflict via Gate 10 MCP tools |
+| #[hash] | Automatic Parallelization | functional | must | Dependency analysis identifies independent work without manual planning |
+| #[hash] | Cost-Efficient Scaling | non_functional | should | Expensive Claude API for planning, cheap local Ollama for execution |
+| #[hash] | Graceful Degradation | non_functional | should | Partial failures don't block gate; continue with remaining tasks |
+| #[hash] | Linear Scalability | non_functional | could | Completion time scales inversely with agent count |
+
+### Gate-Specific Requirements
+
+**Status**: Requirements will be generated when gate is started.
+
+After gate start, view detailed requirement information via: `zeno req show <hash>`
+
+### Inherited/Transferred Requirements
+
+No inherited or transferred requirements at this time.
+
+### Requirement-to-Task Breakdown
+
+Individual tasks are created during proposal generation (`/zeno-proposal`).
+
+---
+
+## Proposals
+
+**Status**: Proposals will be generated when gate is started.
+
+After gate start, view detailed proposal information via: `zeno proposal show <hash>`
+
+### Proposal Status
+
+| Proposal | Hash | Status | Notes |
+| --- | --- | --- | --- |
+| [proposal-name] | #[hash] | pending | [Optional notes] |
+
+### Proposal Dependency Graph
+
+<!-- Generated by /zeno-proposal when proposals are created. Shows requires relationships between proposals. -->
+
+```mermaid
+graph LR
+    hash1["01 Proposal Name"]
+    hash2["02 Proposal Name"] --> hash1
+```
+
+### High-Level Delta (Gate Completion Summary)
+
+[To be populated on gate completion.]
+
+**Key Deliverables**:
+
+- Multi-tier agent orchestration (Zeno → Claude → CrewAI → Ollama)
+- Parallel execution with dependency-based task sequencing
+- Configurable model delegation
+
+**Quality Metrics**: Coverage [X]%, Security [Y] issues, Lint <[Z]%
+
+---
+
+## Architecture Diagrams
+
+<!-- LLM Instructions: Populate this section with applicable architecture diagrams for this gate.
+     Core diagrams (system-overview, data-flow, gate-lifecycle, gate-roadmap, context) are always included.
+     For conditional diagrams, use the diagram catalogue to select additional diagrams based on this gate's scope.
+     Set order numbers sequentially starting from 1 (core diagrams should come first with orders 1-5,
+     then conditional diagrams with orders 6+).
+-->
+
+| Name | Type | Order | Status |
+| --- | --- | --- | --- |
+| System Overview | system-overview | 1 | pending |
+| Data Flow Diagram | data-flow | 2 | pending |
+| Gate Lifecycle State Machine | gate-lifecycle | 3 | pending |
+| Gate Roadmap | gate-roadmap | 4 | pending |
+| System Context Diagram | context | 5 | pending |
+| Component Diagram | component | 6 | pending |
+
+---
+
+## Technical Decisions for This Gate
 
 ### 1. Layered Architecture: Zeno MCP → Claude → Agent Framework → Ollama
+
 - **Choice**: Separate concerns by tier: Zeno (state), Claude (planning), agent framework (coordination), Ollama (execution)
 - **Alternatives Considered**: Single monolithic agent, MCP-all-the-way, cloud-only LLMs
 - **Rationale**: Cleanest separation: expensive LLMs for complex planning decisions, local cheap models for implementation. Zeno maintains source of truth. Agent framework provides proven coordination patterns.
+- **Impact**: Each tier has clear responsibility; integration complexity at tier boundaries
 - **Trade-offs**: Gained modularity, cost efficiency, leverages open-source frameworks; added integration complexity
 
 ### 2. Claude/Copilot for Planning Phase
+
 - **Choice**: Use Claude API for proposal spec generation from gate PRDs
 - **Alternatives Considered**: Ollama for planning (quality risk), pure heuristic decomposition (misses insights)
 - **Rationale**: Claude's large context window and reasoning excel at complex decomposition. Cost amortized per gate (not per task).
+- **Impact**: Planning quality depends on Claude API availability
 - **Trade-offs**: Gained planning quality; slight cost overhead (~$0.20-0.50/gate)
 
 ### 3. CrewAI for Hierarchical Agent Teams
+
 - **Choice**: Use CrewAI for hierarchical agent orchestration with inter-agent communication
 - **Alternatives Considered**: LangGraph (simpler but no agent hierarchy), custom orchestrator (build complexity)
-- **Rationale**: CrewAI's agent roles, team hierarchies, and inter-agent messaging map perfectly to your agent-manifest.json structure. Agents can ask each other questions to improve parallelization. Built-in task dependencies and blocking relationships.
+- **Rationale**: CrewAI's agent roles, team hierarchies, and inter-agent messaging map perfectly to agent-manifest.json structure. Agents can ask each other questions to improve parallelization. Built-in task dependencies and blocking relationships.
+- **Impact**: Requires Python subprocess bridge for TypeScript↔CrewAI communication
 - **Trade-offs**: Gained agent communication and team dynamics; Python dependency requires subprocess bridge
 
-### 3a. Python Subprocess Bridge for CrewAI
+### 4. Python Subprocess Bridge for CrewAI
+
 - **Choice**: Run CrewAI in Python subprocess, communicate via JSON stdin/stdout
 - **Alternatives Considered**: REST service (unnecessary overhead), direct Python integration (complex FFI)
 - **Rationale**: Simple, clean separation. Python process startup cost is negligible vs. task execution time. No external services needed.
+- **Impact**: JSON serialization boundary between TypeScript and Python
 - **Trade-offs**: Gained simplicity; slight startup overhead (~500ms) amortized across multi-minute tasks
 
-### 4. Ollama with Anthropic API Compatibility for Implementation
+### 5. Ollama with Anthropic API Compatibility for Implementation
+
 - **Choice**: Local Ollama models (1-8B) via Anthropic API endpoint, tool-calling enabled
 - **Alternatives Considered**: Cloud models (cost), single monolithic model (parallelization limits)
 - **Rationale**: Ollama provides cheap local execution with native tool support. Anthropic compatibility means Claude SDK reusable.
-- **Trade-offs**: Gained cost efficiency and local execution; lower model quality than cloud (acceptable for code generation)
+- **Impact**: Model quality lower than cloud (acceptable for focused code generation tasks)
+- **Trade-offs**: Gained cost efficiency and local execution; lower model quality than cloud
 
-### 5. Worktree-Based Isolation per Task
+### 6. Worktree-Based Isolation per Task
+
 - **Choice**: Each Ollama agent gets dedicated worktree, orchestrator merges via MCP
 - **Alternatives Considered**: Shared worktree with locking, branch-per-agent, containerized
 - **Rationale**: Worktrees provide simple, fast isolation without cloning overhead. Gate 10 MCP tools already handle merges.
+- **Impact**: Disk overhead proportional to parallel agent count
 - **Trade-offs**: Gained simplicity; slight disk overhead for worktrees
 
-### 6. Dependency-Based Parallelization
-- **Choice**: Merge non-dependent tasks in parallel, rebase dependent tasks on parent merges
-- **Alternatives Considered**: All sequential, optimistic concurrent with conflict resolution
-- **Rationale**: Maximizes parallelization while respecting dependencies. Dependency graph drives ordering.
-- **Trade-offs**: Gained parallelization; added complexity in merge coordination
-
 ### 7. Configuration-Driven Orchestration (via Flexible Workflow System)
+
 - **Choice**: Orchestrator inherits approval rules, validation strategy, state machine, and worktree logic from workflow configuration (solitary proposal #w26021401)
 - **Alternatives Considered**: Custom orchestration logic, hardcoded approval rules in Gate 13
-- **Rationale**: Workflow configuration provides standardized, reusable infrastructure for all workflow modes. Gate 13 delegates cross-cutting concerns to config rather than reimplementing. Simplifies orchestrator, enables mode-agnostic operation, improves testability.
-- **Trade-offs**: Gained separation of concerns, consistency across gates, configuration-driven flexibility; requires workflow config infrastructure to be implemented first (MVP prerequisite)
+- **Rationale**: Workflow configuration provides standardized, reusable infrastructure for all workflow modes. Gate 13 delegates cross-cutting concerns to config rather than reimplementing.
+- **Impact**: Requires workflow config infrastructure to be implemented first
+- **Trade-offs**: Gained separation of concerns, consistency across gates; requires MVP prerequisite
 
-## Architecture & Dependencies
+## Architecture Updates
 
-### Workflow Configuration Integration (From Solitary Proposal #w26021401)
-- **Configuration Source**: `.zeno/config.json` with `workflowMode: 'agent-orchestrated'`
-- **Approval Rules**: Read `approval.autoApproveRules` for orchestrator decision-making (auto-approve by agent, by priority, or human-required)
-- **Concurrency Control**: Read `concurrency: 'parallel'` to enable/disable simultaneous agent execution
-- **Validation Strategy**: Inherit strict validation gates (non-negotiable for all modes)
-- **Worktree Management**: Use `shouldCreateWorktree()` function to determine isolation strategy
-- **State Machine**: Follow proposal state machine (pending → validation → approval → in_progress → completed)
-- **Type Safety**: Leverage Zod-validated configuration schema from workflow config
+### Components Modified or Created
 
-### Zeno Integration Layer
-- Expose existing MCP tools: `gates_action`, `proposal_action`
-- New MCP tools: `read_gate_prd`, `read_requirements`, `read_project_overview`
-- `ProposalSpecValidator` - Validates Claude-generated proposal specs
+- **Zeno Integration Layer**
+  - `ProposalSpecValidator` (`src/orchestration/proposal-spec-validator.ts`) - Validates Claude-generated proposal specs
+  - New MCP tools: `read_gate_prd`, `read_requirements`, `read_project_overview`
 
-### Claude Planning Layer
-- `ClaudePlanningOrchestrator` - Calls Zeno MCP tools, orchestrates Claude API
-- Claude system prompts for proposal spec generation
-- Proposal spec schema validation
+- **Claude Planning Layer**
+  - `ClaudePlanningOrchestrator` (`src/orchestration/claude-planning-orchestrator.ts`) - Calls Zeno MCP tools, orchestrates Claude API
+  - Claude system prompts for proposal spec generation
 
-### CrewAI Python Service Layer
-- `CrewFactory` - Builds CrewAI crews from proposal specs
-- `AgentManifestLoader` - Loads agents from agents/agent-manifest.json
-- `AgentRoleMapper` - Maps gate type → agent roles needed
-- `TaskHierarchyBuilder` - Creates CrewAI tasks with blocking relationships
-- `CrewConfigBuilder` - Generates CrewAI config JSON from proposal spec
-- CrewAI native: `Agent`, `Task`, `Crew`, `Process.hierarchical`
+- **CrewAI Python Service Layer**
+  - `CrewFactory` (`agents/crew_service.py`) - Builds CrewAI crews from proposal specs
+  - `AgentManifestLoader` - Loads agents from agents/agent-manifest.json
+  - `AgentRoleMapper` - Maps gate type → agent roles needed
+  - `TaskHierarchyBuilder` - Creates CrewAI tasks with blocking relationships
 
-### TypeScript Orchestration Layer
-- `CrewServiceBridge` - Spawns and communicates with Python service
-- `ProposalSpecToCrew` - Converts proposal spec to CrewAI config
-- `CrewResultParser` - Parses CrewAI output
-- `SubprocessLifecycleManager` - Handles Python process startup/shutdown
-- `ConflictDetector` - Identifies file-level conflicts from spec
-- `MergeOrderingEngine` - Determines merge sequence from dependencies
+- **TypeScript Orchestration Layer**
+  - `CrewServiceBridge` (`src/orchestration/crew-service-bridge.ts`) - Spawns and communicates with Python service
+  - `MergeOrderingEngine` (`src/orchestration/merge-ordering-engine.ts`) - Determines merge sequence from dependencies
+  - `ConflictDetector` (`src/orchestration/conflict-detector.ts`) - Identifies file-level conflicts from spec
 
-### Ollama Execution Layer
-- `OllamaClient` - Anthropic API compatibility endpoint
-- `LocalToolExecutor` - Handles tool calls (read_file, write_file, run_command, git_commit)
-- `TaskSpecFormatter` - Converts orchestrator tasks to model prompts
-- `ResultReporter` - Reports task results back to orchestrator
+- **Ollama Execution Layer**
+  - `OllamaClient` (`src/orchestration/ollama-client.ts`) - Anthropic API compatibility endpoint
+  - `LocalToolExecutor` (`src/orchestration/local-tool-executor.ts`) - Handles tool calls (read_file, write_file, run_command, git_commit)
 
-### Integration with Gate 10 MCP Tools
-- `worktree_list`, `worktree_prune`, `worktree_remove`, `worktree_merge`
-- Orchestrator invokes during task execution and merging
+- **Error Handling & Recovery**
+  - `RetryPolicy` (`src/orchestration/retry-policy.ts`) - Configures retry logic per task
+  - `RollbackManager` (`src/orchestration/rollback-manager.ts`) - Reverts failed tasks
 
-### Error Handling & Recovery
-- `RetryPolicy` - Configures retry logic per task
-- `ErrorContextCapture` - Preserves failure traces
-- `RollbackManager` - Reverts failed tasks
+### Diagram Updates
+
+- System Overview: `zeno/architecture/system-overview.md` - Add orchestration layer with four-tier architecture
+- Data Flow: `zeno/architecture/data-flow.md` - Add orchestration flow (Zeno → Claude → CrewAI → Ollama → merge)
+- Component: `zeno/architecture/component-diagram.md` - Add orchestration components and Python bridge
+
+### Integration Points
+
+- **Gate 10 MCP Tools**: Worktree operations (worktree_list, worktree_merge, worktree_prune, worktree_remove)
+- **Proposal System**: Proposal start creates worktree; proposal approve merges and cleans up
+- **Validation System**: Strict validation on every agent task output
+- **Agent Manifest**: Agents loaded from `agents/agent-manifest.json` for role-based assignment
+- **Workflow Configuration**: Approval rules, validation strategy, state machine from `.zeno/config.json`
+
+## Gate-Specific Quality Considerations
+
+### Security Considerations
+
+- Python subprocess must not execute arbitrary code from agent output
+- Ollama tool-calling must be sandboxed to project directory
+- Git operations must not expose credentials or tokens
+- Model endpoints must use HTTPS for remote connections
+
+### Performance Requirements
+
+- Worktree creation should complete within 3 seconds per agent
+- Python subprocess startup should complete within 1 second
+- 4+ parallel agents should execute without degradation
+- Merge coordination should complete within 10 seconds per task
+
+## Dependencies
+
+### External Dependencies (New or Updated)
+
+- **crewai** (Python, latest) - Hierarchical agent orchestration
+- **ollama** (local install) - Local model execution
+- **@anthropic-ai/sdk** (existing) - Claude API for planning phase
+
+### Internal Dependencies
+
+- **Depends on Gate(s)**: Gate 10: Git Integration (worktree MCP tools), Gate 08: Validation (quality gates), Gate 09: Approval (approval workflow), Gate 12: Status (progress monitoring)
+- **Blocks Gate(s)**: None (post-MVP terminal gate)
+- **Requires Modules**: Gate storage, Proposal storage, Validation orchestrator, Approval manager, Worktree manager
+- **Requires Prerequisite**: Solitary Proposal #w26021401 (Flexible Workflow Configuration System)
+
+### Infrastructure Dependencies
+
+- Python 3.10+ must be installed for CrewAI subprocess
+- Ollama must be installed and running for local model execution
+- Agent manifest file at `agents/agent-manifest.json`
 
 ## Implementation Steps
 
-### Phase 1: Zeno MCP Exposure
-1. Add `read_gate_prd` MCP tool
-2. Add `read_requirements` MCP tool
-3. Add `read_project_overview` MCP tool
-4. Design proposal spec JSON schema
-5. Create schema validator
+1. **Define Acceptance Tests**
+   - Write tests for orchestration flow, subprocess communication, merge ordering
+   - Tests establish the contract before implementation begins
 
-### Phase 2: Claude Planning Orchestrator
-6. Implement `ClaudePlanningOrchestrator` class
-7. Create Claude system prompt for spec generation
-8. Implement gate PRD → proposal spec pipeline
-9. Add proposal spec validation
-10. Test with sample gates
+2. **Implement Zeno MCP Exposure**
+   - Add `read_gate_prd`, `read_requirements`, `read_project_overview` MCP tools
+   - Design and implement proposal spec JSON schema and validator
 
-### Phase 3: CrewAI Python Service (New)
-11. Create `crew_service.py` python subprocess runner
-12. Implement `CrewFactory` to build CrewAI crews
-13. Implement `AgentManifestLoader` to load agents/agent-manifest.json
-14. Build `AgentRoleMapper` (gate type → agent roles)
-15. Implement `TaskHierarchyBuilder` (tasks with dependencies)
-16. Build JSON input/output serialization for subprocess communication
-17. Implement error handling and process lifecycle
-18. Test crew creation and execution with mock tasks
+3. **Implement Claude Planning Orchestrator**
+   - `ClaudePlanningOrchestrator` class calling Zeno MCP tools
+   - Claude system prompts for proposal spec generation
+   - Gate PRD → proposal spec pipeline with validation
 
-### Phase 4: TypeScript-Python Bridge
-19. Implement `CrewServiceBridge` subprocess spawner
-20. Build proposal spec → CrewAI config converter
-21. Implement result parsing from Python JSON
-22. Create process lifecycle management (startup, timeout, cleanup)
-23. Build error propagation from Python to TypeScript
+4. **Build CrewAI Python Service and Bridge**
+   - `crew_service.py` with agent manifest loading and crew creation
+   - TypeScript `CrewServiceBridge` for subprocess communication
+   - JSON serialization/deserialization and process lifecycle management
 
-### Phase 5: Ollama Integration (Inside CrewAI)
-24. Configure Ollama Anthropic API endpoint
-25. Set up CrewAI to use Ollama models (via API endpoint)
-26. Create local tool definitions for CrewAI tasks
-27. Implement tool-calling within CrewAI workflows
+5. **Integrate Ollama and Orchestrator Core**
+   - Ollama model initialization with Anthropic API compatibility
+   - Orchestrator main loop (proposal → crew config → run → merge)
+   - Worktree allocation, conflict detection, merge ordering
 
-### Phase 6: Orchestrator Core
-28. Implement orchestrator main loop (proposal → crew config → run → merge)
-29. Build conflict detector (file-level overlaps in proposal spec)
-30. Implement merge ordering engine (non-dependent tasks in parallel)
-31. Create worktree allocation per CrewAI task
-32. Build result consolidation from CrewAI output
+6. **Build Coordination, Error Handling, and Commands**
+   - Merge coordination protocol using Gate 10 MCP tools
+   - Retry logic, rollback mechanism, partial failure handling
+   - `zeno gate <id> execute` and `zeno orchestrator status` commands
 
-### Phase 7: Coordination & Merging
-33. Integrate Gate 10 MCP tools (worktree_merge, etc.)
-34. Implement merge coordination protocol
-35. Build rollback mechanism
-36. Create partial failure handling (some tasks fail, others continue)
+7. **Test Cleanup**
+   - Refine tests, add edge cases, ensure coverage ≥90%
+   - Integration tests with mock CrewAI and mock Ollama
 
-### Phase 8: Error Handling & Resilience
-37. Implement retry policy for subprocess failures
-38. Build error context capture from Python service
-39. Create timeout detection for CrewAI execution
-40. Implement health checks (Python service availability)
+## Known Issues & Limitations
 
-### Phase 9: Commands & Visibility
-41. Implement `zeno gate <id> execute` command
-42. Create `zeno orchestrator status` command
-43. Build progress monitoring (track task completion)
-44. Implement detailed logging of inter-agent communication
+### Current Limitations
 
-### Phase 10: Testing
-45. Write unit tests for crew config generation
-46. Test agent manifest loading and role mapping
-47. Test subprocess communication (JSON serialization)
-48. Write integration tests with mock CrewAI
-49. Test conflict detection and merge ordering
-50. Achieve 90% coverage
+- Local Ollama models have lower quality than cloud models (acceptable for focused code generation)
+- Python subprocess bridge adds startup overhead (~500ms)
+- No network-distributed agent execution (local only)
+
+### Technical Debt
+
+- CrewAI Python service may need migration if CrewAI API changes — plan for version pinning
+- Subprocess communication is JSON-only; binary data not supported
+
+### Future Improvements
+
+- GitHub/GitLab PR integration for agent-generated code — deferred to post-MVP
+- Agent auto-scaling based on system resources — deferred to post-MVP
+- Advanced observability/tracing (OpenTelemetry) — deferred to post-MVP
+
+## Risks & Mitigation
+
+### Technical Risks
+
+1. **CrewAI Integration Complexity**
+   - **Impact**: High
+   - **Probability**: Medium
+   - **Mitigation**: Start with simple crew configurations; test subprocess bridge early
+   - **Contingency**: Fall back to direct Ollama orchestration without CrewAI
+
+2. **Ollama Model Quality**
+   - **Impact**: Medium
+   - **Probability**: Medium
+   - **Mitigation**: Use larger models (codestral:22b) for complex tasks; strict validation catches errors
+   - **Contingency**: Route complex tasks to Claude API as fallback
+
+3. **Merge Conflicts from Parallel Agents**
+   - **Impact**: High
+   - **Probability**: Medium
+   - **Mitigation**: Pre-check file overlaps; serialize conflicting tasks; dependency-based ordering
+   - **Contingency**: Escalate to human for manual conflict resolution
+
+4. **Python Subprocess Reliability**
+   - **Impact**: Medium
+   - **Probability**: Low
+   - **Mitigation**: Health checks, timeout detection, graceful shutdown protocol
+   - **Contingency**: Retry with fresh subprocess; fall back to serial execution
+
+### Process Risks
+
+1. **Scope Creep**
+   - **Impact**: High
+   - **Probability**: Medium
+   - **Mitigation**: Clear scope boundaries; post-MVP designation limits expectations
+   - **Contingency**: Defer additional features to future iterations
 
 ## Gate Completion Criteria
 
-### Zeno MCP Exposure
-- [ ] `read_gate_prd` tool implemented and returns valid gate PRD JSON
+- [ ] All must-have requirements implemented and tested
+- [ ] All should-have requirements implemented or explicitly deferred
+- [ ] All proposals completed and approved
+- [ ] All acceptance criteria met
+- [ ] Architecture diagrams updated
+- [ ] Gate-specific quality considerations addressed
+- [ ] Stakeholder approval obtained
+- [ ] `read_gate_prd` tool returns valid gate PRD JSON
 - [ ] `read_requirements` tool returns gate requirements with acceptance criteria
 - [ ] `read_project_overview` tool returns system architecture for Claude context
-- [ ] `read_agent_manifest` tool loads agents/agent-manifest.json correctly
-
-### Claude Planning Orchestrator
-- [ ] ClaudePlanningOrchestrator calls Zeno MCP tools to read context
-- [ ] Proposal specs generated from gate PRDs with task decomposition
-- [ ] Task decomposition includes dependencies, file assignments, acceptance criteria
-- [ ] Proposal specs validate against gate acceptance criteria
-
-### CrewAI Agent Orchestration
-- [ ] Agent manifest loads successfully (agents/agent-manifest.json)
-- [ ] Role mapping works correctly (gate type → agent roles from manifest)
+- [ ] ClaudePlanningOrchestrator generates proposal specs from gate PRDs
+- [ ] Agent manifest loads successfully from agents/agent-manifest.json
 - [ ] CrewAI crew configs generate with proper agent assignments
-- [ ] Hierarchical process creates dependency relationships (blocking tasks)
-- [ ] Inter-agent communication executes (agents ask questions, challenge assumptions)
-
-### Python Subprocess Bridge
-- [ ] crew_service.py starts and listens to stdin/stdout
-- [ ] JSON serialization/deserialization works bidirectionally
-- [ ] Process lifecycle management (startup, timeout, cleanup) is robust
-- [ ] Error messages propagate from Python to TypeScript with full context
-- [ ] Results include agent findings and task metadata
-
-### Ollama Integration & Tool Calling
+- [ ] crew_service.py starts and communicates via JSON stdin/stdout
 - [ ] Ollama models connect via Anthropic API compatibility endpoint
-- [ ] CrewAI agents call local tools (read_file, write_file, run_command, git_commit)
-- [ ] Tool-calling within agent execution handles responses correctly
-- [ ] Task results formatted and reported back to orchestrator
-
-### Orchestrator Execution & Parallelization
-- [ ] Non-dependent tasks execute in parallel via CrewAI concurrent agents
-- [ ] Dependent tasks execute sequentially as ordered by hierarchy
-- [ ] Merge ordering prevents merge conflicts (no same-file edits)
+- [ ] Non-dependent tasks execute in parallel via CrewAI
+- [ ] Dependent tasks execute sequentially per dependency graph
 - [ ] Worktrees merged successfully via Gate 10 MCP tools
-- [ ] Progress monitoring tracks task completion and timing
-- [ ] Status reporting shows active tasks and completion times
-
-### Conflict Detection & Resolution
-- [ ] File overlap detection identifies tasks editing same files
-- [ ] Conflicting tasks serialized correctly (non-dependent conflicts run sequentially)
-- [ ] Merge conflicts escalated to human for review (not auto-overwritten)
-- [ ] Prevention: agents informed of file restrictions before CrewAI execution
-
-### Error Handling & Resilience
-- [ ] Subprocess failures caught and retried (configurable retry policy)
-- [ ] Error context captured with full context (agent, task, error details)
-- [ ] Timeout detection identifies hung CrewAI agents
-- [ ] Partial failures don't block gate (continue with remaining tasks)
-- [ ] Rollback on critical failure reverts all task work
-- [ ] Max retry limit prevents infinite loops
-
-### Commands & Visibility
-- [ ] `zeno gate <id> execute` orchestrates CrewAI execution flow
-- [ ] `zeno orchestrator status` shows current CrewAI task assignments
-- [ ] `zeno orchestrator tasks` lists pending and in-progress tasks with agent assignments
-- [ ] Detailed logs show CrewAI agent assignments, inter-agent communication, task completions, timings
-
-### Quality Standards
+- [ ] File overlap detection identifies conflicting tasks
+- [ ] Subprocess failures caught and retried
+- [ ] Partial failures don't block gate completion
+- [ ] `zeno gate <id> execute` orchestrates full execution flow
 - [ ] All tests passing with TypeScript strict mode
 - [ ] Test coverage ≥90% for orchestration module
-- [ ] Zero lint errors (ESLint)
-- [ ] Zero type errors (TypeScript strict)
-- [ ] CrewAI integration tests with mock Ollama
-- [ ] Performance acceptable: 4+ parallel agents without degradation
-- [ ] Documentation updated for orchestration workflow
-- [ ] Error messages are clear and actionable
+- [ ] Zero lint errors, zero type errors
 
 ### Prerequisites & Dependencies
 
 #### MVP Prerequisite: Flexible Workflow Configuration System (Solitary Proposal #w26021401)
+
 Before starting Gate 13, the following must be complete:
+
 - [ ] Workflow configuration schema (workflowMode, validation, approval, concurrency)
 - [ ] Strict validation gates (TypeScript, coverage, security, linting, tests—always enforced)
 - [ ] Approval logic handlers (auto/required/orchestrator modes)
@@ -606,6 +595,47 @@ Before starting Gate 13, the following must be complete:
 **Why**: Gate 13 orchestrator depends on configuration-driven approval rules, strict validation enforcement, state machine consistency, and worktree logic. These are not orchestration-specific—they're cross-cutting concerns needed by all gates. The workflow configuration system provides a single source of truth for all workflow behavior, reducing Gate 13 to a pure orchestration layer.
 
 #### Gate Dependencies
+
 - **Gate 05** (Architecture Diagrams): MCP reads architecture via `read_project_overview` tool
 - **Gate 06** (Multi-Repo Detection): Orchestrator works with mono/multi-repo structures
 - **Gate 07-12**: Full proposal + validation + approval + merge infrastructure
+
+## Notes
+
+### Implementation Notes
+
+- Proposal spec JSON schema should be versioned for forward compatibility
+- CrewAI process should be reusable across multiple gate executions (avoid repeated startup)
+- Model delegation config at `.zeno/config.json` should support hot-reload
+
+### Proposal Summary
+
+| Proposal Hash | Summary |
+| --- | --- |
+| #[hash] | [1-2 sentence summary of proposal work completed] |
+
+### Next Gate Preview
+
+Gate 14 (Documentation Cleanup) is a post-MVP gate that will clean up README.md, CLI reference, and AGENTS.md to reflect the actual MVP implementation.
+
+---
+
+**Document Version**: 1.1.0
+**Last Updated**: 2026-02-27
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: Zeno
+**Reviewers**: Zeno
+
+### Change Log
+
+| Version | Date | Summary | Author |
+| --- | --- | --- | --- |
+| 1.0.0 | 2026-02-04 | Initial version | Zeno |
+| 1.1.0 | 2026-02-27 | Aligned with gate-prd-template.md | Zeno |
+
+**Related Documents**:
+
+- Project PRD: `zeno/PROJECT_PRD.md`
+- Previous Gate: `zeno/gates/gate-12-status-reporting.md`
+- Next Gate: `zeno/gates/gate-14-documentation-polish.md`
+- Architecture: `zeno/architecture/`

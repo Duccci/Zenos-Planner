@@ -1,7 +1,7 @@
 /**
  * Seed Requirements Database
  *
- * Populates the requirements.db with project-level and gate-level requirements
+ * Populates the registry.db with project-level and gate-level requirements
  * extracted from the completed gate PRDs (gates 01-04).
  *
  * Usage: npx tsx scripts/seed-requirements.ts
@@ -11,7 +11,7 @@ import Database from 'better-sqlite3'
 import path from 'node:path'
 import { generateRequirementHash, detectHashCollision } from '../src/utils/hash.js'
 
-const DB_PATH = path.join(process.cwd(), 'zeno', '.zeno', 'requirements.db')
+const DB_PATH = path.join(process.cwd(), 'zeno', '.zeno', 'registry.db')
 
 interface RequirementSeed {
   description: string

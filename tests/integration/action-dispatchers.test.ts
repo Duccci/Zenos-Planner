@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Integration tests for unified action dispatchers
  * Tests proposal_action and gates_action discriminated union tools
  *
@@ -63,7 +63,7 @@ describe('Proposal Action Dispatcher', () => {
         gateId: 'gate-03',
         tasksCompleted: 0,
         totalTasks: 1,
-        created: now,
+        lastUpdated: now,
       },
       {
         hash: 'prop0002',
@@ -72,7 +72,7 @@ describe('Proposal Action Dispatcher', () => {
         gateId: 'gate-03',
         tasksCompleted: 1,
         totalTasks: 2,
-        created: now,
+        lastUpdated: now,
       },
     ]
 
@@ -102,7 +102,7 @@ describe('Proposal Action Dispatcher', () => {
       status: 'pending',
       gateId: 'gate-03',
       tasks: [],
-      created: now,
+      lastUpdated: now,
     }
 
     registry.setMockResult('proposal_show', mockDetail)
@@ -175,7 +175,7 @@ describe('Proposal Action Dispatcher', () => {
       status: 'in_progress',
       gateId: 'gate-01',
       tasks: [],
-      created: now,
+      lastUpdated: now,
     })
     registry.setMockResult('config_get', {
       projectName: 'test',
@@ -215,7 +215,7 @@ describe('Proposal Action Dispatcher', () => {
       status: 'in_progress',
       gateId: 'gate-01',
       tasks: [],
-      created: now,
+      lastUpdated: now,
     })
     registry.setMockResult('proposal_reject', {
       hash: 'prxy0001',
@@ -249,7 +249,7 @@ describe('Proposal Action Dispatcher', () => {
       status: 'pending',
       gateId: 'gate-01',
       tasks: [],
-      created: now,
+      lastUpdated: now,
     })
     registry.setMockResult('config_get', {
       projectName: 'test',
@@ -319,7 +319,7 @@ describe('Gates Action Dispatcher', () => {
         sequence: 1,
         status: 'completed',
         type: 'feature',
-        created: now,
+        lastUpdated: now,
         proposalCount: 2,
         completedProposalCount: 2,
         requirementCount: 5,
@@ -332,7 +332,7 @@ describe('Gates Action Dispatcher', () => {
         sequence: 2,
         status: 'in_progress',
         type: 'infrastructure',
-        created: now,
+        lastUpdated: now,
         proposalCount: 1,
         completedProposalCount: 0,
         requirementCount: 3,
@@ -368,7 +368,7 @@ describe('Gates Action Dispatcher', () => {
       objectives: [],
       requirements: [],
       proposals: [],
-      created: now,
+      lastUpdated: now,
     }
 
     registry.setMockResult('gates_show', mockGateDetail)
@@ -436,7 +436,7 @@ describe('Gates Action Dispatcher', () => {
       status: 'pending',
       type: 'feature',
       sequence: 3,
-      created: now,
+      lastUpdated: now,
     })
     registry.setMockResult('gates_start', {
       gateId: 'gate-03',
@@ -463,7 +463,7 @@ describe('Gates Action Dispatcher', () => {
       status: 'in_progress',
       type: 'feature',
       sequence: 2,
-      created: now,
+      lastUpdated: now,
     })
     registry.setMockResult('config_get', {
       projectName: 'test',
@@ -554,7 +554,7 @@ describe('Action Dispatcher Type Safety', () => {
       status: 'pending',
       gateId: 'gate-03',
       tasks: [],
-      created: now,
+      lastUpdated: now,
       filesAffected: [],
     })
     const validResult = await handlers.proposal_action({
@@ -587,7 +587,7 @@ describe('Action Dispatcher Type Safety', () => {
       objectives: [],
       requirements: [],
       proposals: [],
-      created: now,
+      lastUpdated: now,
     })
     const validResult = await handlers.gates_action({
       action: 'show',
@@ -613,7 +613,7 @@ describe('Action Dispatcher Output Schema Validation', () => {
           gateId: 'gate-03',
           tasksCompleted: 0,
           totalTasks: 5,
-          created: now,
+          lastUpdated: now,
         },
       ],
     }
@@ -646,11 +646,11 @@ describe('Action Dispatcher Output Schema Validation', () => {
           sequence: 1,
           status: 'pending',
           type: 'feature',
-          created: now,
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
           testedRequirementCount: 0,
+          lastUpdated: now,
         },
       ],
     }

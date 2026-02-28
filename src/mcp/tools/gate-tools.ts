@@ -129,8 +129,7 @@ export function gateHandlers(
                   previousStatus: 'completed',
                   newStatus: 'completed' as const,
                   completedAt:
-                    (showData['completedAt'] as string | undefined) ??
-                    (showData['completed'] as string | undefined) ??
+                    (showData['lastUpdated'] as string | undefined) ??
                     new Date().toISOString(),
                   summary: { proposalsCompleted: 0, requirementsTested: 0 },
                 },

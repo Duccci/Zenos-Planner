@@ -1,10 +1,10 @@
-import { describe, it, expect, vi } from 'vitest'
+﻿import { describe, it, expect, vi } from 'vitest'
 import { gateHandlers } from '../../../src/mcp/tools/gate-tools.js'
 import { GatesListOutputSchema, GateDetailSchema } from '../../../src/mcp/schemas/gate-schemas.js'
 
 describe('Gate Handlers Integration', () => {
   it('parses and validates structured gates list output', async () => {
-    const mockData = { gates: [{ id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, created: new Date().toISOString(), started: null, completed: null, proposalCount: 0, completedProposalCount: 0, requirementCount: 0, testedRequirementCount: 0 }] }
+    const mockData = { gates: [{ id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, lastUpdated: new Date().toISOString(), proposalCount: 0, completedProposalCount: 0, requirementCount: 0, testedRequirementCount: 0 }] }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = gateHandlers(fakeRegistry)
 
@@ -29,7 +29,7 @@ describe('Gate Handlers Integration', () => {
   })
 
   it('parses and validates gate show output', async () => {
-    const mockData = { id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, objectives: [], requirements: [], proposals: [], created: new Date().toISOString(), started: null, completed: null }
+    const mockData = { id: 'gate-01', name: 'Gate 1', description: 'desc', sequence: 1, status: 'pending' as const, type: 'feature' as const, objectives: [], requirements: [], proposals: [], lastUpdated: new Date().toISOString() }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'show', payload: { gateId: 'gate-01' } })
