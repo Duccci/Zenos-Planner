@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readdirSync } from 'node:fs'
+import { resolve, join } from 'node:path'
 import { ALL_GUARDRAILS, type GuardrailEntry } from '../../src/mcp/content/guardrails.js'
 
 /**
@@ -139,5 +139,41 @@ describe('ALL_GUARDRAILS — structural integrity', () => {
     expect(topics.has('proposal-generation')).toBe(true)
     expect(topics.has('gate-generation')).toBe(true)
     expect(topics.has('archival')).toBe(true)
+  })
+
+  it('every agentRef entry resolves to an existing file in agents/categories/', () => {
+    const agentsRoot = resolve(import.meta.dirname, '../../agents/categories')
+
+    // Build set of valid slugs: 'category-dir/agent-stem' → matches agentRef format
+    const validSlugs = new Set<string>()
+    try {
+      for (const category of readdirSync(agentsRoot, { withFileTypes: true })) {
+        if (!category.isDirectory()) continue
+        for (const file of readdirSync(join(agentsRoot, category.name), { withFileTypes: true })) {
+          if (!file.isFile() || !file.name.endsWith('.md')) continue
+          if (file.name === 'README.md') continue
+          const stem = file.name.replace(/\.md$/, '')
+          validSlugs.add(`${category.name}/${stem}`)
+        }
+      }
+    } catch {
+      // agents/ directory not present (e.g. submodule not initialised) — skip
+      return
+    }
+
+    const stale: string[] = []
+    for (const entry of ALL_GUARDRAILS) {
+      if (!entry.agentRef || entry.agentRef.length === 0) continue
+      for (const slug of entry.agentRef) {
+        if (!validSlugs.has(slug)) {
+          stale.push(`  ${entry.id}: agentRef '${slug}' has no matching .md file`)
+        }
+      }
+    }
+
+    expect(
+      stale,
+      `Stale agentRef entries (file not found):\n${stale.join('\n')}`
+    ).toHaveLength(0)
   })
 })

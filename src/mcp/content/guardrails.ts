@@ -255,6 +255,7 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Keep proposals as single coherent work units with status pending',
     mustHaveValidator: false,
     reason: 'Design principle: proposal decomposition guidance; coherence is subjective, human-reviewed',
+    agentRef: ['09-meta-orchestration/task-distributor', '09-meta-orchestration/workflow-orchestrator'],
   },
   {
     id: 'proposal-007',
@@ -262,6 +263,7 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Decompose Gate PRD steps into tasks; describe changes without implementing',
     mustHaveValidator: false,
     reason: 'Methodology: proposal generation approach; enforced by template and human review',
+    agentRef: ['09-meta-orchestration/task-distributor', '09-meta-orchestration/multi-agent-coordinator'],
   },
   {
     id: 'proposal-008',
@@ -269,6 +271,7 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'NO: implementation code, inline code snippets, terminal commands, file modifications, new requirements in proposal files',
     mustHaveValidator: false,
     reason: 'Content rules: proposal-generation guidelines; human enforces via review',
+    agentRef: ['04-quality-security/code-reviewer', '04-quality-security/compliance-auditor'],
   },
   {
     id: 'proposal-009',
@@ -276,6 +279,7 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'YES: markdown files, task decomposition, acceptance criteria, function/type names (no code blocks)',
     mustHaveValidator: false,
     reason: 'Content rules: defines what is appropriate in proposals; human-reviewed',
+    agentRef: ['04-quality-security/compliance-auditor', '04-quality-security/qa-expert'],
   },
   {
     id: 'proposal-010',
@@ -283,6 +287,7 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Review dependencies for context only; do not implement or pre-empt work that belongs to other proposals or later gates.',
     mustHaveValidator: false,
     reason: 'Behavioral principle: agent workflow guidance; no deterministic validator can enforce intent',
+    agentRef: ['09-meta-orchestration/multi-agent-coordinator', '09-meta-orchestration/context-manager'],
   },
 ]
 
@@ -304,6 +309,7 @@ export const GATE_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Gates are concrete deliverables, not percentages or time estimates',
     mustHaveValidator: false,
     reason: 'Definitional principle: describes gate semantics; no deterministic validator applicable',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/task-distributor'],
   },
   {
     id: 'gate-003',
@@ -319,6 +325,7 @@ export const GATE_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Requirements-first: defined at project inception; gates attribute existing requirements',
     mustHaveValidator: false,
     reason: 'Process principle: requirement lifecycle guidance; validated via zeno req list checks, not a runtime constraint',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/knowledge-synthesizer'],
   },
   {
     id: 'gate-005',
@@ -326,6 +333,7 @@ export const GATE_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Identify vague scopes and ask clarifying questions before proceeding',
     mustHaveValidator: false,
     reason: 'Interaction instruction: agent behavior principle; "vague" is subjective, human-judged',
+    agentRef: ['09-meta-orchestration/context-manager', '04-quality-security/qa-expert'],
   },
   {
     id: 'gate-006',
@@ -333,6 +341,7 @@ export const GATE_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Review dependencies for context only; do not implement or pre-empt work that belongs to other proposals or later gates. Document incomplete dependencies and notify a human for clarification.',
     mustHaveValidator: false,
     reason: 'Behavioral principle: agent workflow guidance; no deterministic validator can enforce intent',
+    agentRef: ['09-meta-orchestration/multi-agent-coordinator', '09-meta-orchestration/context-manager'],
   },
   {
     id: 'gate-007',
@@ -362,6 +371,7 @@ export const ARCHIVAL_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Gate types: gate-01 (gates); #p01... or filename (gate-tied proposals); #s20260115... (solitary)',
     mustHaveValidator: false,
     reason: 'Notation convention: describes hash/reference formats; informational only',
+    agentRef: ['09-meta-orchestration/context-manager', '09-meta-orchestration/knowledge-synthesizer'],
   },
   {
     id: 'archive-003',
@@ -369,6 +379,7 @@ export const ARCHIVAL_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Update dependent artifacts; preserve audit trail',
     mustHaveValidator: false,
     reason: 'Archival methodology: human responsibility during gate completion; covered by gate completion procedure',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '04-quality-security/compliance-auditor'],
   },
   {
     id: 'archive-004',
@@ -384,6 +395,7 @@ export const ARCHIVAL_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Full state machine reference: zeno/architecture/mcp-workflows.md',
     mustHaveValidator: false,
     reason: 'Documentation pointer: informational reference to state machine docs; not a runtime constraint',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
   },
 ]
 
@@ -421,6 +433,7 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
     rule: 'Do not write custom SQL or spawn shell commands to query the database. Use MCP tools exclusively for all data access during proposal generation and implementation.',
     mustHaveValidator: false,
     reason: 'Design principle: consistency and auditability. All data access goes through validated MCP interface, creating a complete audit trail.',
+    agentRef: ['04-quality-security/security-auditor', '04-quality-security/code-reviewer'],
   },
 ]
 
@@ -441,45 +454,37 @@ export const ALL_GUARDRAILS: GuardrailEntry[] = [
 // ─── Response Helpers ──────────────────────────────────────────────────────────
 
 /**
- * Extracts only the narrative rules from a guardrail set for injection into
- * MCP response payloads.
+ * Extracts only the narrative rule text from a guardrail set for injection
+ * into MCP response payloads.
  *
  * Schema-enforced guardrails (mustHaveValidator: true) are already enforced
  * via Zod validation errors on the preReview field — they do not need to be
  * repeated as text in the response body.
  *
- * When a narrative rule has an `agentRef`, the agent name(s) are appended as
- * a delegation hint so agents know who to consult rather than guessing.
+ * Agent refs are intentionally excluded here to keep injected payloads lean.
+ * Use `toAgentDelegationHint` to surface a specific agent only at the call
+ * site where escalation is actually needed (e.g. a validator failure message).
  *
- * @returns Array of rule strings with optional agent delegation hints.
+ * @returns Array of plain rule strings — minimal LLM token cost.
  */
 export function toNarrativeRules(entries: GuardrailEntry[]): string[] {
-  return entries
-    .filter((g) => !g.mustHaveValidator)
-    .map((g) => {
-      if (g.agentRef && g.agentRef.length > 0) {
-        const agents = g.agentRef.map((a) => `/${a.split('/').pop()}`).join(', ')
-        return `${g.rule} (consult: ${agents})`
-      }
-      return g.rule
-    })
+  return entries.filter((g) => !g.mustHaveValidator).map((g) => g.rule)
 }
 
 /**
- * Returns all narrative guardrail entries that carry an `agentRef`.
- * Useful for building delegation tables or populating structured responses
- * with specific agent escalation paths.
+ * Returns the agent short-names for a single guardrail ID, or an empty array
+ * if none are registered.  Call this at the point of failure/escalation —
+ * not proactively on every response — to avoid context bloat.
  *
- * @returns Map of guardrail ID → agent name list.
+ * Example (in a validator error message):
+ *   const agents = toAgentDelegationHint(ALL_GUARDRAILS, 'apply-007')
+ *   // → ['task-distributor', 'code-reviewer']
+ *   errors.push(`Scope violation. Consult: ${agents.join(', ')}`)
  */
-export function toAgentDelegationMap(
-  entries: GuardrailEntry[]
-): Map<string, string[]> {
-  const map = new Map<string, string[]>()
-  for (const g of entries) {
-    if (!g.mustHaveValidator && g.agentRef && g.agentRef.length > 0) {
-      map.set(g.id, g.agentRef)
-    }
-  }
-  return map
+export function toAgentDelegationHint(
+  entries: GuardrailEntry[],
+  guardrailId: string
+): string[] {
+  const entry = entries.find((g) => g.id === guardrailId)
+  return (entry?.agentRef ?? []).map((a) => a.split('/').pop() ?? a)
 }
