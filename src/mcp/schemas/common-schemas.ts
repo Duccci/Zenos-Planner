@@ -55,10 +55,10 @@ export type RequirementType = z.infer<typeof RequirementTypeEnum>
 export const GateIdSchema = z.string().regex(/^gate-\d{2}$/, 'Gate ID must be format gate-XX')
 export type GateId = z.infer<typeof GateIdSchema>
 
-/** Requirement hash identifier (e.g., "#req12345678") */
+/** Requirement hash identifier (e.g., "02e2ad5d6ecd6f46") */
 export const RequirementHashSchema = z
   .string()
-  .regex(/^[a-z0-9]{8}$/, 'Requirement hash must be 8 alphanumeric characters')
+  .regex(/^[a-z0-9]{16}$/, 'Requirement hash must be 16 alphanumeric characters')
 export type RequirementHash = z.infer<typeof RequirementHashSchema>
 
 /** Proposal hash identifier (e.g., "a6aca3c1", "p05g04conddiag0", "p0209mcp-util-extract") */
