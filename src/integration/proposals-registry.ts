@@ -245,7 +245,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const validated = ProposalCreateInputSchema.parse(params)
 
       const { shortHash } = await import('../utils/hash.js')
-      const { readFile, writeFile } = await import('fs/promises')
+      const { readFile } = await import('fs/promises')
+      const { writeFile } = await import('../utils/file.js')
       const { join } = await import('path')
       const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
 

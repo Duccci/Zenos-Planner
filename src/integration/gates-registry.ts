@@ -438,7 +438,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
       const filePath = join(process.cwd(), 'zeno', 'gates', fileName)
 
-      const { writeFile } = await import('fs/promises')
+      const { writeFile } = await import('../utils/file.js')
       await writeFile(filePath, gateContent, 'utf-8')
 
       // TODO: Update gate-roadmap.md (deferred to full implementation)

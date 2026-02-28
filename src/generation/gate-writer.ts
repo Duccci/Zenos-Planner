@@ -4,7 +4,7 @@
  * Writes rendered gate PRDs to the zeno/gates/ directory.
  */
 
-import { writeFile } from 'fs/promises';
+import { writeFile } from '../utils/file.js';
 import { join } from 'path';
 
 export async function writeGatePRD(

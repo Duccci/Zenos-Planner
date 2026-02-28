@@ -69,6 +69,10 @@ vi.mock('fs/promises', () => ({
   writeFile: (...args: unknown[]) => mockWriteFile(...args),
 }))
 
+vi.mock('../../src/utils/file.js', () => ({
+  writeFile: (...args: unknown[]) => mockWriteFile(...args),
+}))
+
 vi.mock('path', () => ({
   join: (...parts: string[]) => parts.join('/'),
 }))

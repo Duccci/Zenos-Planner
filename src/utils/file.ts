@@ -15,10 +15,32 @@ import {
   readdir,
 } from 'node:fs/promises'
 import { existsSync, statSync, readdirSync } from 'node:fs'
-import { dirname, resolve, relative, normalize, sep, join } from 'node:path'
+import { dirname, resolve, relative, normalize, sep, join, extname } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { FileSystemError, wrapError } from './errors.js'
+
+/**
+ * Warn when content destined for a markdown file contains U+FFFD replacement
+ * characters.  Writes still succeed (non-fatal) so the user can see and
+ * correct the corruption in git diff rather than losing data silently.
+ */
+function warnIfEncodingCorrupted(filePath: string, content: string): void {
+  if (extname(filePath).toLowerCase() !== '.md') return
+  const count = (content.match(/\uFFFD/g) ?? []).length
+  if (count > 0) {
+    // Lazy-load logger to avoid circular dependency at module initialisation time
+    import('./logger.js')
+      .then(({ logger }) => {
+        logger.warn(
+          `Encoding corruption detected: ${String(count)} U+FFFD (replacement character) found in "${filePath}". ` +
+          `This indicates AI-generated text with corrupted Unicode (em-dashes, arrows, etc.). ` +
+          `Run the fix-encoding script or correct the content before committing.`
+        )
+      })
+      .catch(() => { /* logger unavailable — suppress */ })
+  }
+}
 
 /**
  * Read a text file and return its contents.
@@ -107,6 +129,9 @@ export async function writeFile(
   encoding: BufferEncoding = 'utf-8'
 ): Promise<void> {
   const tempPath = `${filePath}.tmp.${randomBytes(8).toString('hex')}`
+
+  // Warn early — before any I/O — so devs can catch encoding issues in logs.
+  warnIfEncodingCorrupted(filePath, content)
 
   try {
     // Ensure parent directory exists

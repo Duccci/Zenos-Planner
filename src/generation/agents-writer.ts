@@ -4,7 +4,8 @@
  * Writes generated AGENTS.md to the zeno/ directory, merging with existing content.
  */
 
-import { readFile, writeFile } from 'fs/promises';
+import { readFile as fsReadFile } from 'fs/promises';
+import { writeFile } from '../utils/file.js';
 import { join } from 'path';
 
 export async function writeAgentsMD(content: string, basePath: string): Promise<string> {
@@ -14,7 +15,7 @@ export async function writeAgentsMD(content: string, basePath: string): Promise<
   // To merge: read existing, append new sections if not present.
 
   try {
-    const existing = await readFile(filePath, 'utf-8');
+    const existing = await fsReadFile(filePath, 'utf-8');
     // Simple merge: if existing has content, append new content at the end
     const merged = existing + '\n\n---\n\n' + content;
     await writeFile(filePath, merged, 'utf-8');
