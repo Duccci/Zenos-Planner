@@ -1,3 +1,4 @@
 [submodule "agents"]
 	path = agents
-	url = https://github.com/turbobeest/agents.git
+	url = https://github.com/turbobeest/agents
+	branch = reference
