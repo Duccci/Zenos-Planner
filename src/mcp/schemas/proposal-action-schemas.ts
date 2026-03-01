@@ -101,7 +101,7 @@ export const ProposalActionInputSchema = z.object({
       z.object({
         description: z.string().describe('Task description'),
         acceptanceCriteria: z.array(z.string()).optional().describe('Testable acceptance criteria'),
-        phase: z.enum(['RED', 'GREEN', 'Test Refinement']).optional().describe('Task phase (RED/GREEN/Test Refinement)'),
+        phase: z.enum(['RED', 'GREEN']).optional().describe('Task phase (RED/GREEN)'),
         files: z.array(z.string()).optional().describe('File paths this task touches'),
         action: z.enum(['create', 'modify', 'delete', 'refactor']).optional().describe('Change action for files (create/modify/delete/refactor)'),
       })

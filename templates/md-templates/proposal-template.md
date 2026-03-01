@@ -1,10 +1,10 @@
-# Proposal: [Proposal Title]
+# Proposal: {{OBJECTIVE}}
 
-**Hash**: #[Generated SHA-256 first 16 chars]  
-**Gate**: [Gate ID] - [Gate Name]  
+**Hash**: #{{HASH}}  
+**Gate**: {{GATE_ID}}  
 **Requirement**: #[Requirement Hash] (optional - may address gate-level objective)  
-**Status**: pending | in_progress | completed | rejected  
-**Created**: [DATE]
+**Status**: pending  
+**Created**: {{DATE}}
 
 ---
 
@@ -26,39 +26,13 @@
 
 ## Coverage & Estimates
 
+> **RED phase only** — Omit this section for GREEN and Test Refinement proposals.
+
 ### Target Coverage
 
 - **Coverage Threshold**: [Inherited from config, e.g., 90%]
 - **Lines to Cover**: [Estimated count of lines in affected modules]
 - **Target Coverage**: (lines × threshold) ÷ 100 = [number] lines must be tested
-
----
-
-## Single-Phase Requirement
-
-**All proposals must deliver a complete, testable unit of work in a SINGLE implementation phase.**
-
-**NOT Allowed** — Forced sequentiality indicating multi-phased work:
-
-- "Phase 1: [task], Phase 2: [task]" or "Stage 1/2/3"
-- "First implement X, then Y, then Z" (sequential steps that form required phases)
-- "Implementation deferred to a future phase/gate/proposal"
-- "Later, we will also implement [feature]"
-- Tasks that logically require strict ordering as distinct phases
-
-**Correct Approach** — Parallelizable work designed for one sitting:
-
-- Multiple independent tasks that can run in parallel (many tasks OK if independent)
-- Create separate proposals for work with inherent sequentiality (e.g., foundation → integration)
-- Use `Dependencies: requires` to establish ordering without forced phases
-- Each proposal independently completes and tests in one implementation session
-- Dependencies ensure sequencing without multi-phasing
-
-**If You See Multi-Phase Patterns:**
-
-1. Split into separate proposals (one per logical phase/gate)
-2. Update Dependencies to sequence them (e.g., "Proposal B requires Proposal A")
-3. Each proposal stands alone and can be reviewed/tested independently
 
 ---
 

@@ -5,18 +5,33 @@
  */
 
 export function extractObjectives(content: string): string[] {
-  const objectivesMatch = /## Objectives\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
+  const objectivesMatch = /## Objectives\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/.exec(content)
   if (!objectivesMatch) return []
 
-  return (objectivesMatch[1] ?? '')
+  const section = objectivesMatch[1] ?? ''
+
+  // Strategy 1: ### headings within the Objectives section are top-level objective groups
+  // (e.g. "### Repository Declaration & Storage"). When headings are present each heading
+  // maps to one implementation proposal; the child bullets are detail, not separate proposals.
+  const headings = section
     .split('\n')
-    .map((line) => line.trim())
+    .filter((line) => line.startsWith('### '))
+    .map((line) => line.substring(4).trim())
+    .filter(Boolean)
+
+  if (headings.length > 0) return headings
+
+  // Strategy 2: flat top-level bullet items only.
+  // Filter BEFORE trimming so indented nested bullets (e.g. "  - sub-item") are excluded.
+  return section
+    .split('\n')
     .filter((line) => line.startsWith('- '))
-    .map((line) => line.substring(2))
+    .map((line) => line.substring(2).replace(/^\[[ x?]\]\s*/i, '').trim())
+    .filter(Boolean)
 }
 
 export function extractRequirements(content: string): { id: string; description: string }[] {
-  const reqMatch = /## Requirements\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
+  const reqMatch = /## Requirements\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/.exec(content)
   if (!reqMatch) return []
 
   return (reqMatch[1] ?? '')

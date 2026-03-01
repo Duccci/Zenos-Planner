@@ -17,8 +17,8 @@ export const ProposalTaskInputSchema = z.object({
   /** Acceptance criteria (unchecked by default) */
   acceptanceCriteria: z.array(z.string()).default([]),
 
-  /** Proposal phase: RED (write tests), GREEN (implement), or Test Refinement (validate) */
-  phase: z.enum(['RED', 'GREEN', 'Test Refinement']).optional(),
+  /** Proposal phase: RED (write tests) or GREEN (verify tests pass with implementation) */
+  phase: z.enum(['RED', 'GREEN']).optional(),
 
   /** File paths this task touches */
   files: z.array(z.string()).optional(),

@@ -99,6 +99,12 @@ export const GUARDRAIL_ALLOWLIST: AllowlistEntry[] = [
     reason: "Content rules: proposal-only guidelines; defines what goes into proposals",
   },
 
+  // proposal-012: direct file editing (no scripts)
+  {
+    pattern: /after scaffold generation.*edit each proposal file directly/i,
+    reason: "Behavioral principle: prevents LLMs from generating scripts instead of directly editing scaffold files; human-reviewed",
+  },
+
   // zeno-archive/SKILL.md guardrails
   {
     pattern: /gate types.*gate-01.*or filename.*solitary/i,

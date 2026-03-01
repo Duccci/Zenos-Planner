@@ -10,7 +10,7 @@ export interface ProposalMetadata {
   type: 'gate-tied' | 'solitary'
   status: string
   summary: string
-  phase?: 'RED' | 'GREEN' | 'Test Refinement'
+  phase?: 'RED' | 'GREEN'
   coverageTarget?: number
 }
 
@@ -67,8 +67,8 @@ export async function decomposeToProposals(
     // Use default if config can't be loaded
   }
 
-  // Phase 1: RED - Test proposals (first in sequence)
-  proposalIndex = await generateRedPhaseProposals(
+  // Phase 1: RED — Single test-suite proposal covering ALL objectives (Proposal 1)
+  proposalIndex = await generateRedTestSuiteProposal(
     gateId,
     objectives,
     requirements,
@@ -79,8 +79,8 @@ export async function decomposeToProposals(
     coverageThreshold
   )
 
-  // Phase 2: GREEN - Implementation proposals
-  proposalIndex = await generateGreenPhaseProposals(
+  // Phase 2: Implementation proposals — one per objective, no RED/GREEN prefix
+  proposalIndex = await generateImplementationProposals(
     gateId,
     objectives,
     requirements,
@@ -91,8 +91,8 @@ export async function decomposeToProposals(
     coverageThreshold
   )
 
-  // Phase 3: Test Refinement - Final validation (last in sequence)
-  await generateTestRefinementProposal(
+  // Phase 3: GREEN — Single test-verification proposal (final proposal)
+  await generateGreenVerificationProposal(
     gateId,
     objectives,
     requirements,
@@ -106,7 +106,68 @@ export async function decomposeToProposals(
   return proposals
 }
 
-async function generateRedPhaseProposals(
+/**
+ * RED phase: Single test-suite proposal covering ALL gate objectives.
+ * This is always Proposal 1. Tests are expected to fail initially.
+ */
+async function generateRedTestSuiteProposal(
+  gateId: string,
+  objectives: string[],
+  requirements: { id: string; description: string }[],
+  templateContent: string,
+  outputDir: string,
+  proposals: ProposalMetadata[],
+  startIndex: number,
+  coverageThreshold: number
+): Promise<number> {
+  const totalCoverageLines = objectives.reduce((sum, obj) => sum + estimateCoverageLines(obj), 0)
+  const totalCoverageTarget = Math.round((totalCoverageLines * coverageThreshold) / 100)
+
+  let proposalContent = templateContent
+    .replace(/\{\{GATE_ID\}\}/g, gateId)
+    .replace(/\{\{OBJECTIVE\}\}/g, `Test Suite for Gate ${gateId}`)
+    .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'RED')
+    .replace(/\{\{PHASE\}\}/g, 'RED')
+    .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
+    .replace(/\{\{COVERAGE_TARGET\}\}/g, String(totalCoverageTarget))
+    .replace(
+      /\{\{REQUIREMENTS\}\}/g,
+      requirements.map((r) => `- #${r.id}: ${r.description}`).join('\n')
+    )
+
+  const tasks = generateRedSuiteTasks(objectives, totalCoverageTarget)
+  proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
+
+  const hash = shortHash(proposalContent).substring(0, 8)
+  const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
+  const renderedContent = proposalContent
+    .replace(/\{\{HASH\}\}/g, hash)
+    .replace(/\{\{DATE\}\}/g, today)
+  const filename = `${startIndex.toString().padStart(2, '0')}-red--test-suite.md`
+  const fullPath = path.join(outputDir, filename)
+
+  await ensureDir(path.dirname(fullPath))
+  await writeFile(fullPath, renderedContent)
+
+  proposals.push({
+    hash,
+    filename,
+    path: fullPath,
+    type: 'gate-tied',
+    status: 'pending',
+    summary: `RED: Test suite for all gate objectives`,
+    phase: 'RED',
+    coverageTarget: totalCoverageTarget,
+  })
+
+  return startIndex + 1
+}
+
+/**
+ * Implementation proposals: one per objective, no RED/GREEN prefix.
+ * These are the middle proposals (Proposals 2 through N-1).
+ */
+async function generateImplementationProposals(
   gateId: string,
   objectives: string[],
   requirements: { id: string; description: string }[],
@@ -125,8 +186,8 @@ async function generateRedPhaseProposals(
     let proposalContent = templateContent
       .replace(/\{\{GATE_ID\}\}/g, gateId)
       .replace(/\{\{OBJECTIVE\}\}/g, objective)
-      .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'RED')
-      .replace(/\{\{PHASE\}\}/g, 'RED')
+      .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'implementation')
+      .replace(/\{\{PHASE\}\}/g, 'implementation')
       .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
       .replace(/\{\{COVERAGE_TARGET\}\}/g, String(coverageTarget))
       .replace(
@@ -134,18 +195,22 @@ async function generateRedPhaseProposals(
         requirements.map((r) => `- #${r.id}: ${r.description}`).join('\n')
       )
 
-    const tasks = generateRedPhaseTasks(objective, coverageTarget)
+    const tasks = generateImplementationTasks(objective)
     proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
 
     const hash = shortHash(proposalContent).substring(0, 8)
-    const filename = `${index.toString().padStart(2, '0')}-red-${objective
+    const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
+    const renderedContent = proposalContent
+      .replace(/\{\{HASH\}\}/g, hash)
+      .replace(/\{\{DATE\}\}/g, today)
+    const filename = `${index.toString().padStart(2, '0')}-${objective
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .substring(0, 25)}.md`
+      .substring(0, 30)}.md`
     const fullPath = path.join(outputDir, filename)
 
     await ensureDir(path.dirname(fullPath))
-    await writeFile(fullPath, proposalContent)
+    await writeFile(fullPath, renderedContent)
 
     proposals.push({
       hash,
@@ -153,8 +218,8 @@ async function generateRedPhaseProposals(
       path: fullPath,
       type: 'gate-tied',
       status: 'pending',
-      summary: `RED: Test suite for ${objective}`,
-      phase: 'RED',
+      summary: `Implement: ${objective}`,
+      phase: undefined,
       coverageTarget,
     })
 
@@ -164,65 +229,11 @@ async function generateRedPhaseProposals(
   return index
 }
 
-async function generateGreenPhaseProposals(
-  gateId: string,
-  objectives: string[],
-  requirements: { id: string; description: string }[],
-  templateContent: string,
-  outputDir: string,
-  proposals: ProposalMetadata[],
-  startIndex: number,
-  coverageThreshold: number
-): Promise<number> {
-  let index = startIndex
-
-  for (const objective of objectives) {
-    const coverageLines = estimateCoverageLines(objective)
-    const coverageTarget = Math.round((coverageLines * coverageThreshold) / 100)
-
-    let proposalContent = templateContent
-      .replace(/\{\{GATE_ID\}\}/g, gateId)
-      .replace(/\{\{OBJECTIVE\}\}/g, objective)
-      .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'GREEN')
-      .replace(/\{\{PHASE\}\}/g, 'GREEN')
-      .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
-      .replace(/\{\{COVERAGE_TARGET\}\}/g, String(coverageTarget))
-      .replace(
-        /\{\{REQUIREMENTS\}\}/g,
-        requirements.map((r) => `- #${r.id}: ${r.description}`).join('\n')
-      )
-
-    const tasks = generateGreenPhaseTasks(objective)
-    proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
-
-    const hash = shortHash(proposalContent).substring(0, 8)
-    const filename = `${index.toString().padStart(2, '0')}-green-${objective
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .substring(0, 25)}.md`
-    const fullPath = path.join(outputDir, filename)
-
-    await ensureDir(path.dirname(fullPath))
-    await writeFile(fullPath, proposalContent)
-
-    proposals.push({
-      hash,
-      filename,
-      path: fullPath,
-      type: 'gate-tied',
-      status: 'pending',
-      summary: `GREEN: Implementation for ${objective}`,
-      phase: 'GREEN',
-      coverageTarget,
-    })
-
-    index++
-  }
-
-  return index
-}
-
-async function generateTestRefinementProposal(
+/**
+ * GREEN phase: Single test-verification proposal (always the final proposal).
+ * Attaches implementation to tests and verifies all tests pass.
+ */
+async function generateGreenVerificationProposal(
   gateId: string,
   objectives: string[],
   requirements: { id: string; description: string }[],
@@ -232,15 +243,14 @@ async function generateTestRefinementProposal(
   proposalIndex: number,
   coverageThreshold: number
 ): Promise<void> {
-  // Combine all objectives' coverage into test refinement
   const totalCoverageLines = objectives.reduce((sum, obj) => sum + estimateCoverageLines(obj), 0)
   const totalCoverageTarget = Math.round((totalCoverageLines * coverageThreshold) / 100)
 
   let proposalContent = templateContent
     .replace(/\{\{GATE_ID\}\}/g, gateId)
-    .replace(/\{\{OBJECTIVE\}\}/g, 'Test Coverage Validation & Refinement')
-    .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'Test Refinement')
-    .replace(/\{\{PHASE\}\}/g, 'Test Refinement')
+    .replace(/\{\{OBJECTIVE\}\}/g, 'Test Verification & Green Validation')
+    .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'GREEN')
+    .replace(/\{\{PHASE\}\}/g, 'GREEN')
     .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
     .replace(/\{\{COVERAGE_TARGET\}\}/g, String(totalCoverageTarget))
     .replace(
@@ -248,15 +258,19 @@ async function generateTestRefinementProposal(
       requirements.map((r) => `- #${r.id}: ${r.description}`).join('\n')
     )
 
-  const tasks = generateTestRefinementTasks()
+  const tasks = generateGreenVerificationTasks(objectives, coverageThreshold)
   proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
 
   const hash = shortHash(proposalContent).substring(0, 8)
-  const filename = `${proposalIndex.toString().padStart(2, '0')}-test-refinement.md`
+  const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
+  const renderedContent = proposalContent
+    .replace(/\{\{HASH\}\}/g, hash)
+    .replace(/\{\{DATE\}\}/g, today)
+  const filename = `${proposalIndex.toString().padStart(2, '0')}-green--test-verification.md`
   const fullPath = path.join(outputDir, filename)
 
   await ensureDir(path.dirname(fullPath))
-  await writeFile(fullPath, proposalContent)
+  await writeFile(fullPath, renderedContent)
 
   proposals.push({
     hash,
@@ -264,133 +278,181 @@ async function generateTestRefinementProposal(
     path: fullPath,
     type: 'gate-tied',
     status: 'pending',
-    summary: 'Test Refinement: Validate coverage and edge cases for gate completion',
-    phase: 'Test Refinement',
+    summary: 'GREEN: Attach implementation to tests and verify all pass',
+    phase: 'GREEN',
     coverageTarget: totalCoverageTarget,
   })
 }
 
-function generateRedPhaseTasks(objective: string, coverageTarget: number): string {
-  const objectiveLower = objective.toLowerCase()
-  const isService = objectiveLower.includes('service') || objectiveLower.includes('api')
-  const isData =
-    objectiveLower.includes('database') ||
-    objectiveLower.includes('storage') ||
-    objectiveLower.includes('schema')
+/**
+ * Generate tasks for the single RED test-suite proposal covering all objectives.
+ */
+function generateRedSuiteTasks(objectives: string[], totalCoverageTarget: number): string {
+  let taskNum = 1
+  let tasks = ''
 
-  let tasks = `### Task 1: Write Unit Tests for ${objective}
+  for (const objective of objectives) {
+    tasks += `### Task ${String(taskNum)}: Write Unit Tests for ${objective}
 
 **Phase**: RED  
-**File(s)**: \`tests/[module]/[feature].test.ts\`  
+**File(s)**: \`tests/[module]/${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.test.ts\`  
 **Action**: create
 
-Write comprehensive test cases covering happy paths, error conditions, and edge cases. Target ${String(coverageTarget)} lines of coverage. Use mocks and fixtures to isolate units under test.
+Write comprehensive test cases covering happy paths, error conditions, and edge cases for "${objective}". Use mocks and fixtures to isolate units under test.
 
 **Acceptance**:
-- [ ] All test cases execute and can fail
+- [ ] All test cases execute and can fail (RED — no implementation yet)
 - [ ] Fixtures and mocks properly set up test isolation
 - [ ] Tests cover happy path, error cases, and boundary conditions
 - [ ] Test names clearly describe what they validate
 
----`
+---
 
-  if (isService || isData) {
-    tasks += `
+`
+    taskNum++
+  }
 
-### Task 2: Set Up Test Fixtures and Stubs
+  tasks += `### Task ${String(taskNum)}: Set Up Shared Test Fixtures and Stubs
 
 **Phase**: RED  
 **File(s)**: \`tests/[module]/fixtures.ts\`  
 **Action**: create
 
-Create reusable test fixtures, mock builders, and stub implementations for the module's dependencies. Document fixture usage in test files.
+Create reusable test fixtures, mock builders, and stub implementations for all module dependencies. Target ${totalCoverageTarget.toString()} total lines of coverage across all objectives.
 
 **Acceptance**:
 - [ ] Fixtures provide realistic test data
 - [ ] Stubs properly mock external dependencies
 - [ ] Fixtures are reusable across multiple test files
 - [ ] Clear documentation for fixture usage`
-  }
 
   return tasks
 }
 
-function generateGreenPhaseTasks(objective: string): string {
+/**
+ * Generate tasks for an implementation proposal (no RED/GREEN designation).
+ */
+function generateImplementationTasks(objective: string): string {
   return `### Task 1: Implement ${objective}
 
-**Phase**: GREEN  
 **File(s)**: \`src/[module]/[feature].ts\`  
 **Action**: create | modify
 
-Implement only the functions and methods covered by RED phase tests. Make all RED tests pass. Do not add new tests beyond those defined in RED phase.
+Implement the functions and methods required for "${objective}". Focus on making the RED tests for this objective pass. Do not add or modify test files.
 
 **Acceptance**:
-- [ ] All RED tests pass
-- [ ] Implementation matches test specifications exactly
-- [ ] No new test files created
-- [ ] No new test cases added to existing tests
+- [ ] RED tests for this objective pass
+- [ ] Implementation matches test specifications
+- [ ] No test files created or modified
 - [ ] TypeScript strict mode compiles without errors
-- [ ] Guardrails verified: only RED tests pass, coverage target met
 
 ---`
 }
 
-function generateTestRefinementTasks(): string {
-  return `### Task 1: Validate Test Coverage & Edge Cases
+/**
+ * Generate tasks for the final GREEN verification proposal.
+ */
+function generateGreenVerificationTasks(objectives: string[], coverageThreshold: number): string {
+  const objectiveList = objectives.map((o, i) => `${String(i + 1)}. ${o}`).join('\n')
 
-**Phase**: Test Refinement  
-**File(s)**: \`tests/[module]/[feature].test.ts\`  
+  return `### Task 1: Attach Implementation to Tests & Verify All Pass
+
+**Phase**: GREEN  
+**File(s)**: \`tests/[module]/*.test.ts\`  
 **Action**: modify
 
-Review test coverage reports and identify uncovered code paths. Add edge case tests if gaps exist. Ensure all RED tests still pass and coverage meets threshold.
+Wire all implementation modules into the test suite so that every RED test now passes with real implementations instead of stubs. Verify full integration between test suite and implementation code.
+
+**Objectives verified**:
+${objectiveList}
 
 **Acceptance**:
-- [ ] All RED tests pass
-- [ ] Coverage report shows ≥ threshold
+- [ ] All RED tests pass with real implementations
+- [ ] No tests using stubs for implemented code
+- [ ] Coverage report shows ≥ ${String(coverageThreshold)}%
 - [ ] All edge cases covered (boundary conditions, error handling)
-- [ ] No uncovered code paths with business logic
 - [ ] All lint rules pass for test files
-- [ ] Zero type errors in test files
+- [ ] Zero type errors in test and implementation files
+
+---
+
+### Task 2: Coverage Gap Analysis & Edge Case Tests
+
+**Phase**: GREEN  
+**File(s)**: \`tests/[module]/*.test.ts\`  
+**Action**: modify
+
+Review test coverage reports and identify uncovered code paths. Add edge case tests if gaps exist. Ensure coverage meets or exceeds the quality threshold.
+
+**Acceptance**:
+- [ ] Coverage report shows ≥ ${String(coverageThreshold)}%
+- [ ] No uncovered code paths with business logic
+- [ ] Edge case tests added for any gaps discovered
 
 ---`
 }
 
+/**
+ * Calculate dependencies between proposals.
+ *
+ * New structure:
+ *   RED (single) → all implementation proposals (parallel-eligible)
+ *   All implementation proposals → GREEN (single)
+ */
 export function calculateProposalDependencies(
   proposals: { hash: string; filename?: string; path?: string; phase?: string }[]
 ): { from: string; to: string; type: string }[] {
   const dependencies: { from: string; to: string; type: string }[] = []
 
-  // RED phase creates sequential dependency to GREEN (first RED → first GREEN)
-  const redProposals = proposals.filter((p) => p.phase === 'RED' || p.filename?.includes('-red-'))
+  const redProposals = proposals.filter(
+    (p) => p.phase === 'RED' || p.filename?.includes('-red-')
+  )
   const greenProposals = proposals.filter(
     (p) => p.phase === 'GREEN' || p.filename?.includes('-green-')
   )
-  const testRefinementProposals = proposals.filter(
-    (p) => p.phase === 'Test Refinement' || p.filename?.includes('-test-refinement')
+  // Implementation proposals have no phase set and no red/green in the filename
+  const implProposals = proposals.filter(
+    (p) =>
+      !p.phase &&
+      !p.filename?.includes('-red-') &&
+      !p.filename?.includes('-green-') &&
+      !p.filename?.includes('-test-refinement')
   )
 
-  // Map RED → GREEN for each objective pair
-  for (let i = 0; i < redProposals.length && i < greenProposals.length; i++) {
-    const red = redProposals[i]
-    const green = greenProposals[i]
-    if (red && green) {
-      dependencies.push({
-        from: red.hash,
-        to: green.hash,
-        type: 'red-green',
-      })
+  // RED → each implementation proposal
+  if (redProposals.length > 0) {
+    const red = redProposals[0]
+    if (red) {
+      for (const impl of implProposals) {
+        dependencies.push({
+          from: red.hash,
+          to: impl.hash,
+          type: 'red-impl',
+        })
+      }
+      // RED → GREEN (direct) when there are no implementation proposals
+      if (implProposals.length === 0 && greenProposals.length > 0) {
+        const greenProposal = greenProposals[0]
+        if (greenProposal) {
+          dependencies.push({
+            from: red.hash,
+            to: greenProposal.hash,
+            type: 'red-green',
+          })
+        }
+      }
     }
   }
 
-  // Map GREEN → Test Refinement (all GREENs block then require test refinement)
-  if (testRefinementProposals.length > 0) {
-    const testRefinement = testRefinementProposals[0]
-    for (const green of greenProposals) {
-      if (testRefinement) {
+  // Each implementation proposal → GREEN
+  if (greenProposals.length > 0) {
+    const green = greenProposals[0]
+    if (green) {
+      for (const impl of implProposals) {
         dependencies.push({
-          from: green.hash,
-          to: testRefinement.hash,
-          type: 'green-test-refinement',
+          from: impl.hash,
+          to: green.hash,
+          type: 'impl-green',
         })
       }
     }

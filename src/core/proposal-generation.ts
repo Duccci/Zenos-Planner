@@ -9,6 +9,7 @@
 import { readFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
+import { findGateByGateId } from '../utils/artifact-locator.js'
 import path from 'path'
 
 export interface ProposalGenerateInput {
@@ -28,7 +29,7 @@ export interface ProposalGenerateOutput {
     type: 'gate-tied' | 'solitary'
     status: string
     summary: string
-    phase?: 'RED' | 'GREEN' | 'Test Refinement'
+    phase?: 'RED' | 'GREEN'
     coverageTarget?: number
   }[]
   dependencies?: {
@@ -37,6 +38,10 @@ export interface ProposalGenerateOutput {
     type: string
   }[]
   message: string
+  scaffoldNotice?: string
+  nextSteps?: string[]
+  /** Top-level objectives extracted from the gate PRD used for proposal decomposition. */
+  objectives?: string[]
 }
 
 /**
@@ -49,16 +54,16 @@ export async function generateProposals(
     const projectRoot = process.cwd()
     const { gateId, templateName = 'proposal-template', outputDir } = input
 
-    // Read gate PRD
-    const [, gnum = '', ...rest] = gateId.split('-')
+    // Read gate PRD — resolve short gate IDs (e.g. "gate-06") to full filenames
+    const [, gnum = ''] = gateId.split('-')
     const gateNumberStr: string = gnum
-    const gateSlugStr: string = rest.join('-')
-    const gatePrdPath = path.join(
-      projectRoot,
-      'zeno',
-      'gates',
-      `gate-${gateNumberStr}-${gateSlugStr}.md`
-    )
+    const gatePrdPath = await findGateByGateId(gateId, projectRoot)
+    if (!gatePrdPath) {
+      throw new ZenoError(
+        `Gate PRD not found for "${gateId}" in zeno/gates/`,
+        'GATE_NOT_FOUND'
+      )
+    }
     const gateContent = await readFile(gatePrdPath)
 
     // Parse gate objectives and requirements
@@ -147,7 +152,28 @@ export async function generateProposals(
       proposalsGenerated: proposals.length,
       proposals,
       dependencies,
-      message: `Generated ${String(proposals.length)} proposals for gate ${gateId}`,
+      message: `Generated ${String(proposals.length)} scaffold proposal(s) for ${gateId}. These files are ready to be filled in — see scaffoldNotice and nextSteps.`,
+      objectives,
+      scaffoldNotice: [
+        'IMPORTANT: The scaffold files written to disk are the FINAL proposal files.',
+        'Do NOT delete, recreate, or replace them. Do NOT write scripts to modify them.',
+        'Edit each file DIRECTLY using your file-editing tools (one proposal at a time).',
+        'Each file already contains the correct RED/GREEN structure, requirements, and task skeleton.',
+        'Your job is to read the gate PRD, then edit each proposal file in sequence to replace bracketed placeholders ([...]) with concrete, gate-specific content.',
+      ].join('\n'),
+      nextSteps: [
+        `1. VERIFY decomposition: ${String(objectives.length)} objective(s) extracted → ${objectives.map((o, i) => `(${String(i + 1)}) ${o}`).join('; ')}. If this does not match the gate's major deliverables, stop and re-read the gate PRD before editing any proposal.`,
+        `2. Read the gate PRD: ${path.relative(projectRoot, gatePrdPath).replace(/\\/g, '/')} — gather requirements, technical decisions, and acceptance criteria`,
+        '2. For EACH scaffold proposal file (in order), open the file, read it, and directly edit it to:',
+        '   a. Refine the proposal title if needed (scaffold title comes from the gate objective)',
+        '   b. Write a concrete Summary (2-3 sentences) referencing the gate objective',
+        '   c. Fill in Context / Why This Change with the rationale from the gate PRD',
+        '   d. Refine the Tasks section with specific file paths, function names, and acceptance criteria',
+        '   e. Populate the Files Affected table with actual source file paths',
+        '   f. Set Dependencies using hash references to other proposals in this gate',
+        '3. After ALL proposals are filled in, run proposal_action:validate { hash } for each',
+        '4. Present a summary table of all proposals to the user for review',
+      ],
     }
   } catch (error) {
     logger.error('Failed to generate proposals', { error, input })
@@ -160,8 +186,11 @@ export async function generateProposals(
 
 /**
  * Validate that RED/GREEN design principles are followed.
- * GREEN phase proposals should not introduce new test files.
- * Test Refinement proposal should exist as the final proposal.
+ *
+ * Expected structure:
+ *   Proposal 1     — RED (single test suite)
+ *   Proposals 2..N — implementation (one per objective, no phase)
+ *   Proposal N+1   — GREEN (single test verification, always last)
  */
 function validateRedGreenGuardrails(
   proposals: {
@@ -172,42 +201,25 @@ function validateRedGreenGuardrails(
 ): string[] {
   const errors: string[] = []
 
-  // Check that test refinement is the last proposal
-  const testRefinementIndex = proposals.findIndex((p) => p.phase === 'Test Refinement')
-  if (testRefinementIndex >= 0) {
-    if (testRefinementIndex !== proposals.length - 1) {
-      errors.push(
-        'Test Refinement proposal must be the last proposal in the gate (after all GREEN proposals)'
-      )
-    }
-  }
+  if (proposals.length === 0) return errors
 
-  // Check that GREEN proposals don't appear before RED proposals
+  // RED must be the first proposal
   const redProposals = proposals.filter((p) => p.phase === 'RED')
   const greenProposals = proposals.filter((p) => p.phase === 'GREEN')
 
-  if (redProposals.length > 0 && greenProposals.length > 0) {
-    const firstRedIndex = proposals.findIndex((p) => p.phase === 'RED')
-    const firstGreenIndex = proposals.findIndex((p) => p.phase === 'GREEN')
+  if (redProposals.length > 1) {
+    errors.push('Only one RED (test-suite) proposal is allowed per gate')
+  }
+  if (greenProposals.length > 1) {
+    errors.push('Only one GREEN (test-verification) proposal is allowed per gate')
+  }
 
-    if (firstGreenIndex >= 0 && firstRedIndex >= 0 && firstGreenIndex < firstRedIndex) {
-      errors.push('GREEN (implementation) proposals must come after RED (test) proposals')
-    }
+  if (redProposals.length === 1 && proposals[0]?.phase !== 'RED') {
+    errors.push('RED (test-suite) proposal must be the first proposal in the gate')
+  }
 
-    // Check that RED and GREEN are interleaved properly (RED[i] before GREEN[i])
-    for (let i = 0; i < redProposals.length && i < greenProposals.length; i++) {
-      const redProposal = redProposals[i]
-      const greenProposal = greenProposals[i]
-
-      if (redProposal && greenProposal) {
-        const redIndex = proposals.indexOf(redProposal)
-        const greenIndex = proposals.indexOf(greenProposal)
-
-        if (redIndex >= 0 && greenIndex >= 0 && greenIndex < redIndex) {
-          errors.push(`GREEN proposal ${String(i + 1)} must come after corresponding RED proposal ${String(i + 1)}`)
-        }
-      }
-    }
+  if (greenProposals.length === 1 && proposals[proposals.length - 1]?.phase !== 'GREEN') {
+    errors.push('GREEN (test-verification) proposal must be the last proposal in the gate')
   }
 
   return errors

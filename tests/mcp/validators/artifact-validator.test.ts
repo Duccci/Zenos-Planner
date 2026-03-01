@@ -88,12 +88,6 @@ Solitary
 
 ---
 
-## Single-Phase Requirement
-
-Single phase only.
-
----
-
 ## Context
 
 ### Why This Change
@@ -133,7 +127,6 @@ const PROPOSAL_TEMPLATE_SECTIONS = {
     '## Summary',
     '## Proposal Type',
     '## Coverage & Estimates',
-    '## Single-Phase Requirement',
     '## Context',
     '## Tasks',
     '## Files Affected',

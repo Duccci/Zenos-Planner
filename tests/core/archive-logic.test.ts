@@ -391,4 +391,74 @@ describe('updateArchitectureOnGateCompletion', () => {
     const result = await archiveGate('gate-01');
     expect(result.success).toBe(true);
   });
+
+  it('detects and handles duplicate archive files', async () => {
+    // Uncovered branch: lines 289-299 - duplicate file detection and unlink
+    vi.mocked(readdirSync).mockReturnValue([
+      'hash123456789abc.md',
+      'hash123456789abc-old.md', // duplicate
+      'hash123456789abc-backup.md', // duplicate
+    ]);
+    vi.mocked(unlink).mockResolvedValue(undefined);
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValue('# Gate 01');
+
+    const result = await archiveProposal('hash123456789abc');
+
+    // Should attempt to remove duplicates
+    expect(unlink).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+  });
+
+  it('handles unlink errors when removing duplicate files', async () => {
+    // Uncovered branch: lines 298-299 - catch block in duplicate removal
+    vi.mocked(readdirSync).mockReturnValue([
+      'hash123456789abc.md',
+      'hash123456789abc-old.md', // duplicate
+    ]);
+    // Mock unlink to fail on first call (removing duplicate)
+    vi.mocked(unlink).mockRejectedValue(new Error('Permission denied'));
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValue('# Proposal Content');
+
+    const result = await archiveProposal('hash123456789abc');
+
+    // Should still succeed even if duplicate removal fails
+    expect(result.success).toBe(true);
+  });
+
+  it('detects and replaces changelog section when present', async () => {
+    // Uncovered branch: lines 108-111 - changelog section detection and replacement
+    const gateContentWithChangelog = `# Gate 01
+    
+## Changelog
+
+Old entry`;
+    vi.mocked(readFile).mockResolvedValueOnce(gateContentWithChangelog);
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(writeFile).mockResolvedValue(undefined);
+
+    const result = await archiveGate('gate-01', 'completion notes');
+
+    expect(result.success).toBe(true);
+    // Verify that writeFile was called (which includes the changelog replacement)
+    expect(writeFile).toHaveBeenCalled();
+  });
+
+  it('appends changelog when section does not match expected format', async () => {
+    // Uncovered branch: handling case where changelog exists but doesn't match regex pattern
+    const gateContentBadFormat = `# Gate 01
+
+## Changelog
+
+No double newline here`;
+    vi.mocked(readFile).mockResolvedValueOnce(gateContentBadFormat);
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(writeFile).mockResolvedValue(undefined);
+
+    const result = await archiveGate('gate-01');
+
+    expect(result.success).toBe(true);
+    expect(writeFile).toHaveBeenCalled();
+  });
 });

@@ -149,110 +149,57 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
 // Source: .claude/skills/zeno-proposal/SKILL.md
 
 export const PROPOSAL_GENERATION_WORKFLOW: WorkflowStep[] = [
+  // Step 1 is context: scaffold files already exist on disk from the tool call.
+  // This step is NOT an action — it constrains what the agent must NOT do.
   {
     order: 1,
-    title: 'Identify Proposal Type',
+    title: 'Scaffold Files Are Ready',
     description:
-      'Determine whether this is a gate-tied or solitary proposal. Gate-tied proposals implement tasks within a specific gate; solitary proposals are standalone cross-cutting improvements.',
-    actions: ['Review context: is there an active gate with a gateId?'],
+      'Scaffold proposal markdown files have been written to zeno/proposals/gate-XX/. Each file has the correct RED/GREEN structure, requirements, and task skeleton. Your only job from here is to fill in the placeholders — do NOT delete, recreate, replace, or batch-script-modify these files.',
     guidance:
-      'If no gateId is provided and the work is cross-cutting (tooling, docs, security), default to solitary.',
+      'Files exist on disk with real titles, hashes, gate IDs, and creation dates. Proceed directly to step 2: read the gate PRD.',
   },
   {
     order: 2,
-    title: 'Start / Read Gate Context',
+    title: 'Read Gate Context',
     description:
-      'For gate-tied proposals: call gates_action:start to ensure the gate is in_progress. Read the full gate PRD including Objectives, Requirements, Technical Decisions, and Acceptance Criteria.',
-    prerequisites: ['Gate exists and is pending or in_progress'],
+      'Read the full gate PRD to gather the objectives, requirements, technical decisions, and acceptance criteria needed to fill in each proposal.',
     actions: [
-      'gates_action:start { gateId }',
-      'Read zeno/gates/gate-XX-<name>.md',
-      'zeno req list --gate <gateId> to see all requirements',
+      'Read zeno/gates/gate-XX-<name>.md (the gate PRD for this gate)',
+      'Note each objective and its related requirements',
+      'Identify technical decisions and constraints that inform proposal content',
     ],
-    errorHandling: 'If gate has unresolved dependencies, surface to user before proceeding.',
+    guidance:
+      'You need this context before editing any proposal. Gather it once, then use it across all proposals.',
   },
   {
     order: 3,
-    title: 'Read Existing Proposals',
+    title: 'Fill In Proposals One-by-One',
     description:
-      'Check for existing proposals for this gate to avoid duplication and identify gaps.',
+      'For EACH scaffold proposal file (in the order listed), open the file, read it, and DIRECTLY EDIT it using your file-editing tools. Replace all bracketed placeholders ([...]) with concrete, gate-specific content. Do this one proposal at a time — do not batch or script.',
     actions: [
-      'proposal_action:list { gateId }',
-      'Read existing proposal markdown files in zeno/proposals/gate-XX/',
+      'Open the proposal file with your read tool',
+      'Replace [Proposal Title] with a descriptive title reflecting the objective it addresses',
+      'Write a concrete Summary (2-3 sentences) referencing the specific gate objective',
+      'Fill in Context / Why This Change with rationale from the gate PRD',
+      'Refine the Tasks section: add specific file paths, function/type names, and detailed acceptance criteria',
+      'Populate the Files Affected table with actual repository file paths',
+      'Set the Dependencies section using hash references (#xxx) to other proposals in this gate',
+      'Move to the next proposal file and repeat',
     ],
+    guidance:
+      'Edit each file DIRECTLY — never create scripts, batch processors, or helper programs to do this. The RED proposal (first file) should describe the test suite. Implementation proposals (middle files) describe feature work. The GREEN proposal (last file) describes test verification. Preserve the existing RED/GREEN structure and requirements list; only fill in the bracketed placeholders and refine task details.',
   },
   {
     order: 4,
-    title: 'Pre-Generation Gate Review',
-    description:
-      'Perform structured pre-review: flag open questions, verify requirements are complete and unambiguous, identify implicit assumptions, check dependencies for blockers.',
-    actions: [
-      'Call proposal_action:generate with preReview { gateReviewed, requirementsVerified, vagueRequirements, assumptionsDocumented, blockersIdentified }',
-    ],
-    errorHandling:
-      'If blockers or vague requirements exist, document and request user clarification before generating.',
-    guidance:
-      'Enforced by PreReviewSchema: proposal_action:generate requires gateReviewed=true and requirementsVerified=true.',
-  },
-  {
-    order: 5,
-    title: 'Decompose Gate PRD into Proposals',
-    description:
-      'Break the gate objectives into one or more coherent, independently-deliverable proposals. Each proposal should be a single work unit that addresses a logical subset of requirements.',
-    actions: [
-      'Group related requirements and tasks',
-      'Define proposal boundaries: can each proposal be approved/rejected independently?',
-    ],
-    guidance:
-      'Proposals must be coherent work units. Do not create proposals that depend on changes in other pending proposals unless dependencies are explicitly documented.',
-  },
-  {
-    order: 6,
-    title: 'Generate Proposal Markdown Files',
-    description:
-      'Create proposal markdown files in zeno/proposals/gate-XX/ using the standard proposal template.',
-    actions: [
-      'Call proposal_action:generate for gate-tied proposals (or proposal_action:create for solitary)',
-      'Populate: title, summary, context, tasks, filesAffected, acceptanceCriteria, dependencies',
-    ],
-    guidance:
-      'Only markdown files; no code blocks, commands, or implementation. Use function/type names but never code snippets.',
-  },
-  {
-    order: 7,
-    title: 'Establish Dependencies',
-    description:
-      'Define dependency relationships between proposals. Document which proposals must be completed before this one can start.',
-    actions: [
-      'Populate the Dependencies section in each proposal',
-      'Use hash references: #a3f9c2d1 format',
-    ],
-  },
-  {
-    order: 8,
     title: 'Validate Proposal Structure',
     description:
       'Call proposal_action:validate to run structural checks against the generated proposals.',
-    actions: ['proposal_action:validate { hash } for each new proposal'],
+    actions: ['proposal_action:validate { hash } for each proposal'],
     errorHandling: 'Fix any structural errors surfaced by validate before proceeding.',
   },
   {
-    order: 9,
-    title: 'Cross-Reference Architecture',
-    description:
-      'Review architecture diagrams to ensure proposals are consistent with the system design.',
-    actions: ['Read zeno/architecture/ diagrams relevant to the gate'],
-    guidance: 'Surface any inconsistencies between proposals and architecture diagrams to the user.',
-  },
-  {
-    order: 10,
-    title: 'Update Gate PRD',
-    description:
-      'Update the gate PRD to reflect the generated proposal structure and any clarifications discovered during decomposition.',
-    actions: ['Edit zeno/gates/gate-XX-<name>.md to add proposal hash references if needed'],
-  },
-  {
-    order: 11,
+    order: 5,
     title: 'Output Summary',
     description:
       'Present a summary of all generated proposals with: titles, hashes, file paths, requirement coverage, and next steps.',
@@ -261,7 +208,7 @@ export const PROPOSAL_GENERATION_WORKFLOW: WorkflowStep[] = [
       'Resolve all hashes to human-readable names in user-facing output. Never expose raw hash values without context.',
   },
   {
-    order: 12,
+    order: 6,
     title: 'Render Proposal Dependency Graph',
     description:
       'After all proposals and their dependencies are established, render a Mermaid graph (left-to-right) showing every proposal as a node and each requires/blocks relationship as a directed edge. This graph gives the user a visual overview of the execution order before implementation begins.',
@@ -525,6 +472,38 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     ],
     guidance:
       'Include the proposal hash in the commit message for full traceability via git log --grep.',
+  },
+]
+
+// ─── Validate Post-Response Workflow ──────────────────────────────────────────
+// Injected into proposal_action:validate responses so agents know unambiguously
+// what to do next and don't confuse a passed result with implementation authorization.
+
+export const VALIDATE_WORKFLOW: WorkflowStep[] = [
+  {
+    order: 1,
+    title: 'Interpret Validation Result',
+    description:
+      'Validation has run. Stop here — DO NOT edit any source files or proceed to implementation based solely on this result.',
+    actions: [
+      'If passed: true  → proceed to step 2',
+      'If passed: false → fix every error/warning listed in issues[], then call proposal_action:validate again before proceeding',
+    ],
+    errorHandling:
+      'Do not proceed to step 2 if any issue has level: "error". Warnings are advisory; errors are blocking.',
+  },
+  {
+    order: 2,
+    title: 'Start Implementation',
+    description:
+      'Validation passed. Call proposal_action:start to transition the proposal to in_progress, complete the pre-apply review, and unlock implementation. This step is mandatory — skipping it bypasses state transition, preReview enforcement, and apply-phase guardrail injection.',
+    actions: [
+      'proposal_action:start { hash: "<hash>", preReview: { phase: "apply", openQuestionsResolved: <bool>, questionsFound: [], assumptionsDocumented: [], blockersIdentified: [], filesVerified: <bool> } }',
+    ],
+    errorHandling:
+      'If start is rejected: address the preReview issues surfaced in the error and retry. Never skip start.',
+    guidance:
+      'proposal_action:start injects the full apply-phase guardrails and workflow into its response — that guidance governs all subsequent implementation steps.',
   },
 ]
 

@@ -22,7 +22,7 @@ describe('validation-tools', () => {
     const filePath = path.join(tmpDir, 'proposal-small.md')
     await writeFile(
       filePath,
-      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Single-Phase Requirement\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
+      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
       'utf8'
     )
     const res = await handlers.artifact_validate({
@@ -46,7 +46,7 @@ describe('validation-tools', () => {
     const filePath = path.join(tmpDir, 'proposal-json.md')
     await writeFile(
       filePath,
-      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Single-Phase Requirement\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
+      '## Summary\n## Proposal Type\n## Coverage & Estimates\n## Context\n## Tasks\n## Files Affected\n## Rollback\n',
       'utf8'
     )
 

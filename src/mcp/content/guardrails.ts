@@ -289,6 +289,30 @@ export const PROPOSAL_GENERATION_GUARDRAILS: GuardrailEntry[] = [
     reason: 'Behavioral principle: agent workflow guidance; no deterministic validator can enforce intent',
     agentRef: ['09-meta-orchestration/multi-agent-coordinator', '09-meta-orchestration/context-manager'],
   },
+  {
+    id: 'proposal-012',
+    topic: 'proposal-generation',
+    rule: 'After scaffold generation, edit each proposal file DIRECTLY using file-editing tools. Never create scripts, batch processors, or helper programs to fill in proposal content. Process proposals one at a time in sequence.',
+    mustHaveValidator: false,
+    reason: 'Behavioral principle: prevents LLMs from generating scripts instead of directly editing scaffold files; human-reviewed',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
+  },
+  {
+    id: 'proposal-013',
+    topic: 'proposal-generation',
+    rule: 'Each proposal must deliver a complete, testable unit of work in a SINGLE implementation phase. Proposals that contain "Phase 1/2/3", "Stage 1/2/3", deferred work ("later we will also…"), or sequential steps that form required phases are rejected by validateProposalPhases.',
+    mustHaveValidator: true,
+    validatorRef: 'proposal-phases-validator.ts#validateProposalPhases',
+    reason: 'Enforced by proposal-phases-validator.ts#validateProposalPhases: multi-phase language patterns (phase numbering, sequential deferral, future-gate scope) fail validation',
+  },
+  {
+    id: 'proposal-014',
+    topic: 'proposal-generation',
+    rule: 'For work with inherent sequentiality, create SEPARATE proposals (one per logical phase) and link them with `Dependencies: requires` rather than embedding phases within a single proposal. Multiple independent/parallelizable tasks within one proposal are explicitly allowed — only forced sequential ordering between tasks is prohibited.',
+    mustHaveValidator: false,
+    reason: 'Decomposition guidance: explains the correct pattern for sequential work; "inherently sequential" is a design judgment human-reviewed',
+    agentRef: ['09-meta-orchestration/task-distributor', '09-meta-orchestration/multi-agent-coordinator'],
+  },
 ]
 
 // ─── Gate Generation Guardrails ───────────────────────────────────────────────
@@ -437,6 +461,31 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
   },
 ]
 
+// ─── Validate Action Guardrails ────────────────────────────────────────────────
+// Injected into proposal_action:validate responses to prevent agents from
+// confusing a passed validation result with authorization to begin implementation.
+
+export const VALIDATE_GUARDRAILS: GuardrailEntry[] = [
+  {
+    id: 'apply-024',
+    topic: 'apply-phase',
+    rule: 'proposal_action:validate confirms proposal quality only — a passed result means the proposal is structurally ready for start, NOT ready to implement. Do not edit any source files based solely on a validate response.',
+    mustHaveValidator: false,
+    reason:
+      'Semantic boundary: validate is a pre-start structural check; implementation requires proposal_action:start which performs the state transition (pending→in_progress), preReview enforcement, and worktree setup.',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
+  },
+  {
+    id: 'apply-025',
+    topic: 'apply-phase',
+    rule: 'After passed: true — call proposal_action:start { hash, preReview: { phase: "apply", openQuestionsResolved, questionsFound, assumptionsDocumented, blockersIdentified, filesVerified } } to begin implementation. After passed: false — fix every listed error/warning, then re-run validate before proceeding.',
+    mustHaveValidator: false,
+    reason:
+      'Next-action guidance: prevents agents from skipping proposal_action:start after validation passes, which would bypass preReview enforcement, state transition, and apply-phase guardrail injection.',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator'],
+  },
+]
+
 // ─── Barrel Export ─────────────────────────────────────────────────────────────
 
 /**
@@ -449,6 +498,7 @@ export const ALL_GUARDRAILS: GuardrailEntry[] = [
   ...GATE_GENERATION_GUARDRAILS,
   ...ARCHIVAL_GUARDRAILS,
   ...DATABASE_ACCESS_GUARDRAILS,
+  ...VALIDATE_GUARDRAILS,
 ]
 
 // ─── Response Helpers ──────────────────────────────────────────────────────────

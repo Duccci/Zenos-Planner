@@ -21,7 +21,9 @@ export const ProposalGenerateOutputSchema = z.object({
     path: z.string(),
     type: z.enum(['gate-tied', 'solitary']),
     status: z.string(),
-    summary: z.string()
+    summary: z.string(),
+    phase: z.enum(['RED', 'GREEN']).optional(),
+    coverageTarget: z.number().int().min(0).optional(),
   })),
   dependencies: z.array(z.object({
     from: z.string(),
@@ -29,6 +31,23 @@ export const ProposalGenerateOutputSchema = z.object({
     type: z.string()
   })).optional(),
   message: z.string(),
+  /**
+   * Explicit notice that generated files are scaffold/skeleton proposals.
+   * Prevents LLMs from incorrectly treating template placeholders as empty
+   * files that should be removed.
+   */
+  scaffoldNotice: z.string().optional(),
+  /**
+   * Ordered list of concrete next steps the agent should take after generation.
+   * Replaces ambiguous workflow guidance with actionable instructions.
+   */
+  nextSteps: z.array(z.string()).optional(),
+  /**
+   * Top-level objectives extracted from the gate PRD, as used for proposal decomposition.
+   * One implementation proposal was generated per objective. Verify this list matches
+   * the gate's major deliverables before filling in proposal content.
+   */
+  objectives: z.array(z.string()).optional(),
   /** Pre-review audit trail: echoes back agent-reported pre-review values for user verification */
   preReviewSummary: PreReviewSummarySchema.optional(),
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { FunctionRegistry } from '../../src/integration/function-registry.js'
-import { registerRequirementsOps } from '../../src/integration/requirements-registry.js'
+import { registerRequirementsOps, parseGateRequirementsFromMarkdown } from '../../src/integration/requirements-registry.js'
 
 // Module-level mock functions - mock-prefixed names are accessible in vi.mock factories
 const mockGetProjectRequirements = vi.fn().mockReturnValue([
@@ -68,6 +68,20 @@ const mockSearchRequirements = vi.fn().mockReturnValue({
   total: 1,
 })
 
+const mockStoreRequirement = vi.fn().mockImplementation(
+  (description: string, type: string, priority: string, _projectId: string, gateId: string) => ({
+    id: `stored-${description.substring(0, 8)}`,
+    hash: `stored${description.substring(0, 10).replace(/\s/g, '')}`,
+    description,
+    type,
+    priority,
+    gateId,
+    parentId: null,
+    projectId: 'default-project',
+    createdAt: new Date(),
+  })
+)
+
 vi.mock('../../src/generation/requirement-storage.js', () => {
   return {
     RequirementStorage: function MockRequirementStorage() {
@@ -78,6 +92,7 @@ vi.mock('../../src/generation/requirement-storage.js', () => {
       this.getRequirementAncestors = mockGetRequirementAncestors
       this.transferRequirement = mockTransferRequirement
       this.searchRequirements = mockSearchRequirements
+      this.storeRequirement = mockStoreRequirement
     },
   }
 })
@@ -638,5 +653,449 @@ describe('Requirements Registry wiring', () => {
         expect(result.message).toContain('gate-03')
       })
     })
+
+    describe('list action fallback (gate markdown parsing)', () => {
+      it('parses gate markdown and seeds DB when no requirements exist for a gate', () => {
+        // First call returns empty graph, second call (after seeding) returns populated graph
+        mockBuildRequirementGraph
+          .mockReturnValueOnce({ nodes: new Map(), edges: [] })
+          .mockReturnValueOnce({
+            nodes: new Map([
+              ['seeded-req-1', {
+                hash: 'seeded-req-1',
+                title: 'SQLite database stores requirements',
+                type: 'constraint',
+                priority: 'must',
+                gateId: 'gate-06',
+                parent: null,
+              }],
+            ]),
+            edges: [],
+          })
+
+        // getRequirementByHash returns null (requirements not in DB yet)
+        mockGetRequirementByHash.mockReturnValue(null)
+
+        // Gate file discovery: readdirSync returns gate files
+        mockReaddirSyncFs.mockImplementation((dir: string) => {
+          if (dir.includes('gates')) return ['gate-06-multi-repo.md']
+          return []
+        })
+
+        // readFileSync returns gate markdown with requirement tables
+        mockReadFileSyncFs.mockImplementation((filePath: string) => {
+          if (filePath.includes('gate-06')) {
+            return `# Gate 06
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|How This Gate Addresses It|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements|constraint|must|Adds repositories tables|
+|#9b4ecdb42908c10f|Use content-addressable SHA-256 hashes|constraint|must|Repository hash registry|
+
+### Gate-Specific Requirements
+
+**Status**: Requirements will be generated when gate is started.
+
+## Architecture
+`
+          }
+          return ''
+        })
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-06' },
+        }) as { requirements: Array<{ hash: string; title: string }> }
+
+        expect(result.requirements).toHaveLength(1)
+        expect(result.requirements[0].hash).toBe('seeded-req-1')
+        expect(mockStoreRequirement).toHaveBeenCalledTimes(2)
+        expect(mockStoreRequirement).toHaveBeenCalledWith(
+          'SQLite database stores requirements',
+          'constraint',
+          'must',
+          'default-project',
+          'gate-06',
+          undefined,
+          undefined
+        )
+      })
+
+      it('returns error message when no requirements found after parsing', () => {
+        // Both calls return empty
+        mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
+
+        // Gate file not found
+        mockReaddirSyncFs.mockReturnValue([])
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-99' },
+        }) as { requirements: unknown[]; error: string }
+
+        expect(result.requirements).toHaveLength(0)
+        expect(result.error).toBeDefined()
+        expect(result.error).toContain('No requirements registered')
+        expect(result.error).toContain('gate-99')
+      })
+
+      it('returns error when gate file has no parseable requirement tables', () => {
+        mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
+
+        mockReaddirSyncFs.mockImplementation((dir: string) => {
+          if (dir.includes('gates')) return ['gate-07-proposal.md']
+          return []
+        })
+
+        mockReadFileSyncFs.mockImplementation((filePath: string) => {
+          if (filePath.includes('gate-07')) {
+            return `# Gate 07
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+| Hash    | Name        | Type       | Priority |
+| ------- | ----------- | ---------- | -------- |
+| #[hash] | Placeholder | functional | must     |
+
+## Architecture
+`
+          }
+          return ''
+        })
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-07' },
+        }) as { requirements: unknown[]; error: string }
+
+        expect(result.requirements).toHaveLength(0)
+        expect(result.error).toContain('No requirements registered')
+        expect(mockStoreRequirement).not.toHaveBeenCalled()
+      })
+
+      it('does not attempt fallback when gateId is not provided', () => {
+        mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'list',
+          payload: {},
+        }) as { requirements: unknown[]; error?: string }
+
+        expect(result.requirements).toHaveLength(0)
+        expect(result.error).toBeUndefined()
+      })
+
+      it('resolves inherited requirements from source gates and merges into results', () => {
+        // First call returns empty graph, second call (after seeding) returns project reqs
+        mockBuildRequirementGraph
+          .mockReturnValueOnce({ nodes: new Map(), edges: [] })
+          .mockReturnValueOnce({
+            nodes: new Map([
+              ['4bc74e36854c4221', {
+                hash: '4bc74e36854c4221',
+                id: '4bc74e36854c4221',
+                title: 'SQLite database stores requirements',
+                type: 'constraint',
+                priority: 'must',
+                gateId: 'gate-06',
+                children: [],
+                depth: 0,
+              }],
+            ]),
+            edges: [],
+          })
+
+        // Inherited req exists in DB under gate-01
+        mockGetRequirementByHash.mockImplementation((hash: string) => {
+          if (hash === 'ac3ffa69e28bfed4') {
+            return {
+              hash: 'ac3ffa69e28bfed4',
+              description: 'Create SQLite database with schema',
+              type: 'functional',
+              priority: 'must',
+              gateId: 'gate-01',
+              parentId: null,
+              projectId: 'default-project',
+            }
+          }
+          return null
+        })
+
+        // Gate file with both project and inherited requirements
+        mockReaddirSyncFs.mockImplementation((dir: string) => {
+          if (dir.includes('gates')) return ['gate-06-multi-repo.md']
+          return []
+        })
+        mockReadFileSyncFs.mockImplementation((filePath: string) => {
+          if (filePath.includes('gate-06')) {
+            return `# Gate 06
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|How This Gate Addresses It|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements|constraint|must|Adds repositories tables|
+
+### Inherited/Transferred Requirements
+
+|Hash|Title|Source Gate|Relationship|Consumed By|
+|-|-|-|-|-|
+|#ac3ffa69e28bfed4|Create SQLite database with schema|gate-01|depends-on|Gate-06 adds tables|
+
+---
+
+## Architecture
+`
+          }
+          return ''
+        })
+
+        const result = registry.get('req_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-06' },
+        }) as { requirements: Array<{ hash: string; title: string; gateId: string }> }
+
+        // Should have 1 project req from graph + 1 inherited req resolved by hash
+        expect(result.requirements).toHaveLength(2)
+        expect(result.requirements.map((r) => r.hash)).toContain('4bc74e36854c4221')
+        expect(result.requirements.map((r) => r.hash)).toContain('ac3ffa69e28bfed4')
+
+        // The inherited req should retain its source gate ID, not the current one
+        const inherited = result.requirements.find((r) => r.hash === 'ac3ffa69e28bfed4')
+        expect(inherited?.gateId).toBe('gate-01')
+
+        // storeRequirement called for project req only (inherited already in DB)
+        expect(mockStoreRequirement).toHaveBeenCalledTimes(1)
+      })
+    })
+  })
+})
+
+describe('parseGateRequirementsFromMarkdown', () => {
+  it('parses project requirements table with valid hashes', () => {
+    const content = `# Gate 06
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|How This Gate Addresses It|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements|constraint|must|Adds repositories tables|
+|#9b4ecdb42908c10f|Use content-addressable SHA-256 hashes|constraint|must|Repository hash registry|
+|#9c5150bf8e008175|Track dependencies between requirements|functional|must|Cross-repo dependency tracking|
+
+### Gate-Specific Requirements
+
+**Status**: Requirements will be generated when gate is started.
+
+---
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(3)
+    expect(result[0]).toEqual({
+      hash: '4bc74e36854c4221',
+      description: 'SQLite database stores requirements',
+      type: 'constraint',
+      priority: 'must',
+      source: 'project',
+      sourceGateId: undefined,
+    })
+    expect(result[1].hash).toBe('9b4ecdb42908c10f')
+    expect(result[1].source).toBe('project')
+    expect(result[2].hash).toBe('9c5150bf8e008175')
+    expect(result[2].source).toBe('project')
+  })
+
+  it('parses inherited/transferred requirements table', () => {
+    const content = `# Gate 06
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+No project requirements.
+
+### Inherited/Transferred Requirements
+
+|Hash|Title|Source Gate|Relationship|Consumed By|
+|-|-|-|-|-|
+|#ac3ffa69e28bfed4|Create SQLite database with schema|gate-01|depends-on|Gate-06 adds tables|
+|#ebc7a086e26b111c|Create code analyzer using AST|gate-02|depends-on|detect workflow invokes CodeAnalyzer|
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({
+      hash: 'ac3ffa69e28bfed4',
+      description: 'Create SQLite database with schema',
+      type: 'functional', // default — type column not present in inherited table
+      priority: 'must',   // default — priority column not present
+      source: 'inherited',
+      sourceGateId: 'gate-01',
+    })
+    expect(result[1].source).toBe('inherited')
+    expect(result[1].sourceGateId).toBe('gate-02')
+  })
+
+  it('skips placeholder hashes like #[hash]', () => {
+    const content = `# Gate 07
+
+## Requirements
+
+### Project Requirements
+
+| Hash    | Name               | Type       | Priority |
+| ------- | ------------------ | ---------- | -------- |
+| #[hash] | Clear Tasks        | functional | must     |
+| #[hash] | Requirement Trace  | functional | must     |
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(0)
+  })
+
+  it('deduplicates hashes appearing in multiple tables', () => {
+    const content = `# Gate 06
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|Notes|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements|constraint|must|Primary|
+
+### Inherited/Transferred Requirements
+
+|Hash|Title|Source Gate|Relationship|Consumed By|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements|gate-01|depends-on|Duplicate|
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(1)
+  })
+
+  it('returns empty array when no ## Requirements section exists', () => {
+    const content = `# Gate 01
+
+## Overview
+
+Some overview text.
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(0)
+  })
+
+  it('handles requirements section with comments before tables', () => {
+    const content = `# Gate
+
+## Requirements
+
+<!-- Requirements-First Workflow:
+  1. Project-level requirements
+  2. Gate generation
+-->
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|How This Gate Addresses It|
+|-|-|-|-|-|
+|#abcdef0123456789|A real requirement|non_functional|should|Does something|
+
+---
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({
+      hash: 'abcdef0123456789',
+      description: 'A real requirement',
+      type: 'non_functional',
+      priority: 'should',
+      source: 'project',
+      sourceGateId: undefined,
+    })
+  })
+
+  it('defaults to functional/must for invalid type/priority values', () => {
+    const content = `# Gate
+
+## Requirements
+
+### Project Requirements
+
+|Hash|Name|Type|Priority|
+|-|-|-|-|
+|#1111111111111111|Some requirement|invalid_type|wrong_priority|
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('functional')
+    expect(result[0].priority).toBe('must')
+    expect(result[0].source).toBe('project')
+  })
+
+  it('parses both project and inherited tables from gate-06 format', () => {
+    const content = `# Gate 06: Multi-Repo & Subproject Detection
+
+## Requirements
+
+### Project Requirements (Attributed to This Gate)
+
+|Hash|Name|Type|Priority|How This Gate Addresses It|
+|-|-|-|-|-|
+|#4bc74e36854c4221|SQLite database stores requirements and repositories|constraint|must|Adds repositories tables|
+|#10a621a3715172ae|Expose all operations as MCP tools|functional|must|repos_action MCP tool handler|
+
+### Gate-Specific Requirements
+
+**Status**: Requirements will be generated when gate is started.
+
+### Inherited/Transferred Requirements
+
+|Hash|Title|Source Gate|Relationship|Consumed By|
+|-|-|-|-|-|
+|#ac3ffa69e28bfed4|Create SQLite database with complete schema|gate-01|depends-on|Gate-06 adds tables|
+|#ebc7a086e26b111c|Create code analyzer using AST parsing|gate-02|depends-on|detect workflow invokes CodeAnalyzer|
+
+---
+
+## Technical Decisions
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    expect(result).toHaveLength(4)
+    // Project requirements
+    expect(result[0].hash).toBe('4bc74e36854c4221')
+    expect(result[0].type).toBe('constraint')
+    expect(result[0].source).toBe('project')
+    expect(result[0].sourceGateId).toBeUndefined()
+    expect(result[1].hash).toBe('10a621a3715172ae')
+    expect(result[1].type).toBe('functional')
+    expect(result[1].source).toBe('project')
+    // Inherited requirements
+    expect(result[2].hash).toBe('ac3ffa69e28bfed4')
+    expect(result[2].source).toBe('inherited')
+    expect(result[2].sourceGateId).toBe('gate-01')
+    expect(result[3].hash).toBe('ebc7a086e26b111c')
+    expect(result[3].source).toBe('inherited')
+    expect(result[3].sourceGateId).toBe('gate-02')
   })
 })

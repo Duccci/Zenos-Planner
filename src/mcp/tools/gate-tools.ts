@@ -6,6 +6,8 @@ import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationCo
 import { createStateTransitionValidator } from './entity-action-handler.js'
 import { validatePreReviewGeneratePhase, type PreReview } from '../validators/pre-review-validator.js'
 import { validateMarkdownOnly } from '../validators/scope-validator.js'
+import { validateGateLevelTestFirst, type ProposalGateSibling } from '../validators/test-first-validator.js'
+import { validateArtifactFile } from '../validators/artifact-validator.js'
 import {
   GATE_GENERATION_GUARDRAILS,
   GATE_GENERATION_WORKFLOW,
@@ -174,6 +176,18 @@ export function gateHandlers(
             allTransitions: GATE_TRANSITIONS,
             entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
           }),
+          // Gate PRD structure check: required sections and valid status field
+          async () => {
+            const gateId = (_payload as { gateId?: string }).gateId ?? ''
+            try {
+              const { findGateByGateId } = await import('../../utils/artifact-locator.js')
+              const filePath = await findGateByGateId(gateId)
+              if (!filePath) return { allowed: true }
+              return await validateArtifactFile(filePath, 'gate', 'all')
+            } catch {
+              return { allowed: true }
+            }
+          },
         ],
         create: (_payload, r) => [
           async () => {
@@ -289,6 +303,49 @@ export function gateHandlers(
               allowed: allErrors.length === 0,
               errors: allErrors.length > 0 ? allErrors : undefined,
               warnings: allWarnings.length > 0 ? allWarnings : undefined,
+            }
+          },
+          // Gate-level test-first structure: verify exactly one test-suite (first) and
+          // one test-cleanup (last) among the gate's proposals
+          async () => {
+            const gateId = (_payload as { gateId?: string }).gateId ?? ''
+            try {
+              const listResult = await r.invoke('proposal_list', { gateId })
+              if (!listResult.success) return { allowed: true }
+
+              const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
+                hash: string
+                lastUpdated?: string
+              }[]
+              if (rows.length === 0) return { allowed: true }
+
+              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+              const { readFile } = await import('../../utils/file.js')
+
+              const gateProposals: ProposalGateSibling[] = await Promise.all(
+                rows.map(async (p) => {
+                  let role: string | undefined
+                  try {
+                    const filePath = await findProposalByHash(p.hash)
+                    if (filePath) {
+                      const content = await readFile(filePath)
+                      const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+                      role = roleMatch?.[1]?.trim()
+                    }
+                  } catch {
+                    // role stays undefined — validator treats as unset
+                  }
+                  return {
+                    hash: p.hash,
+                    role,
+                    createdAt: p.lastUpdated ?? new Date().toISOString(),
+                  }
+                })
+              )
+
+              return validateGateLevelTestFirst(gateProposals)
+            } catch {
+              return { allowed: true }
             }
           },
         ],

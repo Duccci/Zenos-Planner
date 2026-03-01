@@ -135,4 +135,82 @@ Test summary here
     expect(result.hash).toBe('test1234')
     expect(result.status).toBe('completed')
   })
+
+  // ---------------------------------------------------------------------------
+  // extractObjectives — sectioned (### heading) format
+  // ---------------------------------------------------------------------------
+
+  it('extractObjectives treats ### headings in Objectives as top-level objectives', () => {
+    const content = `# Gate 06
+
+## Objectives
+
+### Repository Declaration & Storage
+
+- [ ] Create repositories table in SQLite
+- [ ] Implement CRUD operations
+
+### Cross-Repo Dependencies
+
+- [ ] Implement dependency tracking
+- [ ] Build visualization
+
+## Context
+`
+    const result = extractObjectives(content)
+    expect(result).toEqual([
+      'Repository Declaration & Storage',
+      'Cross-Repo Dependencies',
+    ])
+  })
+
+  it('extractObjectives ignores indented nested bullets in flat-list format', () => {
+    const content = `# Gate 07
+
+## Objectives
+
+- [ ] Top-level objective A
+  - [ ] Nested sub-item (should be excluded)
+  - [ ] Another nested sub-item (should be excluded)
+- [ ] Top-level objective B
+
+## Context
+`
+    const result = extractObjectives(content)
+    expect(result).toEqual(['Top-level objective A', 'Top-level objective B'])
+  })
+
+  it('extractObjectives prefers ### headings over flat bullets when both are present', () => {
+    const content = `# Gate
+
+## Objectives
+
+### Group A
+
+- [ ] Bullet under group A
+
+### Group B
+
+- [ ] Bullet under group B
+
+## Context
+`
+    const result = extractObjectives(content)
+    // Headings take priority — individual bullets are detail, not proposal units
+    expect(result).toEqual(['Group A', 'Group B'])
+  })
+
+  it('extractObjectives strips checkboxes from flat bullets', () => {
+    const content = `# Gate
+
+## Objectives
+
+- [ ] Pending objective
+- [x] Completed objective
+
+## Context
+`
+    const result = extractObjectives(content)
+    expect(result).toEqual(['Pending objective', 'Completed objective'])
+  })
 })
