@@ -5,7 +5,7 @@ graph LR
     G3["Gate 03: MCP Server & LLM Tool Integration<br/><small>completed</small>"]
     G4["Gate 04: Requirements & Database Layer<br/><small>completed</small>"]
     G5["Gate 05: Architecture & Diagram Generation<br/><small>completed</small>"]
-    G6["Gate 06: Multi-Repo & Subproject Detection<br/><small>pending</small>"]
+    G6["Gate 06: Multi-Repo & Subproject Detection<br/><small>in_progress</small>"]
     G7["Gate 07: Proposal Generation & Management<br/><small>pending</small>"]
     G8["Gate 08: Automated Validation & Quality Gates<br/><small>pending</small>"]
     G9["Gate 09: Human Approval & Rejection Workflow<br/><small>pending</small>"]
