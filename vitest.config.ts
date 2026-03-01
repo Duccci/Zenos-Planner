@@ -76,6 +76,7 @@ export default defineConfig({
         'src/integration/template-registry.ts', // Template operations registration wrapper (50% branch coverage)
         'src/mcp/tools/architecture-tools.ts', // Architecture tools handler wrapper (50% branch coverage)
         'src/integration/command-invoker.ts', // Command execution wrapper for AI agents (63.41% branch, integration-level)
+        'src/utils/dot-renderer.ts', // Thin convenience wrapper over GraphvizRenderer — no logic, tested indirectly
       ],
       thresholds: {
         statements: 85,

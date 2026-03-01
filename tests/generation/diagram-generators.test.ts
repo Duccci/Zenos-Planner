@@ -132,21 +132,19 @@ describe('MermaidRenderer', () => {
 // GraphvizRenderer
 // ---------------------------------------------------------------------------
 describe('GraphvizRenderer', () => {
-  it('embedInMarkdown returns SVG directly when small', () => {
+  it('buildMarkdownImgRef returns an <img> tag with the given relative path', () => {
     const renderer = new GraphvizRenderer()
-    const svg = '<svg>small</svg>'
-    const result = renderer.embedInMarkdown(svg, 'test', 50000)
-    expect(result).toBe(svg)
+    const result = renderer.buildMarkdownImgRef('dot-diagrams/system-overview.svg', 'system-overview')
+    expect(result).toContain('<img')
+    expect(result).toContain('src="dot-diagrams/system-overview.svg"')
+    expect(result).toContain('alt="system-overview"')
+    expect(result).not.toContain('<svg')
   })
 
-  it('embedInMarkdown wraps large SVG in details block', () => {
+  it('buildMarkdownImgRef uses default alt text when none provided', () => {
     const renderer = new GraphvizRenderer()
-    const svg = '<svg>' + 'x'.repeat(60000) + '</svg>'
-    const result = renderer.embedInMarkdown(svg, 'Big Diagram', 50000)
-    expect(result).toContain('<details>')
-    expect(result).toContain('<summary>Big Diagram</summary>')
-    expect(result).toContain('</details>')
-    expect(result).toContain(svg)
+    const result = renderer.buildMarkdownImgRef('dot-diagrams/foo.svg')
+    expect(result).toContain('alt="Architecture Diagram"')
   })
 
   it('isAvailable returns a boolean', async () => {

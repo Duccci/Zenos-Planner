@@ -116,7 +116,7 @@ describe('Action Tool Config Integration', () => {
         },
       })
 
-      const parsed = JSON.parse(result.content[0].text)
+      const parsed = result.structuredContent as any
       // Validation results may be included if there are warnings
       expect(parsed).toBeDefined()
       expect(parsed.action).toBe('start')

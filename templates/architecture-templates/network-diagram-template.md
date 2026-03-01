@@ -55,9 +55,9 @@ graph TB
 
 ### Firewall Rules
 
-| Source | Destination | Port | Protocol | Purpose |
-|--------|-------------|------|----------|---------|
-| [Source] | [Dest] | [Port] | [TCP/UDP] | [Why] |
+| Source   | Destination | Port   | Protocol  | Purpose |
+|----------|-------------|--------|-----------|---------|
+| [Source] | [Dest]      | [Port] | [TCP/UDP] | [Why]   |
 
 ---
 
@@ -69,6 +69,6 @@ graph TB
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date         | Summary         | Author          |
+|---------|--------------|-----------------|-----------------|
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

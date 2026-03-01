@@ -38,10 +38,12 @@ graph TB
 
 [1-2 sentences per layer describing components and responsibilities.]
 
-### [Layer Name]
+### [Layer Name 1]
+
 [Components and what they handle]
 
-### [Layer Name]
+### [Layer Name 2]
+
 [Components and what they handle]
 
 ---
@@ -54,6 +56,6 @@ graph TB
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date         | Summary         | Author          |
+|---------|--------------|-----------------|-----------------|
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

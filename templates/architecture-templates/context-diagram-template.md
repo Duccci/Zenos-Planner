@@ -42,9 +42,11 @@ graph TB
 **Outside**: [External actors and dependencies]
 
 ### External Actors
+
 - **[Actor]**: [Type, role, and data exchanged]
 
 ### External Systems
+
 - **[System]**: [Purpose, protocol, and failure handling]
 
 ---
@@ -57,6 +59,6 @@ graph TB
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date         | Summary         | Author          |
+|---------|--------------|-----------------|-----------------|
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

@@ -31,6 +31,7 @@ Large projects overwhelm both humans and LLMs. Requirements drift, context is lo
 
 - Node.js >= 24.0.0
 - Git 2.x
+- Graphviz >= 14.0 (for architecture diagram rendering)
 - An LLM-powered editor (VS Code + Copilot, Cursor, etc.)
 
 ### Installation
@@ -39,6 +40,36 @@ Large projects overwhelm both humans and LLMs. Requirements drift, context is lo
 npm install -g zenos-planner
 zeno --version
 ```
+
+#### System Dependencies
+
+Zeno's architecture diagram generation uses Graphviz for rendering. Install the `graphviz` system package:
+
+**macOS:**
+
+```bash
+brew install graphviz
+```
+
+**Ubuntu/Debian:**
+
+```bash
+sudo apt-get install graphviz
+```
+
+**Windows (Chocolatey):**
+
+```bash
+choco install graphviz
+```
+
+**Windows (Windows Package Manager):**
+
+```bash
+winget install graphviz
+```
+
+Or download from [graphviz.org](https://graphviz.org/download/).
 
 ### MCP Editor Integration
 

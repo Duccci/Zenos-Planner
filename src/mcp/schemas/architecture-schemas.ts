@@ -91,9 +91,10 @@ export type ArchDiagramGenerateInput = z.infer<typeof ArchDiagramGenerateInputSc
 export const DiagramOutputMetadataSchema = z.object({
   type: z.string().describe('Diagram type'),
   category: z.string().describe('Diagram category (core or conditional)'),
-  filePath: z.string().optional().describe('Generated file path'),
+  filePath: z.string().optional().describe('Path where diagram was written (zeno/architecture/<type>.md)'),
   format: z.enum(['mermaid', 'graphviz']).describe('Rendering backend used'),
   generated: z.boolean().describe('Whether diagram was newly generated'),
+  content: z.string().optional().describe('Full rendered markdown content (SVG-embedded for graphviz diagrams)'),
 })
 
 export type DiagramOutputMetadata = z.infer<typeof DiagramOutputMetadataSchema>
@@ -148,14 +149,15 @@ export type ArchDiagramShowOutput = z.infer<typeof ArchDiagramShowOutputSchema>
  */
 export const DiagramActionInputSchema = z.object({
   action: z
-    .enum(['catalogue', 'select', 'generate', 'show'])
+    .enum(['catalogue', 'select', 'generate', 'show', 'render'])
     .optional()
     .describe(
       'Action to perform. ' +
         'catalogue=list all diagram types. ' +
         'select=record selections for a gate (needs: gateHash, diagramTypes). ' +
         'generate=generate diagrams (optional: gateHash, diagramType). ' +
-        'show=retrieve a diagram (needs: diagramType; optional: gateHash).'
+        'show=retrieve a diagram (needs: diagramType; optional: gateHash). ' +
+        'render=render raw DOT syntax to SVG using local Graphviz CLI (needs: dotSyntax).'
     ),
 
   // --- select fields ---
@@ -171,15 +173,29 @@ export const DiagramActionInputSchema = z.object({
 
   // --- generate/show fields ---
   diagramType: z.string().optional().describe('Single diagram type to generate or show (generate/show)'),
+
+  // --- render fields ---
+  dotSyntax: z.string().optional().describe('Raw Graphviz DOT syntax to render to SVG (render)'),
 })
 
 export type DiagramActionInput = z.infer<typeof DiagramActionInputSchema>
+
+/**
+ * Output of render action (DOT → SVG rendering)
+ */
+export const ArchDiagramRenderOutputSchema = z.object({
+  svg: z.string().describe('Full SVG string rendered from the DOT source'),
+  bytes: z.number().int().describe('Byte length of the SVG output'),
+})
+
+export type ArchDiagramRenderOutput = z.infer<typeof ArchDiagramRenderOutputSchema>
 
 export const DiagramActionOutputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('catalogue'), result: ArchDiagramCatalogueOutputSchema }),
   z.object({ action: z.literal('select'), result: ArchDiagramSelectOutputSchema }),
   z.object({ action: z.literal('generate'), result: ArchDiagramGenerateOutputSchema }),
   z.object({ action: z.literal('show'), result: ArchDiagramShowOutputSchema }),
+  z.object({ action: z.literal('render'), result: ArchDiagramRenderOutputSchema }),
 ])
 
 export type DiagramActionOutput = z.infer<typeof DiagramActionOutputSchema>
@@ -194,6 +210,8 @@ export function getDiagramActionOutputSchema(action: string): z.ZodType {
       return ArchDiagramGenerateOutputSchema
     case 'show':
       return ArchDiagramShowOutputSchema
+    case 'render':
+      return ArchDiagramRenderOutputSchema
     default:
       // z.unknown() has def.type='unknown' → normalizeObjectSchema returns undefined → _zod TypeError.
       // Use passthrough object: accepts any shape and normalizes correctly.

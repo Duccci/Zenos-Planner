@@ -1,0 +1,96 @@
+digraph RiskOpportunityHeatmap {
+    rankdir=LR;
+    bgcolor=transparent;
+    label="Risk/Opportunity Heatmap: Zeno's Planner";
+    labelloc=top;
+    fontsize=14;
+    margin="0.1,0.05";
+
+    matrix [shape=plaintext, label=<
+        <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6" ALIGN="CENTER">
+            <TR>
+                <TD BGCOLOR="#333333" WIDTH="100"> </TD>
+                <TD COLSPAN="5" BGCOLOR="#001f5c"><B><FONT COLOR="white" POINT-SIZE="11">OPPORTUNITIES (Impact)</FONT></B></TD>
+                <TD COLSPAN="5" BGCOLOR="#7f1d1d"><B><FONT COLOR="white" POINT-SIZE="11">RISKS (Impact)</FONT></B></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#333333" WIDTH="100"><B><FONT COLOR="white" POINT-SIZE="11">LIKELIHOOD</FONT></B></TD>
+                <TD BGCOLOR="#0052a3" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">5</FONT></B></TD>
+                <TD BGCOLOR="#1d5ba1" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">4</FONT></B></TD>
+                <TD BGCOLOR="#3b7cc0" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">3</FONT></B></TD>
+                <TD BGCOLOR="#5a9fd9" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">2</FONT></B></TD>
+                <TD BGCOLOR="#a8d0f0" WIDTH="52"><B><FONT COLOR="black" POINT-SIZE="10">1</FONT></B></TD>
+                <TD BGCOLOR="#fffaf0" WIDTH="52"><B><FONT COLOR="black" POINT-SIZE="10">1</FONT></B></TD>
+                <TD BGCOLOR="#ffd966" WIDTH="52"><B><FONT COLOR="black" POINT-SIZE="10">2</FONT></B></TD>
+                <TD BGCOLOR="#f5a623" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">3</FONT></B></TD>
+                <TD BGCOLOR="#d97706" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">4</FONT></B></TD>
+                <TD BGCOLOR="#991b1b" WIDTH="52"><B><FONT COLOR="white" POINT-SIZE="10">5</FONT></B></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#f0f0f0" WIDTH="100"><B><FONT POINT-SIZE="10">Certain (5)</FONT></B></TD>
+                <TD BGCOLOR="#0052a3"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#1d5ba1"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#3b7cc0"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#5a9fd9"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#a8d0f0"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fefaf0"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#ffd966"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#f5a623"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#d97706"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#991b1b"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#f5f5f5" WIDTH="100"><B><FONT POINT-SIZE="10">Likely (4)</FONT></B></TD>
+                <TD BGCOLOR="#1a5ba6"><B><FONT COLOR="white" POINT-SIZE="9">O-01</FONT></B></TD>
+                <TD BGCOLOR="#2f6fb3"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#4a8cc7"><B><FONT COLOR="white" POINT-SIZE="9">O-04</FONT></B></TD>
+                <TD BGCOLOR="#6aafde"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#b5d9f7"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fefbf1"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#ffe68d"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#f7b344"><B><FONT COLOR="black" POINT-SIZE="8">R-02<BR/>R-10</FONT></B></TD>
+                <TD BGCOLOR="#dd8c21"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#a82828"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#fafafa" WIDTH="100"><B><FONT POINT-SIZE="10">Possible (3)</FONT></B></TD>
+                <TD BGCOLOR="#2868b0"><B><FONT COLOR="white" POINT-SIZE="9">O-02</FONT></B></TD>
+                <TD BGCOLOR="#3d7dbf"><B><FONT COLOR="white" POINT-SIZE="8">O-03<BR/>O-05</FONT></B></TD>
+                <TD BGCOLOR="#589ed2"><B><FONT COLOR="white" POINT-SIZE="8">O-06<BR/>O-08</FONT></B></TD>
+                <TD BGCOLOR="#7abce9"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#c3e2fc"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fffcf2"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#ffecb3"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#f9c268"><B><FONT COLOR="black" POINT-SIZE="9">R-07</FONT></B></TD>
+                <TD BGCOLOR="#e5a03d"><B><FONT COLOR="white" POINT-SIZE="9">R-03</FONT></B></TD>
+                <TD BGCOLOR="#b93535"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#f5f5f5" WIDTH="100"><B><FONT POINT-SIZE="10">Unlikely (2)</FONT></B></TD>
+                <TD BGCOLOR="#3875ba"><B><FONT COLOR="white" POINT-SIZE="9">O-07</FONT></B></TD>
+                <TD BGCOLOR="#4d8ccb"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#68acdd"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#8accf0"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#d0eafc"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fffef8"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fff4d6"><B><FONT COLOR="black" POINT-SIZE="9">R-04</FONT></B></TD>
+                <TD BGCOLOR="#fce4b3"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#edb454"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#c64242"><B><FONT COLOR="white" POINT-SIZE="9">R-06</FONT></B></TD>
+            </TR>
+            <TR>
+                <TD BGCOLOR="#f0f0f0" WIDTH="100"><B><FONT POINT-SIZE="10">Rare (1)</FONT></B></TD>
+                <TD BGCOLOR="#4882c4"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#5d9dd8"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#78bbeb"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#9ad9f8"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#ddf5fe"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fffff9"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#fffef0"><B><FONT COLOR="black" POINT-SIZE="9">R-09</FONT></B></TD>
+                <TD BGCOLOR="#fef8ec"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#f5d89a"><FONT POINT-SIZE="9"> </FONT></TD>
+                <TD BGCOLOR="#d45050"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
+            </TR>
+        </TABLE>
+    >]
+}

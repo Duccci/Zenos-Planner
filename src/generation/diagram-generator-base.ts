@@ -74,11 +74,16 @@ export interface DiagramContext {
  * Output from diagram generation, including both raw content and metadata
  */
 export interface DiagramOutput {
+  /** Markdown file content — for graphviz diagrams this contains an `<img>` reference to the sidecar SVG */
   markdown: string
   renderingBackend: RenderingBackend
   diagramType: DiagramType
   category: DiagramCategory
   filePath?: string
+  /** Raw SVG content (graphviz only). Caller is responsible for writing to `dot-diagrams/<type>.svg`. */
+  svgContent?: string
+  /** DOT source used to produce the SVG (graphviz only). Caller is responsible for writing to `dot-diagrams/<type>.dot`. */
+  dotSource?: string
 }
 
 /**
@@ -154,9 +159,9 @@ export abstract class DiagramGeneratorBase {
       const score = this.complexityAnalyzer.score(nodeCount, edgeCount, nestingDepth)
       let selectedBackend = renderingBackend ?? this.complexityAnalyzer.selectBackend(score)
 
-      // Check if Graphviz is available when requested
+      // Check if Graphviz is available when requested; reuse renderer for rendering step
+      const graphvizRenderer = new GraphvizRenderer()
       if (selectedBackend === 'graphviz') {
-        const graphvizRenderer = new GraphvizRenderer()
         const available = await graphvizRenderer.isAvailable()
 
         if (!available) {
@@ -171,14 +176,43 @@ export abstract class DiagramGeneratorBase {
         `Diagram ${this.getType()}: nodes=${String(nodeCount)}, edges=${String(edgeCount)}, depth=${String(nestingDepth)}, complexity=${String(score.totalScore)}, backend=${selectedBackend}`
       )
 
-      // Wrap content in markdown structure with type identifier
-      const markdown = this.wrapMarkdown(content, selectedBackend)
+      let markdown: string
+      let svgContent: string | undefined
+      let dotSource: string | undefined
+      if (selectedBackend === 'graphviz') {
+        // Render DOT syntax to SVG. Write sidecar files (caller's responsibility).
+        // Reference the SVG via <img> instead of embedding inline — VS Code's DOMPurify
+        // strips `transform` attributes from inline SVG, pushing content out of viewport.
+        try {
+          const svg = await graphvizRenderer.renderToSvg(content)
+          svgContent = svg
+          dotSource = content
+          const svgRelPath = `dot-diagrams/${this.getType()}.svg`
+          markdown = graphvizRenderer.buildMarkdownImgRef(svgRelPath, this.getType())
+        } catch (renderError) {
+          // Fall back to Mermaid when DOT rendering fails (e.g. generator returns
+          // Mermaid syntax but complexity pushed the backend selection to graphviz).
+          const msg = renderError instanceof Error ? renderError.message : String(renderError)
+          logger.warn(
+            `Graphviz rendering failed for ${this.getType()}, falling back to Mermaid: ${msg}`
+          )
+          selectedBackend = 'mermaid'
+          svgContent = undefined
+          dotSource = undefined
+          markdown = this.wrapMarkdown(content, 'mermaid')
+        }
+      } else {
+        // Wrap content in markdown code fence
+        markdown = this.wrapMarkdown(content, selectedBackend)
+      }
 
       return {
         markdown,
         renderingBackend: selectedBackend,
         diagramType: this.getType(),
         category: this.getCategory(),
+        svgContent,
+        dotSource,
       }
     } catch (error) {
       const err = error instanceof Error ? error.message : String(error)
@@ -188,14 +222,14 @@ export abstract class DiagramGeneratorBase {
   }
 
   /**
-   * Wrap raw diagram content in markdown structure appropriate to the backend.
-   * Mermaid gets markdown code fence; Graphviz is handled by GraphvizRenderer.
+   * Wrap raw Mermaid content in a markdown code fence.
+   * Graphviz diagrams are rendered to SVG directly in `generate()` and do not go through this path.
    */
   protected wrapMarkdown(content: string, backend: RenderingBackend): string {
     if (backend === 'mermaid') {
       return ['```mermaid', content, '```'].join('\n')
     }
-    // Graphviz content is returned as-is; rendering happens at output time
+    // Fallback: return content as-is for unknown backends
     return content
   }
 }

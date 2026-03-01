@@ -55,6 +55,6 @@ sequenceDiagram
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date         | Summary         | Author          |
+|---------|--------------|-----------------|-----------------|
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

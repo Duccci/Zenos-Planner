@@ -19,7 +19,7 @@ import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
 import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
 import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
-import { readFileSync } from 'node:fs'
+import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
@@ -228,12 +228,34 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
 
     const results = await Promise.all(generators.map((g) => g.generate(context)))
 
+    // Persist each diagram to zeno/architecture/<type>.md so arch_show and
+    // subsequent MCP calls can read from disk instead of re-generating.
+    // Graphviz diagrams: write .dot + .svg sidecars to dot-diagrams/ and reference
+    // via <img> in the .md (avoids VS Code DOMPurify stripping SVG transform attrs).
+    const archDir = join(process.cwd(), 'zeno', 'architecture')
+    const dotDiagramsDir = join(archDir, 'dot-diagrams')
+    mkdirSync(archDir, { recursive: true })
+    const written: string[] = []
+    for (const r of results) {
+      if (r.svgContent && r.dotSource) {
+        // Graphviz diagram — write sidecars, .md holds only the <img> reference
+        mkdirSync(dotDiagramsDir, { recursive: true })
+        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.dot`), r.dotSource, 'utf-8')
+        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.svg`), r.svgContent, 'utf-8')
+      }
+      const filePath = join(archDir, `${r.diagramType}.md`)
+      writeFileSync(filePath, r.markdown, 'utf-8')
+      written.push(filePath)
+    }
+
     return {
       diagrams: results.map((r) => ({
         type: r.diagramType,
         category: r.category,
         format: r.renderingBackend,
         generated: true,
+        content: r.markdown,
+        filePath: join('zeno', 'architecture', `${r.diagramType}.md`),
       })),
       totalGenerated: results.length,
       timestamp: new Date().toISOString(),
@@ -284,13 +306,41 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       throw Object.assign(new Error(`Diagram type not available: ${diagramType}`), { code: 'DIAGRAM_NOT_FOUND' })
     }
 
+    // Read from persisted file first (written by arch_generate); re-generate if missing.
+    const archFile = join(process.cwd(), 'zeno', 'architecture', `${diagramType}.md`)
+    if (existsSync(archFile)) {
+      const content = readFileSync(archFile, 'utf-8')
+      const format = content.includes('dot-diagrams/') || content.includes('<svg') ? 'graphviz' : 'mermaid'
+      return {
+        type: diagramType,
+        title: entry?.name ?? diagramType,
+        content,
+        format,
+        found: true,
+        filePath: join('zeno', 'architecture', `${diagramType}.md`),
+      }
+    }
+
     const output = await generator.generate(context)
+
+    // Persist freshly generated diagram for future reads
+    const archDir = join(process.cwd(), 'zeno', 'architecture')
+    const dotDiagramsDir = join(archDir, 'dot-diagrams')
+    mkdirSync(archDir, { recursive: true })
+    if (output.svgContent && output.dotSource) {
+      mkdirSync(dotDiagramsDir, { recursive: true })
+      writeFileSync(join(dotDiagramsDir, `${diagramType}.dot`), output.dotSource, 'utf-8')
+      writeFileSync(join(dotDiagramsDir, `${diagramType}.svg`), output.svgContent, 'utf-8')
+    }
+    writeFileSync(archFile, output.markdown, 'utf-8')
+
     return {
       type: diagramType,
       title: entry?.name ?? diagramType,
       content: output.markdown,
       format: output.renderingBackend,
       found: true,
+      filePath: join('zeno', 'architecture', `${diagramType}.md`),
     }
   }, {
     description: 'Show a specific type of architecture diagram',

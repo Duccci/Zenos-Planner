@@ -21,6 +21,7 @@ This directory contains **forward-looking architecture diagrams and design docum
 | **`gate-lifecycle.md`** | State machine for gate/proposal lifecycles with all transitions and recovery scenarios | 2.0.0 | 1-14 |
 | **`gate-roadmap.md`** | Sequential gate structure and parallel relationships | 1.0 | 1-14 |
 | **`mcp-workflows.md`** | Formal MCP state machine contracts for handlers | Latest | 1-14 |
+| **`ro-matrix.md`** | Risk & Opportunity register with heatmap — 10 risks, 8 opportunities derived from PRD analysis | 1.0.0 | 1-14 |
 
 ---
 

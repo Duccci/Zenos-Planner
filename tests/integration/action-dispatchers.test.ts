@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Integration tests for unified action dispatchers
  * Tests proposal_action and gates_action discriminated union tools
  *
@@ -88,7 +88,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('list')
     expect(parsed.result.proposals).toEqual(mockProposals)
   })
@@ -113,7 +113,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('show')
     expect(parsed.result.hash).toBe('prop0001')
   })
@@ -140,7 +140,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('create')
     expect(parsed.result.hash).toBe('prop0002')
   })
@@ -161,7 +161,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('validate')
     expect(parsed.result.passed).toBe(true)
   })
@@ -202,7 +202,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('approve')
   })
 
@@ -232,7 +232,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     if (!parsed.action) {
       console.log('Reject error response:', JSON.stringify(parsed, null, 2))
     }
@@ -276,7 +276,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('start')
   })
 
@@ -351,7 +351,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('list')
     expect(parsed.result.gates).toEqual(mockGates)
   })
@@ -379,7 +379,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('show')
     expect(parsed.result.id).toBe('gate-03')
   })
@@ -423,7 +423,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('create')
     expect(parsed.result.gateId).toBe('gate-04')
   })
@@ -451,7 +451,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('start')
   })
 
@@ -494,7 +494,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('complete')
   })
 
@@ -516,7 +516,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
     expect(parsed.action).toBe('regenerate')
   })
 
@@ -567,7 +567,7 @@ describe('Action Dispatcher Type Safety', () => {
     const invalidResult = await handlers.proposal_action({
       action: 'show',
     })
-    // Result may succeed or fail depending on registry mock — confirm no schema crash
+    // Result may succeed or fail depending on registry mock � confirm no schema crash
     expect(invalidResult).toBeDefined()
   })
 
@@ -624,7 +624,7 @@ describe('Action Dispatcher Output Schema Validation', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
 
     // Output should have discriminated union structure
     expect(parsed).toHaveProperty('action')
@@ -661,10 +661,11 @@ describe('Action Dispatcher Output Schema Validation', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = JSON.parse(result.content[0].text)
+    const parsed = result.structuredContent as any
 
     expect(parsed).toHaveProperty('action')
     expect(parsed).toHaveProperty('result')
     expect(parsed.action).toBe('list')
   })
 })
+

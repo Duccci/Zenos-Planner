@@ -35,10 +35,12 @@ flowchart TD
 
 [1-2 sentences per phase describing key steps and data transformations.]
 
-### [Phase Name]
+### [Phase Name 1]
+
 [What happens and what data moves]
 
-### [Phase Name]
+### [Phase Name 2]
+
 [What happens and what data moves]
 
 ---
@@ -51,6 +53,6 @@ flowchart TD
 
 ### Change Log
 
-| Version | Date | Summary | Author |
-|---------|------|---------|--------|
-| 1.0.0 | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date         | Summary         | Author          |
+|---------|--------------|-----------------|-----------------|
+| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |

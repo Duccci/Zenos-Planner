@@ -89,16 +89,90 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }
 
       const now = new Date().toISOString()
+
+      // Parse objectives and description from gate PRD file
+      const objectives: { title: string; completed: boolean }[] = []
+      let description = 'No description'
+
+      try {
+        const { findGateByGateId } = await import('../utils/artifact-locator.js')
+        const { readFile } = await import('node:fs/promises')
+        const gatePath = await findGateByGateId(normalizedId)
+        if (gatePath) {
+          const content = await readFile(gatePath, 'utf-8')
+
+          // Parse description from ## Overview section (first non-empty line)
+          const overviewMatch = /## Overview\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
+          if (overviewMatch?.[1]) {
+            const firstLine = overviewMatch[1].split('\n').find((l) => l.trim().length > 0)
+            if (firstLine) description = firstLine.trim()
+          }
+
+          // Parse objectives from ## Objectives section — capture all - [ ] / - [x] items
+          const objectivesMatch = /## Objectives\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
+          if (objectivesMatch?.[1]) {
+            for (const line of objectivesMatch[1].split('\n')) {
+              const pending = /^- \[ \] (.+)$/.exec(line.trim())
+              const done = /^- \[x\] (.+)$/i.exec(line.trim())
+              if (pending?.[1]) objectives.push({ title: pending[1].trim(), completed: false })
+              else if (done?.[1]) objectives.push({ title: done[1].trim(), completed: true })
+            }
+          }
+        }
+      } catch {
+        // File unavailable — fall back to empty objectives
+      }
+
+      // Query gate-level requirements from the database
+      let requirements: { hash: string; title: string; status: 'pending' | 'in_progress' | 'tested' | 'archived'; priority?: 'low' | 'medium' | 'high' }[] = []
+      try {
+        const { RequirementStorage } = await import('../generation/requirement-storage.js')
+        const storage = new RequirementStorage()
+        const graph = storage.buildRequirementGraph(normalizedId)
+        requirements = Array.from(graph.nodes.values()).map((n) => ({
+          hash: n.hash,
+          title: n.title,
+          status: 'pending' as const,
+        }))
+      } catch {
+        // DB unavailable — fall back to empty requirements
+      }
+
+      // Query proposals for this gate from the database
+      interface ProposalRow { hash: string; title: string | null; status: string | null }
+      let proposals: { hash: string; title: string; status: 'pending' | 'in_progress' | 'completed' | 'archived' | 'rejected' | 'cancelled' | 'backlog'; tasksCompleted: number; totalTasks: number }[] = []
+      try {
+        const { getDatabase } = await import('../storage/database.js')
+        const { syncProposalsFromDisk } = await import('../storage/proposal-sync.js')
+        const db = getDatabase()
+        syncProposalsFromDisk(db)
+        const rows = db
+          .prepare('SELECT hash, title, status FROM proposals WHERE gate_id LIKE ? ORDER BY created_at DESC')
+          .all(`%${normalizedId}%`) as ProposalRow[]
+        const validStatuses = new Set(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog'])
+        proposals = rows
+          .filter((r) => r.hash)
+          .map((r) => ({
+            hash: r.hash,
+            title: r.title ?? '',
+            status: (validStatuses.has(r.status ?? '') ? r.status : 'pending') as typeof proposals[0]['status'],
+            tasksCompleted: 0,
+            totalTasks: 0,
+          }))
+      } catch {
+        // DB unavailable — fall back to empty proposals
+      }
+
       return {
         id: gate.id,
         name: gate.name,
-        description: 'No description',
+        description,
         sequence: gate.sequence,
         status: gate.status,
         type: 'feature',
-        objectives: [],
-        requirements: [],
-        proposals: [],
+        objectives,
+        requirements,
+        proposals,
         lastUpdated: resolveLastUpdated(gate.completedAt, now),
       }
     },

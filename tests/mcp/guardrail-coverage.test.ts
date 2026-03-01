@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { ALL_GUARDRAILS, type GuardrailEntry } from '../../src/mcp/content/guardrails.js'
+import {
+  ALL_GUARDRAILS,
+  toAgentDelegationHint,
+  toNarrativeRules,
+  type GuardrailEntry,
+} from '../../src/mcp/content/guardrails.js'
 
 /**
  * Guardrail Coverage Test
@@ -175,5 +180,89 @@ describe('ALL_GUARDRAILS — structural integrity', () => {
       stale,
       `Stale agentRef entries (file not found):\n${stale.join('\n')}`
     ).toHaveLength(0)
+  })
+})
+
+describe('toAgentDelegationHint', () => {
+  const entries: GuardrailEntry[] = [
+    {
+      id: 'apply-001',
+      topic: 'apply-phase',
+      rule: 'Rule A',
+      mustHaveValidator: false,
+      reason: 'Narrative only',
+      agentRef: ['04-quality-security/code-reviewer', '09-meta-orchestration/task-distributor'],
+    },
+    {
+      id: 'apply-002',
+      topic: 'apply-phase',
+      rule: 'Rule B',
+      mustHaveValidator: false,
+      reason: 'Narrative only',
+      // no agentRef
+    },
+  ]
+
+  it('returns agent short-names (last path segment) for a known guardrail id', () => {
+    expect(toAgentDelegationHint(entries, 'apply-001')).toEqual([
+      'code-reviewer',
+      'task-distributor',
+    ])
+  })
+
+  it('returns empty array for an unknown guardrail id', () => {
+    expect(toAgentDelegationHint(entries, 'does-not-exist')).toEqual([])
+  })
+
+  it('returns empty array when the matching entry has no agentRef', () => {
+    expect(toAgentDelegationHint(entries, 'apply-002')).toEqual([])
+  })
+
+  it('returns the full string unchanged when the agentRef has no slash', () => {
+    const noSlash: GuardrailEntry[] = [
+      {
+        id: 'gate-001',
+        topic: 'gate-generation',
+        rule: 'Rule',
+        mustHaveValidator: false,
+        reason: 'Narrative',
+        agentRef: ['bare-agent'],
+      },
+    ]
+    expect(toAgentDelegationHint(noSlash, 'gate-001')).toEqual(['bare-agent'])
+  })
+})
+
+describe('toNarrativeRules', () => {
+  const entries: GuardrailEntry[] = [
+    {
+      id: 'apply-001',
+      topic: 'apply-phase',
+      rule: 'Narrative rule',
+      mustHaveValidator: false,
+      reason: 'Human judgment',
+    },
+    {
+      id: 'apply-002',
+      topic: 'apply-phase',
+      rule: 'Enforced rule',
+      mustHaveValidator: true,
+      validatorRef: 'scope-validator.ts#validateScope',
+      reason: 'Runtime enforced',
+    },
+  ]
+
+  it('returns only the rules for entries where mustHaveValidator is false', () => {
+    expect(toNarrativeRules(entries)).toEqual(['Narrative rule'])
+  })
+
+  it('returns empty array when all entries have mustHaveValidator=true', () => {
+    const allEnforced = entries.filter((e) => e.mustHaveValidator)
+    expect(toNarrativeRules(allEnforced)).toEqual([])
+  })
+
+  it('returns all rules when all entries have mustHaveValidator=false', () => {
+    const allNarrative = entries.filter((e) => !e.mustHaveValidator)
+    expect(toNarrativeRules(allNarrative)).toEqual(['Narrative rule'])
   })
 })

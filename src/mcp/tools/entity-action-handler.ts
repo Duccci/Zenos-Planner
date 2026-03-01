@@ -141,8 +141,11 @@ export function createEntityActionHandler<T extends string>(
       // Validate final envelope against supplied output schema
       const validatedOutput = config.outputSchema.parse(output)
 
+      // content[0].text carries only the result data (avoids duplicate rendering in
+      // MCP clients that display both content text and structuredContent).
+      // structuredContent retains the full {action, result} envelope for programmatic callers.
       return {
-        content: [{ type: 'text', text: JSON.stringify(validatedOutput, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(invokeResult.data, null, 2) }],
         structuredContent: validatedOutput as Record<string, unknown>,
       }
     } catch (e) {
