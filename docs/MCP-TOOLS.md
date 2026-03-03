@@ -1,7 +1,7 @@
 # MCP Tools Reference Documentation
 
-**Project:** Zeno's Planner  
-**Last Updated:** February 22, 2026  
+**Project:** Zeno's Planner
+**Last Updated:** February 22, 2026
 **Purpose:** Authoritative reference for all Model Context Protocol (MCP) tools, their input/output schemas, validators, preconditions, and error codes.
 
 ---
@@ -11,26 +11,32 @@
 The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI agents via a unified **Entity Action Pattern**: each tool accepts an `action` parameter that determines the operation to perform. This document covers:
 
 - **Input Schema**: All accepted fields, types, required vs. optional
+
 - **Validators Executed**: Validators called in order for each action (from audit matrix #s26022201mcp-sot)
+
 - **Preconditions**: Required entity state before action is valid
+
 - **Output Schema**: Shape of the success response
+
 - **Error Codes**: Enumerated error identifiers and meanings
+
 - **Examples**: Request/response pairs demonstrating usage
 
 ---
 
 ## gates_action – Gate Lifecycle Management
 
-**Tool Name:** `gates_action`  
+**Tool Name:** `gates_action`
 **Purpose:** Manage project gates—the concrete milestones that represent actual deliverables.
 
-### Actions
+### Supported Actions
 
 #### gates_action: list
 
 **Description:** List all gates with optional status filtering, pagination.
 
 **Input Schema:**
+
 ```json
 {
   "action": "list",
@@ -38,22 +44,26 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "skip": 0,
   "take": 50
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"list"` |
 | `status` | enum | no | Filter by status (pending, in_progress, completed, archived, cancelled, backlog) |
 | `skip` | number | no | Pagination offset; default 0 |
 | `take` | number | no | Page size (1-100); default 50 |
 
 **Validators Executed (in order):**
+
 1. `validateGatesActionInput` — schema validation
+
 2. (No other validators for list action)
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "list",
@@ -80,22 +90,28 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "allowed": true
   }
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — One or more fields failed schema validation
+
 - `UNKNOWN_ACTION` (400) — Action is not a recognized gate action
 
 **Example Request:**
+
 ```json
 {
   "action": "list",
   "status": "in_progress",
   "take": 10
 }
+
 ```
 
 **Example Response:**
+
 ```json
 {
   "action": "list",
@@ -122,6 +138,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "allowed": true
   }
 }
+
 ```
 
 ---
@@ -131,26 +148,32 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Get detailed information about a specific gate.
 
 **Input Schema:**
+
 ```json
 {
   "action": "show",
   "gateId": "gate-01"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"show"` |
 | `gateId` | string | yes | Gate ID (e.g., `"gate-01"`) |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `validateGateExists` (via show handler) — gate must exist
 
 **Preconditions:**
+
 - Gate with the given ID exists
 
 **Output Schema:**
+
 ```json
 {
   "action": "show",
@@ -173,19 +196,25 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate with the given ID does not exist
+
 - `UNKNOWN_ACTION` (400) — Action is not recognized
 
 **Example Request:**
+
 ```json
 {
   "action": "show",
   "gateId": "gate-01"
 }
+
 ```
 
 ---
@@ -195,6 +224,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Create a new gate with objectives, requirements, and dependencies.
 
 **Input Schema:**
+
 ```json
 {
   "action": "create",
@@ -206,10 +236,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "dependencies": ["gate-02"],
   "description": "Build the API layer with all required endpoints"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"create"` |
 | `gateId` | string | yes | Gate ID (e.g., `"gate-03"`) |
 | `name` | string | yes | Human-readable gate name |
@@ -220,15 +251,21 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `description` | string | no | Optional gate description |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `validateDependencies` — upstream gate dependencies exist and form valid DAG
 
 **Preconditions:**
+
 - Gate ID is unique
+
 - All dependencies reference existing gates
+
 - No circular dependencies
 
 **Output Schema:**
+
 ```json
 {
   "action": "create",
@@ -242,13 +279,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `DUPLICATE_ID` (409) — Gate ID already exists
+
 - `INVALID_DEPENDENCY` (400) — Referenced dependency gate not found
+
 - `CIRCULAR_DEPENDENCY` (400) — Dependencies form a cycle
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -258,16 +301,18 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Auto-generate gates from requirements and project structure.
 
 **Input Schema:**
+
 ```json
 {
   "action": "generate",
   "mode": "new",
   "anchorGateId": "gate-02"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"generate"` |
 | `mode` | enum | no | Generation mode (new, rebaseline, single); default "new" |
 | `anchorGateId` | string | no | Gate to anchor generation from |
@@ -275,14 +320,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `requirementsPerGate` | number | no | Max requirements per gate; default 5 |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `validateDependencies` — generated gates respect requirement dependencies
 
 **Preconditions:**
+
 - If anchor gate specified, it must exist
+
 - Requirements database must have content
 
 **Output Schema:**
+
 ```json
 {
   "action": "generate",
@@ -296,12 +346,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Anchor gate or template not found
+
 - `GENERATION_FAILED` (500) — Internal error during generation
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -311,30 +366,38 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Transition a gate from `pending` to `in_progress`. Generates gate-specific requirements and proposals.
 
 **Input Schema:**
+
 ```json
 {
   "action": "start",
   "gateId": "gate-03",
   "notes": "Optional starting notes"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"start"` |
 | `gateId` | string | yes | Gate ID to start |
 | `notes` | string | no | Optional notes documenting the start |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `createStateTransitionValidator` — gate must be `pending`, can transition to `in_progress` (idempotent: already `in_progress` returns success)
+
 3. `validateDependencies` — all upstream dependencies must be `completed`
 
 **Preconditions:**
+
 - Gate exists and has status `pending` (or is already `in_progress` for idempotency)
+
 - All gates listed in `dependencies` must have status `completed`
 
 **Output Schema:**
+
 ```json
 {
   "action": "start",
@@ -354,27 +417,36 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate does not exist
+
 - `INVALID_STATE_TRANSITION` (409) — Gate is not `pending` and not idempotent re-invocation
   - Example message: `"gate gate-03 is 'completed'; valid transitions from this state: none. Cannot start."`
+
 - `DEPENDENCY_NOT_MET` (409) — One or more upstream dependencies not completed
   - Example message: `"Gate gate-02 is required before gate-03 can start; currently 'in_progress'"`
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 **Example Request:**
+
 ```json
 {
   "action": "start",
   "gateId": "gate-03",
   "notes": "Approved by team lead on 2026-02-22"
 }
+
 ```
 
 **Example Response (Success - First Time):**
+
 ```json
 {
   "action": "start",
@@ -388,9 +460,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "message": "Gate gate-03 transitioned to in_progress. 1 requirement generated, 1 proposal template created."
   }
 }
+
 ```
 
 **Example Response (Idempotent - Already In Progress):**
+
 ```json
 {
   "action": "start",
@@ -404,6 +478,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "message": "Gate gate-03 is already in_progress. No changes made."
   }
 }
+
 ```
 
 ---
@@ -413,6 +488,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Finish a gate and transition to `completed`. Archives all proposals, creates git tag, updates requirement statuses.
 
 **Input Schema:**
+
 ```json
 {
   "action": "complete",
@@ -420,26 +496,34 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "completionNotes": "All proposals approved and merged",
   "approvalDate": "2026-01-28T00:00:00.000Z"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"complete"` |
 | `gateId` | string | yes | Gate ID to complete |
 | `completionNotes` | string | no | Summary of completion |
 | `approvalDate` | string (ISO) | no | Timestamp of human approval |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `createStateTransitionValidator` — gate must be `in_progress`; can transition to `completed`
+
 3. `validateQuality` — all requirements must have status `tested` or `implemented`
 
 **Preconditions:**
+
 - Gate exists and has status `in_progress`
+
 - All requirements are marked `tested` or `implemented`
+
 - All proposals are `completed`
 
 **Output Schema:**
+
 ```json
 {
   "action": "complete",
@@ -455,13 +539,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate does not exist
+
 - `INVALID_STATE_TRANSITION` (409) — Gate is not `in_progress`
+
 - `QUALITY_CHECK_FAILED` (409) — Requirements not all tested; metrics below threshold
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -471,28 +561,34 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Regenerate the gate roadmap after rescope or mid-project changes.
 
 **Input Schema:**
+
 ```json
 {
   "action": "regenerate",
   "fromGateId": "gate-02",
   "mode": "full"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"regenerate"` |
 | `fromGateId` | string | no | Regenerate from this gate forward; if omitted, regenerate all |
 | `mode` | enum | no | Regeneration mode (full, partial, check); default "full" |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `validateDependencies` — regenerated gates form valid DAG
 
 **Preconditions:**
+
 - If fromGateId specified, gate must exist
 
 **Output Schema:**
+
 ```json
 {
   "action": "regenerate",
@@ -505,12 +601,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — fromGateId not found
+
 - `REGENERATION_FAILED` (500) — Internal error during regeneration
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -520,30 +621,38 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Mark a gate as cancelled/dropped (not to be implemented).
 
 **Input Schema:**
+
 ```json
 {
   "action": "cancel",
   "gateId": "gate-03",
   "notes": "Feature deprioritized in favor of core functionality"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"cancel"` |
 | `gateId` | string | yes | Gate ID to cancel |
 | `notes` | string | no | Reason for cancellation |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `createStateTransitionValidator` — gate must allow transition to `cancelled`
 
 **Preconditions:**
+
 - Gate exists
+
 - Gate is not in a terminal state (completed)
+
 - No active proposals depend on this gate
 
 **Output Schema:**
+
 ```json
 {
   "action": "cancel",
@@ -556,13 +665,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate not found
+
 - `INVALID_STATE_TRANSITION` (409) — Gate cannot be cancelled from current state
+
 - `DEPENDENT_WORK` (409) — Active proposals depend on this gate
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -572,29 +687,36 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Move a gate to backlog for later implementation.
 
 **Input Schema:**
+
 ```json
 {
   "action": "defer",
   "gateId": "gate-03",
   "notes": "Defer to phase 2 pending budget approval"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"defer"` |
 | `gateId` | string | yes | Gate ID to defer |
 | `notes` | string | no | Reason for deferral |
 
 **Validators Executed:**
+
 1. `validateGatesActionInput` — schema validation
+
 2. `createStateTransitionValidator` — gate must allow transition to `backlog`
 
 **Preconditions:**
+
 - Gate exists
+
 - Gate is in `pending` status
 
 **Output Schema:**
+
 ```json
 {
   "action": "defer",
@@ -607,26 +729,32 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate not found
+
 - `INVALID_STATE_TRANSITION` (409) — Gate cannot be deferred from current state
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
 
 ## proposal_action – Proposal Lifecycle Management
 
-**Tool Name:** `proposal_action`  
+**Tool Name:** `proposal_action`
 **Purpose:** Manage implementation proposals—detailed plans for satisfying gate requirements.
 
-#### proposal_action: list
+### proposal_action: list
 
 **Description:** List proposals, optionally filter by gate or status.
 
 **Input Schema:**
+
 ```json
 {
   "action": "list",
@@ -635,10 +763,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "skip": 0,
   "take": 50
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"list"` |
 | `gateId` | string | no | Filter by gate ID |
 | `status` | enum | no | Filter by status (pending, in_progress, completed, rejected, archived) |
@@ -646,11 +775,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `take` | number | no | Page size (1-100); default 50 |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "list",
@@ -672,10 +803,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -685,30 +819,38 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Get detailed information about a specific proposal.
 
 **Input Schema:**
+
 ```json
 {
   "action": "show",
   "hash": "#p03api"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"show"` |
 | `hash` | string | yes | Proposal hash (e.g., `"#p03api"`) |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `validateProposalExists` — proposal must exist
 
 **Preconditions:**
+
 - Proposal with the given hash exists
 
 **Output Schema:** Full proposal document with all tasks and acceptance criteria
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -718,31 +860,42 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Create an isolated worktree for proposal implementation.
 
 **Input Schema:**
+
 ```json
 {
   "action": "start",
   "hash": "#p03api"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"start"` |
 | `hash` | string | yes | Proposal hash |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `createStateTransitionValidator` — proposal must be `pending`; can transition to `in_progress`
+
 3. `validateApplyPhase` (Rule 1: no git operations) — detects git cli in PATH
+
 4. `validateScope` — files in `Files Affected` are explicit (no wildcards/dirs)
+
 5. `validateTestFirstPattern` — if proposal is for a gate implementation, no test files modified
 
 **Preconditions:**
+
 - Proposal exists and has status `pending`
+
 - No git CLI operations detected during proposal start
+
 - All files in `Files Affected` are explicit paths
 
 **Output Schema:**
+
 ```json
 {
   "action": "start",
@@ -756,26 +909,37 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found
+
 - `INVALID_STATE_TRANSITION` (409) — Proposal is not `pending`
+
 - `GIT_OPERATIONS_NOT_ALLOWED` (409) — Git CLI operations detected (Rule 1)
+
 - `INVALID_FILE_SCOPE` (400) — Files include wildcards or directory paths (Rule 2)
+
 - `TEST_PATTERN_VIOLATION` (400) — Implementation proposal modified test files (Rule 3)
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 **Example Request:**
+
 ```json
 {
   "action": "start",
   "hash": "#p03api"
 }
+
 ```
 
 **Example Response:**
+
 ```json
 {
   "action": "start",
@@ -789,6 +953,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 ---
@@ -798,30 +963,40 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Run automated quality checks on a proposal (coverage, linting, security, tests).
 
 **Input Schema:**
+
 ```json
 {
   "action": "validate",
   "hash": "#p03api"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"validate"` |
 | `hash` | string | yes | Proposal hash |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `validateProposalExists` — proposal must exist
+
 3. `validateQuality` — runs all quality checks
+
 4. `validateDependencies` — checks proposal dependency graph
 
 **Preconditions:**
+
 - Proposal exists
+
 - Proposal is in `in_progress` or `completed` status
+
 - Proposal has all required sections (Summary, Tasks, Files Affected)
 
 **Output Schema:**
+
 ```json
 {
   "action": "validate",
@@ -839,15 +1014,23 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found
+
 - `FORMAT_INVALID` (400) — Proposal missing required sections
+
 - `QUALITY_FAILED` (409) — One or more quality checks failed
+
 - `TEST_FAILURES` (409) — Tests not passing
+
 - `SECURITY_VULNERABILITIES` (409) — Known CVEs detected
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -857,30 +1040,40 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Merge proposal worktree and finalize implementation.
 
 **Input Schema:**
+
 ```json
 {
   "action": "approve",
   "hash": "#p03api"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"approve"` |
 | `hash` | string | yes | Proposal hash |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `createStateTransitionValidator` — proposal must be `in_progress`; can transition to `completed`
+
 3. `validateQuality` — quality checks must pass
+
 4. `validateApplyPhase` (Rule 1) — no git operations
 
 **Preconditions:**
+
 - Proposal exists and has status `in_progress`
+
 - All quality checks have passed (from previous validate call)
+
 - Worktree exists and is not dirty
 
 **Output Schema:**
+
 ```json
 {
   "action": "approve",
@@ -895,14 +1088,21 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found
+
 - `INVALID_STATE_TRANSITION` (409) — Proposal is not `in_progress`
+
 - `QUALITY_NOT_VALIDATED` (409) — Quality checks not run; must call validate first
+
 - `MERGE_CONFLICT` (409) — Worktree branch has conflicts
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -912,28 +1112,34 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Decline proposal and mark for rework. Preserves proposal for future retry.
 
 **Input Schema:**
+
 ```json
 {
   "action": "reject",
   "hash": "#p03api",
   "reason": "API design doesn't meet requirements"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"reject"` |
 | `hash` | string | yes | Proposal hash |
 | `reason` | string | no | Human feedback on why rejected |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `createStateTransitionValidator` — proposal must be `in_progress`; can transition to `rejected`
 
 **Preconditions:**
+
 - Proposal exists and has status `in_progress`
 
 **Output Schema:**
+
 ```json
 {
   "action": "reject",
@@ -946,12 +1152,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found
+
 - `INVALID_STATE_TRANSITION` (409) — Proposal is not `in_progress`
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -961,6 +1172,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Create a new proposal for a gate from requirements.
 
 **Input Schema:**
+
 ```json
 {
   "action": "create",
@@ -973,10 +1185,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   ],
   "filesAffected": ["src/api/routes.ts", "src/api/handlers.ts"]
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"create"` |
 | `gateId` | string | yes | Gate ID this proposal serves |
 | `title` | string | yes | Proposal title |
@@ -985,16 +1198,23 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `filesAffected` | array[string] | yes | Explicit file paths to be modified/created |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `validateGateExists` — gate must exist
+
 3. `validateScope` — files must be explicit paths
+
 4. `validateArtifactFile` — proposal must have required sections
 
 **Preconditions:**
+
 - Gate exists
+
 - All files in Files Affected are explicit paths (no wildcards or directories)
 
 **Output Schema:**
+
 ```json
 {
   "action": "create",
@@ -1007,13 +1227,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate not found
+
 - `INVALID_FILE_SCOPE` (400) — Files include wildcards or directory paths
+
 - `FORMAT_INVALID` (400) — Proposal missing required sections
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1023,26 +1249,32 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Auto-generate a proposal from a gate's requirements.
 
 **Input Schema:**
+
 ```json
 {
   "action": "generate",
   "gateId": "gate-03"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"generate"` |
 | `gateId` | string | yes | Gate ID to generate proposal from |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `validateGateExists` — gate must exist
 
 **Preconditions:**
+
 - Gate exists
 
 **Output Schema:**
+
 ```json
 {
   "action": "generate",
@@ -1056,11 +1288,15 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate not found
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1070,6 +1306,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Update proposal task progress during implementation.
 
 **Input Schema:**
+
 ```json
 {
   "action": "progress",
@@ -1078,10 +1315,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "status": "in_progress",
   "notes": "Started implementation of endpoints"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"progress"` |
 | `hash` | string | yes | Proposal hash |
 | `taskIndex` | number | yes | Index of the task to update |
@@ -1089,14 +1327,19 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `notes` | string | no | Optional progress notes |
 
 **Validators Executed:**
+
 1. `validateProposalActionInput` — schema validation
+
 2. `validateProposalExists` — proposal must exist
 
 **Preconditions:**
+
 - Proposal exists and is in `in_progress` status
+
 - Task index is valid
 
 **Output Schema:**
+
 ```json
 {
   "action": "progress",
@@ -1109,26 +1352,32 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Proposal hash not found or task index invalid
+
 - `INVALID_STATE` (409) — Proposal is not `in_progress`
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
 
 ## req_action – Requirements Database Query
 
-**Tool Name:** `req_action`  
+**Tool Name:** `req_action`
 **Purpose:** Query and manage the requirements database (single source of truth for what must be built).
 
-#### req_action: list
+### req_action: list
 
 **Description:** Retrieve all requirements, optionally filtered by gate, type, or priority.
 
 **Input Schema:**
+
 ```json
 {
   "action": "list",
@@ -1138,10 +1387,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "skip": 0,
   "take": 50
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"list"` |
 | `gateId` | string | no | Filter by gate ID |
 | `type` | enum | no | Filter by type (functional, non_functional, constraint) |
@@ -1150,11 +1400,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | `take` | number | no | Page size (1-100); default 50 |
 
 **Validators Executed:**
+
 1. `validateReqActionInput` — schema validation
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "list",
@@ -1177,10 +1429,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1190,30 +1445,38 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Get detailed requirement information by hash.
 
 **Input Schema:**
+
 ```json
 {
   "action": "show",
   "hash": "#g03req1"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"show"` |
 | `hash` | string | yes | Requirement hash |
 
 **Validators Executed:**
+
 1. `validateReqActionInput` — schema validation
+
 2. `validateRequirementExists` — requirement must exist
 
 **Preconditions:**
+
 - Requirement with the given hash exists
 
 **Output Schema:** Full requirement document with all fields and metadata
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Requirement hash not found
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1223,26 +1486,32 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** View requirement dependency graph.
 
 **Input Schema:**
+
 ```json
 {
   "action": "deps",
   "hash": "#g03req1"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"deps"` |
 | `hash` | string | yes | Requirement hash |
 
 **Validators Executed:**
+
 1. `validateReqActionInput` — schema validation
+
 2. `validateDependencies` — analyze dependency graph
 
 **Preconditions:**
+
 - Requirement exists
 
 **Output Schema:**
+
 ```json
 {
   "action": "deps",
@@ -1259,11 +1528,15 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Requirement hash not found
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1273,6 +1546,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Move a requirement from one gate to another.
 
 **Input Schema:**
+
 ```json
 {
   "action": "transfer",
@@ -1280,27 +1554,36 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "targetGateId": "gate-04",
   "reason": "Scope moved to next gate"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"transfer"` |
 | `hash` | string | yes | Requirement hash to transfer |
 | `targetGateId` | string | yes | Target gate ID |
 | `reason` | string | no | Reason for transfer |
 
 **Validators Executed:**
+
 1. `validateReqActionInput` — schema validation
+
 2. `validateRequirementExists` — requirement must exist
+
 3. `validateGateExists` — target gate must exist
+
 4. `validateDependencies` — check if transfer violates dependency constraints
 
 **Preconditions:**
+
 - Requirement exists
+
 - Target gate exists
+
 - Transfer doesn't create circular dependencies or violate constraints
 
 **Output Schema:**
+
 ```json
 {
   "action": "transfer",
@@ -1313,42 +1596,51 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Requirement or target gate not found
+
 - `INVALID_TRANSFER` (409) — Transfer violates dependency constraints or creates cycles
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
 
 ## repos_action – Repository Analysis & Management
 
-**Tool Name:** `repos_action`  
+**Tool Name:** `repos_action`
 **Purpose:** Manage repository boundaries and analyze multi-repo project structure.
 
-#### repos_action: list
+### repos_action: list
 
 **Description:** List detected repository boundaries and structure.
 
 **Input Schema:**
+
 ```json
 {
   "action": "list"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"list"` |
 
 **Validators Executed:**
+
 1. `validateRepositoryActionInput` — schema validation
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "list",
@@ -1370,10 +1662,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1383,22 +1678,26 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Re-run repository boundary detection.
 
 **Input Schema:**
+
 ```json
 {
   "action": "detect"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"detect"` |
 
 **Validators Executed:**
+
 1. `validateRepositoryActionInput` — schema validation
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "detect",
@@ -1409,10 +1708,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1422,23 +1724,28 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Show dependency graph between repositories.
 
 **Input Schema:**
+
 ```json
 {
   "action": "deps"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"deps"` |
 
 **Validators Executed:**
+
 1. `validateRepositoryActionInput` — schema validation
+
 2. `validateDependencies` — analyze repo dependency graph
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "action": "deps",
@@ -1453,10 +1760,13 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1466,6 +1776,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Manually adjust repository boundaries.
 
 **Input Schema:**
+
 ```json
 {
   "action": "adjust",
@@ -1473,22 +1784,26 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   "path": "src/",
   "confidence": 0.95
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"adjust"` |
 | `repositoryName` | string | yes | Repository name to adjust |
 | `path` | string | yes | New path boundary |
 | `confidence` | number | no | Confidence score for the boundary (0.0-1.0) |
 
 **Validators Executed:**
+
 1. `validateRepositoryActionInput` — schema validation
 
 **Preconditions:**
+
 - Repository exists
 
 **Output Schema:**
+
 ```json
 {
   "action": "adjust",
@@ -1500,46 +1815,57 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Repository does not exist
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
 
 ## archive_action – Finalize Completed Work
 
-**Tool Name:** `archive_action`  
+**Tool Name:** `archive_action`
 **Purpose:** Archive and close out completed gates and proposals, creating historical records.
 
-#### archive_action: gate
+### archive_action: gate
 
 **Description:** Archive a completed gate and all its proposals.
 
 **Input Schema:**
+
 ```json
 {
   "action": "gate",
   "gateId": "gate-01"
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"gate"` |
 | `gateId` | string | yes | Gate ID to archive |
 
 **Validators Executed:**
+
 1. `validateArchiveActionInput` — schema validation
+
 2. `validateGateExists` — gate must exist
+
 3. `validateGateStatus` — gate must be `completed`
 
 **Preconditions:**
+
 - Gate exists and has status `completed`
 
 **Output Schema:**
+
 ```json
 {
   "action": "gate",
@@ -1556,12 +1882,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — Gate does not exist
+
 - `INVALID_STATE` (409) — Gate is not `completed`
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
@@ -1571,27 +1902,34 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Description:** Archive multiple gates in a single operation.
 
 **Input Schema:**
+
 ```json
 {
   "action": "batch",
   "gateIds": ["gate-01", "gate-02"]
 }
+
 ```
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"batch"` |
 | `gateIds` | array[string] | yes | Array of gate IDs to archive |
 
 **Validators Executed:**
+
 1. `validateArchiveActionInput` — schema validation
+
 2. `validateGateExists` — all gates must exist
+
 3. `validateGateStatus` — all gates must be `completed`
 
 **Preconditions:**
+
 - All gates exist and have status `completed`
 
 **Output Schema:**
+
 ```json
 {
   "action": "batch",
@@ -1604,22 +1942,27 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
   },
   "validation": {"allowed": true}
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
+
 - `NOT_FOUND` (404) — One or more gates do not exist
+
 - `INVALID_STATE` (409) — One or more gates are not `completed`
+
 - `UNKNOWN_ACTION` (400) — Action not recognized
 
 ---
 
 ## config_get – Access Project Configuration
 
-**Tool Name:** `config_get`  
+**Tool Name:** `config_get`
 **Purpose:** Retrieve project-level settings and quality thresholds.
 
-#### config_get: get
+### config_get: get
 
 **Description:** Retrieve project configuration and quality metrics.
 
@@ -1627,14 +1970,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ```json
 {}
+
 ```
 
 **Validators Executed:**
+
 1. `validateConfigInput` — basic schema validation (no required fields)
 
 **Preconditions:** None
 
 **Output Schema:**
+
 ```json
 {
   "project": {
@@ -1658,17 +2004,22 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "archiveDir": "zeno/gates/archive"
   }
 }
+
 ```
 
 **Error Codes:**
+
 - `INVALID_INPUT` (400) — Schema validation failed
 
 **Example Request:**
+
 ```json
 {}
+
 ```
 
 **Example Response:**
+
 ```json
 {
   "project": {
@@ -1681,14 +2032,127 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
     "vulnerabilities": 0
   }
 }
+
 ```
+
+---
+
+## context_action – Working Context Retrieval
+
+**Tool Name:** `context_action`
+**Purpose:** Provide compact working context for gates and proposals by querying the registry database. Replaces loading full PRD or architecture documents during execution.
+
+### Query Operations
+
+#### context_action: gate
+
+**Description:** Returns gate objectives, linked proposals, and requirements in a single call.
+
+**Input:**
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `action` | `"gate"` | Yes | Action discriminator |
+| `gateId` | `string` | Yes | Gate ID (e.g. `"gate-01"`) |
+
+**Output:**
+
+```json
+{
+  "gate": {
+    "id": "gate-01",
+    "name": "Core Infrastructure",
+    "status": "in_progress",
+    "description": "Set up core project infrastructure",
+    "sequence": 1,
+    "dependsOn": []
+  },
+  "proposals": [
+    { "id": "prop-1", "title": "Database Setup", "status": "pending", "hash": "abc123..." }
+  ],
+  "requirements": [
+    { "id": "req-1", "description": "Initialize project database", "type": "functional", "priority": "must", "hash": "def456..." }
+  ]
+}
+
+```
+
+#### context_action: proposal
+
+**Description:** Returns proposal details, parent gate, requirements, and dependencies.
+
+**Input:**
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `action` | `"proposal"` | Yes | Action discriminator |
+| `hash` | `string` | Yes | Proposal hash |
+
+**Output:**
+
+```json
+{
+  "proposal": {
+    "id": "prop-1",
+    "title": "Database Setup",
+    "status": "in_progress",
+    "hash": "abc123...",
+    "gateId": "gate-01",
+    "createdAt": "2026-01-15T10:00:00Z",
+    "startedAt": "2026-01-16T09:00:00Z"
+  },
+  "gate": {
+    "id": "gate-01",
+    "name": "Core Infrastructure",
+    "status": "in_progress"
+  },
+  "requirements": [
+    { "id": "req-1", "description": "Initialize project database", "type": "functional", "priority": "must", "hash": "def456..." }
+  ],
+  "dependencies": [
+    { "targetHash": "xyz789...", "type": "requires", "description": "Needs config module" }
+  ]
+}
+
+```
+
+---
+
+## project_action – Project Initialization & Status
+
+**Tool Name:** `project_action`
+**Purpose:** Initialize new projects and check project status.
+
+### Available Operations
+
+#### project_action: init
+
+**Description:** Initialize a new Zeno project.
+
+**Input:**
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `action` | `"init"` | Yes | Action discriminator |
+| `projectName` | `string` | Yes | Project name (1-100 chars) |
+| `endState` | `string` | Yes | Project end state description |
+
+#### project_action: status
+
+**Description:** Get current project status, active gates, and MCP server health.
+
+**Input:**
+
+| Field | Type | Required | Description |
+| ----- | ---- | -------- | ----------- |
+| `action` | `"status"` | Yes | Action discriminator |
 
 ---
 
 ## Error Code Taxonomy
 
 | Code | HTTP | Meaning | When Returned |
-|------|------|---------|---------------|
+| ---- | ---- | ------- | ------------- |
 | `INVALID_INPUT` | 400 | One or more required or optional fields failed schema validation | All actions; schema validation failed before handler logic |
 | `NOT_FOUND` | 404 | Entity (gate, proposal, requirement) does not exist | show, start, approve, reject, archive actions |
 | `INVALID_STATE_TRANSITION` | 409 | Entity status does not permit the requested action | start (not pending), complete (not in_progress), approve (not in_progress), reject (not in_progress) |
@@ -1725,11 +2189,14 @@ See the architecture document for preconditions and postconditions on each trans
 **Goal:** Begin work on gate-03 after gate-02 is completed.
 
 **Steps:**
+
 1. Call `gates_action` with action `start` and gateId `gate-03`
+
 2. MCP handler validates:
    - Gate exists and is currently `pending`
    - All upstream dependencies (gate-02) are `completed`
    - No git operations in progress
+
 3. On success:
    - Gate transitions to `in_progress`
    - Gate-specific requirements are auto-generated
@@ -1737,11 +2204,13 @@ See the architecture document for preconditions and postconditions on each trans
    - Return gate details and list of generated requirements
 
 **Example Request:**
+
 ```json
 {
   "action": "start",
   "gateId": "gate-03"
 }
+
 ```
 
 ### Use Case: Implement a Proposal
@@ -1749,13 +2218,17 @@ See the architecture document for preconditions and postconditions on each trans
 **Goal:** Create a worktree, implement changes, validate, and approve a proposal.
 
 **Steps:**
+
 1. Call `proposal_action: start` with proposal hash `#p03api`
    - Validates proposal is `pending`, creates isolated worktree at `.local/worktrees/p03api/`
    - Returns worktree location and branch name
+
 2. Dev implements changes in the worktree
+
 3. Call `proposal_action: validate` with hash `#p03api`
    - Runs all quality checks (coverage, linting, security, tests)
    - Returns pass/fail for each check
+
 4. If all checks pass, call `proposal_action: approve` with hash `#p03api`
    - Merges worktree branch to main
    - Cleans up worktree and branch
@@ -1766,13 +2239,17 @@ See the architecture document for preconditions and postconditions on each trans
 **Goal:** Finalize gate-01 after all proposals are implemented and approved.
 
 **Steps:**
+
 1. Ensure all proposals for gate-01 have status `completed`
+
 2. Ensure all requirements have status `tested` or `implemented`
+
 3. Call `gates_action: complete` with gateId `gate-01`
    - Validates all requirements are tested/implemented
    - Creates git tag `gate-01-core-infrastructure`
    - Archives all proposals to `zeno/gates/archive/gate-01.md`
    - Commits the archive
+
 4. Gate transitions to `completed`
 
 ---
@@ -1780,12 +2257,15 @@ See the architecture document for preconditions and postconditions on each trans
 ## Related Documentation
 
 - [Architecture: MCP Workflows](../zeno/architecture/mcp-workflows.md) — State machines, preconditions, postconditions
+
 - [Zeno's Planner Project PRD](../zeno/PROJECT_PRD.md) — System overview and goals
+
 - [MCP Setup & Integration](MCP-SETUP.md) — Deployment and server setup
+
 - [zeno-apply Skill](../.claude/skills/zeno-apply/SKILL.md) — How to implement proposals using MCP tools
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2026-02-22  
+**Document Version:** 1.0.0
+**Last Updated:** 2026-02-22
 **Status:** Active - Authoritative Reference

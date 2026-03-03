@@ -149,7 +149,8 @@
 <text xml:space="preserve" text-anchor="start" x="445.88" y="-67.2" font-family="Times New Roman,serif" font-size="9.00"> </text>
 <polygon fill="#f9c268" stroke="none" points="473,-55.5 473,-85.5 525,-85.5 525,-55.5 473,-55.5"/>
 <polygon fill="none" stroke="black" points="473,-55.5 473,-85.5 525,-85.5 525,-55.5 473,-55.5"/>
-<text xml:space="preserve" text-anchor="start" x="489.62" y="-68.2" font-family="Times New Roman,serif" font-weight="bold" font-size="9.00">R&#45;07</text>
+<text xml:space="preserve" text-anchor="start" x="490.75" y="-71.9" font-family="Times New Roman,serif" font-weight="bold" font-size="8.00">R&#45;07</text>
+<text xml:space="preserve" text-anchor="start" x="490.75" y="-63.9" font-family="Times New Roman,serif" font-weight="bold" font-size="8.00">R&#45;11</text>
 <polygon fill="#e5a03d" stroke="none" points="525,-55.5 525,-85.5 577,-85.5 577,-55.5 525,-55.5"/>
 <polygon fill="none" stroke="black" points="525,-55.5 525,-85.5 577,-85.5 577,-55.5 525,-55.5"/>
 <text xml:space="preserve" text-anchor="start" x="541.62" y="-68.2" font-family="Times New Roman,serif" font-weight="bold" font-size="9.00" fill="white">R&#45;03</text>

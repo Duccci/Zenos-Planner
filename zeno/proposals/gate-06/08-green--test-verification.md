@@ -1,9 +1,10 @@
 # Proposal: GREEN Test Verification
 
-**Hash**: #8881e3ed  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #4bc74e36854c4221  
-**Status**: pending  
+**Hash**: #8881e3ed
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #4bc74e36854c4221
+**Role**: test-cleanup
+**Status**: pending
 **Created**: 2026-03-01
 
 ---
@@ -16,9 +17,7 @@ Final gate proposal that validates all RED-phase tests pass after GREEN implemen
 
 ## Proposal Type
 
-**Test Refinement**
-
-- **Test Refinement**: Final proposal refining coverage gaps and validating all tests pass.
+- **Test Refinement** (test-cleanup): Final proposal refining coverage gaps and validating all tests pass.
 
 ---
 
@@ -56,8 +55,8 @@ This is the final quality gate for gate-06. All GREEN proposals have been implem
 
 ### Task 1: Run full test suite and analyze coverage report
 
-**Phase**: Test Refinement  
-**File(s)**: `tests/storage/repository-storage.test.ts`  
+**Phase**: Test Refinement
+**File(s)**: `tests/storage/repository-storage.test.ts`
 **Action**: modify
 
 Run `npx vitest run --coverage` and analyze the coverage report for all new gate-06 modules: `src/storage/repository-storage.ts`, `src/storage/repository-dependencies.ts`, `src/core/boundary-detection.ts`, `src/core/conflict-detector.ts`, `src/integration/schema-registry.ts` (repository ops section), `src/cli/commands/repos.ts`. Identify uncovered lines and branches. Add targeted edge-case tests to the existing RED-phase test files to close gaps: empty database queries, malformed input handling, concurrent access patterns, circular dependency edge cases.
@@ -75,8 +74,8 @@ Run `npx vitest run --coverage` and analyze the coverage report for all new gate
 
 ### Task 2: Validate schema conformance and type safety
 
-**Phase**: Test Refinement  
-**File(s)**: `tests/mcp/tools/repository-handlers.integration.test.ts`  
+**Phase**: Test Refinement
+**File(s)**: `tests/mcp/tools/repository-handlers.integration.test.ts`
 **Action**: modify
 
 Add Zod schema parse assertions to integration tests: every return value from registry operations must `safeParse` successfully against the corresponding output schema. Verify TypeScript strict-mode compliance by running `npx tsc --noEmit` and confirming zero errors in gate-06 files. Add edge-case tests for schema boundary conditions (empty arrays, maximum field lengths, special characters in names).
@@ -115,10 +114,10 @@ Run coverage with `npx vitest run --coverage` and inspect the HTML report. Focus
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log

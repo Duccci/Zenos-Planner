@@ -69,18 +69,21 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
 **RED Phase Tasks** (test-first, defining acceptance criteria):
+
 - Write tests covering happy path and error cases
 - Tests should fail before implementation (RED)
 - Use fixtures and mocks to isolate units
 - No implementation code in RED phase
 
 **GREEN Phase Tasks** (implementation following tests):
+
 - Implement only functions/methods covered by RED tests
 - Make RED tests pass (GREEN)
 - Do not add new tests beyond what RED defined
 - Verify all RED tests pass before marking complete
 
 **GREEN Phase Guardrails** (verification rules):
+
 - [ ] All changes implement only code specified in RED phase tests
 - [ ] No new test files created beyond those in RED phase
 - [ ] No new test cases added to existing test files
@@ -109,6 +112,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 Define onboarding flow structure and step registry
 
 **Acceptance**:
+
 - [ ] OnboardingStep interface defined with id, title, description, run(), and optional skip() predicate
 - [ ] Step registry exports an ordered array of all onboarding steps
 - [ ] Unit tests cover step ordering and interface shape
@@ -124,6 +128,7 @@ Define onboarding flow structure and step registry
 Implement core onboarding steps: welcome, concept tour, sample project init, and first gate walkthrough
 
 **Acceptance**:
+
 - [ ] Welcome step prints Zeno tagline and high-level overview
 - [ ] Concept tour step explains gates, requirements, and proposals with concrete one-line examples
 - [ ] Sample-init step creates a temporary sandbox project in .local/onboarding-demo/ using zeno init with pre-filled answers
@@ -144,6 +149,7 @@ Implement core onboarding steps: welcome, concept tour, sample project init, and
 Wire `zeno onboarding` command into Commander.js CLI and add --skip-sandbox flag
 
 **Acceptance**:
+
 - [ ] `zeno onboarding` appears in `zeno --help` output
 - [ ] --skip-sandbox flag bypasses step 3 (sample project init) for users who already have a project
 - [ ] --step <id> flag allows jumping to a specific step for repeat learners
@@ -160,6 +166,7 @@ Wire `zeno onboarding` command into Commander.js CLI and add --skip-sandbox flag
 Add MCP tool: onboarding_start to expose guided onboarding to LLM agents
 
 **Acceptance**:
+
 - [ ] MCP tool `onboarding_start` registered alongside existing tools
 - [ ] Tool accepts optional { skipSandbox: boolean } input and returns a structured step-by-step guide as text content
 - [ ] Tool output is deterministic and does not create side-effects (sandbox creation is opt-in)
@@ -176,6 +183,7 @@ Add MCP tool: onboarding_start to expose guided onboarding to LLM agents
 Write integration test: full onboarding flow in non-interactive mode
 
 **Acceptance**:
+
 - [ ] Integration test runs `zeno onboarding --skip-sandbox` end-to-end and asserts exit code 0
 - [ ] Test asserts all step headers appear in stdout
 - [ ] Test verifies that --step welcome prints only the welcome step output

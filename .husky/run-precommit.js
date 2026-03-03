@@ -24,8 +24,9 @@ function run(cmd, options = {}) {
 console.log(' Running pre-commit quality checks...')
 console.log('')
 
-console.log(' Stage 1: Linting all src files...')
+console.log(' Stage 1: Linting all src files and markdown...')
 run('npm run lint')
+run('npm run lint:md')
 console.log(' Linting passed')
 console.log('')
 
@@ -70,4 +71,40 @@ console.log(' Security scan passed')
 console.log('')
 
 console.log(' All quality checks passed! Commit ready to proceed.')
+
+// Report any outstanding RED tests so they are never silently forgotten.
+// This is informational — it does NOT block the commit.
+try {
+  const { readdirSync, readFileSync } = fs
+  function walkTests(dir) {
+    const entries = readdirSync(dir, { withFileTypes: true })
+    const files = []
+    for (const e of entries) {
+      const full = path.join(dir, e.name)
+      if (e.isDirectory()) files.push(...walkTests(full))
+      else if (e.name.endsWith('.test.ts')) files.push(full)
+    }
+    return files
+  }
+  const testFiles = walkTests(path.join(process.cwd(), 'tests'))
+  const redTests = []
+  for (const f of testFiles) {
+    const lines = readFileSync(f, 'utf8').split('\n')
+    lines.forEach((line, i) => {
+      if (line.includes('it.skip(') && line.includes('// @red')) {
+        const rel = path.relative(process.cwd(), f).replace(/\\/g, '/')
+        redTests.push(`  ${rel}:${i + 1}`)
+      }
+    })
+  }
+  if (redTests.length > 0) {
+    console.log('')
+    console.log(` ⚠  ${redTests.length} RED test(s) still pending GREEN implementation:`)
+    redTests.forEach((t) => console.log(t))
+    console.log(' Remove it.skip and implement the module to clear these.')
+  }
+} catch (_) {
+  // non-fatal — red test reporting is best-effort
+}
+
 process.exit(0)

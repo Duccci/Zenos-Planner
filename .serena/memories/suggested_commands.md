@@ -1,6 +1,7 @@
 # Suggested Commands
 
 ## Build
+
 ```powershell
 npm run build          # Compile TypeScript to dist/
 npm run dev            # Watch mode compilation
@@ -8,18 +9,21 @@ npm run clean          # Remove dist/
 ```
 
 ## CLI Usage (after build)
+
 ```powershell
 node bin/zeno.js <command>   # Run CLI directly
 # Or if installed globally: zeno <command>
 ```
 
 ## MCP Server
+
 ```powershell
 npm run mcp-server           # Run MCP server via ts-node
 node bin/mcp-server.js       # Run compiled MCP server
 ```
 
 ## Testing
+
 ```powershell
 npm test                     # Run all tests (vitest run)
 npm run test:watch           # Watch mode
@@ -28,6 +32,7 @@ npm run test:ui              # Vitest UI
 ```
 
 ## Linting & Formatting
+
 ```powershell
 npm run lint                 # ESLint src/
 npm run lint:fix             # ESLint with auto-fix
@@ -36,6 +41,7 @@ npm run typecheck            # tsc --noEmit (type check only)
 ```
 
 ## Git Utilities (Windows PowerShell)
+
 ```powershell
 git status
 git log --oneline -10
@@ -45,6 +51,7 @@ Select-String -Path "src/**/*.ts" -Pattern "pattern"  # like grep
 ```
 
 ## Zeno Project Management Commands
+
 Zeno-specific commands must be invoked via MCP server tools, not the CLI.
 
 | Task | MCP Tool |

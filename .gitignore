@@ -34,7 +34,6 @@ yarn-error.log*
 
 # Testing
 coverage/
-html/
 .nyc_output/
 
 # Temporary files

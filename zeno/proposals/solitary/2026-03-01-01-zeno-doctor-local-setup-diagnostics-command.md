@@ -38,6 +38,7 @@ Implements a `zeno doctor` CLI command that audits the local environment for all
 ### Why This Change
 
 Sourced from three open risks in the R&O Matrix (ro-matrix.md):
+
 - R-02 (L:4 I:3 Score:12) — Graphviz must be installed as a native binary; Windows users may not have it; silent failure hurts first impressions. Mitigation: add `zeno doctor` that verifies system deps and provides install instructions per platform.
 - R-03 (L:3 I:4 Score:12) — better-sqlite3 native binding compilation failures are common after Node.js version changes or on ARM/Windows. Mitigation: `zeno doctor` detects and reports binding failures with actionable remediation.
 - R-10 (L:4 I:3 Score:12) — High setup cost before any value is delivered (Graphviz + Node >= 24 + Git >= 2 + better-sqlite3 + LLM). Mitigation: `zeno doctor` checker as part of zero-config quickstart experience.
@@ -73,18 +74,21 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
 **RED Phase Tasks** (test-first, defining acceptance criteria):
+
 - Write tests covering happy path and error cases
 - Tests should fail before implementation (RED)
 - Use fixtures and mocks to isolate units
 - No implementation code in RED phase
 
 **GREEN Phase Tasks** (implementation following tests):
+
 - Implement only functions/methods covered by RED tests
 - Make RED tests pass (GREEN)
 - Do not add new tests beyond what RED defined
 - Verify all RED tests pass before marking complete
 
 **GREEN Phase Guardrails** (verification rules):
+
 - [ ] All changes implement only code specified in RED phase tests
 - [ ] No new test files created beyond those in RED phase
 - [ ] No new test cases added to existing test files
@@ -113,6 +117,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 Write failing tests for the doctor check functions
 
 **Acceptance**:
+
 - [ ] Tests cover each check: node version, git version, graphviz binary, better-sqlite3 binding, and overall pass/fail summary
 - [ ] Tests mock child_process and fs so they are hermetic and platform-independent
 - [ ] Tests assert check result shape: { id, label, status: 'ok'|'warn'|'fail', detail, fix }
@@ -128,6 +133,7 @@ Write failing tests for the doctor check functions
 Implement doctor check modules in src/cli/commands/doctor/
 
 **Acceptance**:
+
 - [ ] node-version check passes when Node.js >= 24.0.0, warns on >= 20 < 24, fails below 20
 - [ ] git-version check passes when Git >= 2.0.0, fails when not found
 - [ ] graphviz check passes when `dot -V` exits 0, fails with platform-specific install hint (brew/apt/choco/winget)
@@ -146,6 +152,7 @@ Implement doctor check modules in src/cli/commands/doctor/
 Wire doctor command into the CLI and implement formatted output
 
 **Acceptance**:
+
 - [ ] `zeno doctor` is registered as a CLI subcommand in src/cli/index.ts
 - [ ] Output renders a table with columns: Check | Status | Detail | Fix
 - [ ] Status column uses colored symbols: green check (ok), yellow warning (warn), red cross (fail)
@@ -164,6 +171,7 @@ Wire doctor command into the CLI and implement formatted output
 Integration smoke test and CI matrix validation
 
 **Acceptance**:
+
 - [ ] Integration test runs `zeno doctor --json` as a child process and parses output
 - [ ] Test asserts that node_version and git_version checks return 'ok' in the CI environment
 - [ ] Test asserts exit code 0 when all checks pass

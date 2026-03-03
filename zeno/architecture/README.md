@@ -22,6 +22,7 @@ This directory contains **forward-looking architecture diagrams and design docum
 | **`gate-roadmap.md`** | Sequential gate structure and parallel relationships | 1.0 | 1-14 |
 | **`mcp-workflows.md`** | Formal MCP state machine contracts for handlers | Latest | 1-14 |
 | **`ro-matrix.md`** | Risk & Opportunity register with heatmap — 10 risks, 8 opportunities derived from PRD analysis | 1.0.0 | 1-14 |
+| **`STRUCTURE.md`** | Canonical repo map: directory tree, module index, entry points, dependency flow, naming conventions, extension points | *(planned; not yet generated)* | 1-14 |
 
 ---
 
@@ -36,8 +37,8 @@ This directory contains **forward-looking architecture diagrams and design docum
 ### For Implementation
 
 1. Reference the **component status tables** in `system-overview.md` to see which gates deliver which components
-2. Check [`mcp-workflows.md`](../mcp-workflows.md) for formal state machine contracts that MCP handlers must enforce
-3. See [`../PROJECT_PRD.md`](../PROJECT_PRD.md) for technical decisions and rationale
+2. Check [`mcp-workflows.md`](mcp-workflows.md) for formal state machine contracts that MCP handlers must enforce
+3. See `PROJECT_PRD.md` (planned; not yet generated) for technical decisions and rationale
 
 ### For Planning Gate Work
 
@@ -156,7 +157,7 @@ After each gate completion, verify the following:
 
 ## Related Resources
 
-- **Project Scope & Decisions**: [`../PROJECT_PRD.md`](../PROJECT_PRD.md) — Technical decisions with rationale (why, not what)
+- **Project Scope & Decisions**: `PROJECT_PRD.md` *(planned; not yet generated)* — Technical decisions with rationale (why, not what)
 - **Gate Research & Details**: [`../gates/`](../gates/) — Gate-specific objectives and requirements
 - **Implementation**: [`../../src/`](../../src/) — Actual code organized by layer
 - **Requirements Database**: `.zeno/registry.db` — Queryable requirements per gate
@@ -164,6 +165,6 @@ After each gate completion, verify the following:
 
 ---
 
-**Last Updated**: 2026-02-23  
-**Maintained By**: jamesonBatworker  
+**Last Updated**: 2026-03-02
+**Maintained By**: jamesonBatworker
 **Status**: Lives! Updated after each gate (target: within 1 week of completion)

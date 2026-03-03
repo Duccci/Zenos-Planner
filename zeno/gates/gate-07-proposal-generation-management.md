@@ -39,6 +39,7 @@ During proposal generation the **task-distributor** agent (`agents/categories/09
 ### What Was Completed Before This Gate
 
 Gate 01-06 established:
+
 - Core infrastructure, CLI framework, SQLite database
 - Gate generation with iterative decomposition
 - MCP server and function registry
@@ -55,6 +56,7 @@ Gate 01-06 established:
 ### Scope Boundaries
 
 **In Scope**:
+
 - Proposal template system with markdown structure
 - Proposal generation from gate requirements
 - Specification changes recorded as RFC 2119-compliant requirement updates in SQLite
@@ -67,6 +69,7 @@ Gate 01-06 established:
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
+
 - Spec format parsing (OpenAPI, GraphQL, Protobuf) — specs are requirements in the database
 - Proposal versioning beyond Git history
 - Proposal-to-code file mapping

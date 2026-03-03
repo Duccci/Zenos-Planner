@@ -69,18 +69,21 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
 **RED Phase Tasks** (test-first, defining acceptance criteria):
+
 - Write tests covering happy path and error cases
 - Tests should fail before implementation (RED)
 - Use fixtures and mocks to isolate units
 - No implementation code in RED phase
 
 **GREEN Phase Tasks** (implementation following tests):
+
 - Implement only functions/methods covered by RED tests
 - Make RED tests pass (GREEN)
 - Do not add new tests beyond what RED defined
 - Verify all RED tests pass before marking complete
 
 **GREEN Phase Guardrails** (verification rules):
+
 - [ ] All changes implement only code specified in RED phase tests
 - [ ] No new test files created beyond those in RED phase
 - [ ] No new test cases added to existing test files
@@ -109,6 +112,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 Install and validate Tree-sitter Node.js bindings
 
 **Acceptance**:
+
 - [ ] tree-sitter and tree-sitter-<lang> grammar packages added as optional dependencies
 - [ ] A minimal spike script (tests/analysis/tree-sitter-spike.ts) successfully parses one .py, one .rs, one .go, and one .cpp fixture and prints node counts without error
 - [ ] npm run build succeeds; no TypeScript errors introduced
@@ -124,6 +128,7 @@ Install and validate Tree-sitter Node.js bindings
 Define the language-agnostic parser interface and Tree-sitter backend
 
 **Acceptance**:
+
 - [ ] LanguageBackend union type added to types.ts: 'babel' | 'tree-sitter'
 - [ ] TreeSitterParseResult interface defined with fields: filePath, language, nodeCount, rootNode, success, error
 - [ ] parseFileTreeSitter(filePath) exported from tree-sitter-parser.ts, detects language from extension, delegates to the correct grammar, returns TreeSitterParseResult
@@ -140,6 +145,7 @@ Define the language-agnostic parser interface and Tree-sitter backend
 Implement normalized metrics extraction from Tree-sitter ASTs
 
 **Acceptance**:
+
 - [ ] extractTreeSitterMetrics(result: TreeSitterParseResult): LineMetrics function exported
 - [ ] LOC counted by walking the Tree-sitter CST: totalLines, codeLines, commentLines, blankLines
 - [ ] Function/method definition nodes counted per language grammar for complexity estimation (cyclomatic approximation via branch node count)
@@ -156,6 +162,7 @@ Implement normalized metrics extraction from Tree-sitter ASTs
 Integrate Tree-sitter backend into CodeAnalyzer
 
 **Acceptance**:
+
 - [ ] AnalysisOptions gains optional enableTreeSitter?: boolean and treeSitterExtensions?: string[] fields (defaults: false, ['.py', '.rs', '.go', '.cpp', '.c', '.h'])
 - [ ] getFilesToAnalyze includes treeSitterExtensions when enableTreeSitter is true
 - [ ] analyzeCodebase calls parseFileTreeSitter for files matching treeSitterExtensions; Babel path unchanged for all other extensions
@@ -173,6 +180,7 @@ Integrate Tree-sitter backend into CodeAnalyzer
 Write comprehensive tests and update documentation
 
 **Acceptance**:
+
 - [ ] Fixture files added: tests/fixtures/sample.py, sample.rs, sample.go, sample.cpp (20-30 LOC each)
 - [ ] Tests cover: parse success, parse error recovery, LOC extraction accuracy (±2 lines), complexity node count >0 for files with functions/methods
 - [ ] Test coverage for src/analysis/tree-sitter-parser.ts and tree-sitter-metrics.ts ≥90%

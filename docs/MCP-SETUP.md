@@ -5,6 +5,7 @@
 Zeno exposes consolidated MCP tools that follow the *Entity Action* pattern. Each tool accepts an `action` discriminator and a `payload` envelope.
 
 Supported unified tools (examples):
+
 - `gates_action` — actions: `list`, `show`, `create`, `start`, `complete`, `regenerate`
 - `proposal_action` — actions: `list`, `show`, `create`, `validate`, `approve`, `reject`, `start`
 - `req_action` — actions: `list`, `show`, `create`, `update`, `delete` (implementation-specific)

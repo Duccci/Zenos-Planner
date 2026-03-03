@@ -7,7 +7,6 @@
 
 MCP Server & LLM Tool Integration implementation.
 
-
 ## Consolidated Proposals Summary
 
 *This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
@@ -34,6 +33,7 @@ MCP Server & LLM Tool Integration implementation.
 Creates centralized function registry exposing all Zeno operations as invocable functions with consistent signatures and error handling. Refactors CLI commands to delegate to the registry instead of direct implementation, ensuring CLI and MCP interfaces stay synchronized with a single source of truth. Defines complete Zod schema definitions for all MCP tool inputs and outputs. Covers gates, requirements, proposals, repositories, and analysis operations with proper validation, type safety, and error messaging. Schemas enable both runtime validation and TypeScript type inference for MCP tools. Implements the core MCP server using `@modelcontextprotocol/sdk` with stdio transport. Establishes server startup, tool registration, request handling, and structured error responses. All communication via stdio (local process-to-process, no network). Server becomes the operational backbone for Zeno execution, with CLI as a thin wrapper. Implements all MCP tool handlers that delegate to function registry with proper input validation, response formatting, and error handling. Covers ~20 tools across gates, requirements, proposals, repositories, analysis, templates, and configuration. Each tool provides structured output that LLMs can easily parse and act upon. Implements editor integrations for the MCP server (VS Code, Cursor, Windsurf) including configuration templates, lightweight adapter options, tool discovery, native Chat view (where available) integration, and comprehensive documentation. Enables VS Code Copilot, Cursor (VS Code-based), and Windsurf to discover and invoke Zeno tools natively with full type safety and automatic tool picker population while minimizing overhead for the end user (single config, one-step enablement, no global installs). Implements development tooling and diagnostics for MCP server including file watching with auto-restart, health checks, error logging, and troubleshooting guides. Enables developers to test tool changes locally during development and helps diagnose MCP server issues in production. Implements comprehensive test suite for entire MCP layer achieving 90%+ code coverage. Covers unit tests for schemas and tools, integration tests for MCP server and tool invocation, end-to-end tests for all four prompt workflows, and performance tests ensuring <100ms tool latency. All tests validate that LLMs can successfully invoke Zeno operations.
 
 **Artifacts Created**:
+
 - `src/mcp/schemas/common-schemas.ts` - 250+ lines, common Zod schemas (enums, identifiers, errors, pagination, templates, config)
 - `src/mcp/schemas/gate-schemas.ts` - 200+ lines, gate operation schemas (5 operations)
 - `src/mcp/schemas/requirement-schemas.ts` - 220+ lines, requirement operation schemas (5 operations)
@@ -59,6 +59,7 @@ Creates centralized function registry exposing all Zeno operations as invocable 
 - VS Code diagnostics documentation updates
 
 **Quality Metrics**:
+
 - Total Coverage: 93.75%
 - Total Files Modified: 41
 - Total Tasks Completed: 45

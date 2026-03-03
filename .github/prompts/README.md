@@ -24,5 +24,5 @@ YAML frontmatter + Markdown instructions, compatible with VS Code and Ollama.
 ## Reference
 
 - `AGENTS.md` (root) - Tool usage and quick reference
-- `zeno/AGENTS.md` - Project-specific conventions
+- `zeno/README.md` - Project-specific conventions (load on-demand)
 - `zeno/PROJECT_PRD.md` - Project requirements and scope

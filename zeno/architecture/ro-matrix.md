@@ -82,7 +82,7 @@ digraph RiskOpportunityHeatmap {
                 <TD BGCOLOR="#c3e2fc"><FONT POINT-SIZE="9"> </FONT></TD>
                 <TD BGCOLOR="#fffcf2"><FONT POINT-SIZE="9"> </FONT></TD>
                 <TD BGCOLOR="#ffecb3"><FONT POINT-SIZE="9"> </FONT></TD>
-                <TD BGCOLOR="#f9c268"><B><FONT COLOR="black" POINT-SIZE="9">R-07</FONT></B></TD>
+                <TD BGCOLOR="#f9c268"><B><FONT COLOR="black" POINT-SIZE="8">R-07<BR/>R-11</FONT></B></TD>
                 <TD BGCOLOR="#e5a03d"><B><FONT COLOR="white" POINT-SIZE="9">R-03</FONT></B></TD>
                 <TD BGCOLOR="#b93535"><FONT COLOR="white" POINT-SIZE="9"> </FONT></TD>
             </TR>
@@ -136,11 +136,12 @@ Regenerate SVG: `dot -Tsvg dot-diagrams/ro-matrix-heatmap.dot -o dot-diagrams/ro
 | R-03 | Technical | **better-sqlite3 Native Binding Compilation** — Listed as a known blocker. Native module rebuild failures are common on Node.js version changes or ARM/Windows environments; Node.js >= 24.0.0 shrinks the supported platform base. | 3 | 4 | 12 | `zeno doctor` detects and reports native binding failures at startup with actionable remediation steps. Also: validate on all target platforms early (CI matrix: Windows/Mac/Linux × x64/ARM), pin Node.js to an LTS version, and document manual rebuild steps. | Project Lead | `mitigated` | 2026-03-31 |
 | R-04 | Technical | **AST Parsing Performance on Large Codebases** — Zeno's purpose includes decomposing monorepos; scanning is a targeted, infrequent planning operation — not a CI hot path. Called rarely; results are cached. | 2 | 2 | 4 | Implement incremental analysis (changed files only) and cache results between runs. Low priority given infrequent invocation pattern. | Project Lead | `monitoring` | 2026-06-30 |
 | R-05 | Technical | **Gate Generation Quality Regression** *(mitigated by architecture)* — The `architecture/` directory and AGENTS.md capture cross-gate context as artifacts, so each gate generation call only needs the current gate PRD — preventing cumulative context bloat. | 3 | 4 | 12 | Mitigated by architecture: gate PRDs scope LLM context per gate; architecture dir persists cross-gate state as durable artifacts rather than in-prompt history. | Project Lead | `mitigated` | 2026-02-28 |
-| R-06 | Technical | **Hash Collision or Drift** — SHA-256 first-16-char hashes used as immutable references. Content-identical entities in different paths could produce hash collisions in the registry, causing silent requirement cross-contamination. | 2 | 5 | 10 | Add collision detection on registry insert, enforce uniqueness constraint in SQLite, and log a warning if a new hash matches an existing entity with different metadata. | Project Lead | `open` | 2026-06-30 |
+| R-06 | Technical | **Hash Collision or Drift** — SHA-256 first-16-char hashes used as immutable references. Content-identical entities in different paths could produce hash collisions in the registry, causing silent requirement cross-contamination. | 2 | 5 | 10 | **Accepted.** SHA-256 16-char collision probability is ~1 in 2^64 operations — negligible at Zeno's scale. Adding runtime collision detection was evaluated and removed (PRD §3: hashes are immutable by design; detection logic contradicts that invariant). SQLite `PRIMARY KEY` on the hash column already enforces uniqueness at the DB level; an insert collision will surface as a hard error rather than silent contamination. | Project Lead | `accepted` | 2026-03-03 |
 | R-07 | Technical | **Orphaned Git Worktrees on Windows** — `git worktree` on Windows has edge cases (locked `.git` handles, path length limits >260 chars). An orphaned worktree that cannot be pruned could block future proposal starts. | 3 | 3 | 9 | Test worktree lifecycle on Windows CI, enforce short worktree path names, implement force-prune with error logging, and keep sequential fallback available for Windows. | Project Lead | `open` | 2026-03-31 |
 | R-08 | Schedule | **MVP Scope Creep via Post-MVP Abstractions** *(closed)* — Gate 13 is correctly deferred for decomposition into multiple focused future gates. The PRD technical decisions for Gate 13 are forward-looking documentation, not active MVP implementation scope. | 4 | 2 | 8 | Gate 13 decomposed into future gates. Post-MVP boundary clearly marked in PRD. Technical decisions are design intent documentation, not Gates 5–12 scope. | Project Lead | `closed` | 2026-02-28 |
 | R-09 | Technical | **Minimalist DB Schema Rigidity** — Partially mitigated by design: parser helper methods cover derived data (e.g. proposal dependencies from Markdown) without requiring additional DB tables. Schema is intentionally right-sized for operational queries only. | 1 | 2 | 2 | Parser helper methods handle on-demand derived data; Gate 11 is the designated review point to add tables if justified. Low likelihood given helper method coverage. | Project Lead | `monitoring` | 2026-06-30 |
 | R-10 | Resource | **Single-Developer Adoption Barrier** — Target user is a solo developer but setup requires: Graphviz, Node >= 24, Git >= 2, better-sqlite3 native compilation, and an LLM with agent execution. High setup cost before any value is delivered. | 4 | 3 | 12 | Provide a `npx zeno-init` zero-config quickstart, a `zeno doctor` checker, and Docker-based fallback for environments where native deps are difficult. | Project Lead | `open` | 2026-03-31 |
+| R-11 | Technical | **Zeno Overhead Contributing to Context Rot** — As a project grows, Zeno's own accumulated artifacts (gate PRDs, proposals, architecture docs, AGENTS.md, STRUCTURE.md) can exceed practical LLM context limits when loaded together. Agents that ignore lazy-loading instructions may silently degrade in generation quality, causing subtle hallucinations or missed constraints. Distinct from R-05 (single-gate bloat): this risk concerns cumulative, cross-gate artifact growth. | 3 | 3 | 9 | Enforce lazy-loading rules in AGENTS.md (already present); add a `zeno doctor --context-size` command that measures the total byte-size of all architecture and gate artifacts and warns when approaching a configurable threshold. Consider consolidation pass tooling for long-running projects. | Project Lead | `open` | 2026-06-30 |
 
 ---
 
@@ -171,6 +172,7 @@ Regenerate SVG: `dot -Tsvg dot-diagrams/ro-matrix-heatmap.dot -o dot-diagrams/ro
 | R-03 | O-04 | Resolving R-03 (platform CI matrix) is prerequisite for O-04 | The GitHub Action must succeed on GitHub-hosted runners (Ubuntu/macOS/Windows) without user intervention. |
 | R-10 | O-01 | Reducing R-10 (setup friction) accelerates O-01 | A painful setup experience undermines first-mover advantage; zero-config onboarding is part of winning the MCP market. |
 | R-07 | O-02 | Resolving R-07 (Windows worktree stability) unblocks O-02 | An IDE extension that wraps worktree operations must be rock-solid on Windows before shipping. |
+| R-11 | R-05 | R-11 is the cumulative/cross-gate complement of R-05 | R-05 mitigates per-gate context bloat via scoped PRDs; R-11 addresses the long-term growth of all Zeno artifacts across the project lifetime. Both mitigations must hold for context quality to remain stable. |
 
 ---
 
@@ -181,11 +183,12 @@ Regenerate SVG: `dot -Tsvg dot-diagrams/ro-matrix-heatmap.dot -o dot-diagrams/ro
 | 2026-02-28 | Project Lead | Initial version — populated from PRD analysis | 2026-03-31 |
 | 2026-02-28 | Project Lead | Rev 2 — closed R-01/R-08, mitigated R-05, lowered R-04 (L:2 I:2) and R-09 (L:1 I:2); updated O-02 (multi-IDE), O-03 (multi-submodule), O-05/O-06/O-08 (pursuing + proposals); regenerated SVG | 2026-06-30 |
 | 2026-03-01 | Project Lead | Rev 3 — created solitary proposal `#d379f29e` for O-08 (`zeno onboarding` interactive guided first-run experience); updated O-08 notes with hash reference | 2026-06-30 |
+| 2026-03-02 | Project Lead | Rev 4 — added R-11 (Zeno overhead contributing to context rot, L:3 I:3 Score:9); updated heatmap, risk register, R-O interactions table | 2026-06-30 |
 
 ---
 
-**Document Version**: 1.2.0
-**Last Updated**: 2026-03-01
+**Document Version**: 1.3.0
+**Last Updated**: 2026-03-02
 **Owner**: Project Lead
 
 ### Change Log
@@ -195,3 +198,4 @@ Regenerate SVG: `dot -Tsvg dot-diagrams/ro-matrix-heatmap.dot -o dot-diagrams/ro
 | 1.0.0   | 2026-02-28 | Initial version | Project Lead |
 | 1.1.0   | 2026-02-28 | Close R-01/R-08, mitigate R-05, downgrade R-04/R-09; expand O-02 to multi-IDE, O-03 to multi-submodule; mark O-05/O-06/O-08 pursuing | Project Lead |
 | 1.2.0   | 2026-03-01 | Assign proposal hash `#d379f29e` to O-08 notes; Rev 3 review log entry | Project Lead |
+| 1.3.0   | 2026-03-02 | Add R-11 (Zeno context overhead / context rot); update heatmap, interactions, and review log | Project Lead |

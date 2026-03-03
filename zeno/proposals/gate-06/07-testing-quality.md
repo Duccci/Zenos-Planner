@@ -1,9 +1,9 @@
 # Proposal: Testing & Quality
 
-**Hash**: #cd07d597  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #4bc74e36854c4221  
-**Status**: pending  
+**Hash**: #cd07d597
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #4bc74e36854c4221
+**Status**: pending
 **Created**: 2026-03-01
 
 ---
@@ -54,8 +54,8 @@ Gate 06 requires integration testing that validates the full request path from M
 
 ### Task 1: Enhance integration test to use real database operations
 
-**Phase**: GREEN  
-**File(s)**: `tests/mcp/tools/repository-handlers.integration.test.ts`  
+**Phase**: GREEN
+**File(s)**: `tests/mcp/tools/repository-handlers.integration.test.ts`
 **Action**: modify
 
 Replace the mocked `FunctionRegistry` in the existing integration test with a real registry backed by a temporary SQLite database. Register the actual `registerRepositoryOps` functions. Each test should exercise the full path: invoke registry function → storage module → SQLite → return. Use `beforeEach`/`afterEach` to create and destroy a temporary database per test. Validate return values against the Zod output schemas.
@@ -73,11 +73,11 @@ Replace the mocked `FunctionRegistry` in the existing integration test with a re
 
 ### Task 2: Validate database schema conformance
 
-**Phase**: GREEN  
-**File(s)**: `src/storage/database.ts`  
+**Phase**: GREEN
+**File(s)**: `src/storage/database.ts`
 **Action**: modify
 
-Extend `validateSchema()` to verify the `repo_dependencies` table exists alongside the existing `repositories` table check. This ensures migration 006 has been applied before any repository dependency operations are attempted.
+Extend `validateSchema()` to verify the `repo_dependencies` table exists alongside the existing `repositories` table check. This ensures the schema has been applied before any repository dependency operations are attempted.
 
 **Acceptance**:
 
@@ -100,7 +100,7 @@ Extend `validateSchema()` to verify the `repo_dependencies` table exists alongsi
 
 ## Implementation Notes
 
-Use `tmp` directory for temporary databases (pattern: `path.join(os.tmpdir(), 'zeno-test-' + randomId)`). Import `getDatabase` with temporary project root to get isolated database. Run migrations programmatically before each test suite. The existing test structure has 5 tests that can be enhanced in-place.
+Use `tmp` directory for temporary databases (pattern: `path.join(os.tmpdir(), 'zeno-test-' + randomId)`). Import `getDatabase` with temporary project root to get isolated database. Apply the canonical schema programmatically before each test suite. The existing test structure has 5 tests that can be enhanced in-place.
 
 ---
 
@@ -110,10 +110,10 @@ Use `tmp` directory for temporary databases (pattern: `path.join(os.tmpdir(), 'z
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log
