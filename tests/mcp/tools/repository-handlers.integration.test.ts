@@ -30,7 +30,7 @@ describe('Repository Handlers (integration)', () => {
     const res = await handlers.repos_action({ action: 'list', payload: {} })
 
     expect(res.isError).toBe(true)
-    const text = res.content?.[0]?.text ? String(res.content?.[0]?.text) : ''
+    const text = (res.content?.[0] as { text?: string } | undefined)?.text ?? ''
     expect(text.toLowerCase()).toContain('backend')
   })
 

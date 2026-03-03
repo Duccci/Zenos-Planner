@@ -119,3 +119,21 @@ export const ReposAdjustOutputSchema = z.object({
   summary: z.string().optional()
 })
 export type ReposAdjustOutput = z.infer<typeof ReposAdjustOutputSchema>
+
+// ============================================================================
+// REPOS_ADD / REPOS_REMOVE — placeholder schemas for future actions (@red)
+// ============================================================================
+
+export const ReposAddOutputSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: RepositoryTypeEnum,
+  path: z.string()
+})
+export type ReposAddOutput = z.infer<typeof ReposAddOutputSchema>
+
+export const ReposRemoveOutputSchema = z.object({
+  removed: z.boolean(),
+  repositoryId: z.string()
+})
+export type ReposRemoveOutput = z.infer<typeof ReposRemoveOutputSchema>
