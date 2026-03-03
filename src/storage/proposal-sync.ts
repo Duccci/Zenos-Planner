@@ -78,8 +78,8 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
   const folderName = gateMatch?.[1] ?? null
   const gateId = folderName === 'solitary' ? null : folderName
 
-  // Requirement: **Requirement**: <text> (informational only, not a FK in the schema)
-  const reqMatch = /\*\*Requirement\*\*:\s*(.+)/.exec(content)
+  // Requirement: **Requirement**: #<hash> — strip leading '#' to store raw hash
+  const reqMatch = /\*\*Requirement\*\*:\s*#?([a-zA-Z0-9_-]+)/.exec(content)
   const requirementId = reqMatch?.[1]?.trim() ?? null
 
   // Created: **Created**: <date>
@@ -108,11 +108,6 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
  * are owned exclusively by the DB and are never overwritten by a file scan. This
  * ensures that proposals approved/rejected/assigned to gates retain their state
  * even if the `.md` file is edited directly.
- *
- * **Note on Dependencies:**
- * Proposal dependencies are derived from proposal references (e.g., "requires: #hash").
- * Dependencies are NOT stored as a separate database table (per minimalist design).
- * If dependency queries are needed, use parseProposalDependencies() to extract from markdown.
  */
 export function syncProposalsFromDisk(
   db: Database.Database,
@@ -122,16 +117,20 @@ export function syncProposalsFromDisk(
 
   const nowIso = new Date().toISOString()
   const upsert = db.prepare(`
-    INSERT INTO proposals (id, gate_id, title, status, hash, created_at, updated_at)
-    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?)
+    INSERT INTO proposals (id, gate_id, requirement_id, title, status, hash, created_at, updated_at)
+    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(hash) DO UPDATE SET
-      title      = excluded.title,
-      gate_id    = CASE
+      title          = excluded.title,
+      requirement_id = COALESCE(excluded.requirement_id, proposals.requirement_id),
+      gate_id        = CASE
         WHEN proposals.status IN ('approved', 'completed') THEN proposals.gate_id
         ELSE excluded.gate_id
       END,
-      updated_at = excluded.updated_at
+      updated_at     = excluded.updated_at
   `)
+  // Used to validate FK before inserting: prevents FK constraint violations when
+  // the referenced requirement doesn't exist in the DB yet.
+  const requirementExists = db.prepare('SELECT 1 FROM requirements WHERE id = ? LIMIT 1')
 
   const syncAll = db.transaction(() => {
     const seenHashes = new Map<string, string>() // hash -> filePath
@@ -160,7 +159,13 @@ export function syncProposalsFromDisk(
       }
       seenHashes.set(meta.hash, filePath)
 
-      upsert.run(meta.gateId, meta.title, meta.status, meta.hash, normalizeDateTime(meta.createdAt, nowIso), nowIso)
+      // Only persist requirement_id if it references an existing requirement row (FK safe)
+      const resolvedRequirementId =
+        meta.requirementId && requirementExists.get(meta.requirementId)
+          ? meta.requirementId
+          : null
+
+      upsert.run(meta.gateId, resolvedRequirementId, meta.title, meta.status, meta.hash, normalizeDateTime(meta.createdAt, nowIso), nowIso)
     }
   })
 

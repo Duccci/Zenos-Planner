@@ -1,22 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, copyFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import Database from 'better-sqlite3'
 import {
-  getAppliedMigrations,
-  getMigrationStatus,
   runMigrations,
 } from '../../src/storage/migrations.js'
 import { getDatabase, closeDatabase } from '../../src/storage/database.js'
 
 const TEST_DIR = join(tmpdir(), `.test-migrations-${Date.now()}`)
 
+/** Copy schema.sql from the project into the temp test directory. */
+async function copySchema(testDir: string): Promise<void> {
+  const src = join(process.cwd(), 'src', 'storage', 'migrations', 'schema.sql')
+  const dest = join(testDir, 'src', 'storage', 'migrations', 'schema.sql')
+  await mkdir(join(testDir, 'src', 'storage', 'migrations'), { recursive: true })
+  await copyFile(src, dest)
+}
+
 describe('migration system', () => {
   beforeEach(async () => {
     await mkdir(TEST_DIR, { recursive: true })
-    await mkdir(join(TEST_DIR, 'src', 'storage', 'migrations'), { recursive: true })
   })
 
   afterEach(async () => {
@@ -30,147 +34,57 @@ describe('migration system', () => {
     }
   })
 
-  describe('getAppliedMigrations', () => {
-    it('returns empty array for new database', () => {
-      const db = getDatabase(TEST_DIR)
-      const migrations = getAppliedMigrations(db)
-      expect(migrations).toEqual([])
-    })
-
-    it('creates migrations table if missing', () => {
-      const db = getDatabase(TEST_DIR)
-      getAppliedMigrations(db)
-
-      const tableExists = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'")
-        .get() as { name: string } | undefined
-
-      expect(tableExists).toBeDefined()
-    })
-  })
-
-  describe('getMigrationStatus', () => {
-    it('identifies pending migrations', async () => {
-      // Create a migration file
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_test.sql'),
-        'CREATE TABLE IF NOT EXISTS test_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-
-      const db = getDatabase(TEST_DIR)
-      const status = await getMigrationStatus(db, TEST_DIR)
-
-      expect(status.applied).toEqual([])
-      expect(status.pending).toContain('001_test.sql')
-    })
-
-    it('identifies applied migrations', async () => {
-      // Create and apply a migration
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_test.sql'),
-        'CREATE TABLE IF NOT EXISTS test_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-
-      const db = getDatabase(TEST_DIR)
-      await runMigrations(db, TEST_DIR)
-
-      const status = await getMigrationStatus(db, TEST_DIR)
-      expect(status.applied.length).toBe(1)
-      expect(status.pending).toEqual([])
-    })
-  })
-
   describe('runMigrations', () => {
-    it('applies pending migrations in order', async () => {
-      // Create multiple migrations
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_first.sql'),
-        'CREATE TABLE IF NOT EXISTS first_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '002_second.sql'),
-        'CREATE TABLE IF NOT EXISTS second_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-
-      const db = getDatabase(TEST_DIR)
-      const applied = await runMigrations(db, TEST_DIR)
-
-      expect(applied).toBe(2)
-
-      // Verify tables created
-      const firstTable = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='first_table'")
-        .get() as { name: string } | undefined
-      const secondTable = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='second_table'")
-        .get() as { name: string } | undefined
-
-      expect(firstTable).toBeDefined()
-      expect(secondTable).toBeDefined()
-    })
-
-    it('records applied migrations', async () => {
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_test.sql'),
-        'CREATE TABLE IF NOT EXISTS test_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-
+    it('creates all required tables on a fresh database', async () => {
+      await copySchema(TEST_DIR)
       const db = getDatabase(TEST_DIR)
       await runMigrations(db, TEST_DIR)
 
-      const applied = getAppliedMigrations(db)
-      expect(applied.length).toBe(1)
-      expect(applied[0]?.name).toBe('001_test.sql')
+      for (const table of ['gates', 'repositories', 'requirements', 'proposals', 'metrics_snapshots']) {
+        const row = db
+          .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+          .get(table) as { name: string } | undefined
+        expect(row, `table '${table}' should exist`).toBeDefined()
+      }
     })
 
-    it('returns 0 when no pending migrations', async () => {
+    it('returns 1 on first apply (fresh database)', async () => {
+      await copySchema(TEST_DIR)
       const db = getDatabase(TEST_DIR)
-      const applied = await runMigrations(db, TEST_DIR)
-      expect(applied).toBe(0)
+      const result = await runMigrations(db, TEST_DIR)
+      expect(result).toBe(1)
     })
 
-    it('applies migrations in numeric order', async () => {
-      // Create migrations out of order
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '002_second.sql'),
-        'CREATE TABLE IF NOT EXISTS second_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_first.sql'),
-        'CREATE TABLE IF NOT EXISTS first_table (id TEXT PRIMARY KEY);',
-        'utf-8'
-      )
+    it('returns 0 on subsequent apply (already initialised)', async () => {
+      await copySchema(TEST_DIR)
+      const db = getDatabase(TEST_DIR)
+      await runMigrations(db, TEST_DIR)
+      const result = await runMigrations(db, TEST_DIR)
+      expect(result).toBe(0)
+    })
 
+    it('is idempotent — running twice does not throw', async () => {
+      await copySchema(TEST_DIR)
+      const db = getDatabase(TEST_DIR)
+      await expect(runMigrations(db, TEST_DIR)).resolves.not.toThrow()
+      await expect(runMigrations(db, TEST_DIR)).resolves.not.toThrow()
+    })
+
+    it('also creates requirement_gate_links table', async () => {
+      await copySchema(TEST_DIR)
       const db = getDatabase(TEST_DIR)
       await runMigrations(db, TEST_DIR)
 
-      const applied = getAppliedMigrations(db)
-      expect(applied[0]?.name).toBe('001_first.sql')
-      expect(applied[1]?.name).toBe('002_second.sql')
+      const row = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='requirement_gate_links'")
+        .get() as { name: string } | undefined
+      expect(row).toBeDefined()
     })
 
-    it('runs migrations in transaction', async () => {
-      // Create a migration that will fail
-      await writeFile(
-        join(TEST_DIR, 'src', 'storage', 'migrations', '001_bad.sql'),
-        'CREATE TABLE IF NOT EXISTS test_table (id TEXT PRIMARY KEY);\nINVALID SQL SYNTAX;',
-        'utf-8'
-      )
-
+    it('throws DatabaseError when schema.sql is missing', async () => {
+      // Do NOT copy schema — migrations dir will be absent
       const db = getDatabase(TEST_DIR)
-
-      await expect(runMigrations(db, TEST_DIR)).rejects.toThrow()
-
-      // Verify migration was not recorded
-      const applied = getAppliedMigrations(db)
-      expect(applied.length).toBe(0)
+      await expect(runMigrations(db, TEST_DIR)).rejects.toThrow('Failed to read schema.sql')
     })
   })
 })
-

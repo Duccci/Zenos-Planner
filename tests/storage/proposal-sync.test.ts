@@ -284,4 +284,127 @@ Archived proposal.
     // Should not throw
     expect(() => syncProposalsFromDisk(db, TEST_DIR)).not.toThrow()
   })
+
+  it('persists requirement_id from **Requirement**: frontmatter when the requirement exists', async () => {
+    await initializeDatabase(TEST_DIR)
+    const db = getDatabase(TEST_DIR)
+
+    // Create gate and a matching requirement
+    db.prepare(
+      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run('gate-05', 5, 'Req Link Test', 'pending', 'feature', 'gate05hash')
+    db.prepare(
+      'INSERT INTO requirements (id, hash, type, priority, level, source, description, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('req1234567890abcd', 'req1234567890abcd', 'functional', 'must', 'gate', 'generated', 'Test requirement', 'default-project')
+
+    const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-05')
+    await mkdir(proposalsDir, { recursive: true })
+    await writeFile(
+      join(proposalsDir, 'req-link.md'),
+      `# Proposal: Req Link
+
+**Hash**: #reqlink01
+**Status**: pending
+**Requirement**: #req1234567890abcd
+**Created**: 2026-02-18
+
+Content.
+      `.trim()
+    )
+
+    syncProposalsFromDisk(db, TEST_DIR)
+
+    const row = db
+      .prepare('SELECT requirement_id FROM proposals WHERE hash = ?')
+      .get('reqlink01') as { requirement_id: string | null } | undefined
+    expect(row?.requirement_id).toBe('req1234567890abcd')
+  })
+
+  it('sets requirement_id to null when the referenced requirement does not exist (FK guard)', async () => {
+    await initializeDatabase(TEST_DIR)
+    const db = getDatabase(TEST_DIR)
+
+    db.prepare(
+      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run('gate-06', 6, 'FK Guard Test', 'pending', 'feature', 'gate06hash')
+
+    const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-06')
+    await mkdir(proposalsDir, { recursive: true })
+    await writeFile(
+      join(proposalsDir, 'missing-req.md'),
+      `# Proposal: Missing Req
+
+**Hash**: #missingreq1
+**Status**: pending
+**Requirement**: #doesnotexist0000
+**Created**: 2026-02-18
+
+Content.
+      `.trim()
+    )
+
+    // Should not throw despite the referenced requirement not existing
+    expect(() => syncProposalsFromDisk(db, TEST_DIR)).not.toThrow()
+
+    const row = db
+      .prepare('SELECT requirement_id FROM proposals WHERE hash = ?')
+      .get('missingreq1') as { requirement_id: string | null } | undefined
+    expect(row?.requirement_id).toBeNull()
+  })
+
+  it('preserves existing requirement_id across syncs when new sync has no value', async () => {
+    await initializeDatabase(TEST_DIR)
+    const db = getDatabase(TEST_DIR)
+
+    db.prepare(
+      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run('gate-07', 7, 'Preserve Req', 'pending', 'feature', 'gate07hash')
+    db.prepare(
+      'INSERT INTO requirements (id, hash, type, priority, level, source, description, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run('preserved00000000', 'preserved00000000', 'functional', 'must', 'gate', 'generated', 'Preserved req', 'default-project')
+
+    const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-07')
+    await mkdir(proposalsDir, { recursive: true })
+    const proposalPath = join(proposalsDir, 'preserve-req.md')
+
+    // First sync — with requirement
+    await writeFile(
+      proposalPath,
+      `# Proposal: Preserve Req
+
+**Hash**: #preservereq1
+**Status**: pending
+**Requirement**: #preserved00000000
+**Created**: 2026-02-18
+
+Content.
+      `.trim()
+    )
+    syncProposalsFromDisk(db, TEST_DIR)
+
+    const before = db
+      .prepare('SELECT requirement_id FROM proposals WHERE hash = ?')
+      .get('preservereq1') as { requirement_id: string | null } | undefined
+    expect(before?.requirement_id).toBe('preserved00000000')
+
+    // Second sync — file updated, no Requirement line
+    await writeFile(
+      proposalPath,
+      `# Proposal: Preserve Req Updated
+
+**Hash**: #preservereq1
+**Status**: pending
+**Created**: 2026-02-18
+
+Updated content with no Requirement line.
+      `.trim()
+    )
+    syncProposalsFromDisk(db, TEST_DIR)
+
+    // COALESCE(excluded.requirement_id, proposals.requirement_id) keeps original value
+    const after = db
+      .prepare('SELECT requirement_id FROM proposals WHERE hash = ?')
+      .get('preservereq1') as { requirement_id: string | null } | undefined
+    expect(after?.requirement_id).toBe('preserved00000000')
+  })
 })

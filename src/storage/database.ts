@@ -11,6 +11,7 @@ import { mkdirSync } from 'node:fs'
 import { ensureDir } from '../utils/file.js'
 import { getZenoDir } from '../utils/config.js'
 import { DatabaseError } from '../utils/errors.js'
+import { writeRequirementsManifest } from './requirements-sync.js'
 
 /** Database instance singleton */
 let dbInstance: Database.Database | null = null
@@ -237,12 +238,13 @@ export interface DatabaseInitResult {
  * @param projectRoot - Project root directory (default: process.cwd())
  * @param options - Configuration options
  * @param options.syncProposals - Sync proposal files from disk (default: false)
+ * @param options.syncRequirements - Restore requirements from version-controlled manifest (default: false)
  * @returns Initialization result
  * @throws DatabaseError if initialization fails
  */
 export async function initializeDatabase(
   projectRoot: string = process.cwd(),
-  options: { syncProposals?: boolean } = {}
+  options: { syncProposals?: boolean; syncRequirements?: boolean } = {}
 ): Promise<DatabaseInitResult> {
   try {
     // Ensure .zeno directory exists
@@ -280,6 +282,26 @@ export async function initializeDatabase(
         syncProposalsFromDisk(db, projectRoot)
       } catch {
         // Non-fatal: proposals dir may not exist yet on a fresh project
+      }
+    }
+
+    // Restore requirements from the version-controlled manifest if requested.
+    // Recovers project-level and solitary-proposal requirements whose only other
+    // persistence path (the DB) was wiped or has not yet been populated.
+    if (options.syncRequirements) {
+      try {
+        const { syncRequirementsFromDisk } = await import('./requirements-sync.js')
+        syncRequirementsFromDisk(db, projectRoot)
+
+        // After syncing from disk, write the manifest back to ensure it's current.
+        // This captures any requirements that were restored from the manifest or exist
+        // in the database, ensuring consistency between DB and manifest.
+        writeRequirementsManifest(db, projectRoot)
+      } catch (error) {
+        logger.warn(
+          `Failed to sync requirements: ${error instanceof Error ? error.message : String(error)}`
+        )
+        // Non-fatal: manifest may not exist yet on a fresh project
       }
     }
 
