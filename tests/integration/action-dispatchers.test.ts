@@ -89,8 +89,7 @@ describe('Proposal Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('list')
-    expect(parsed.result.proposals).toEqual(mockProposals)
+    expect(parsed.proposals).toEqual(mockProposals)
   })
 
   it('should dispatch show action correctly', async () => {
@@ -114,8 +113,7 @@ describe('Proposal Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('show')
-    expect(parsed.result.hash).toBe('prop0001')
+    expect(parsed.hash).toBe('prop0001')
   })
 
   it('should dispatch create action correctly', async () => {
@@ -141,14 +139,13 @@ describe('Proposal Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('create')
-    expect(parsed.result.hash).toBe('prop0002')
+    expect(parsed.hash).toBe('prop0002')
   })
 
   it('should dispatch validate action correctly', async () => {
     const mockValidation = {
       hash: 'prxy0001',
-      passed: true,
+      passedQuantitative: true,
       issues: [],
       summary: 'All checks passed',
     }
@@ -162,8 +159,7 @@ describe('Proposal Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('validate')
-    expect(parsed.result.passed).toBe(true)
+    expect(parsed.passedQuantitative).toBe(true)
   })
 
   it('should dispatch approve action correctly', async () => {
@@ -202,8 +198,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('approve')
+    expect(result.isError).toBeUndefined()
   })
 
   it('should dispatch reject action correctly', async () => {
@@ -233,11 +228,7 @@ describe('Proposal Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    if (!parsed.action) {
-      console.log('Reject error response:', JSON.stringify(parsed, null, 2))
-    }
-    expect(parsed.action).toBe('reject')
-    expect(parsed.result.reason).toBe('Requires changes')
+    expect(parsed.reason).toBe('Requires changes')
   })
 
   it('should dispatch start action correctly', async () => {
@@ -246,7 +237,7 @@ describe('Proposal Action Dispatcher', () => {
       hash: 'prxy0001',
       title: 'Test',
       description: 'Test',
-      status: 'pending',
+      status: 'validated',
       gateId: 'gate-01',
       tasks: [],
       lastUpdated: now,
@@ -265,7 +256,7 @@ describe('Proposal Action Dispatcher', () => {
     })
     registry.setMockResult('proposal_start', {
       hash: 'prxy0001',
-      previousStatus: 'pending',
+      previousStatus: 'validated',
       newStatus: 'in_progress',
       startedAt: now,
     })
@@ -273,11 +264,18 @@ describe('Proposal Action Dispatcher', () => {
     const result = await handlers.proposal_action({
       action: 'start',
       hash: 'prxy0001',
+      preReview: {
+        phase: 'apply',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        filesVerified: true,
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('start')
+    expect(result.isError).toBeUndefined()
   })
 
   it('should handle unknown action gracefully', async () => {
@@ -331,7 +329,7 @@ describe('Gates Action Dispatcher', () => {
         description: 'Second gate',
         sequence: 2,
         status: 'in_progress',
-        type: 'infrastructure',
+        type: 'quality',
         lastUpdated: now,
         proposalCount: 1,
         completedProposalCount: 0,
@@ -352,8 +350,7 @@ describe('Gates Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('list')
-    expect(parsed.result.gates).toEqual(mockGates)
+    expect(parsed.gates).toEqual(mockGates)
   })
 
   it('should dispatch show action correctly', async () => {
@@ -380,8 +377,7 @@ describe('Gates Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('show')
-    expect(parsed.result.id).toBe('gate-03')
+    expect(parsed.id).toBe('gate-03')
   })
 
   it('should dispatch create action correctly', async () => {
@@ -424,8 +420,7 @@ describe('Gates Action Dispatcher', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('create')
-    expect(parsed.result.gateId).toBe('gate-04')
+    expect(parsed.gateId).toBe('gate-04')
   })
 
   it('should dispatch start action correctly', async () => {
@@ -433,14 +428,14 @@ describe('Gates Action Dispatcher', () => {
     registry.setMockResult('gates_show', {
       id: 'gate-03',
       name: 'Gate 3',
-      status: 'pending',
+      status: 'validated',
       type: 'feature',
       sequence: 3,
       lastUpdated: now,
     })
     registry.setMockResult('gates_start', {
       gateId: 'gate-03',
-      previousStatus: 'pending',
+      previousStatus: 'validated',
       newStatus: 'in_progress',
       startedAt: now,
     })
@@ -451,8 +446,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('start')
+    expect(result.isError).toBeUndefined()
   })
 
   it('should dispatch complete action correctly', async () => {
@@ -494,8 +488,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('complete')
+    expect(result.isError).toBeUndefined()
   })
 
   it('should dispatch regenerate action correctly', async () => {
@@ -516,8 +509,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    expect(parsed.action).toBe('regenerate')
+    expect(result.isError).toBeUndefined()
   })
 
   it('should handle unknown action gracefully', async () => {
@@ -567,7 +559,7 @@ describe('Action Dispatcher Type Safety', () => {
     const invalidResult = await handlers.proposal_action({
       action: 'show',
     })
-    // Result may succeed or fail depending on registry mock — confirm no schema crash
+    // Result may succeed or fail depending on registry mock ï¿½ confirm no schema crash
     expect(invalidResult).toBeDefined()
   })
 
@@ -625,11 +617,8 @@ describe('Action Dispatcher Output Schema Validation', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-
-    // Output should have discriminated union structure
-    expect(parsed).toHaveProperty('action')
-    expect(parsed).toHaveProperty('result')
-    expect(parsed.action).toBe('list')
+    // structuredContent carries the action payload directly (no envelope)
+    expect(parsed).toHaveProperty('proposals')
   })
 
   it('should validate gates action output schema', async () => {
@@ -662,10 +651,8 @@ describe('Action Dispatcher Output Schema Validation', () => {
 
     expect(result.content).toBeDefined()
     const parsed = result.structuredContent as any
-
-    expect(parsed).toHaveProperty('action')
-    expect(parsed).toHaveProperty('result')
-    expect(parsed.action).toBe('list')
+    // structuredContent carries the action payload directly (no envelope)
+    expect(parsed).toHaveProperty('gates')
   })
 })
 

@@ -63,8 +63,7 @@ describe('createEntityActionHandler', () => {
     const res = await handler({ action: 'do', payload: { foo: 'bar' } })
 
     expect(res.isError).not.toBe(true)
-    expect((res.structuredContent as any).action).toBe('do')
-    expect((res.structuredContent as any).result).toEqual({ ok: true })
+    expect(res.structuredContent).toEqual({ ok: true })
   })
 
   it('returns error envelope when invocation fails', async () => {

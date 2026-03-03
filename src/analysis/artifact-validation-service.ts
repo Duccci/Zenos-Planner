@@ -14,21 +14,10 @@ import { validateArtifactFile } from '../mcp/validators/artifact-validator.js'
 
 export type ArtifactType = 'gate' | 'proposal' | 'architecture'
 
-/**
- * DEPRECATED: ValidationMode is maintained for backward compatibility only.
- * Structure validation is now MANDATORY and cannot be disabled.
- *
- * @deprecated All validations now enforce structure validation
- */
-
-export type ValidationMode = 'format' | 'structure' | 'all'
-
 export interface ValidationInput {
   artifactPath?: string
   artifactHash?: string
   artifactType: ArtifactType
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
-  validationMode?: ValidationMode
   /** For proposals: gate ID if gate-tied */
   gateId?: string
   /** For proposals: all proposals in the same gate (for test-first pattern) */
@@ -39,7 +28,19 @@ export interface ValidationResult {
   passed: boolean
   errors?: string[]
   warnings?: string[]
+  /**
+   * Implementation quality score 0–100.
+   * Present when section-implementation validation ran.
+   */
+  score?: number
   details?: unknown
+  /**
+   * Agent-directed review items that require LLM judgment.
+   * Present when qualitative checks produced review prompts.
+   * The calling agent must evaluate every item — mechanical validation
+   * does not substitute for this review.
+   */
+  agentReview?: string[]
 }
 
 export class ArtifactValidationService {
@@ -55,7 +56,6 @@ export class ArtifactValidationService {
     const result = await validateArtifactFile(
       input.artifactPath,
       input.artifactType,
-      input.validationMode,
       {
         gateId: input.gateId,
         gateProposals: input.gateProposals,
@@ -63,10 +63,16 @@ export class ArtifactValidationService {
     )
 
     // Convert ValidationResult to ValidationInput format (allowed → passed)
+    const resultWithExtras = result as typeof result & { sectionScores?: unknown }
     return {
       passed: result.allowed,
       errors: result.errors,
       warnings: result.warnings,
+      ...(result.score !== undefined ? { score: result.score } : {}),
+      ...(resultWithExtras.sectionScores !== undefined
+        ? { details: { sectionScores: resultWithExtras.sectionScores } }
+        : {}),
+      ...(result.agentReview !== undefined ? { agentReview: result.agentReview } : {}),
     }
   }
 }

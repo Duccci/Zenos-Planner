@@ -69,7 +69,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     } = input
 
     // Read project PRD and requirements
-    const prdPath = path.join(projectRoot, 'zeno', 'PROJECT_PRD.md')
+    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
     const prdContent = await readFile(prdPath)
 
     // Get existing requirements
@@ -81,7 +81,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
       sequence: number
       name: string
       hash: string
-      status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
+      status: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog'
     }[] = []
 
     try {
@@ -154,7 +154,7 @@ async function detectGateChangesAndNotify(
     sequence: number
     name: string
     hash: string
-    status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
+    status: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog'
   }[],
   currentGates: {
     id: string

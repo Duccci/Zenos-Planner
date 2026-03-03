@@ -71,134 +71,104 @@ export class SystemOverviewGenerator extends DiagramGeneratorBase {
   }
 
   /**
-   * Generate aspirational architecture diagram based on gates and project vision.
-   * Shows target system design with implementation status indicators.
+   * Generate a generic aspirational architecture diagram driven by context gates.
+   * Falls back to a minimal 4-layer generic structure when no gate data is available.
+   * Does not embed project-specific names or gate references.
    */
   private generateAspirationaArchitecture(context: DiagramContext): string {
-    // Build status indicators for gates
-    const statusMap = new Map<number, string>()
-    if (context.gates) {
-      for (const gate of context.gates) {
-        let indicator = '🔵' // Default: planned
-        if (gate.status === 'completed') {
-          indicator = '🟢' // Implemented
-        } else if (gate.status === 'in_progress') {
-          indicator = '🟡' // In progress
-        }
-        statusMap.set(gate.number, indicator)
+    const gates = context.gates ?? []
+    const lines: string[] = ['graph TB']
+
+    if (gates.length > 0) {
+      // Build status indicators from actual gate data
+      const statusIndicator = (status: string): string => {
+        if (status === 'completed') return '🟢'
+        if (status === 'in_progress') return '🟡'
+        return '🔵'
       }
+
+      // Group gates into rough quarters as layers
+      const layerSize = Math.ceil(gates.length / 4)
+      const layers = [
+        gates.slice(0, layerSize),
+        gates.slice(layerSize, layerSize * 2),
+        gates.slice(layerSize * 2, layerSize * 3),
+        gates.slice(layerSize * 3),
+      ].filter((l) => l.length > 0)
+
+      const layerColors = ['#4A90E2', '#7B68EE', '#F5A623', '#E85D75']
+      const layerNames = ['Foundation', 'Core', 'Extension', 'Integration']
+
+      for (let li = 0; li < layers.length; li++) {
+        const layer = layers[li]
+        if (!layer) continue
+        lines.push(`    subgraph "Layer ${String(li + 1)}: ${layerNames[li] ?? 'Other'}"`)
+        for (const gate of layer) {
+          const ind = statusIndicator(gate.status)
+          const nodeId = `G${String(gate.number)}`
+          lines.push(`        ${nodeId}["${ind} ${gate.name}"]`)
+        }
+        lines.push('    end')
+        lines.push('')
+      }
+
+      // Connect layers sequentially
+      for (let li = 0; li < layers.length - 1; li++) {
+        const curLayer = layers[li]
+        const nextLayer = layers[li + 1]
+        if (!curLayer || !nextLayer) continue
+        const lastOfCur = curLayer[curLayer.length - 1]
+        const firstOfNext = nextLayer[0]
+        if (lastOfCur && firstOfNext) {
+          lines.push(`    G${String(lastOfCur.number)} --> G${String(firstOfNext.number)}`)
+        }
+      }
+      lines.push('')
+
+      // Styling
+      for (let li = 0; li < layers.length; li++) {
+        const layer = layers[li]
+        const color = layerColors[li] ?? '#888'
+        if (!layer) continue
+        const nodeIds = layer.map((g) => `G${String(g.number)}`).join(',')
+        lines.push(
+          `    classDef layer${String(li)} fill:${color},stroke:#333,stroke-width:2px,color:#fff`
+        )
+        lines.push(`    class ${nodeIds} layer${String(li)}`)
+      }
+    } else {
+      // Generic 4-layer fallback — no project-specific names
+      lines.push(
+        '    subgraph "Interface Layer"\n        UI["User Interface"]\n        API["API / MCP Server"]\n    end',
+        '    subgraph "Core Layer"\n        Engine["Core Engine"]\n        Manager["Lifecycle Manager"]\n    end',
+        '    subgraph "Data Layer"\n        DB[("Database")]\n        Files["File Store"]\n    end',
+        '    UI --> Engine',
+        '    API --> Engine',
+        '    Engine --> Manager',
+        '    Manager --> DB',
+        '    Manager --> Files',
+        '',
+        '    classDef interface fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff',
+        '    classDef core fill:#7B68EE,stroke:#5A4AB8,stroke-width:2px,color:#fff',
+        '    classDef data fill:#E85D75,stroke:#B8435F,stroke-width:2px,color:#fff',
+        '    class UI,API interface',
+        '    class Engine,Manager core',
+        '    class DB,Files data'
+      )
     }
 
-    // Generate aspirational architecture layers based on Zeno's target design
-    // (14-gate system: Core, Analysis, Generation, Storage, Integration, Validation, Execution)
-    const diagram = `graph TB
-    User["👤 User/LLM<br/>(via Cursor/CLI)"]
-    
-    subgraph "User Interface Layer"
-        CLI["🟢 CLI Commands"]
-        MCP["🟢 MCP Server<br/>LLM Tool Interface"]
-        Dashboard["🔵 Dashboard<br/>Gate 12"]
-    end
-    
-    subgraph "Orchestration Layer"
-        SubagentOrch["🔵 Subagent Orchestrator<br/>Gate 13"]
-        WorktreeOrch["🟡 Worktree Manager<br/>Gate 10"]
-    end
-    
-    subgraph "Core Engine Layer"
-        ZenoEngine["🟢 Zeno Engine<br/>Gate Generation"]
-        GateManager["🟢 Gate Manager<br/>Lifecycle Control"]
-        ReplanEngine["🟡 Replan Engine<br/>Gate 11"]
-        ProposalApproval["🟡 Approval Engine<br/>Gate 9"]
-    end
-    
-    subgraph "Analysis & Generation Layer"
-        CodeAnalyzer["🟢 Code Analyzer<br/>AST + Metrics"]
-        RepoDetector["🟡 Repo Detector<br/>Gate 6"]
-        DepTracker["🟢 Dependency Tracker<br/>Hash-based"]
-        DiagramGen["🟢 Diagram Generator<br/>Gate 5"]
-        ProposalGen["🟡 Proposal Generator<br/>Gate 7"]
-    end
-    
-    subgraph "Validation Layer"
-        AutoChecks["🟡 Automated Checks<br/>Gate 8"]
-        QualityGates["🟡 Quality Gates<br/>Coverage/Security/Lint"]
-    end
-    
-    subgraph "Storage Layer"
-        SQLite["🟢 SQLite DB<br/>4-Table Schema"]
-        FileStore["🟢 File Store<br/>Markdown/JSON"]
-        GitStore["🟢 Git Repository<br/>Version Control"]
-    end
-    
-    subgraph "Integration Layer"
-        GitIntegration["🟡 Git Integration<br/>Gate 10"]
-        HumanApproval["🟡 Human Approval<br/>Gate 9"]
-    end
-    
-    %% User interactions
-    User --> MCP
-    User --> CLI
-    User --> Dashboard
-    
-    %% UI to Core
-    MCP --> ZenoEngine
-    CLI --> ZenoEngine
-    
-    %% Orchestration
-    ZenoEngine --> SubagentOrch
-    ZenoEngine --> WorktreeOrch
-    
-    %% Core to Analysis
-    GateManager --> CodeAnalyzer
-    GateManager --> RepoDetector
-    GateManager --> DepTracker
-    GateManager --> DiagramGen
-    
-    %% Generation to Storage
-    DiagramGen --> FileStore
-    ProposalGen --> SQLite
-    CodeAnalyzer --> SQLite
-    
-    %% Validation to Core
-    AutoChecks --> ProposalApproval
-    QualityGates --> AutoChecks
-    
-    %% Storage connections
-    ZenoEngine --> SQLite
-    ZenoEngine --> FileStore
-    ZenoEngine --> GitStore
-    
-    %% Integration
-    ProposalApproval --> GitIntegration
-    WorktreeOrch --> GitIntegration
-    HumanApproval --> ProposalApproval
-    
-    classDef ui_layer fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    classDef core_layer fill:#7B68EE,stroke:#5A4AB8,stroke-width:2px,color:#fff
-    classDef analysis_layer fill:#F5A623,stroke:#D68910,stroke-width:2px,color:#fff
-    classDef storage_layer fill:#E85D75,stroke:#B8435F,stroke-width:2px,color:#fff
-    classDef validation_layer fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#fff
-    
-    class CLI,MCP,Dashboard ui_layer
-    class ZenoEngine,GateManager,ReplanEngine,ProposalApproval,SubagentOrch,WorktreeOrch core_layer
-    class CodeAnalyzer,RepoDetector,DepTracker,DiagramGen,ProposalGen,AutoChecks,QualityGates analysis_layer
-    class SQLite,FileStore,GitStore storage_layer
-    class GitIntegration,HumanApproval validation_layer`
-
-    return diagram
+    return lines.join('\n')
   }
 
   /**
-   * Count components for complexity analysis. Aspirational architecture has ~20 major components.
+   * Count components for complexity analysis.
    */
   protected override countNodes(context: DiagramContext): number {
-    // Count gates as a proxy for system complexity
-    return context.gates?.length ?? 14 // Default to 14-gate system
+    return context.gates?.length ?? 4
   }
 
   protected override countEdges(context: DiagramContext): number {
-    return (context.gates?.length ?? 14) * 2 // Estimate 2x edges per gate
+    return (context.gates?.length ?? 4) * 2
   }
 }
 

@@ -212,18 +212,23 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }
 
       const { startGate } = await import('../core/completions.js')
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedId = normalizeGateId(validated.gateId)
+      const gateRow = db
+        .prepare('SELECT status FROM gates WHERE id = ?')
+        .get(normalizedId) as { status?: string } | undefined
+      const previousStatus = (gateRow?.status ?? 'pending') as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
       await startGate(validated.gateId, { startedBy })
 
-      const normalizedId = normalizeGateId(validated.gateId)
       return {
         gateId: normalizedId,
-        previousStatus: 'pending',
+        previousStatus,
         newStatus: 'in_progress' as const,
         startedAt: new Date().toISOString(),
       }
     },
     {
-      description: 'Start working on a gate (changes status from pending to in_progress)',
+      description: 'Start working on a gate (changes status from validated to in_progress)',
       parameters: [
         {
           name: 'gateId',

@@ -66,6 +66,12 @@ export async function syncGatesToProjectOverview(
           status: 'in_progress',
           estimatedComplexity: 'high',
         }
+      } else if (gate.status === 'validated') {
+        upcomingGates.push({
+          sequence: gate.sequence,
+          name: gate.name,
+          estimatedComplexity: 'high',
+        })
       } else if (gate.status === 'pending') {
         upcomingGates.push({
           sequence: gate.sequence,

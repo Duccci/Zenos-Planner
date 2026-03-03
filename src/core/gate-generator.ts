@@ -6,6 +6,18 @@ import { getDatabase } from '../storage/database.js'
 import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
 import type { CodeMetrics } from '../analysis/types.js'
 
+// --- Gate-generation thresholds (tune here; move to ZenoConfig.generation if per-project control needed) ---
+const MAX_GATE_COMPLEXITY = 30       // Decomposition split threshold
+const BASE_COMPLEXITY = 50           // Default project complexity estimate
+const HIGH_COUPLING_THRESHOLD = 2    // Number of coupling hotspots before suggesting refactor gate
+const HIGH_COMPLEXITY_THRESHOLD = 15 // Average complexity before suggesting gate splits
+const PER_GATE_SPLIT_THRESHOLD = 25  // Per-gate complexity before recommending a split
+const COMBINE_GATES_COMPLEXITY = 10  // Average complexity below which gates may be combined
+const COMBINE_GATES_MIN_COUNT = 3    // Minimum future-gate count to suggest combining
+const CONFIDENCE_HIGH = 0.85
+const CONFIDENCE_MED = 0.75
+const CONFIDENCE_LOW = 0.6
+
 // Assuming these types from other modules
 interface InitialAnalysisResult {
   metrics: {
@@ -67,7 +79,7 @@ export function generateGates(
 
   // Create decomposition context
   const context: DecompositionContext = {
-    maxGateComplexity: 30, // configurable threshold
+    maxGateComplexity: MAX_GATE_COMPLEXITY,
     projectRequirements: workDescription.requirements,
     existingAnalysis: analysisResult,
   }
@@ -113,7 +125,7 @@ function estimateInitialComplexity(
   analysisResult?: InitialAnalysisResult,
   requirements?: Requirement[]
 ): number {
-  let complexity = 50 // base
+  let complexity = BASE_COMPLEXITY
 
   // Factor in existing codebase
   if (analysisResult) {
@@ -265,25 +277,25 @@ async function regenerateGatesFromAnalysis(fromGateId: string): Promise<Regenera
   const suggestedGates = [...futureGates]
 
   // If high coupling detected, suggest refactoring gate
-  if (aggregatedMetrics.coupling.highCoupling.length > 2) {
+  if (aggregatedMetrics.coupling.highCoupling.length > HIGH_COUPLING_THRESHOLD) {
     const nextGateNum = allGates.length + 1
     changes.push({
       type: 'add',
       gateId: `gate-${nextGateNum.toString().padStart(2, '0')}`,
       reason: `High coupling detected in ${aggregatedMetrics.coupling.highCoupling.length.toString()} modules - recommend architectural refactoring`,
-      confidence: 0.85,
+      confidence: CONFIDENCE_HIGH,
     })
   }
 
   // If complexity is high, suggest breaking down complex gates
-  if (aggregatedMetrics.complexity.averageComplexity > 15) {
+  if (aggregatedMetrics.complexity.averageComplexity > HIGH_COMPLEXITY_THRESHOLD) {
     for (const gate of futureGates) {
-      if (gate.estimatedComplexity > 25) {
+      if (gate.estimatedComplexity > PER_GATE_SPLIT_THRESHOLD) {
         changes.push({
           type: 'modify',
           gateId: gate.id,
           reason: `Gate complexity ${gate.estimatedComplexity.toString()} exceeds recommended threshold - consider splitting`,
-          confidence: 0.75,
+          confidence: CONFIDENCE_MED,
         })
       }
     }
@@ -292,14 +304,14 @@ async function regenerateGatesFromAnalysis(fromGateId: string): Promise<Regenera
   // If LOC growth is slow, suggest combining small gates
   const avgGateComplexity =
     futureGates.reduce((sum, g) => sum + g.estimatedComplexity, 0) / futureGates.length
-  if (avgGateComplexity < 10 && futureGates.length > 3) {
+  if (avgGateComplexity < COMBINE_GATES_COMPLEXITY && futureGates.length > COMBINE_GATES_MIN_COUNT) {
     const lastGate = futureGates[futureGates.length - 1]
     if (lastGate) {
       changes.push({
         type: 'modify',
         gateId: lastGate.id,
         reason: 'Multiple low-complexity gates detected - consider combining for efficiency',
-        confidence: 0.6,
+        confidence: CONFIDENCE_LOW,
       })
     }
   }
@@ -343,13 +355,13 @@ export async function regenerateGatesTheoreticalFromProject(): Promise<Regenerat
   // Regenerate using theoretical decomposition
   const workDescription: WorkDescription = {
     description: projectOverview.endState,
-    complexity: 50,
+    complexity: BASE_COMPLEXITY,
     requirements: [],
     existingCodebase: undefined,
   }
 
   const context: DecompositionContext = {
-    maxGateComplexity: 30,
+    maxGateComplexity: MAX_GATE_COMPLEXITY,
     projectRequirements: [],
     existingAnalysis: undefined,
   }
@@ -402,14 +414,14 @@ async function regenerateGatesTheoretical(fromGateId: string): Promise<Regenerat
 
   // Regenerate using theoretical decomposition
   const workDescription: WorkDescription = {
-    description: 'Complete the project implementation', // Default description since no project overview available
-    complexity: 50,
+    description: 'Complete the project implementation',
+    complexity: BASE_COMPLEXITY,
     requirements: [],
     existingCodebase: undefined,
   }
 
   const context: DecompositionContext = {
-    maxGateComplexity: 30,
+    maxGateComplexity: MAX_GATE_COMPLEXITY,
     projectRequirements: [],
     existingAnalysis: undefined,
   }

@@ -82,7 +82,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
 
         // 3. Initialize database
         logger.info('Initializing database...')
-        await initializeDatabase(projectRoot, { syncProposals: true })
+        await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
 
         // 4. Generate project requirements
         logger.info('Generating project requirements...')
@@ -99,7 +99,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
 
         // 6. Generate AGENTS.md
         logger.info('Generating AGENTS.md...')
-        const agentsContent = generateAgentsMD(config, gatesResult.gates, requirements)
+        const agentsContent = generateAgentsMD(config)
         await writeAgentsMD(agentsContent, projectRoot)
 
         logger.info('Project initialized successfully!')

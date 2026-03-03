@@ -179,8 +179,8 @@ export interface GateSummary {
   id: string
   sequence: number
   name: string
-  /** Derived: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog' */
-  status: 'completed' | 'in_progress' | 'pending' | 'cancelled' | 'backlog'
+  /** Derived: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog' */
+  status: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog'
   hash: string
   completedAt: string | null
   estimatedComplexity?: string

@@ -67,7 +67,7 @@ describe('Artifact Discovery Service', () => {
         expect(p).toHaveProperty('hash')
         expect(p).toHaveProperty('title')
         expect(['gate-specific', 'solitary']).toContain(p.type)
-        expect(['pending', 'in_progress', 'completed', 'rejected']).toContain(p.status)
+        expect(['pending', 'validated', 'in_progress', 'completed', 'rejected']).toContain(p.status)
       }
     })
 

@@ -108,6 +108,98 @@ export function calculateCompletionSummary(content: string): {
   }
 }
 
+/**
+ * Extract the file paths listed in the `**File(s)**:` metadata line of a specific
+ * task section (0-based taskIndex). Returns an empty array if the section or
+ * metadata line is not found.
+ */
+export function extractTaskFiles(content: string, taskIndex: number): string[] {
+  const lines = content.split('\n')
+
+  let sectionCount = -1
+  let inTargetSection = false
+
+  for (const current of lines) {
+
+    if (/^###\s+Task\s+\d+:/.exec(current)) {
+      sectionCount++
+      inTargetSection = sectionCount === taskIndex
+      continue
+    }
+
+    if (/^##\s/.exec(current) && !/^###/.exec(current)) {
+      if (inTargetSection) break
+      inTargetSection = false
+    }
+
+    if (inTargetSection) {
+      const fileLineMatch = /\*\*File\(s\)\*\*:\s*(.+)/.exec(current)
+      if (fileLineMatch) {
+        const rawFiles = fileLineMatch[1] ?? ''
+        // Extract all backtick-quoted paths, e.g. `src/foo.ts` | `src/bar.ts`
+        const paths: string[] = []
+        const backtickRe = /`([^`]+)`/g
+        let m: RegExpExecArray | null
+        while ((m = backtickRe.exec(rawFiles)) !== null) {
+          if (m[1]) paths.push(m[1])
+        }
+        return paths
+      }
+    }
+  }
+
+  return []
+}
+
+/**
+ * Return the union of `**File(s)**:` paths from all task sections whose
+ * acceptance-criteria checkboxes are all `[x]` (i.e. fully completed).
+ * Duplicates are removed.
+ */
+export function extractAllCompletedTaskFiles(content: string): string[] {
+  const lines = content.split('\n')
+
+  // Split content into task sections
+  const taskSections: { startLine: number; endLine: number }[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (/^###\s+Task\s+\d+:/.exec(lines[i] ?? '')) {
+      if (taskSections.length > 0) {
+        const last = taskSections[taskSections.length - 1]
+        if (last) last.endLine = i - 1
+      }
+      taskSections.push({ startLine: i, endLine: lines.length - 1 })
+    } else if (/^##\s/.exec(lines[i] ?? '') && !/^###/.exec(lines[i] ?? '')) {
+      const last = taskSections[taskSections.length - 1]
+      if (last?.endLine === lines.length - 1) {
+        last.endLine = i - 1
+      }
+    }
+  }
+
+  const result: string[] = []
+
+  for (let t = 0; t < taskSections.length; t++) {
+    const section = taskSections[t]
+    if (!section) continue
+    const sectionLines = lines.slice(section.startLine, section.endLine + 1)
+    const sectionContent = sectionLines.join('\n')
+
+    // A task is complete when every checkbox in the section is [x]
+    const allBoxes = Array.from(sectionContent.matchAll(/^- \[[ x]\]/gm))
+    if (allBoxes.length === 0) continue
+    const allChecked = allBoxes.every((m) => m[0] === '- [x]')
+    if (!allChecked) continue
+
+    // Extract files for this completed task
+    const taskFiles = extractTaskFiles(content, t)
+    for (const f of taskFiles) {
+      if (!result.includes(f)) result.push(f)
+    }
+  }
+
+  return result
+}
+
 export function updateCompletionSummary(
   content: string,
   summary: {

@@ -42,8 +42,19 @@ describe('RequirementGenerator', () => {
         acceptance_criteria TEXT,
         hash TEXT UNIQUE NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        level TEXT NOT NULL DEFAULT 'gate',
+        source_gate_id TEXT,
         FOREIGN KEY (parent_id) REFERENCES requirements(id),
         FOREIGN KEY (gate_id) REFERENCES gates(id)
+      )
+    `)
+
+    db.exec(`
+      CREATE TABLE requirement_gate_links (
+        requirement_id TEXT NOT NULL,
+        gate_id TEXT NOT NULL,
+        linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (requirement_id, gate_id)
       )
     `)
 

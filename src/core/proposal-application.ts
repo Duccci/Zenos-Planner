@@ -34,6 +34,10 @@ export interface ProposalUpdateProgressOutput {
       typeErrors: number
     }
   }
+  /** Files from all fully-completed task sections, extracted from proposal markdown. */
+  completedFiles?: string[]
+  /** True when all tasks are complete and the gate's Proposal Status table was updated. */
+  gateStatusUpdated?: boolean
   message: string
 }
 
@@ -67,12 +71,23 @@ export async function updateProposalProgress(
     content = updateCompletionSummary(content, completionSummary)
     await writeFile(proposalPath, content)
 
+    // Collect files from all fully-completed task sections
+    const completedFiles = extractAllCompletedTaskFiles(content)
+
+    // Final apply step: when all tasks are complete, sync status in the associated gate document
+    let gateStatusUpdated: boolean | undefined
+    if (completionSummary.tasksCompleted === completionSummary.tasksTotal && completionSummary.tasksTotal > 0) {
+      gateStatusUpdated = await syncGateProposalStatus(content, hash, projectRoot)
+    }
+
     return {
       success: true,
       hash,
       taskIndex,
       completed,
       completionSummary,
+      completedFiles,
+      gateStatusUpdated,
       message: `Updated task ${String(taskIndex)} to ${completed ? 'completed' : 'in progress'}`,
     }
   } catch (error) {
@@ -85,9 +100,52 @@ export async function updateProposalProgress(
 }
 
 // Helper functions live in `src/utils/artifact-locator.ts` and `proposal-progress.ts`
-import { findProposalByHash } from '../utils/artifact-locator.js'
+import { findProposalByHash, findGateByGateId } from '../utils/artifact-locator.js'
+
+/**
+ * When all tasks in a proposal are complete, update the gate document's
+ * Proposal Status table to reflect the proposal's current status (`in_progress`).
+ * Skips silently for solitary proposals or when the gate file cannot be found.
+ *
+ * @returns true when the gate file was successfully updated, false otherwise.
+ */
+async function syncGateProposalStatus(
+  proposalContent: string,
+  hash: string,
+  projectRoot: string
+): Promise<boolean> {
+  // Extract gate ID from proposal metadata: **Gate**: gate-06 - Some Name
+  const gateMatch = /\*\*Gate\*\*:\s*(gate-\d+)/i.exec(proposalContent)
+  if (!gateMatch?.[1]) return false // solitary or unfilled template
+
+  const gateId = gateMatch[1]
+  const normalizedHash = hash.replace(/^#/, '')
+
+  try {
+    const gatePath = await findGateByGateId(gateId, projectRoot)
+    if (!gatePath) return false
+
+    let gateContent = await readFile(gatePath)
+
+    // Match the Proposal Status table row: | Any Name | #hashvalue | status | Notes |
+    const escapedHash = normalizedHash.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const rowPattern = new RegExp(
+      `(\\|[^|\\n]*\\|\\s*#${escapedHash}\\s*\\|\\s*)(\\w+)(\\s*\\|)`,
+    )
+
+    if (!rowPattern.test(gateContent)) return false
+
+    gateContent = gateContent.replace(rowPattern, '$1in_progress$3')
+    await writeFile(gatePath, gateContent)
+    return true
+  } catch (error) {
+    logger.warn(`Failed to sync gate proposal status for ${hash}: ${String(error)}`)
+    return false
+  }
+}
 import {
   updateTaskStatus,
   calculateCompletionSummary,
   updateCompletionSummary,
+  extractAllCompletedTaskFiles,
 } from './proposal-progress.js'

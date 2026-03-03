@@ -27,6 +27,7 @@ export async function createProjectStructure(
       'zeno/.zeno',
       'zeno/gates',
       'zeno/architecture',
+      'zeno/overview',
       'zeno/proposals',
       'zeno/requirements',
     ]
@@ -71,7 +72,7 @@ export async function createProjectStructure(
             // Ignore errors when closing (database might not be open)
           }
 
-          const initResult = await initializeDatabase(projectRoot, { syncProposals: true })
+          const initResult = await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
           if (initResult.created) {
             createdPaths.push('zeno/.zeno/registry.db')
             logger.debug(

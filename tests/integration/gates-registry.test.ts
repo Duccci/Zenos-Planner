@@ -191,6 +191,7 @@ describe('gates-registry coverage', () => {
 
   describe('gates_start', () => {
     it('should start a gate', async () => {
+      mockPrepare.mockReturnValue({ get: vi.fn().mockReturnValue({ status: 'validated' }) })
       const result = (await registry.invoke('gates_start', { gateId: 'gate-01' })) as {
         success: boolean
       }

@@ -24,6 +24,7 @@ import { registerRequirementsOps } from './requirements-registry.js'
 import { registerArchiveOps } from './archive-registry.js'
 import { registerConfigOps } from './config-registry.js'
 import { registerProjectOps } from './project-registry.js'
+import { registerContextOps } from './context-registry.js'
 import { registerTemplateOps } from './template-registry.js'
 import { registerWorkflowOps } from './workflow-registry.js'
 import {
@@ -55,6 +56,7 @@ export function createFunctionRegistry(): FunctionRegistry {
   registerProposalsOps(registry)
   registerRequirementsOps(registry)
   registerProjectOps(registry)
+  registerContextOps(registry)
   registerWorkflowOps(registry)
   registerRepositoryOps(registry)
   registerArchitectureOps(registry)

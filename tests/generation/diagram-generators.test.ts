@@ -279,6 +279,22 @@ describe('GateLifecycleGenerator', () => {
     expect(content).toContain('completed')
   })
 
+  it('includes validated, backlog, and cancelled states matching MCP workflow contract', () => {
+    const gen = new GateLifecycleGenerator()
+    const content = gen.generateContent({ projectName: 'Test' })
+    expect(content).toContain('validated')
+    expect(content).toContain('backlog')
+    expect(content).toContain('cancelled')
+    expect(content).toContain('pending --> validated')
+    expect(content).toContain('validated --> in_progress')
+  })
+
+  it('requires validate step before start (no direct pending→in_progress transition)', () => {
+    const gen = new GateLifecycleGenerator()
+    const content = gen.generateContent({ projectName: 'Test' })
+    expect(content).not.toContain('pending --> in_progress')
+  })
+
   it('generate returns DiagramOutput', async () => {
     const gen = new GateLifecycleGenerator()
     const output = await gen.generate({ projectName: 'Test' }, 'mermaid')
@@ -303,6 +319,20 @@ describe('GateRoadmapGenerator', () => {
     expect(content).toContain('graph LR')
     expect(content).toContain('G1')
     expect(content).toContain('G4')
+  })
+
+  it('uses correct status color convention: pending=blue, in_progress=amber, completed=green', () => {
+    const gen = new GateRoadmapGenerator()
+    const content = gen.generateContent({ projectName: 'Test', gates: [] })
+    // pending must be blue (#4A90E2, matching gate-roadmap-template.md), not orange (#FFA500)
+    expect(content).toContain('classDef pending fill:#4A90E2')
+    expect(content).not.toContain('classDef pending fill:#FFA500')
+    // in_progress must be amber (#FFC107)
+    expect(content).toContain('classDef in_progress fill:#FFC107')
+    expect(content).not.toContain('classDef in_progress fill:#FFA500')
+    // completed must be green (#4CAF50), not teal (#50E3C2)
+    expect(content).toContain('classDef completed fill:#4CAF50')
+    expect(content).not.toContain('classDef completed fill:#50E3C2')
   })
 
   it('generateContent with gates uses them', () => {
@@ -341,6 +371,19 @@ describe('ContextDiagramGenerator', () => {
     const content = gen.generateContent({ projectName: 'Test' })
     expect(content).toContain('graph TB')
     expect(content).toContain('System')
+  })
+
+  it('uses classDef (not classdef) for all class definitions', () => {
+    const gen = new ContextDiagramGenerator()
+    const content = gen.generateContent({ projectName: 'Test' })
+    // Mermaid keyword is case-sensitive: 'classDef' (capital D). 'classdef' is silently ignored.
+    // Check only definition lines (those with fill:/stroke: attributes), not assignment lines.
+    const defLines = content.split('\n').filter((l) => /\bfill:/.test(l))
+    for (const line of defLines) {
+      expect(line).toMatch(/classDef\s/)
+    }
+    // Belt-and-suspenders: no lowercase 'classdef' variant (typo) anywhere
+    expect(content).not.toMatch(/\bclassdef\s/)
   })
 
   it('generate returns DiagramOutput', async () => {

@@ -34,7 +34,7 @@ import { archiveCompletedGateInState, updateCurrentGateInState } from '../utils/
 import { readProjectOverview, saveProjectOverview } from '../utils/config.js'
 import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
-import { findGateByGateId } from '../utils/artifact-locator.js'
+import { findGateByGateId, findProposalByHash } from '../utils/artifact-locator.js'
 
 
 
@@ -180,7 +180,7 @@ export async function approveProposal(
   newVersion: string
 }> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot, { syncProposals: true })
+  await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
   const db = getDb(projectRoot)
 
   // Ensure approved_by column exists (added by this proposal; idempotent)
@@ -323,7 +323,7 @@ export async function completeGate(
   bump: 'minor' | 'major'
 }> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot, { syncProposals: true })
+  await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
   const db = getDb(projectRoot)
 
   const gateId = normalizeGateId(gateIdInput)
@@ -449,7 +449,10 @@ export async function completeGate(
     // Delete the proposals themselves
     db.prepare('DELETE FROM proposals WHERE gate_id = ?').run(gate.id)
 
-    // Clear proposal_hashes from the gate record
+    // Clear proposal_hashes from the gate record.
+    // NOTE: proposal_hashes is a denormalised cache column; its write path (populating
+    // hashes when proposals are created/assigned) is planned for gate-07. For now this
+    // clear is a no-op but kept so the column is reset consistently on archive.
     db.prepare('UPDATE gates SET proposal_hashes = NULL WHERE id = ?').run(gate.id)
 
     // Remove the gate directory if empty
@@ -566,7 +569,7 @@ export async function startProposal(
   _options: StartProposalOptions = {}
 ): Promise<void> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot, { syncProposals: true })
+  await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
   const db = getDb(projectRoot)
 
   const proposalHash = normalizeHash(hashInput)
@@ -596,6 +599,18 @@ export async function startProposal(
   db.prepare(
     `UPDATE proposals SET status = 'in_progress', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
   ).run(proposal.id)
+
+  // Sync status to proposal .md file
+  try {
+    const filePath = await findProposalByHash(proposalHash, projectRoot)
+    if (filePath) {
+      const content = await readFile(filePath)
+      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1in_progress')
+      await writeFile(filePath, updated)
+    }
+  } catch (error) {
+    logger.warn(`Failed to sync in_progress status to proposal file for ${proposalHash}: ${String(error)}`)
+  }
 }
 
 export interface RejectProposalOptions {
@@ -608,7 +623,7 @@ export async function rejectProposal(
   _options: RejectProposalOptions = {}
 ): Promise<void> {
   const projectRoot = requireProjectRoot()
-  await initializeDatabase(projectRoot, { syncProposals: true })
+  await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
   const db = getDb(projectRoot)
 
   const proposalHash = normalizeHash(hashInput)
@@ -637,6 +652,18 @@ export async function rejectProposal(
   db.prepare(
     `UPDATE proposals SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
   ).run(proposal.id)
+
+  // Sync status to proposal .md file
+  try {
+    const filePath = await findProposalByHash(proposalHash, projectRoot)
+    if (filePath) {
+      const content = await readFile(filePath)
+      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1rejected')
+      await writeFile(filePath, updated)
+    }
+  } catch (error) {
+    logger.warn(`Failed to sync rejected status to proposal file for ${proposalHash}: ${String(error)}`)
+  }
 }
 
 export interface StartGateOptions {
@@ -700,6 +727,18 @@ export async function startGate(
     await syncGatesToProjectOverview()
   } catch (error) {
     logger.debug(`Failed to sync gates to project-overview: ${String(error)}`)
+  }
+
+  // Sync status to gate .md file
+  try {
+    const gatePath = await findGateByGateId(gateId, projectRoot)
+    if (gatePath) {
+      const content = await readFile(gatePath)
+      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1in_progress')
+      await writeFile(gatePath, updated)
+    }
+  } catch (error) {
+    logger.warn(`Failed to sync in_progress status to gate file for ${gateId}: ${String(error)}`)
   }
 }
 

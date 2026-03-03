@@ -34,7 +34,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
 
     // Read PROJECT_PRD.md for aspirational vision
     try {
-      const prdPath = join(projectRoot, 'zeno', 'PROJECT_PRD.md')
+      const prdPath = join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
       const prdContent = readFileSync(prdPath, 'utf-8')
       context.prdContent = prdContent
 
@@ -71,7 +71,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
         id: gate.id,
         number: gate.sequence,
         name: gate.name,
-        status: gate.status as 'pending' | 'in_progress' | 'completed' | 'rejected'
+        status: gate.status as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
       }))
 
       // Add metadata about gate progress

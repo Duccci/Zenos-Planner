@@ -32,11 +32,11 @@ export class GateRoadmapGenerator extends DiagramGeneratorBase {
     const mermaidLines = ['graph LR']
 
     if (gates.length === 0) {
-      // Default roadmap if no gates provided
-      mermaidLines.push('    G1["Gate 1<br/>Planning"]')
-      mermaidLines.push('    G2["Gate 2<br/>Design"]')
-      mermaidLines.push('    G3["Gate 3<br/>Implementation"]')
-      mermaidLines.push('    G4["Gate 4<br/>Testing"]')
+      // Minimal placeholder — no gates available yet
+      mermaidLines.push('    G1["Gate 01"]')
+      mermaidLines.push('    G2["Gate 02"]')
+      mermaidLines.push('    G3["Gate 03"]')
+      mermaidLines.push('    G4["Gate 04"]')
       mermaidLines.push('    G1 --> G2')
       mermaidLines.push('    G2 --> G3')
       mermaidLines.push('    G3 --> G4')
@@ -58,16 +58,17 @@ export class GateRoadmapGenerator extends DiagramGeneratorBase {
       }
     }
 
-    // Add styling
+    // Add styling — must match system-wide convention from gate-roadmap-template.md:
+    // pending=blue (#4A90E2), in_progress=amber (#FFC107), completed=green (#4CAF50)
     mermaidLines.push('')
     mermaidLines.push(
-      '    classDef pending fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#000'
+      '    classDef pending fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff'
     )
     mermaidLines.push(
-      '    classDef in_progress fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff'
+      '    classDef in_progress fill:#FFC107,stroke:#F57F17,stroke-width:2px,color:#000'
     )
     mermaidLines.push(
-      '    classDef completed fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#000'
+      '    classDef completed fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff'
     )
 
     return mermaidLines.join('\n')

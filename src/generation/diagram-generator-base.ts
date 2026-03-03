@@ -46,7 +46,7 @@ export interface DiagramContext {
     id: string
     number: number
     name: string
-    status: 'pending' | 'in_progress' | 'completed' | 'rejected'
+    status: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
     objectives?: string
   }[]
 

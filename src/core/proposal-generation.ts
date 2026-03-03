@@ -104,7 +104,7 @@ export async function generateProposals(
           continue
         }
 
-        const validationResult = await validateArtifactFile(proposalPath, 'proposal', 'all', {
+        const validationResult = await validateArtifactFile(proposalPath, 'proposal', {
           gateId,
           hash: proposal.hash,
         })

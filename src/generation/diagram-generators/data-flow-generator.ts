@@ -56,7 +56,7 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
    */
   private generateAspirationaDataFlow(_context: DiagramContext): string {
     const diagram = `flowchart TD
-    Start(["👤 User: Describe End State"]) --> Init["zeno init"]
+    Start(["User: Describe End State"]) --> Init["zeno init"]
     
     Init --> ParseEndState["Parse End State<br/>Natural Language"]
     
@@ -74,12 +74,12 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     
     GenProjectReqs --> StoreProjectReqs[("🟢 Store Requirements<br/>SQLite + File Store<br/>Gate 4")]
     
-    StoreProjectReqs --> ReviewGates{"👤 Human<br/>Reviews Gates?"}
+    StoreProjectReqs --> ReviewGates{"Human<br/>Reviews Gates?"}
     
     ReviewGates -->|Reject| Replan["🟡 Rescope Engine<br/>Gate 11<br/>Regenerate Gates"]
     Replan --> GenerateGates
     
-    ReviewGates -->|Approve| startGate["👤 Select & Start Gate"]
+    ReviewGates -->|Approve| startGate["Select & Start Gate"]
     
     startGate --> DecomposeReqs["🟢 Decompose Requirements<br/>Gate-specific from Project Reqs<br/>Gate 4"]
     
@@ -89,7 +89,7 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     
     DetectRepos --> CalcConfidence["Calculate Confidence Scores"]
     
-    CalcConfidence --> RepoApproval{"👤 Approve<br/>Repo Split?"}
+    CalcConfidence --> RepoApproval{"Approve<br/>Repo Split?"}
     
     RepoApproval -->|No| AdjustBoundaries["Adjust Boundaries"]
     AdjustBoundaries --> DetectRepos
@@ -110,7 +110,7 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     StoreFailed --> Replan2["🟡 Replan with Context<br/>Error Messages<br/>Gate 7"]
     Replan2 --> GenProposals
     
-    CheckResults -->|Yes| HumanReview{"👤 Human<br/>Approval?"}
+    CheckResults -->|Yes| HumanReview{"Human<br/>Approval?"}
     
     HumanReview -->|Reject| CollectFeedback["Collect Feedback"]
     CollectFeedback --> Replan2
@@ -119,7 +119,7 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     
     UpdateProposalStatus --> StartWorktree["🟡 Start Worktree<br/>Isolated Execution<br/>Gate 9-10"]
     
-    StartWorktree --> Implement["👤 Implement Proposal<br/>in Worktree"]
+    StartWorktree --> Implement["Implement Proposal<br/>in Worktree"]
     
     Implement --> ValidateImplementation["🟡 Validate Implementation<br/>Running Tests/Checks<br/>Gate 8"]
     
@@ -128,7 +128,7 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     MergeResult -->|No| RejectProposal["🟡 Reject Proposal<br/>Gate 9<br/>Preserve for Rework"]
     RejectProposal --> GenProposals
     
-    MergeResult -->|Yes| ApproveProposal["👤 Approve & Merge<br/>Gate 9"]
+    MergeResult -->|Yes| ApproveProposal["Approve & Merge<br/>Gate 9"]
     
     ApproveProposal --> GitIntegration["🟡 Git Integration<br/>Commit/Tag/Branch<br/>Gate 10"]
     
@@ -138,12 +138,12 @@ export class DataFlowGenerator extends DiagramGeneratorBase {
     
     AllComplete -->|No| startGate
     
-    AllComplete -->|Yes| CompleteGate["👤 Complete Gate<br/>Archive Artifacts<br/>Create Release Tag"]
+    AllComplete -->|Yes| CompleteGate["Complete Gate<br/>Archive Artifacts<br/>Create Release Tag"]
     
     CompleteGate --> NextGate{"More Gates?"}
     
     NextGate -->|Yes| startGate
-    NextGate -->|No| ProjectComplete[("✅ Project Complete<br/>Vision Realized")]
+    NextGate -->|No| ProjectComplete[("Project Complete<br/>Vision Realized")]
     
     style Start fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
     style ProjectComplete fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#fff

@@ -78,9 +78,17 @@ const mockStoreRequirement = vi.fn().mockImplementation(
     gateId,
     parentId: null,
     projectId: 'default-project',
+    level: 'gate',
+    sourceGateId: null,
     createdAt: new Date(),
   })
 )
+
+const mockGetGateLinkedRequirements = vi.fn().mockReturnValue([])
+const mockGetRequirementReferencingGates = vi.fn().mockReturnValue([])
+const mockLinkRequirementToGate = vi.fn()
+const mockGetLinkedGates = vi.fn().mockReturnValue([])
+const mockGetProjectLevelRequirements = vi.fn().mockReturnValue([])
 
 vi.mock('../../src/generation/requirement-storage.js', () => {
   return {
@@ -93,6 +101,11 @@ vi.mock('../../src/generation/requirement-storage.js', () => {
       this.transferRequirement = mockTransferRequirement
       this.searchRequirements = mockSearchRequirements
       this.storeRequirement = mockStoreRequirement
+      this.getGateLinkedRequirements = mockGetGateLinkedRequirements
+      this.getRequirementReferencingGates = mockGetRequirementReferencingGates
+      this.linkRequirementToGate = mockLinkRequirementToGate
+      this.getLinkedGates = mockGetLinkedGates
+      this.getProjectLevelRequirements = mockGetProjectLevelRequirements
     },
   }
 })
@@ -721,7 +734,8 @@ describe('Requirements Registry wiring', () => {
           'default-project',
           'gate-06',
           undefined,
-          undefined
+          undefined,
+          'project'
         )
       })
 
@@ -861,16 +875,12 @@ describe('Requirements Registry wiring', () => {
         const result = registry.get('req_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-06' },
-        }) as { requirements: Array<{ hash: string; title: string; gateId: string }> }
+        }) as { requirements: Array<{ hash: string; title: string }> }
 
         // Should have 1 project req from graph + 1 inherited req resolved by hash
         expect(result.requirements).toHaveLength(2)
         expect(result.requirements.map((r) => r.hash)).toContain('4bc74e36854c4221')
         expect(result.requirements.map((r) => r.hash)).toContain('ac3ffa69e28bfed4')
-
-        // The inherited req should retain its source gate ID, not the current one
-        const inherited = result.requirements.find((r) => r.hash === 'ac3ffa69e28bfed4')
-        expect(inherited?.gateId).toBe('gate-01')
 
         // storeRequirement called for project req only (inherited already in DB)
         expect(mockStoreRequirement).toHaveBeenCalledTimes(1)

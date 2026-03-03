@@ -3,9 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockReadFile = vi.fn()
 const mockWriteFile = vi.fn()
 const mockFindProposalByHash = vi.fn()
+const mockFindGateByGateId = vi.fn()
 const mockUpdateTaskStatus = vi.fn()
 const mockCalculateCompletionSummary = vi.fn()
 const mockUpdateCompletionSummary = vi.fn()
+const mockExtractAllCompletedTaskFiles = vi.fn().mockReturnValue([])
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
@@ -14,12 +16,14 @@ vi.mock('../../src/utils/file.js', () => ({
 
 vi.mock('../../src/utils/artifact-locator.js', () => ({
   findProposalByHash: (...args: unknown[]) => mockFindProposalByHash(...args),
+  findGateByGateId: (...args: unknown[]) => mockFindGateByGateId(...args),
 }))
 
 vi.mock('../../src/core/proposal-progress.js', () => ({
   updateTaskStatus: (...args: unknown[]) => mockUpdateTaskStatus(...args),
   calculateCompletionSummary: (...args: unknown[]) => mockCalculateCompletionSummary(...args),
   updateCompletionSummary: (...args: unknown[]) => mockUpdateCompletionSummary(...args),
+  extractAllCompletedTaskFiles: (...args: unknown[]) => mockExtractAllCompletedTaskFiles(...args),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -102,6 +106,68 @@ describe('proposal-application coverage', () => {
         completed: false,
       })
     ).rejects.toThrow('Progress update failed')
+  })
+
+  it('syncs gate Proposal Status table when all tasks are complete', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    const proposalContent =
+      '# Proposal: Test\n\n**Hash**: #abc123\n**Gate**: gate-01 - Some Gate\n**Status**: in_progress\n\n- [x] Task 1'
+    const gateContent =
+      '## Proposals\n\n### Proposal Status\n\n| Proposal | Hash | Status | Notes |\n| Test | #abc123 | pending | Some notes |'
+
+    mockFindProposalByHash.mockResolvedValue('/project/zeno/proposals/gate-01/01-test.md')
+    mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-some-gate.md')
+    mockReadFile
+      .mockResolvedValueOnce(proposalContent)  // read proposal
+      .mockResolvedValueOnce(gateContent)      // read gate file
+    mockUpdateTaskStatus.mockReturnValue(proposalContent)
+    mockCalculateCompletionSummary.mockReturnValue({
+      tasksCompleted: 1,
+      tasksTotal: 1,
+      filesModified: 0,
+    })
+    mockUpdateCompletionSummary.mockReturnValue(proposalContent + '\n\n## Completion Summary')
+    mockWriteFile.mockResolvedValue(undefined)
+
+    const result = await updateProposalProgress({
+      hash: 'abc123',
+      taskIndex: 0,
+      completed: true,
+    })
+
+    expect(result.gateStatusUpdated).toBe(true)
+    // writeFile called: task update, completion summary, and gate update
+    expect(mockWriteFile).toHaveBeenCalledTimes(3)
+    expect(mockFindGateByGateId).toHaveBeenCalledWith('gate-01', expect.any(String))
+  })
+
+  it('skips gate sync for solitary proposals (no gate ID in metadata)', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    const solitaryContent =
+      '# Proposal: Test\n\n**Hash**: #abc123\n**Gate**: Solitary\n**Status**: in_progress\n\n- [x] Task 1'
+
+    mockFindProposalByHash.mockResolvedValue('/project/zeno/proposals/solitary/test.md')
+    mockFindGateByGateId.mockClear()
+    mockReadFile.mockResolvedValueOnce(solitaryContent)
+    mockUpdateTaskStatus.mockReturnValue(solitaryContent)
+    mockCalculateCompletionSummary.mockReturnValue({
+      tasksCompleted: 1,
+      tasksTotal: 1,
+      filesModified: 0,
+    })
+    mockUpdateCompletionSummary.mockReturnValue(solitaryContent + '\n\n## Completion Summary')
+    mockWriteFile.mockResolvedValue(undefined)
+
+    const result = await updateProposalProgress({
+      hash: 'abc123',
+      taskIndex: 0,
+      completed: true,
+    })
+
+    expect(result.gateStatusUpdated).toBe(false)
+    expect(mockFindGateByGateId).not.toHaveBeenCalled()
   })
 
   it('should include "in progress" message when completed=false (covers ternary false branch)', async () => {

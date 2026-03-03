@@ -8,8 +8,6 @@
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 export class GateLifecycleGenerator extends DiagramGeneratorBase {
   getType(): DiagramType {
@@ -22,39 +20,39 @@ export class GateLifecycleGenerator extends DiagramGeneratorBase {
 
   /**
    * Generate a state machine diagram showing gate status transitions.
-   * Template provides structure; content is populated from project metadata.
+   * States and transitions mirror the authoritative MCP workflow contract in mcp-workflows.md.
    */
   generateContent(_context: DiagramContext): string {
-    // Load template for structural guidance
-    const templatePath = join(
-      process.cwd(),
-      'templates/architecture-templates/lifecycle-template.md'
-    )
-    try {
-      readFileSync(templatePath, 'utf-8')
-    } catch {
-      // Template file not found; proceed with default generation
-    }
-
-    // Generate Mermaid state diagram for gate lifecycle
-    // States: pending, in_progress, completed, rejected
-    // Transitions: pending->in_progress (start), in_progress->completed (complete),
-    //              in_progress->rejected (reject), both completed and rejected are terminal
+    // Generate Mermaid state diagram for gate lifecycle.
+    // Must match the authoritative MCP workflow contract in mcp-workflows.md:
+    // validate is required before start; cancel/defer are available at every state.
+    // Terminal states: completed, cancelled.
     const diagram = `stateDiagram-v2
     [*] --> pending
 
-    pending --> in_progress: zeno gates start
-    pending --> rejected: zeno gates reject
+    pending --> validated: zeno gates validate
+    pending --> cancelled: zeno gates cancel
+    pending --> backlog: zeno gates defer
+
+    validated --> in_progress: zeno gates start
+    validated --> cancelled: zeno gates cancel
+    validated --> backlog: zeno gates defer
 
     in_progress --> completed: zeno gates complete
-    in_progress --> rejected: zeno gates reject
+    in_progress --> cancelled: zeno gates cancel
+    in_progress --> backlog: zeno gates defer
 
     completed --> [*]
-    rejected --> [*]
+    cancelled --> [*]
 
     note right of pending
-        Gate waiting to be started.
-        Review and approval in progress.
+        Gate waiting to be validated.
+        Validate is required before start.
+    end note
+
+    note right of validated
+        All structural/quality checks passed.
+        Ready to start work.
     end note
 
     note right of in_progress
@@ -67,23 +65,23 @@ export class GateLifecycleGenerator extends DiagramGeneratorBase {
         Git tag created, archived.
     end note
 
-    note right of rejected
-        Gate rejected due to failed checks
-        or human decision. Preserved for rework.
+    note right of cancelled
+        Gate was cancelled or deferred to
+        backlog. Preserved for reference.
     end note`
 
     return diagram
   }
 
   /**
-   * Lifecycle diagram always has 4 nodes (states) and 4 transitions.
+   * Lifecycle diagram has 6 states and 9 transitions (matching mcp-workflows.md contract).
    */
   protected override countNodes(_context: DiagramContext): number {
-    return 4 // pending, in_progress, completed, rejected
+    return 6 // pending, validated, in_progress, completed, cancelled, backlog
   }
 
   protected override countEdges(): number {
-    return 4 // Transitions between states
+    return 9 // All valid transitions per MCP workflow contract
   }
 
   protected override countNestingDepth(_context: DiagramContext): number {

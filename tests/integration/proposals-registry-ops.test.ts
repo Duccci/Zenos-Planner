@@ -22,6 +22,10 @@ const mockInvokeCommand = vi.fn()
 const mockValidateDependencies = vi.fn()
 const mockValidateQuality = vi.fn()
 const mockValidateProposalPhases = vi.fn()
+const mockValidateScope = vi.fn()
+const mockValidateTestFileScope = vi.fn()
+const mockValidateTestFirstPattern = vi.fn()
+const mockValidateGateLevelTestFirst = vi.fn()
 const mockFindProposalByHash = vi.fn()
 const mockReadFile = vi.fn()
 const mockValidateApplyPhase = vi.fn()
@@ -49,6 +53,17 @@ vi.mock('../../src/mcp/validators/dependency-validator.js', () => ({
 
 vi.mock('../../src/mcp/validators/quality-validator.js', () => ({
   validateQuality: (...args: unknown[]) => mockValidateQuality(...args),
+  DEFAULT_QUALITY_STUB_METRICS: { coverage: 100, securityVulnerabilities: 0, lintErrors: 0, typeErrors: 0 },
+}))
+
+vi.mock('../../src/mcp/validators/scope-validator.js', () => ({
+  validateScope: (...args: unknown[]) => mockValidateScope(...args),
+  validateTestFileScope: (...args: unknown[]) => mockValidateTestFileScope(...args),
+}))
+
+vi.mock('../../src/mcp/validators/test-first-validator.js', () => ({
+  validateTestFirstPattern: (...args: unknown[]) => mockValidateTestFirstPattern(...args),
+  validateGateLevelTestFirst: (...args: unknown[]) => mockValidateGateLevelTestFirst(...args),
 }))
 
 vi.mock('../../src/mcp/validators/proposal-phases-validator.js', () => ({
@@ -111,10 +126,15 @@ describe('proposals-registry operations', () => {
     mockApproveProposal.mockResolvedValue({})
     mockRejectProposal.mockResolvedValue({})
     mockStartProposal.mockResolvedValue({})
-    mockValidateDependencies.mockReturnValue({ errors: [], warnings: [] })
+    mockValidateDependencies.mockReturnValue({ allowed: true, errors: [], warnings: [] })
     mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
     mockValidateApplyPhase.mockReturnValue({ allowed: true, warnings: [] })
-    mockValidateProposalPhases.mockReturnValue({ errors: [], warnings: [] })
+    mockValidateProposalPhases.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateScope.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateTestFileScope.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateTestFirstPattern.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateGateLevelTestFirst.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateArtifactFile.mockResolvedValue({ allowed: true, errors: [], warnings: [] })
     mockLoadConfig.mockResolvedValue({ quality: { coverageThreshold: 90 } })
     mockFindProposalByHash.mockResolvedValue(null)
 
@@ -455,8 +475,8 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean }
-      expect(data.passed).toBe(true)
+      const data = result.data as { passedQuantitative: boolean }
+      expect(data.passedQuantitative).toBe(true)
     })
 
     it('validates a proposal with dependencies', async () => {
@@ -470,7 +490,7 @@ describe('proposals-registry operations', () => {
         created_at: '2026-01-01T00:00:00Z',
       })
       mockAll.mockReturnValue([{ hash: 'dep11111', dependencies: null, gate_id: 'gate-01' }])
-      mockValidateDependencies.mockReturnValue({ errors: [], warnings: [] })
+      mockValidateDependencies.mockReturnValue({ allowed: true, errors: [], warnings: [] })
 
       const result = (await registry.invoke('proposal_validate', { hash: 'abc12345' })) as {
         success: boolean
@@ -491,6 +511,7 @@ describe('proposals-registry operations', () => {
       })
       mockAll.mockReturnValue([])
       mockValidateDependencies.mockReturnValue({
+        allowed: false,
         errors: ['Circular dependency detected'],
         warnings: [],
       })
@@ -500,8 +521,8 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean; issues: { level: string; message: string }[] }
-      expect(data.passed).toBe(false)
+      const data = result.data as { passedQuantitative: boolean; issues: { level: string; message: string }[] }
+      expect(data.passedQuantitative).toBe(false)
       expect(data.issues.some(i => i.level === 'error' && i.message.includes('Circular dependency detected'))).toBe(true)
     })
 
@@ -528,7 +549,7 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean; issues: { level: string; message: string }[] }
+      const data = result.data as { passedQuantitative: boolean; issues: { level: string; message: string }[] }
       expect(data.issues.some(i => i.level === 'warning' && i.message.includes('Low coverage'))).toBe(true)
     })
 
@@ -553,8 +574,8 @@ describe('proposals-registry operations', () => {
         data: unknown
       }
       expect(result.success).toBe(true)
-      const data = result.data as { passed: boolean; errors?: string[] }
-      expect(data.passed).toBe(false)
+      const data = result.data as { passedQuantitative: boolean; errors?: string[] }
+      expect(data.passedQuantitative).toBe(false)
     })
 
     it('runs proposal phases validation when file is found', async () => {
@@ -784,7 +805,9 @@ describe('proposals-registry operations', () => {
         title: 'Test Proposal',
         file_path: 'zeno/proposals/gate-01/01-test.md',
       })
+      mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/01-test.md')
       mockValidateArtifactFile.mockResolvedValue({ allowed: true, warnings: [] })
+      mockStartProposal.mockResolvedValue(undefined)
       mockInvokeCommand.mockResolvedValue({ success: true })
 
       const result = (await registry.invoke('proposal_start', { hash: 'abc12345' })) as {

@@ -9,12 +9,13 @@
 // ─── Gate transitions ─────────────────────────────────────────────────────────
 
 /** All valid gate statuses */
-export type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
+export type GateStatus = 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
 
 /**
  * Full gate state transition map.
  *
- * pending    → in_progress
+ * pending    → validated | cancelled | backlog   (must validate before starting)
+ * validated  → in_progress | cancelled | backlog
  * in_progress → completed | rejected | cancelled | backlog
  * rejected   → in_progress  (resume rejected gates directly as in_progress)
  * backlog    → in_progress
@@ -22,7 +23,8 @@ export type GateStatus = 'pending' | 'in_progress' | 'completed' | 'rejected' | 
  * cancelled  → (terminal)
  */
 export const GATE_TRANSITIONS: Partial<Record<GateStatus, GateStatus[]>> = {
-  pending: ['in_progress'],
+  pending: ['validated', 'cancelled', 'backlog'],
+  validated: ['in_progress', 'cancelled', 'backlog'],
   in_progress: ['completed', 'rejected', 'cancelled', 'backlog'],
   rejected: ['in_progress'],
   completed: [],
@@ -35,6 +37,7 @@ export const GATE_TRANSITIONS: Partial<Record<GateStatus, GateStatus[]>> = {
 /** All valid proposal statuses */
 export type ProposalStatus =
   | 'pending'
+  | 'validated'
   | 'in_progress'
   | 'completed'
   | 'rejected'
@@ -45,7 +48,8 @@ export type ProposalStatus =
 /**
  * Full proposal state transition map.
  *
- * pending    → in_progress | cancelled | backlog
+ * pending    → validated | cancelled | backlog   (must validate before starting)
+ * validated  → in_progress | cancelled | backlog
  * in_progress → completed | rejected | cancelled | backlog
  * rejected   → pending    (proposals reset to pending for rework, unlike gates)
  * backlog    → pending
@@ -54,7 +58,8 @@ export type ProposalStatus =
  * archived   → (terminal)
  */
 export const PROPOSAL_TRANSITIONS: Partial<Record<ProposalStatus, ProposalStatus[]>> = {
-  pending: ['in_progress', 'cancelled', 'backlog'],
+  pending: ['validated', 'cancelled', 'backlog'],
+  validated: ['in_progress', 'cancelled', 'backlog'],
   in_progress: ['completed', 'rejected', 'cancelled', 'backlog'],
   rejected: ['pending'],
   completed: [],

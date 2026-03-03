@@ -176,7 +176,7 @@ function generateArchivedGatesSection(gates: GateStatus[]): string {
  */
 export async function updateProjectPRDGates(projectRoot: string): Promise<void> {
   try {
-    const prdPath = path.join(projectRoot, 'zeno', 'PROJECT_PRD.md')
+    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
     const content = await readFile(prdPath)
 
     // Extract current sections
@@ -222,7 +222,7 @@ export async function updateTimelineSection(
   completedGateId: string
 ): Promise<void> {
   try {
-    const prdPath = path.join(projectRoot, 'zeno', 'PROJECT_PRD.md')
+    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
     const content = await readFile(prdPath)
 
     // Find timeline section

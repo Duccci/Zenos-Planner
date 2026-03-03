@@ -310,24 +310,30 @@ function syncGateRequirementsFromMarkdown(
 
         const existing = storage.getRequirementByHash(req.hash)
         if (existing) {
-          // Already in DB under its source gate — do NOT duplicate
+          // Already in DB under its source gate — create a cross-gate link if not already present
+          storage.linkRequirementToGate(existing.id, gateId)
           continue
         }
 
-        // Not yet in DB — store under the source gate's ID (or null if unknown)
-        storage.storeRequirement(
+        // Not yet in DB — store under the source gate's ID with provenance metadata
+        const stored = storage.storeRequirement(
           req.description,
           req.type,
           req.priority,
           'default-project',
-          req.sourceGateId ?? undefined,
-          undefined, // acceptance criteria
-          undefined  // parent id
+          req.sourceGateId ?? undefined, // owned by source gate
+          undefined,                      // acceptance criteria
+          undefined,                      // parent id
+          'gate',                         // level
+          req.sourceGateId ?? undefined   // source_gate_id = origin gate
         )
+        // Explicitly link the inherited requirement to the current gate
+        storage.linkRequirementToGate(stored.id, gateId)
         continue
       }
 
-      // Project requirement — attributed to this gate
+      // Project requirement — attributed to this gate.
+      // Mark as 'project' level if it comes from the "Project Requirements" subsection.
       const existing = storage.getRequirementByHash(req.hash)
       if (existing) {
         inserted++
@@ -341,7 +347,8 @@ function syncGateRequirementsFromMarkdown(
         'default-project',
         gateId,
         undefined, // acceptance criteria
-        undefined  // parent id
+        undefined, // parent id
+        'project'  // project-level requirement attributed to this gate
       )
       inserted++
     } catch (err) {
@@ -410,14 +417,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           if (payload.project) {
             const reqs = storage.getProjectRequirements()
             return {
-              requirements: reqs.map((r) => ({
-                hash: r.hash,
-                title: r.description,
-                type: r.type,
-                priority: r.priority,
-                gateId: r.gateId ?? 'gate-00',
-                created: (r.createdAt as Date | undefined)?.toISOString() ?? new Date().toISOString(),
-              })),
+              requirements: reqs.map((r) => ({ hash: r.hash, title: r.description })),
             }
           }
 
@@ -451,14 +451,12 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             const req = storage.getRequirementByHash(inheritedHash)
             if (req) {
               seenHashes.add(req.hash)
-              const nodeType = VALID_TYPES.has(req.type) ? (req.type as DependencyNode['type']) : 'functional'
-              const nodePriority = VALID_PRIORITIES.has(req.priority) ? (req.priority as DependencyNode['priority']) : 'must'
               allRequirements.push({
                 hash: req.hash,
                 id: req.hash,
                 title: req.description,
-                type: nodeType,
-                priority: nodePriority,
+                type: 'functional' as DependencyNode['type'],
+                priority: 'must' as DependencyNode['priority'],
                 gateId: req.gateId ?? 'gate-00',
                 parent: req.parentId ?? undefined,
                 children: [],
@@ -474,17 +472,21 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             }
           }
 
-          const now = new Date().toISOString()
+          // Include cross-gate linked requirements when filtering by a specific gate
+          const linkedReqs = payload.gateId
+            ? storage.getGateLinkedRequirements(payload.gateId)
+            : []
+
+          const linkedFiltered = linkedReqs.filter(
+            (r) => !allRequirements.some((n) => n.hash === r.hash)
+          )
 
           return {
-            requirements: allRequirements.map((n) => ({
-              hash: n.hash,
-              title: n.title,
-              type: n.type,
-              priority: n.priority,
-              gateId: n.gateId ?? 'gate-00',
-              created: now,
-            })),
+            requirements: [
+              ...allRequirements.map((n) => ({ hash: n.hash, title: n.title })),
+              ...linkedFiltered.map((r) => ({ hash: r.hash, title: r.description })),
+            ],
+            linkedCount: linkedFiltered.length,
           }
         }
 
@@ -496,6 +498,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           }
           const children = storage.getRequirementChildren(payload.hash)
           const ancestors = storage.getRequirementAncestors(payload.hash)
+          const referencingGates = storage.getRequirementReferencingGates(payload.hash)
           return {
             requirement: {
               hash: req.hash,
@@ -503,6 +506,8 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               description: req.description,
               type: req.type,
               gateId: req.gateId ?? 'gate-00',
+              level: req.level,
+              sourceGateId: req.sourceGateId ?? undefined,
               priority: req.priority,
               acceptance: req.acceptanceCriteria
                 ? [{ criteria: req.acceptanceCriteria, completed: false }]
@@ -511,6 +516,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               parentRequirement: ancestors[0]
                 ? { hash: ancestors[0].hash, title: ancestors[0].description }
                 : undefined,
+              referencingGates,
               created: (req.createdAt as Date | undefined)?.toISOString() ?? new Date().toISOString(),
             },
             children,
@@ -563,9 +569,82 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               type: r.type,
               priority: r.priority,
               gateId: r.gateId ?? 'gate-00',
+              level: r.level,
+              sourceGateId: r.sourceGateId ?? undefined,
               created: (r.createdAt as Date | undefined)?.toISOString() ?? new Date().toISOString(),
             })),
             total,
+          }
+        }
+
+        // -----------------------------------------------------------------------
+        // inherit — explicitly link an existing requirement to a gate for reuse.
+        // This is the primary mechanism for cross-gate requirement traceability:
+        //   gate-03 can inherit requirement #abc from gate-01 without transferring
+        //   ownership, and without duplicating the requirement in the DB.
+        // -----------------------------------------------------------------------
+        case 'inherit': {
+          const payload = z
+            .object({ hash: z.string(), gateId: z.string() })
+            .parse(validated.payload ?? {})
+          const req = storage.getRequirementByHash(payload.hash)
+          if (!req) {
+            return {
+              success: false,
+              error: `Requirement ${payload.hash} not found in database`,
+            }
+          }
+          storage.linkRequirementToGate(req.id, payload.gateId)
+          return {
+            success: true,
+            requirementHash: req.hash,
+            requirementTitle: req.description,
+            ownerGateId: req.gateId ?? null,
+            linkedToGateId: payload.gateId,
+            level: req.level,
+            message: `Requirement "${req.description.substring(0, 60)}" (${req.hash}) linked to ${payload.gateId} from ${req.gateId ?? 'project'}.`,
+          }
+        }
+
+        // -----------------------------------------------------------------------
+        // trace — full traceability chain for a requirement.
+        // Returns: owner gate, all linked gates, parent/child hierarchy, and
+        //          related proposals. Enables answering "where does this spec flow?"
+        // -----------------------------------------------------------------------
+        case 'trace': {
+          const payload = z.object({ hash: z.string() }).parse(validated.payload ?? {})
+          const req = storage.getRequirementByHash(payload.hash)
+          if (!req) {
+            return { found: false, hash: payload.hash }
+          }
+          const ancestors = storage.getRequirementAncestors(payload.hash)
+          const children = storage.getRequirementChildren(payload.hash)
+          const referencingGates = storage.getRequirementReferencingGates(payload.hash)
+          return {
+            found: true,
+            hash: req.hash,
+            title: req.description,
+            level: req.level,
+            ownerGateId: req.gateId ?? null,
+            sourceGateId: req.sourceGateId ?? null,
+            type: req.type,
+            priority: req.priority,
+            // Ancestry chain: PRD or parent gate requirements that led to this
+            ancestors: ancestors.map((a) => ({
+              hash: a.hash,
+              title: a.description,
+              gateId: a.gateId ?? null,
+              level: a.level,
+            })),
+            // Child requirements decomposed from this one
+            children: children.map((c) => ({
+              hash: c.hash,
+              title: c.description,
+              gateId: c.gateId ?? null,
+              level: c.level,
+            })),
+            // All gates that own or reference this requirement
+            referencingGates,
           }
         }
 

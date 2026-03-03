@@ -40,8 +40,19 @@ describe('RequirementStorage', () => {
         acceptance_criteria TEXT,
         hash TEXT UNIQUE NOT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        level TEXT NOT NULL DEFAULT 'gate',
+        source_gate_id TEXT,
         FOREIGN KEY (parent_id) REFERENCES requirements(id),
         FOREIGN KEY (gate_id) REFERENCES gates(id)
+      )
+    `)
+
+    db.exec(`
+      CREATE TABLE requirement_gate_links (
+        requirement_id TEXT NOT NULL,
+        gate_id TEXT NOT NULL,
+        linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (requirement_id, gate_id)
       )
     `)
 
@@ -222,6 +233,78 @@ describe('RequirementStorage', () => {
       const requirements = storage.storeRequirementsFromCandidates(candidates)
 
       expect(requirements.length).toBe(0)
+    })
+  })
+
+  describe('linkRequirementToGate / getLinkedGates / getGateLinkedRequirements', () => {
+    it('links a requirement to a gate idempotently', () => {
+      const req = storage.storeRequirement('Shared security policy', 'non_functional', 'must', 'default-project', 'gate-01')
+      storage.linkRequirementToGate(req.id, 'gate-02')
+      storage.linkRequirementToGate(req.id, 'gate-02') // idempotent
+
+      const linked = storage.getLinkedGates(req.id)
+      expect(linked).toEqual(['gate-02'])
+    })
+
+    it('returns multiple linked gates for one requirement', () => {
+      const req = storage.storeRequirement('Cross-cutting concern', 'constraint', 'must', 'default-project', 'gate-01')
+      storage.linkRequirementToGate(req.id, 'gate-02')
+      storage.linkRequirementToGate(req.id, 'gate-03')
+
+      const linked = storage.getLinkedGates(req.id)
+      expect(linked).toContain('gate-02')
+      expect(linked).toContain('gate-03')
+      expect(linked.length).toBe(2)
+    })
+
+    it('getGateLinkedRequirements returns requirements linked but not owned by the gate', () => {
+      const ownedReq = storage.storeRequirement('Owned req', 'functional', 'must', 'default-project', 'gate-02')
+      const linkedReq = storage.storeRequirement('Linked req', 'constraint', 'must', 'default-project', 'gate-01')
+      storage.linkRequirementToGate(linkedReq.id, 'gate-02')
+
+      const linked = storage.getGateLinkedRequirements('gate-02')
+      const hashes = linked.map((r) => r.hash)
+      expect(hashes).toContain(linkedReq.hash)
+      expect(hashes).not.toContain(ownedReq.hash)
+    })
+  })
+
+  describe('getProjectLevelRequirements', () => {
+    it('returns requirements with level=project', () => {
+      storage.storeRequirement('Project prd req', 'constraint', 'must', 'proj-1', undefined, undefined, undefined, 'project')
+      storage.storeRequirement('Gate specific req', 'functional', 'should', 'proj-1', 'gate-01')
+
+      const projectLevel = storage.getProjectLevelRequirements('proj-1')
+      expect(projectLevel.length).toBe(1)
+      expect(projectLevel[0]!.level).toBe('project')
+    })
+  })
+
+  describe('getRequirementReferencingGates', () => {
+    it('returns owner gate with role=owner', () => {
+      const req = storage.storeRequirement('Auth policy', 'constraint', 'must', 'default-project', 'gate-01')
+      const refs = storage.getRequirementReferencingGates(req.hash)
+      expect(refs.some((r) => r.gateId === 'gate-01' && r.role === 'owner')).toBe(true)
+    })
+
+    it('returns linked gates with role=linked', () => {
+      const req = storage.storeRequirement('GDPR constraint', 'constraint', 'must', 'default-project', 'gate-01')
+      storage.linkRequirementToGate(req.id, 'gate-03')
+      const refs = storage.getRequirementReferencingGates(req.hash)
+      expect(refs.some((r) => r.gateId === 'gate-03' && r.role === 'linked')).toBe(true)
+    })
+  })
+
+  describe('storeRequirement level/sourceGateId', () => {
+    it('stores requirement with project level', () => {
+      const req = storage.storeRequirement('PRD constraint', 'constraint', 'must', 'proj-1', undefined, undefined, undefined, 'project')
+      expect(req.level).toBe('project')
+      expect(req.sourceGateId).toBeNull()
+    })
+
+    it('stores requirement with sourceGateId', () => {
+      const req = storage.storeRequirement('Inherited req', 'functional', 'should', 'proj-1', 'gate-02', undefined, undefined, 'gate', 'gate-01')
+      expect(req.sourceGateId).toBe('gate-01')
     })
   })
 

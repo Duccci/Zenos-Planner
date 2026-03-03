@@ -167,4 +167,53 @@ describe('archive-validation', () => {
       code: 'ARCHIVE_VALIDATION_FAILED',
     })
   })
+
+  it('validateGateReady throws ARCHIVE_VALIDATION_FAILED when pending @red tests exist', async () => {
+    const gateFile = join(gatesDir, 'gate-04.md')
+    writeFileSync(gateFile, '# Gate 04\n\n**Status**: completed\n')
+
+    // Seed a test file with an unimplemented RED test in the temp project root
+    const testsDir = join(tempDir, 'tests', 'storage')
+    mkdirSync(testsDir, { recursive: true })
+    writeFileSync(
+      join(testsDir, 'example.test.ts'),
+      `it.skip('saves a repo', async () => { // @red\n  expect(true).toBe(false)\n})\n`
+    )
+
+    // Artifact validation passes — the RED test check should be what blocks archiving
+    vi.doMock('../../src/analysis/artifact-validation-service.js', () => ({
+      ArtifactValidationService: class {
+        validate = vi.fn().mockResolvedValue({ passed: true })
+      },
+    }))
+
+    const { validateGateReady } = await import('../../src/core/archive-validation.js')
+    const err = await validateGateReady('gate-04').catch((e) => e)
+    expect(err.code).toBe('ARCHIVE_VALIDATION_FAILED')
+    expect(err.message).toMatch(/RED test/i)
+    expect(err.context?.pendingRedTests).toHaveLength(1)
+  })
+
+  it('validateGateReady succeeds (past RED check) when no @red tests remain', async () => {
+    const gateFile = join(gatesDir, 'gate-05.md')
+    writeFileSync(gateFile, '# Gate 05\n\n**Status**: completed\n')
+
+    // Empty tests dir — no @red markers
+    mkdirSync(join(tempDir, 'tests'), { recursive: true })
+
+    // Artifact validation may pass or fail on minimal content
+    vi.doMock('../../src/analysis/artifact-validation-service.js', () => ({
+      ArtifactValidationService: class {
+        validate = vi.fn().mockResolvedValue({ passed: true })
+      },
+    }))
+
+    const { validateGateReady } = await import('../../src/core/archive-validation.js')
+    // Should not throw due to RED tests (may still throw for other reasons on minimal content)
+    const err = await validateGateReady('gate-05').catch((e) => e)
+    if (err instanceof Error) {
+      expect((err as { code?: string }).code).not.toBe('ARCHIVE_VALIDATION_FAILED')
+    }
+    // If it resolves, no RED tests were the problem — check passes
+  })
 })

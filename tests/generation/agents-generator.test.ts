@@ -1,9 +1,62 @@
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
-import { generateAgentsMD } from '../../src/generation/agents-generator.js'
+import { generateAgentsMD, ZENO_BLOCK_START, ZENO_BLOCK_END } from '../../src/generation/agents-generator.js'
 import type { ZenoConfig } from '../../src/utils/config.js'
-import type { Requirement } from '../../src/generation/types.js'
 
-// Helper to create minimal config
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const TEMPLATE_PATH = resolve(__dirname, '../../templates/md-templates/agents-template.md')
+const templateContent = readFileSync(TEMPLATE_PATH, 'utf-8')
+
+// ---------------------------------------------------------------------------
+// Helpers — extract the inner ZENO block from the template so assertions are
+// scoped to only the Zeno-managed content (same slice the generator produces).
+// ---------------------------------------------------------------------------
+
+function extractZenoBlock(md: string): string {
+  const startIdx = md.indexOf(ZENO_BLOCK_START)
+  const endIdx = md.indexOf(ZENO_BLOCK_END)
+  if (startIdx === -1 || endIdx === -1) return md
+  return md.slice(startIdx + ZENO_BLOCK_START.length, endIdx)
+}
+
+/** All ## / ### section headings inside the ZENO block (skips the file title). */
+function parseHeaders(md: string): string[] {
+  return md
+    .split('\n')
+    .filter(line => /^#{2,4} /.test(line))
+    .map(line => line.replace(/^#+\s+/, '').trim())
+}
+
+/**
+ * Backtick-wrapped tool names in the first column of the MCP Tool Reference
+ * table (lines of the form `| \`tool_name\` | ...`).
+ */
+function parseMcpToolNames(md: string): string[] {
+  const section = md.match(/#{2,3} MCP Tool Reference[\s\S]*?(?=\n#{2,3} |\n---)/)?.[0] ?? ''
+  return [...section.matchAll(/^\| `([^`]+)` \|/gm)].map(m => m[1].trim())
+}
+
+/**
+ * All backtick-wrapped values from the right column of the Quick Navigation
+ * table (lines of the form `| ... | \`value\` ...`).
+ */
+function parseNavToolRefs(md: string): string[] {
+  const section = md.match(/#{2,3} Quick Navigation[\s\S]*?(?=\n#{2,3} )/)?.[0] ?? ''
+  return [...section.matchAll(/\|\s+`([^`]+)`/g)]
+    .map(m => m[1].trim())
+    .filter(v => v.includes('_action') || v === 'config_get' || v.includes('show_entity'))
+}
+
+// Parse from the inner ZENO block only
+const ZENO_BLOCK = extractZenoBlock(templateContent)
+const TEMPLATE_HEADERS = parseHeaders(ZENO_BLOCK)
+const TEMPLATE_MCP_TOOLS = parseMcpToolNames(ZENO_BLOCK)
+const TEMPLATE_NAV_TOOLS = parseNavToolRefs(ZENO_BLOCK)
+
+// ---------------------------------------------------------------------------
+
 function createTestConfig(overrides: Partial<ZenoConfig> = {}): ZenoConfig {
   return {
     projectName: 'Test Project',
@@ -27,194 +80,40 @@ function createTestConfig(overrides: Partial<ZenoConfig> = {}): ZenoConfig {
   } as ZenoConfig
 }
 
-describe('Agents Generator - Branch Coverage', () => {
-  describe('generateAgentsMD - edge cases', () => {
-    it('should handle empty gates array', () => {
-      const projectConfig = createTestConfig({
-        projectName: 'Empty Project',
-      })
+describe('Agents Generator', () => {
+  it('output contains all section headers from the template ZENO block', () => {
+    const result = generateAgentsMD(createTestConfig())
+    for (const header of TEMPLATE_HEADERS) {
+      expect(result, `missing header: "${header}"`).toContain(header)
+    }
+  })
 
-      const gates: any[] = []
-      const requirements: any[] = []
+  it('output contains all MCP tool names from the template reference table', () => {
+    const result = generateAgentsMD(createTestConfig())
+    expect(TEMPLATE_MCP_TOOLS.length).toBeGreaterThan(0)
+    for (const tool of TEMPLATE_MCP_TOOLS) {
+      expect(result, `missing MCP tool: "${tool}"`).toContain(tool)
+    }
+  })
 
-      const result = generateAgentsMD(projectConfig, gates, requirements)
+  it('output contains all nav tool references from the template Quick Navigation table', () => {
+    const result = generateAgentsMD(createTestConfig())
+    expect(TEMPLATE_NAV_TOOLS.length).toBeGreaterThan(0)
+    for (const ref of TEMPLATE_NAV_TOOLS) {
+      expect(result, `missing nav ref: "${ref}"`).toContain(ref)
+    }
+  })
 
-      expect(result).toContain('# Empty Project: AI Agent Instructions')
-      expect(result).toContain('Empty Project')
-      expect(result).toContain('## Gate Roadmap')
-      expect(result).not.toContain('gate-01')
-    })
+  it('project name appears in the Project metadata line', () => {
+    const config = createTestConfig({ projectName: 'My Awesome Project' })
+    const result = generateAgentsMD(config)
+    expect(result).toContain('My Awesome Project')
+    expect(result).not.toContain('[Project Name]')
+  })
 
-    it('should handle empty requirements array', () => {
-      const projectConfig = createTestConfig({
-        projectName: 'Test Project',
-        version: '2.0.0',
-        qualityThresholds: {
-          codeCoverage: 85,
-          securityVulnerabilities: 1,
-          lintingErrorRate: 0.02,
-          typeCheckingErrors: 5,
-        },
-      })
-
-      const gates = [
-        {
-          id: 'gate-01',
-          name: 'Setup',
-          description: 'Initial setup',
-          objectives: [],
-          dependencies: [],
-          estimatedComplexity: 5,
-          confidence: 80,
-          type: 'feature' as const,
-          status: 'pending' as const,
-          hash: 'gatefhash1',
-          createdAt: new Date(),
-          completedAt: null,
-          proposal_hashes: null,
-          depends_on: null,
-        },
-      ]
-      const requirements: any[] = []
-
-      const result = generateAgentsMD(projectConfig, gates, requirements)
-
-      expect(result).toContain('Setup')
-      expect(result).toContain('## Requirements')
-      // Empty requirements should produce sections but with no listed items
-      expect(result).toContain('### Project-Level Requirements')
-      expect(result).toContain('### Gate-Specific Requirements')
-    })
-
-    it('should handle mixed project and gate-level requirements', () => {
-      const projectConfig = createTestConfig({
-        projectName: 'Full Project',
-      })
-
-      const gates = [
-        {
-          id: 'gate-01',
-          name: 'Foundation',
-          description: 'Foundation gate',
-          objectives: [],
-          dependencies: [],
-          estimatedComplexity: 10,
-          confidence: 85,
-          type: 'feature' as const,
-          status: 'pending' as const,
-          hash: 'gatehash1',
-          createdAt: new Date(),
-          completedAt: null,
-          proposal_hashes: null,
-          depends_on: null,
-        },
-        {
-          id: 'gate-02',
-          name: 'Build',
-          description: 'Build implementation',
-          objectives: [],
-          dependencies: [],
-          estimatedComplexity: 15,
-          confidence: 80,
-          type: 'feature' as const,
-          status: 'pending' as const,
-          hash: 'gatehash2',
-          createdAt: new Date(),
-          completedAt: null,
-          proposal_hashes: null,
-          depends_on: null,
-        },
-      ]
-
-      const requirements: Requirement[] = [
-        {
-          id: 'req1',
-          projectId: 'default',
-          gateId: null,
-          parentId: null,
-          type: 'functional',
-          priority: 'must',
-          description: 'System must be secure',
-          acceptanceCriteria: '',
-          hash: 'projreqhash1',
-          createdAt: new Date(),
-        },
-        {
-          id: 'req2',
-          projectId: 'default',
-          gateId: 'gate-01',
-          parentId: null,
-          type: 'functional',
-          priority: 'must',
-          description: 'Setup authentication',
-          acceptanceCriteria: '',
-          hash: 'gatereqhash1',
-          createdAt: new Date(),
-        },
-        {
-          id: 'req3',
-          projectId: 'default',
-          gateId: 'gate-02',
-          parentId: null,
-          type: 'functional',
-          priority: 'should',
-          description: 'Implement caching',
-          acceptanceCriteria: '',
-          hash: 'gatereqhash2',
-          createdAt: new Date(),
-        },
-      ]
-
-      const result = generateAgentsMD(projectConfig, gates, requirements)
-
-      expect(result).toContain('# Full Project: AI Agent Instructions')
-      expect(result).toContain('### Project-Level Requirements')
-      expect(result).toContain('### Gate-Specific Requirements')
-      expect(result).toContain('System must be secure')
-      expect(result).toContain('Setup authentication')
-      expect(result).toContain('Implement caching')
-      expect(result).toContain('gate-01')
-      expect(result).toContain('gate-02')
-      expect(result).toContain('Foundation')
-      expect(result).toContain('Build implementation')
-    })
-
-    it('should format quality thresholds correctly', () => {
-      const projectConfig = createTestConfig({
-        projectName: 'QA Project',
-        qualityThresholds: {
-          codeCoverage: 95,
-          securityVulnerabilities: 0,
-          lintingErrorRate: 0.005,
-          typeCheckingErrors: 2,
-        },
-      })
-
-      const gates: any[] = []
-      const requirements: any[] = []
-
-      const result = generateAgentsMD(projectConfig, gates, requirements)
-
-      expect(result).toContain('Code Coverage: 95% minimum')
-      expect(result).toContain('Security Vulnerabilities: 0 allowed')
-      expect(result).toContain('Linting Error Rate: <0.005%')
-      expect(result).toContain('Type Checking: 2 TypeScript errors')
-    })
-
-    it('should include version and timestamp', () => {
-      const projectConfig = createTestConfig({
-        projectName: 'Versioned Project',
-        version: '2.5.1',
-      })
-
-      const gates: any[] = []
-      const requirements: any[] = []
-
-      const result = generateAgentsMD(projectConfig, gates, requirements)
-
-      expect(result).toContain('2.5.1')
-      expect(result).toContain('Versioned Project')
-      expect(result).toMatch(/Last Updated.*\d{4}-\d{2}-\d{2}/)
-    })
+  it('date placeholder is replaced with a real date', () => {
+    const result = generateAgentsMD(createTestConfig())
+    expect(result).toMatch(/Last Updated.*\d{4}-\d{2}-\d{2}/)
+    expect(result).not.toContain('[TIMESTAMP]')
   })
 })

@@ -16,6 +16,13 @@ export type RequirementType = 'functional' | 'non_functional' | 'constraint'
 export type RequirementPriority = 'must' | 'should' | 'could' | 'wont'
 
 /**
+ * Requirement scope level.
+ *   'project' — cross-cutting PRD-level requirement that may span multiple gates.
+ *   'gate'    — gate-specific requirement generated at gate start (default).
+ */
+export type RequirementLevel = 'project' | 'gate'
+
+/**
  * Core requirement interface
  * Database presence equals approval. Implementation progress tracked
  * through Git commits and proposal completion, not database fields.
@@ -29,6 +36,16 @@ export interface Requirement {
   gateId: string | null
   /** Parent requirement ID for hierarchical requirements */
   parentId: string | null
+  /**
+   * Scope level: 'project' for PRD-level cross-cutting requirements,
+   * 'gate' for gate-specific requirements (default).
+   */
+  level: RequirementLevel
+  /**
+   * For inherited requirements: the gate that originally defined this requirement.
+   * Null when the requirement is native to its own gate.
+   */
+  sourceGateId: string | null
   /** Type of requirement */
   type: RequirementType
   /** Priority level */

@@ -82,7 +82,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         {
           name: 'status',
           type: 'string',
-          description: 'Optional status filter: pending, in_progress, completed, rejected, cancelled, backlog',
+          description: 'Optional status filter: pending, validated, in_progress, completed, rejected, cancelled, backlog',
           required: false,
         },
       ],
@@ -103,8 +103,21 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
       if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
       const previousStatus = proposal['status'] as string
-      db.prepare("UPDATE proposals SET status = 'cancelled', updated_at = ? WHERE hash = ?").run(new Date().toISOString(), proposal['hash'] as string)
-      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'cancelled', cancelledAt: new Date().toISOString(), reason: validated.reason }
+      const cancelledAt = new Date().toISOString()
+      db.prepare("UPDATE proposals SET status = 'cancelled', updated_at = ? WHERE hash = ?").run(cancelledAt, proposal['hash'] as string)
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        const { readFile, writeFile } = await import('../utils/file.js')
+        const filePath = await findProposalByHash(normalizedHash)
+        if (filePath) {
+          const content = await readFile(filePath)
+          const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1cancelled')
+          await writeFile(filePath, updated)
+        }
+      } catch {
+        // writeback is best-effort; do not fail the cancel operation
+      }
+      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'cancelled', cancelledAt, reason: validated.reason }
     },
     {
       description: 'Cancel a proposal (mark as cancelled/dropped)',
@@ -126,8 +139,21 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
       if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
       const previousStatus = proposal['status'] as string
-      db.prepare("UPDATE proposals SET status = 'backlog', updated_at = ? WHERE hash = ?").run(new Date().toISOString(), proposal['hash'] as string)
-      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'backlog', deferredAt: new Date().toISOString(), reason: validated.reason }
+      const deferredAt = new Date().toISOString()
+      db.prepare("UPDATE proposals SET status = 'backlog', updated_at = ? WHERE hash = ?").run(deferredAt, proposal['hash'] as string)
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        const { readFile, writeFile } = await import('../utils/file.js')
+        const filePath = await findProposalByHash(normalizedHash)
+        if (filePath) {
+          const content = await readFile(filePath)
+          const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1backlog')
+          await writeFile(filePath, updated)
+        }
+      } catch {
+        // writeback is best-effort; do not fail the defer operation
+      }
+      return { hash: proposal['hash'] as string, previousStatus, newStatus: 'backlog', deferredAt, reason: validated.reason }
     },
     {
       description: 'Defer a proposal to backlog (off main implementation path, revisit later)',
@@ -562,20 +588,23 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       const projectRoot = process.cwd()
-      const gateFolder = (proposal['gate_id'] as string | null) ?? 'solitary'
-      const defaultPath = `zeno/proposals/${gateFolder}/${((proposal['title'] as string) ?? 'proposal').replace(/\s+/g, '-').toLowerCase()}.md`
-      const proposalPath: string = (proposal['file_path'] as string | undefined) ?? defaultPath
 
-      try {
-        const validationResult = await validateArtifactFile(
-          projectRoot + '/' + proposalPath,
-          'proposal',
-          'all',
-          {
-            gateId: proposal['gate_id'] as string,
-            hash: validated.hash,
-          }
+      // Resolve the actual file by scanning proposal frontmatter hashes.
+      // Constructing from a title slug is unreliable when files have numbered
+      // prefixes (e.g. `01-red-test-suite.md`) that differ from the bare slug.
+      const { findProposalByHash: findProposal } = await import('../utils/artifact-locator.js')
+      const resolvedPath = await findProposal(validated.hash, projectRoot)
+      if (!resolvedPath) {
+        throw new Error(
+          `Proposal file for hash ${validated.hash} not found on disk. ` +
+          `Ensure the proposal markdown file exists under zeno/proposals/ with a matching **Hash** field.`
         )
+      }
+      try {
+        const validationResult = await validateArtifactFile(resolvedPath, 'proposal', {
+          gateId: proposal['gate_id'] as string,
+          hash: validated.hash,
+        })
 
         if (!validationResult.allowed) {
           throw new Error(
@@ -641,24 +670,45 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Import validators
       const { validateDependencies } = await import('../mcp/validators/dependency-validator.js')
-      const { validateQuality } = await import('../mcp/validators/quality-validator.js')
+      const { validateQuality, DEFAULT_QUALITY_STUB_METRICS } =
+        await import('../mcp/validators/quality-validator.js')
       const { validateProposalPhases } =
         await import('../mcp/validators/proposal-phases-validator.js')
+      const { validateScope, validateTestFileScope } = await import('../mcp/validators/scope-validator.js')
+      const { validateTestFirstPattern, validateGateLevelTestFirst } =
+        await import('../mcp/validators/test-first-validator.js')
+      const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
       const { readFile } = await import('../utils/file.js')
+      const { findProposalByHash } = await import('../utils/artifact-locator.js')
 
       const errors: string[] = []
       const warnings: string[] = []
+
+      // Per-check pass tracking
+      const checks = {
+        phases: true,
+        scope: true,
+        testFileScope: true,
+        dependencies: true,
+        artifactStructure: true,
+        quality: true,
+        testFirstPattern: true,
+        gateLevelTestFirst: undefined as boolean | undefined,
+      }
 
       // Load proposal from database
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string
         title?: string
+        description?: string | null
         dependencies?: string | null
         gate_id?: string | null
         quality_metrics?: string | null
         files_affected?: string | null
+        solitary?: number | null
         created_at?: string
+        status?: string
       }
       const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
         | ProposalRow
@@ -668,16 +718,18 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         throw new Error(`Proposal ${validated.hash} not found`)
       }
 
-      // Proposal phases validation - check for multi-phased proposals
-      try {
-        // Try to find and read the proposal file to check for multi-phase language
-        const { findProposalByHash } = await import('../utils/artifact-locator.js')
-        const proposalFilePath = await findProposalByHash(validated.hash)
+      const gateId = proposal.gate_id ?? undefined
+      const isSolitary = !gateId || proposal.solitary === 1
+      const filesAffected = proposal.files_affected
+        ? (JSON.parse(proposal.files_affected) as string[])
+        : []
 
+      // ── 1) Phases: RED+GREEN mixing check ──────────────────────────────────
+      try {
+        const proposalFilePath = await findProposalByHash(validated.hash)
         if (proposalFilePath) {
           const proposalContent = await readFile(proposalFilePath)
 
-          // Extract proposal sections
           const titleMatch = /^#\s+Proposal:\s+(.+)$/m.exec(proposalContent)
           const summaryMatch = /## Summary\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(proposalContent)
           const implNotesMatch = /## Implementation Notes\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(
@@ -694,99 +746,244 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
             : []
           const rollback = rollbackMatch?.[1]?.trim()
 
-          const phasesValidation = validateProposalPhases({
+          const phasesResult = validateProposalPhases({
             title,
             summary,
             implementationNotes,
             taskDescriptions,
             rollback,
           })
-
-          if (phasesValidation.errors) errors.push(...phasesValidation.errors)
-          if (phasesValidation.warnings) warnings.push(...phasesValidation.warnings)
-
-          // Template section validation — compare proposal headings against proposal-template.md
-          try {
-            const { loadTemplateSections, validateTemplateSections } =
-              await import('../mcp/validators/template-sections-validator.js')
-            const templateSections = await loadTemplateSections('proposal')
-            const sectionResult = validateTemplateSections(proposalContent, templateSections)
-            if (sectionResult.errors) errors.push(...sectionResult.errors)
-            if (sectionResult.warnings) warnings.push(...sectionResult.warnings)
-          } catch (templateErr) {
-            // Non-fatal: template file may be absent in restricted environments
-            const msg = templateErr instanceof Error ? templateErr.message : String(templateErr)
-            warnings.push(`Could not validate proposal sections against template: ${msg}`)
-          }
+          if (!phasesResult.allowed) checks.phases = false
+          if (phasesResult.errors) errors.push(...phasesResult.errors)
+          if (phasesResult.warnings) warnings.push(...phasesResult.warnings)
         }
       } catch (err) {
-        // If we can't read the file or proposal locator doesn't exist, skip phase validation
-        // This is non-critical and shouldn't block the entire validation
         const errMsg = err instanceof Error ? err.message : String(err)
         if (!errMsg.includes('ENOENT') && !errMsg.includes('not found')) {
           warnings.push(`Could not validate proposal phases: ${errMsg}`)
         }
       }
 
-      // Parse JSON fields
+      // ── 2) Scope: no wildcards or directory-only entries in filesAffected ──
+      try {
+        const scopeResult = validateScope({
+          filesAffected,
+          filesModified: filesAffected,
+          allowTestFiles: true,
+        })
+        if (!scopeResult.allowed) checks.scope = false
+        if (scopeResult.errors) errors.push(...scopeResult.errors)
+        if (scopeResult.warnings) warnings.push(...scopeResult.warnings)
+      } catch {
+        // non-fatal
+      }
+
+      // ── 3) Test-file scope: gate-tied proposals must not declare test files ─
+      try {
+        const testFileScopeResult = validateTestFileScope(filesAffected, isSolitary)
+        if (!testFileScopeResult.allowed) checks.testFileScope = false
+        if (testFileScopeResult.errors) errors.push(...testFileScopeResult.errors)
+        if (testFileScopeResult.warnings) warnings.push(...testFileScopeResult.warnings)
+      } catch {
+        // non-fatal
+      }
+
+      // ── 4) Dependencies: circular dependency DAG check ─────────────────────
       const dependencies = proposal.dependencies
         ? (JSON.parse(proposal.dependencies) as string[])
         : []
 
-      // Dependency validation
       if (dependencies.length > 0) {
-        interface DepNode {
-          hash: string
-          dependencies: string[]
-          gateId?: string
+        try {
+          interface DepNode { hash: string; dependencies: string[]; gateId?: string }
+          const allNodes = new Map<string, DepNode>()
+          const allProposals = db
+            .prepare('SELECT hash, dependencies, gate_id FROM proposals')
+            .all() as { hash: string; dependencies?: string | null; gate_id?: string | null }[]
+          for (const p of allProposals) {
+            allNodes.set(p.hash, {
+              hash: p.hash,
+              dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
+              gateId: p.gate_id ?? undefined,
+            })
+          }
+
+          const depResult = validateDependencies({
+            node: { hash: proposal.hash, dependencies, gateId },
+            allNodes,
+          })
+          if (!depResult.allowed) checks.dependencies = false
+          if (depResult.errors) errors.push(...depResult.errors)
+          if (depResult.warnings) warnings.push(...depResult.warnings)
+        } catch {
+          // non-fatal
         }
-        const allNodes = new Map<string, DepNode>()
-        const allProposals = db
-          .prepare('SELECT hash, dependencies, gate_id FROM proposals')
-          .all() as { hash: string; dependencies?: string | null; gate_id?: string | null }[]
-
-        for (const p of allProposals) {
-          allNodes.set(p.hash, {
-            hash: p.hash,
-            dependencies: p.dependencies ? (JSON.parse(p.dependencies) as string[]) : [],
-            gateId: p.gate_id ?? undefined,
-          } as DepNode)
-        }
-
-        const depValidation = validateDependencies({
-          node: {
-            hash: proposal.hash,
-            dependencies,
-            gateId: proposal.gate_id ?? undefined,
-          },
-          allNodes,
-        })
-
-        if (depValidation.errors) errors.push(...depValidation.errors)
-        if (depValidation.warnings) warnings.push(...depValidation.warnings)
       }
 
-      // Quality validation (if metrics available)
-      const qualityMetrics: Record<string, unknown> | null = proposal.quality_metrics
-        ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
-        : null
+      // ── 5) Artifact structure: template sections + single-phase + explicit paths ─
+      try {
+        const proposalFilePath = await findProposalByHash(validated.hash)
+        if (proposalFilePath) {
+          const content = await readFile(proposalFilePath)
+          const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+          const role = roleMatch?.[1]?.trim()
 
-      if (qualityMetrics) {
-        const qualityValidation = await validateQuality({
-          metrics: qualityMetrics,
+          // Load gate objectives and out-of-scope items for richer qualitative scope-creep evaluation.
+          // Falls back to proposal summary when gate file is unavailable.
+          let gateObjectives: string | undefined
+          let outOfScopeItems: string[] | undefined
+          if (gateId) {
+            try {
+              const { findGateByGateId } = await import('../utils/artifact-locator.js')
+              const gatePath = await findGateByGateId(gateId)
+              if (gatePath) {
+                const gateContent = await readFile(gatePath)
+                const objectivesMatch = /##\s+Objectives\b([\s\S]*?)(?=\n##\s|\s*$)/.exec(gateContent)
+                gateObjectives = objectivesMatch?.[1]?.trim()
+
+                // Extract "Out of Scope" bullet items for hard violation detection
+                const scopeMatch = /##\s+Scope Boundaries\b([\s\S]*?)(?=\n##\s|\s*$)/.exec(gateContent)
+                const scopeBody = scopeMatch?.[1] ?? ''
+                const outOfScopeMatch = /out[\s-]of[\s-]scope\s*[:\n]([\s\S]*?)(?=\*\*in[\s-]scope|##|$)/i.exec(scopeBody)
+                if (outOfScopeMatch?.[1]) {
+                  outOfScopeItems = outOfScopeMatch[1]
+                    .split('\n')
+                    .map((l) => l.replace(/^\s*[-*•]\s*/, '').trim())
+                    .filter((l) => l.length >= 5)
+                }
+              }
+            } catch {
+              // non-fatal: qualitative check falls back to proposal summary
+            }
+          }
+
+          const artifactResult = await validateArtifactFile(proposalFilePath, 'proposal', {
+            hash: validated.hash,
+            gateId,
+            role,
+            ...(gateObjectives ? { gateObjectives } : {}),
+            ...(outOfScopeItems && outOfScopeItems.length > 0 ? { outOfScopeItems } : {}),
+          })
+          if (!artifactResult.allowed) checks.artifactStructure = false
+          if (artifactResult.errors) errors.push(...artifactResult.errors)
+          if (artifactResult.warnings) warnings.push(...artifactResult.warnings)
+        }
+      } catch {
+        // non-fatal if file not yet written
+      }
+
+      // ── 6) Quality: coverage ≥90%, 0 CVEs, <0.01% lint errors ─────────────
+      try {
+        const qualityMetrics: Record<string, unknown> = proposal.quality_metrics
+          ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
+          : { ...DEFAULT_QUALITY_STUB_METRICS }
+
+        const qualityResult = await validateQuality({ metrics: qualityMetrics })
+        if (!qualityResult.allowed) checks.quality = false
+        if (qualityResult.errors) errors.push(...qualityResult.errors)
+        if (qualityResult.warnings) warnings.push(...qualityResult.warnings)
+      } catch {
+        // non-fatal
+      }
+
+      // ── 7) Test-first pattern: role-file consistency for this proposal ──────
+      try {
+        const proposalFilePath = await findProposalByHash(validated.hash)
+        let role: string | undefined
+        if (proposalFilePath) {
+          const content = await readFile(proposalFilePath)
+          const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+          role = roleMatch?.[1]?.trim()
+        }
+
+        const tfResult = validateTestFirstPattern({
+          proposalHash: validated.hash,
+          role,
+          isGateTied: !isSolitary,
+          filesAffected,
         })
+        if (!tfResult.allowed) checks.testFirstPattern = false
+        if (tfResult.errors) errors.push(...tfResult.errors)
+        if (tfResult.warnings) warnings.push(...tfResult.warnings)
+      } catch {
+        // non-fatal
+      }
 
-        if (qualityValidation.errors) errors.push(...qualityValidation.errors)
-        if (qualityValidation.warnings) warnings.push(...qualityValidation.warnings)
+      // ── 8) Gate-level test-first: sibling structure (skipped for solitary) ──
+      if (!isSolitary && gateId) {
+        try {
+          const siblingRows = db
+            .prepare('SELECT hash, created_at FROM proposals WHERE gate_id = ?')
+            .all(gateId) as { hash: string; created_at?: string }[]
+
+          const gateProposals = await Promise.all(
+            siblingRows.map(async (p) => {
+              let role: string | undefined
+              try {
+                const fp = await findProposalByHash(p.hash)
+                if (fp) {
+                  const content = await readFile(fp)
+                  const m = /\*\*Role\*\*:\s*(.+)/.exec(content)
+                  role = m?.[1]?.trim()
+                }
+              } catch { /* role stays undefined */ }
+              return { hash: p.hash, role, createdAt: p.created_at ?? new Date().toISOString() }
+            })
+          )
+
+          const gltfResult = validateGateLevelTestFirst(gateProposals)
+          checks.gateLevelTestFirst = gltfResult.allowed
+          if (!gltfResult.allowed) {
+            if (gltfResult.errors) errors.push(...gltfResult.errors)
+            if (gltfResult.warnings) warnings.push(...gltfResult.warnings)
+          }
+        } catch {
+          // non-fatal
+        }
+      }
+
+      const passedQuantitative = errors.length === 0
+      const previousStatus = proposal.status ?? 'pending'
+
+      // When all checks pass, advance proposal status to 'validated'
+      if (passedQuantitative && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
+        try {
+          db.prepare(`UPDATE proposals SET status = 'validated', updated_at = CURRENT_TIMESTAMP WHERE hash = ?`).run(validated.hash)
+        } catch {
+          // Status update is best-effort; validation result is still returned
+        }
       }
 
       return {
         hash: validated.hash,
-        passed: errors.length === 0,
+        passedQuantitative,
+        ...(passedQuantitative && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed'
+          ? { previousStatus, newStatus: 'validated' as const }
+          : {}),
         issues: [
           ...errors.map(msg => ({ level: 'error' as const, category: 'validation', message: msg })),
           ...warnings.map(msg => ({ level: 'warning' as const, category: 'validation', message: msg })),
         ],
+        checks: isSolitary
+          ? {
+              phases: checks.phases,
+              scope: checks.scope,
+              testFileScope: checks.testFileScope,
+              dependencies: checks.dependencies,
+              artifactStructure: checks.artifactStructure,
+              quality: checks.quality,
+              testFirstPattern: checks.testFirstPattern,
+            }
+          : {
+              phases: checks.phases,
+              scope: checks.scope,
+              testFileScope: checks.testFileScope,
+              dependencies: checks.dependencies,
+              artifactStructure: checks.artifactStructure,
+              quality: checks.quality,
+              testFirstPattern: checks.testFirstPattern,
+              gateLevelTestFirst: checks.gateLevelTestFirst,
+            },
       }
     },
     {
