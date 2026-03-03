@@ -197,7 +197,7 @@ describe('Gates Commands', () => {
   })
 
   describe('gates start', () => {
-    it('should transition gate from pending to in_progress', async () => {
+    it('should transition gate from validated to in_progress', async () => {
       const { readProjectOverview, saveProjectOverview, getGatesFromOverview } =
         await import('../../../src/utils/config.js')
       const { confirm } = await import('@inquirer/prompts')
@@ -207,7 +207,7 @@ describe('Gates Commands', () => {
         id: 'gate-01',
         sequence: 1,
         name: 'Foundation',
-        status: 'pending',
+        status: 'validated',
         hash: 'hash1',
       }
 
@@ -275,7 +275,8 @@ describe('Gates Commands', () => {
 
   describe('status transition validation', () => {
     it('should allow valid transitions', () => {
-      expect(validateTransition(GATE_TRANSITIONS, 'pending', 'in_progress').valid).toBe(true)
+      expect(validateTransition(GATE_TRANSITIONS, 'pending', 'validated').valid).toBe(true)
+      expect(validateTransition(GATE_TRANSITIONS, 'validated', 'in_progress').valid).toBe(true)
       expect(validateTransition(GATE_TRANSITIONS, 'in_progress', 'completed').valid).toBe(true)
       expect(validateTransition(GATE_TRANSITIONS, 'in_progress', 'rejected').valid).toBe(true)
       // rejected gates resume as in_progress (not reset to pending)

@@ -4,6 +4,7 @@
 **Gate**: {{GATE_ID}}  
 **Requirement**: #[Requirement Hash] (optional - may address gate-level objective)  
 **Status**: pending  
+**Role**: [test-suite | implementation | test-cleanup | solitary]  
 **Created**: {{DATE}}
 
 ---
@@ -11,28 +12,6 @@
 ## Summary
 
 [2-3 sentence description of what this proposal accomplishes. Focus on the outcome, not the process.]
-
----
-
-## Proposal Type
-
-**RED** | **GREEN** | **Test Refinement**
-
-- **RED**: Test-first phase defining acceptance criteria. Focuses on coverage target (from `config.qualityThresholds.codeCoverage`). No implementation code.
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
-- **Test Refinement**: Final proposal refining coverage gaps and validating all tests pass.
-
----
-
-## Coverage & Estimates
-
-> **RED phase only** — Omit this section for GREEN and Test Refinement proposals.
-
-### Target Coverage
-
-- **Coverage Threshold**: [Inherited from config, e.g., 90%]
-- **Lines to Cover**: [Estimated count of lines in affected modules]
-- **Target Coverage**: (lines × threshold) ÷ 100 = [number] lines must be tested
 
 ---
 
@@ -72,46 +51,49 @@ List only valid hash references. It is acceptable to have no dependencies if thi
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
 
 **RED Phase Tasks** (test-first, defining acceptance criteria):
+
 - Write tests covering happy path and error cases
 - Tests should fail before implementation (RED)
 - Use fixtures and mocks to isolate units
 - No implementation code in RED phase
 
 **GREEN Phase Tasks** (implementation following tests):
+
 - Implement only functions/methods covered by RED tests
 - Make RED tests pass (GREEN)
 - Do not add new tests beyond what RED defined
 - Verify all RED tests pass before marking complete
 
 **GREEN Phase Guardrails** (verification rules):
+
 - [ ] All changes implement only code specified in RED phase tests
 - [ ] No new test files created beyond those in RED phase
 - [ ] No new test cases added to existing test files
 - [ ] All RED tests pass with implementation
 - [ ] Coverage meets or exceeds target threshold
 
-**File Scoping Rules**:
-
-- Every `File(s)` entry MUST be an explicit file path (e.g., `src/core/archive-logic.ts`)
-- NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
-- NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
+<!-- LLM Instructions — File Scoping Rules (not rendered in output):
+- Every File(s) entry MUST be an explicit file path (e.g., src/core/archive-logic.ts)
+- NEVER use directory globs or wildcards (e.g., src/mcp/tools/*.ts)
+- NEVER use directory-only references (e.g., src/mcp/tools/)
 - If a refactoring touches many files, list each one explicitly — this is the cost signal that justifies splitting the proposal
 - Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
 
-**Test Scoping Rules**:
-
-- **Gate-tied proposals**: RED phase creates test proposals as early proposals in the gate; GREEN phase implementation proposals omit new test files; final proposal refines coverage
-- **Solitary proposals**: MUST include test tasks inline. Solitary proposals are self-contained and combine RED and GREEN.
+Test Scoping Rules:
+- Gate-tied proposals: RED phase creates test proposals as early proposals in the gate; GREEN phase implementation proposals omit new test files; final proposal refines coverage
+- Solitary proposals: MUST include test tasks inline. Solitary proposals are self-contained and combine RED and GREEN.
+-->
 
 ### Task 1: [Task Title]
 
-**Phase**: RED | GREEN | Test Refinement  
+**Phase**: RED | GREEN | Test Refinement (required for solitary; omit for gate-tied)  
 **File(s)**: `[path/to/file.ts]` | `[path/to/file.test.ts]`  
 **Action**: create | modify | delete | refactor
 
 [2-4 line description of what to implement. For RED: test cases, fixtures, mocks. For GREEN: implementation following RED tests. Name specific functions, interfaces, or patterns to follow. Do NOT embed code snippets — the apply agent reads the actual source files.]
 
 **Acceptance**:
+
 ```
 
 - [ ] [Specific, verifiable condition]
@@ -123,7 +105,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ### Task 2: [Task Title]
 
-**Phase**: RED | GREEN | Test Refinement  
+**Phase**: RED | GREEN (required for solitary; omit for gate-tied)  
 **File(s)**: `[path/to/file.ts]` | `[path/to/file.test.ts]`  
 **Action**: create | modify | delete | refactor
 
@@ -140,7 +122,7 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ### Task 3: [Task Title - Test Refinement for Gate's Final Proposal]
 
-**Phase**: Test Refinement  
+**Phase**: Test Refinement (omit for gate-tied)  
 **File(s)**: `[path/to/file.test.ts]`  
 **Action**: modify
 

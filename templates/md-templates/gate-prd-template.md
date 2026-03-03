@@ -1,10 +1,11 @@
 # Gate [XX]: [Gate Name]
 
+**Hash**: #[hash]  
 **Status**: pending  
+**Role**: [test-suite | implementation | test-cleanup | solitary]  
 **Type**: [feature | quality | rescope]  
 **Created**: [YYYY-MM-DD]  
-**Sequence**: [X of Y]  
-**Hash**: #[hash]
+**Sequence**: [X of Y]
 
 <!-- Status lifecycle:
   - pending: Gate generated at init, requirements not yet decomposed
@@ -158,8 +159,7 @@ graph LR
 | Gate Lifecycle State Machine      | gate-lifecycle     | 3     | pending   |
 | Gate Roadmap                      | gate-roadmap       | 4     | pending   |
 | System Context Diagram            | context            | 5     | pending   |
-| [Conditional Diagram - Reserved]  | [diagram-type]     | 6     | pending   |
-| [Conditional Diagram - Reserved]  | [diagram-type]     | 7     | pending   |
+<!-- Add conditional diagrams as needed (sequence, component, package, deployment, network). Use the diagram catalogue to select types relevant to this gate's scope. Number orders 6+ sequentially. -->
 
 ---
 
@@ -351,7 +351,7 @@ graph LR
 
 **Related Documents**:
 
-- Project PRD: `zeno/PROJECT_PRD.md`
+- Project PRD: `zeno/overview/PROJECT_PRD.md`
 - Previous Gate: `zeno/gates/gate-[XX-1]-[name].md`
 - Next Gate: `zeno/gates/gate-[XX+1]-[name].md`
 - Architecture: `zeno/architecture/`

@@ -38,8 +38,7 @@ export function registerReqCommands(program: Command): void {
           const requirements = data.requirements ?? []
           logger.info(`Requirements (${String(requirements.length)}):`)
           for (const req of requirements) {
-            const gateInfo = req.gateId ? ` [${req.gateId}]` : ' [project]'
-            logger.info(`  ${req.hash}: ${req.description ?? ''}${gateInfo}`)
+            logger.info(`  ${req.hash}: ${req.title}`)
           }
         } else {
           logger.error('Failed to list requirements:', result.error)
@@ -156,7 +155,7 @@ export function registerReqCommands(program: Command): void {
           })
           if (result.success) {
             const data = result.data as
-              | { requirements?: RequirementSummary[]; total?: number }
+              | { requirements?: { hash: string; title?: string; description?: string; gateId?: string }[]; total?: number }
               | undefined
             const requirements = data?.requirements ?? []
             const total = data?.total ?? requirements.length
@@ -165,7 +164,7 @@ export function registerReqCommands(program: Command): void {
             )
             for (const req of requirements) {
               const gateInfo = req.gateId ? ` [${req.gateId}]` : ' [project]'
-              logger.info(`  ${req.hash}: ${req.description ?? ''}${gateInfo}`)
+              logger.info(`  ${req.hash}: ${req.title ?? req.description ?? ''}${gateInfo}`)
             }
           } else {
             logger.error('Failed to search requirements:', result.error)

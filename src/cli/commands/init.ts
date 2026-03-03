@@ -135,7 +135,7 @@ export function registerInitCommand(program: Command): void {
           logger.info('Project initialized successfully!')
           logger.info('')
           logger.info('Next steps:')
-          logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
+          logger.info('  1. Review zeno/overview/PROJECT_PRD.md for project overview')
           logger.info('  2. Check zeno/architecture/ for system diagrams')
           logger.info('  3. Run "zeno gates list" to see your roadmap')
           logger.info('  4. Start with "zeno gates start gate-01"')

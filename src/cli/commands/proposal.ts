@@ -90,7 +90,7 @@ export function registerProposalCommands(program: Command): void {
     .command('list')
     .description('List proposals')
     .option('--gate <gate-id>', 'Filter by gate')
-    .option('--status <status>', 'Filter by status (pending/in_progress/completed/rejected/cancelled/backlog)')
+    .option('--status <status>', 'Filter by status (pending/validated/in_progress/completed/rejected/cancelled/backlog)')
     .action(async (options: { gate?: string; status?: string }) => {
       const result = await invokeProposalAction<{ proposals: ProposalSummaryResult[] }>('list', {
         ...(options.gate && { gateId: options.gate }),
@@ -230,7 +230,6 @@ export function registerProposalCommands(program: Command): void {
           const validation = await svc.validate({
             artifactPath: filePath,
             artifactType: 'proposal',
-            validationMode: 'format',
           })
           if (!validation.passed) {
             logger.warn('Post-generation format validation found issues:')
@@ -252,7 +251,7 @@ export function registerProposalCommands(program: Command): void {
 
   proposalCmd
     .command('start <hash>')
-    .description('Start implementation (status: pending -> in_progress)')
+    .description('Start implementation (status: pending|validated -> in_progress)')
     .action(async (hash: string) => {
       const result = await invokeProposalAction('start', { hash })
 

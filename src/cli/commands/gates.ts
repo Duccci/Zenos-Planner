@@ -104,7 +104,7 @@ export function registerGatesCommands(program: Command): void {
     .command('list')
     .description('List all gates')
     .option('--verbose', 'Show additional details')
-    .option('--status <status>', 'Filter by status (pending, in_progress, completed)')
+    .option('--status <status>', 'Filter by status (pending, validated, in_progress, completed)')
     .action(async (options: { verbose?: boolean; status?: string }) => {
       try {
         // Sync database gates to project-overview.json first
@@ -437,6 +437,67 @@ export function registerGatesCommands(program: Command): void {
         logger.debug(
           `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
         )
+      }
+    })
+
+  gatesCmd
+    .command('validate <gate-id>')
+    .description('Dry-run quality and structural checks on a gate without completing it')
+    .action(async (gateId: string) => {
+      const normalizedId = normalizeGateId(gateId)
+      try {
+        const result = await invokeGatesAction<{
+          gateId: string
+          passed: boolean
+          errors?: string[]
+          warnings?: string[]
+          checks: {
+            dependencies: boolean
+            dependencyGatesCompleted: boolean
+            artifactStructure: boolean
+            requirementsCoverage: boolean
+            testFirstStructure: boolean
+            quality: boolean
+          }
+        }>('validate', { gateId: normalizedId })
+
+        if (!result.success || !result.data) {
+          logger.error(`Validation failed: ${result.error ?? 'Unknown error'}`)
+          process.exit(1)
+          return
+        }
+
+        const data = result.data
+
+        logger.info(`\nValidating Gate: ${data.gateId}`)
+        logger.info('Checks:')
+        logger.info(`  dependencies (DAG):      ${data.checks.dependencies ? 'pass' : 'FAIL'}`)
+        logger.info(`  dependency gates done:   ${data.checks.dependencyGatesCompleted ? 'pass' : 'FAIL'}`)
+        logger.info(`  artifact structure:      ${data.checks.artifactStructure ? 'pass' : 'FAIL'}`)
+        logger.info(`  requirements coverage:   ${data.checks.requirementsCoverage ? 'pass' : 'FAIL'}`)
+        logger.info(`  test-first structure:    ${data.checks.testFirstStructure ? 'pass' : 'FAIL'}`)
+        logger.info(`  quality thresholds:      ${data.checks.quality ? 'pass' : 'FAIL'}`)
+
+        if (data.warnings && data.warnings.length > 0) {
+          logger.info('\nWarnings:')
+          for (const w of data.warnings) logger.warn(`  ${w}`)
+        }
+
+        if (data.errors && data.errors.length > 0) {
+          logger.info('\nErrors:')
+          for (const e of data.errors) logger.error(`  ${e}`)
+        }
+
+        logger.info('')
+        if (data.passed) {
+          logger.info('Gate validation passed.')
+        } else {
+          logger.error('Gate validation failed. Address errors before completing.')
+          process.exit(1)
+        }
+      } catch (error) {
+        logger.error(`Validate failed: ${error instanceof Error ? error.message : String(error)}`)
+        process.exit(1)
       }
     })
 

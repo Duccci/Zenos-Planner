@@ -66,7 +66,7 @@ describe('Requirements Commands', () => {
 
   it('req list --project should filter to project-level requirements', async () => {
     const registry: Partial<FunctionRegistry> = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: { requirements: [ { hash: 'r#proj', description: 'Project Req', gateId: '' }, { hash: 'r#g', description: 'Gate Req', gateId: 'gate-01' } ] } }),
+      invoke: vi.fn().mockResolvedValue({ success: true, data: { requirements: [ { hash: 'r#proj', title: 'Project Req' }, { hash: 'r#g', title: 'Gate Req' } ] } }),
       register: vi.fn(),
       list: vi.fn().mockReturnValue([]),
       get: vi.fn(),
