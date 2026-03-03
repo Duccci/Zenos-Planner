@@ -25,6 +25,17 @@ vi.mock('../../src/utils/git.js', () => ({
   parseCommitsForHashes: (...args: unknown[]) => mockParseCommitsForHashes(...args),
 }))
 
+// Prevent arch_generate from writing to the real zeno/architecture/ directory
+// during test runs. Reads (arch_show, buildDiagramContext) still use the real fs.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return {
+    ...actual,
+    writeFileSync: vi.fn(),
+    mkdirSync: vi.fn(),
+  }
+})
+
 describe('schema-registry operations', () => {
   let registry: FunctionRegistry
 

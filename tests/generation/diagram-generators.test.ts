@@ -481,7 +481,7 @@ describe('Architecture Diagram Generation (Test-First)', () => {
       const output = await gen.generate({ projectName: 'Test' }, 'mermaid')
 
       expect(output.markdown).toMatch(/^```\w+\n/)
-      expect(output.markdown).toMatch(/\n```$/)
+      expect(output.markdown).toMatch(/\n```\n?$/)
     })
 
     it('markdown type matches rendering backend', async () => {

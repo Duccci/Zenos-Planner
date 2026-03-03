@@ -227,7 +227,7 @@ export abstract class DiagramGeneratorBase {
    */
   protected wrapMarkdown(content: string, backend: RenderingBackend): string {
     if (backend === 'mermaid') {
-      return ['```mermaid', content, '```'].join('\n')
+      return ['```mermaid', content, '```'].join('\n') + '\n'
     }
     // Fallback: return content as-is for unknown backends
     return content
