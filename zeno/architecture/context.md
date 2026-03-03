@@ -1,7 +1,7 @@
 ```mermaid
 graph TB
     subgraph "External Actors & Systems"
-        HumanUser["👤 Human Developer<br/>(via Cursor IDE)"]
+        HumanUser["Human Developer<br/>(via Cursor IDE)"]
         LLMEngine["🤖 LLM Engine<br/>(Claude/GPT/Local)"]
         GitSystem["📦 Git & GitHub<br/>Version Control"]
         FileSystem["📁 File System<br/>Project Source"]
@@ -48,7 +48,7 @@ graph TB
     classDef external fill:#FF6B6B,stroke:#CC5555,stroke-width:2px,color:#fff
     classDef zenoBoundary fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff
     classDef artifacts fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#fff
-    classdef actor fill:#F5A623,stroke:#D68910,stroke-width:2px,color:#fff
+    classDef actor fill:#F5A623,stroke:#D68910,stroke-width:2px,color:#fff
     
     class HumanUser,LLMEngine,GitSystem,FileSystem external
     class CLI,MCP,Core,DB zenoBoundary

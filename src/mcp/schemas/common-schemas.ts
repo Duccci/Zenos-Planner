@@ -12,21 +12,24 @@ import { z } from 'zod'
 /**
  * Gate status lifecycle:
  * - pending: Gate generated, not yet started
+ * - validated: Gate passed dry-run checks via gates_action:validate
  * - in_progress: Gate started via `zeno gates start`
  * - completed: All requirements tested, gate approved
  * - rejected: Gate rejected during review
  */
-export const GateStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog'])
+export const GateStatusEnum = z.enum(['pending', 'validated', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog'])
 export type GateStatus = z.infer<typeof GateStatusEnum>
 
 /**
  * Proposal status lifecycle:
  * - pending: Proposal generated, awaiting start
+ * - validated: Proposal passed dry-run checks via proposal_action:validate
  * - in_progress: Implementation in progress
  * - completed: Implementation done and integrated at gate completion
  * - rejected: Proposal rejected during review
+ * - archived: Proposal archived after gate completion
  */
-export const ProposalStatusEnum = z.enum(['pending', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog'])
+export const ProposalStatusEnum = z.enum(['pending', 'validated', 'in_progress', 'completed', 'rejected', 'cancelled', 'backlog', 'archived'])
 export type ProposalStatus = z.infer<typeof ProposalStatusEnum>
 
 /**
@@ -38,7 +41,7 @@ export type RepositoryType = z.infer<typeof RepositoryTypeEnum>
 /**
  * Gate types for different purposes
  */
-export const GateTypeEnum = z.enum(['feature', 'infrastructure', 'migration'])
+export const GateTypeEnum = z.enum(['feature', 'quality', 'rescope'])
 export type GateType = z.infer<typeof GateTypeEnum>
 
 /**
@@ -46,6 +49,22 @@ export type GateType = z.infer<typeof GateTypeEnum>
  */
 export const RequirementTypeEnum = z.enum(['functional', 'non_functional', 'constraint'])
 export type RequirementType = z.infer<typeof RequirementTypeEnum>
+
+/**
+ * Requirement status lifecycle:
+ * - pending: Requirement generated, not yet implemented
+ * - in_progress: Actively being implemented
+ * - tested: Verified by tests after gate completion
+ * - archived: Archived with the parent gate
+ */
+export const RequirementStatusEnum = z.enum(['pending', 'in_progress', 'tested', 'archived'])
+export type RequirementStatus = z.infer<typeof RequirementStatusEnum>
+
+/**
+ * Requirement priority levels (MoSCoW)
+ */
+export const RequirementPriorityEnum = z.enum(['must', 'should', 'could', 'wont'])
+export type RequirementPriority = z.infer<typeof RequirementPriorityEnum>
 
 // ============================================================================
 // IDENTIFIERS - Validated ID and hash types

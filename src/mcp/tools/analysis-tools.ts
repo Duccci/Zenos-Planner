@@ -1,6 +1,5 @@
 import {
   AnalyzeInputSchema,
-  MetricsInputSchema,
   ShowEntityInputSchema,
 } from '../schemas/analysis-schemas.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
@@ -15,18 +14,14 @@ import { z } from 'zod'
 export const analysisToolDefinitions = [
   {
     name: 'analyze',
-    description: 'Analyze codebase or path for metrics',
+    description:
+      'Analyze codebase or path for metrics. Provide `groupBy` (repository|language|type) to get project-wide grouped metrics instead of a per-path analysis.',
     inputSchema: AnalyzeInputSchema,
   },
   {
     name: 'show_entity',
     description: 'Show entity analysis by hash',
     inputSchema: ShowEntityInputSchema,
-  },
-  {
-    name: 'metrics',
-    description: 'Get code metrics for path or gate',
-    inputSchema: MetricsInputSchema,
   },
 ]
 
@@ -50,9 +45,18 @@ export function analysisHandlers(
   const metricsHandler = _registry
     ? createSchemaValidatingHandler(_registry, 'metrics', ProjectMetricsSchema)
     : undefined
+  // Note: metricsHandler is used by analyze when groupBy is provided
 
   return {
     async analyze(args: Record<string, unknown>): Promise<CallToolResult> {
+      // Route to metrics handler when groupBy is requested
+      if (args['groupBy'] !== undefined && args['groupBy'] !== null) {
+        const mock = handleMockResult(args, ProjectMetricsSchema)
+        if (mock) return mock
+        if (!metricsHandler) return createNotImplementedHandler('Metrics not implemented yet.')
+        return await metricsHandler(args)
+      }
+
       const mock = handleMockResult(args, analyzeOutputSchema)
       if (mock) {
         // Maintain legacy shape: when backend returns an array of results, wrap as { results: [...] }
@@ -77,12 +81,6 @@ export function analysisHandlers(
       return await showHandler(args)
     },
 
-    async metrics(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, ProjectMetricsSchema)
-      if (mock) return mock
-
-      if (!metricsHandler) return createNotImplementedHandler('Metrics not implemented yet.')
-      return await metricsHandler(args)
-    },
+    // metrics removed as standalone tool — use analyze({ groupBy: '...' }) instead
   }
 }

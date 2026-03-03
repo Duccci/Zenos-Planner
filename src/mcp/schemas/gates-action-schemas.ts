@@ -9,6 +9,7 @@
 
 import { z } from 'zod'
 import { PreReviewSchema } from './pre-review-schemas.js'
+import { GateTypeEnum, GateStatusEnum } from './common-schemas.js'
 import {
   GatesListOutputSchema,
   GateDetailSchema,
@@ -17,6 +18,7 @@ import {
   GatesRegenerateOutputSchema,
   GatesCancelOutputSchema,
   GatesDeferOutputSchema,
+  GatesValidateOutputSchema,
 } from './gate-schemas.js'
 import { GateCreateOutputSchema } from './gate-create-schemas.js'
 import { GateGenerateOutputSchema } from './workflow-schemas.js'
@@ -37,7 +39,7 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  */
 export const GatesActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate', 'cancel', 'defer'])
+    .enum(['list', 'show', 'create', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -45,11 +47,13 @@ export const GatesActionInputSchema = z.object({
         'show=get gate details (needs: gateId). ' +
         'create=new gate (needs: gateId, name, type, sequence, objectives). ' +
         'generate=generate from requirements (optional: mode, anchorGateId; required: preReview with phase=generate). ' +
-        'start=begin gate work, pending→in_progress (needs: gateId). ' +
+        'validate=dry-run quality/structural checks without completing (needs: gateId). ' +
+        'start=begin gate work, validated→in_progress (needs: gateId). ' +
         'complete=finish gate (needs: gateId). ' +
         'regenerate=rebuild future gates after rescope (optional: fromGateId, mode). ' +
-        'cancel=mark gate as cancelled/dropped (needs: gateId; optional: notes as reason). ' +
-        'defer=move gate to backlog for later implementation (needs: gateId; optional: notes as reason).'
+        'cancel=mark gate as cancelled/dropped (needs: gateId, confirmed: true; optional: notes as reason). ' +
+        'defer=move gate to backlog for later implementation (needs: gateId, confirmed: true; optional: notes as reason). ' +
+        'IMPORTANT: cancel and defer are destructive and require confirmed: true — omitting it returns a confirmation prompt instead of executing.'
     ),
 
   // --- shared identifier ---
@@ -59,14 +63,13 @@ export const GatesActionInputSchema = z.object({
     .describe('Gate ID e.g. "gate-01" (show/create/start/complete/regenerate)'),
 
   // --- list filters ---
-  status: z
-    .enum(['pending', 'in_progress', 'completed', 'archived', 'cancelled', 'backlog'])
+  status: GateStatusEnum
     .optional()
     .describe('Filter gates by status (list action)'),
 
   // --- create fields ---
   name: z.string().optional().describe('Human-readable gate name (create)'),
-  type: z.enum(['feature', 'quality', 'rescope']).optional().describe('Gate type (create)'),
+  type: GateTypeEnum.optional().describe('Gate type (create)'),
   sequence: z.number().int().min(1).optional().describe('Gate sequence number (create)'),
   dependencies: z
     .array(z.string())
@@ -95,8 +98,19 @@ export const GatesActionInputSchema = z.object({
     .optional()
     .describe('Max requirements per gate (generate, default 5)'),
 
+  // --- destructive action guard ---
+  confirmed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Must be true to execute destructive actions (cancel, defer). ' +
+        'If absent or false, the action returns a confirmation prompt with the required details ' +
+        'instead of executing. Always present this prompt to the user and wait for explicit approval ' +
+        'before re-calling with confirmed: true.'
+    ),
+
   // --- start/complete/regenerate fields ---
-  notes: z.string().optional().describe('Optional notes (start)'),
+  notes: z.string().optional().describe('Optional notes (start, cancel, defer)'),
   completionNotes: z.string().optional().describe('Completion summary notes (complete)'),
   approvalDate: z.string().optional().describe('ISO timestamp of approval (complete)'),
   fromGateId: z.string().optional().describe('Regenerate from this gate forward (regenerate)'),
@@ -157,6 +171,11 @@ export const GatesActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('complete'),
     result: GatesCompleteOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('validate'),
+    result: GatesValidateOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
   z.object({

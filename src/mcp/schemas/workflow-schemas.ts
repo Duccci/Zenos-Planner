@@ -81,6 +81,10 @@ export const ProposalUpdateProgressOutputSchema = z.object({
       typeErrors: z.number().int().min(0)
     }).optional()
   }).optional(),
+  /** File paths extracted from all fully-completed task sections in the proposal. */
+  completedFiles: z.array(z.string()).optional(),
+  /** True when all tasks are complete and the gate's Proposal Status table was updated. */
+  gateStatusUpdated: z.boolean().optional(),
   message: z.string(),
   /** Progress audit trail: current task, cumulative files modified, remaining files */
   progressSummary: z.object({

@@ -58,7 +58,7 @@ function isZenoProject(dirPath: string): boolean {
 }
 const RESOURCE_TYPES = {
   prd: {
-    pattern: '**/PROJECT_PRD.md',
+    pattern: '**/overview/PROJECT_PRD.md',
     mimeType: 'text/markdown',
     description: 'Project Requirements Document',
   },

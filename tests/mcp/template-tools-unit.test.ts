@@ -22,11 +22,11 @@ describe('template-tools coverage', () => {
     handlers = templateHandlers(mockRegistry)
   })
 
-  describe('template_list', () => {
+  describe('template_action: list', () => {
     it('should list templates', async () => {
       mockGetTemplates.mockResolvedValue([{ name: 'gate-prd', path: '/templates/gate.md' }])
 
-      const result = await handlers['template_list']!({})
+      const result = await handlers['template_action']!({ action: 'list' })
       expect(result.isError).toBeUndefined()
       expect(result.content).toBeDefined()
     })
@@ -34,40 +34,44 @@ describe('template-tools coverage', () => {
     it('should handle errors', async () => {
       mockGetTemplates.mockRejectedValue(new Error('discovery failed'))
 
-      const result = await handlers['template_list']!({})
+      const result = await handlers['template_action']!({ action: 'list' })
       expect(result.isError).toBe(true)
     })
   })
 
-  describe('template_get', () => {
+  describe('template_action: get', () => {
     it('should get a template by name', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_get']!({ name: 'gate-prd' })
+      const result = await handlers['template_action']!({ action: 'get', name: 'gate-prd' })
       expect(result.isError).toBeUndefined()
     })
 
     it('should return error for missing name', async () => {
-      const result = await handlers['template_get']!({})
+      const result = await handlers['template_action']!({ action: 'get' })
       expect(result.isError).toBe(true)
     })
 
     it('should return error for empty name', async () => {
-      const result = await handlers['template_get']!({ name: '' })
+      const result = await handlers['template_action']!({ action: 'get', name: '' })
       expect(result.isError).toBe(true)
     })
 
     it('should return not found for unknown template', async () => {
       mockGetArtifact.mockResolvedValue(null)
 
-      const result = await handlers['template_get']!({ name: 'nonexistent' })
+      const result = await handlers['template_action']!({ action: 'get', name: 'nonexistent' })
       expect(result.isError).toBe(true)
     })
 
     it('should include context when requested', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_get']!({ name: 'gate-prd', includeContext: true })
+      const result = await handlers['template_action']!({
+        action: 'get',
+        name: 'gate-prd',
+        includeContext: true,
+      })
       expect(result.isError).toBeUndefined()
       expect(result.structuredContent).toHaveProperty('context')
     })
@@ -75,7 +79,11 @@ describe('template-tools coverage', () => {
     it('should handle includeContext as string "true"', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_get']!({ name: 'gate-prd', includeContext: 'true' })
+      const result = await handlers['template_action']!({
+        action: 'get',
+        name: 'gate-prd',
+        includeContext: 'true',
+      })
       expect(result.isError).toBeUndefined()
       expect(result.structuredContent).toHaveProperty('context')
     })
@@ -83,7 +91,14 @@ describe('template-tools coverage', () => {
     it('should handle get errors', async () => {
       mockGetArtifact.mockRejectedValue(new Error('read error'))
 
-      const result = await handlers['template_get']!({ name: 'gate-prd' })
+      const result = await handlers['template_action']!({ action: 'get', name: 'gate-prd' })
+      expect(result.isError).toBe(true)
+    })
+  })
+
+  describe('template_action: unknown action', () => {
+    it('should return error for unknown action', async () => {
+      const result = await handlers['template_action']!({ action: 'unknown' })
       expect(result.isError).toBe(true)
     })
   })

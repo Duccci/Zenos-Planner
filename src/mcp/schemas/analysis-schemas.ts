@@ -16,7 +16,8 @@ export const AnalyzeInputSchema = z.object({
   path: FilePathSchema.optional(),
   includeMetrics: z.boolean().default(true),
   includeDependencies: z.boolean().default(true),
-  depth: z.number().int().min(0).max(10).default(3)
+  depth: z.number().int().min(0).max(10).default(3),
+  groupBy: z.enum(['repository', 'language', 'type']).optional(),
 })
 export type AnalyzeInput = z.infer<typeof AnalyzeInputSchema>
 

@@ -9,6 +9,7 @@
 
 import { z } from 'zod'
 import { PreReviewSchema, ScopeExpansionSchema } from './pre-review-schemas.js'
+import { ProposalStatusEnum } from './common-schemas.js'
 import {
   ProposalListOutputSchema,
   ProposalDetailSchema,
@@ -80,8 +81,7 @@ export const ProposalActionInputSchema = z.object({
     ),
 
   // --- list filters ---
-  status: z
-    .enum(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog'])
+  status: ProposalStatusEnum
     .optional()
     .describe('Filter proposals by status (list action)'),
 

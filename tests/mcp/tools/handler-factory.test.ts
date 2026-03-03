@@ -223,4 +223,51 @@ describe('Handler Factory', () => {
     const res = await handler({ mockResult: 'not-json-string' })
     expect(res.structuredContent).toHaveProperty('output')
   })
+
+  it('createSchemaValidatingHandler handles registry.invoke throwing (catch block)', async () => {
+    const registry = { invoke: vi.fn().mockRejectedValue(new Error('registry crash')) }
+    const schema = z.object({ ok: z.boolean() })
+    const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
+    const res = await handler({})
+    expect(res.isError).toBe(true)
+    const sc = res.structuredContent as any
+    expect(sc.error?.code).toBe('INTERNAL_ERROR')
+    expect(String(sc.error?.message)).toContain('registry crash')
+  })
+
+  it('createSchemaValidatingHandler handles registry.invoke throwing non-Error (catch block)', async () => {
+    const registry = { invoke: vi.fn().mockRejectedValue('string-error') }
+    const schema = z.object({ ok: z.boolean() })
+    const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
+    const res = await handler({})
+    expect(res.isError).toBe(true)
+    const sc = res.structuredContent as any
+    expect(String(sc.error?.message)).toContain('string-error')
+  })
+
+  it('withGuidance returns result unchanged when result.success is false', async () => {
+    const { withGuidance } = await import('../../../src/mcp/tools/handler-factory.js')
+    const failedResult = { success: false as const, error: { code: 'ERR', message: 'fail' } }
+    const out = withGuidance(failedResult, ['rule'], 'workflow', { phase: 'generate' })
+    expect(out.success).toBe(false)
+    expect((out as any).data).toBeUndefined()
+  })
+
+  it('withGuidance merges guidance into successful result', async () => {
+    const { withGuidance } = await import('../../../src/mcp/tools/handler-factory.js')
+    const successResult = { success: true as const, data: { existing: 'value' } }
+    const out = withGuidance(successResult, ['rule1'], 'step1', { phase: 'generate' })
+    expect(out.success).toBe(true)
+    expect((out as any).data.existing).toBe('value')
+    expect((out as any).data.guidance).toBeDefined()
+    expect((out as any).data.preReviewSummary).toBeDefined()
+  })
+
+  it('withGuidance omits preReviewSummary when preReview is undefined', async () => {
+    const { withGuidance } = await import('../../../src/mcp/tools/handler-factory.js')
+    const successResult = { success: true as const, data: { x: 1 } }
+    const out = withGuidance(successResult, [], 'wf')
+    expect((out as any).data.preReviewSummary).toBeUndefined()
+    expect((out as any).data.guidance).toBeDefined()
+  })
 })

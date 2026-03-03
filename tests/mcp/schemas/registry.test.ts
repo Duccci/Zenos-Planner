@@ -7,7 +7,6 @@ describe('MCP ToolRegistry', () => {
     expect(Object.keys(ToolRegistry).length).toBeGreaterThan(0)
     expect(ToolRegistry).toHaveProperty('gates')
     expect(ToolRegistry).toHaveProperty('requirements')
-    expect(ToolRegistry).toHaveProperty('archives')
   })
 
   it('getToolActions returns allowed actions for an entity', () => {

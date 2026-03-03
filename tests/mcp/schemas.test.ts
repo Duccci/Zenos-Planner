@@ -35,8 +35,11 @@ describe('Common Schemas', () => {
       expect(() => common.ProposalStatusEnum.parse('pending')).not.toThrow()
       expect(() => common.ProposalStatusEnum.parse('in_progress')).not.toThrow()
       expect(() => common.ProposalStatusEnum.parse('completed')).not.toThrow()
-      expect(() => common.ProposalStatusEnum.parse('archived')).toThrow()
+      expect(() => common.ProposalStatusEnum.parse('archived')).not.toThrow()
       expect(() => common.ProposalStatusEnum.parse('rejected')).not.toThrow()
+      expect(() => common.ProposalStatusEnum.parse('cancelled')).not.toThrow()
+      expect(() => common.ProposalStatusEnum.parse('backlog')).not.toThrow()
+      expect(() => common.ProposalStatusEnum.parse('unknown')).toThrow()
     })
   })
 
@@ -268,6 +271,42 @@ describe('Gate Schemas', () => {
     })
   })
 
+  describe('gates_validate', () => {
+    it('should validate gates_validate output when passed', () => {
+      const output = {
+        gateId: 'gate-01',
+        passed: true,
+        checks: {
+          dependencies: true,
+          dependencyGatesCompleted: true,
+          artifactStructure: true,
+          requirementsCoverage: true,
+          testFirstStructure: true,
+          quality: true,
+        },
+      }
+      expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()
+    })
+
+    it('should validate gates_validate output with errors', () => {
+      const output = {
+        gateId: 'gate-02',
+        passed: false,
+        errors: ['Dependency gate gate-01 is not completed (status: in_progress)', 'Gate gate-02 has no requirements'],
+        warnings: ['Gate Scope Boundaries section lacks an "In Scope" list'],
+        checks: {
+          dependencies: true,
+          dependencyGatesCompleted: false,
+          artifactStructure: true,
+          requirementsCoverage: false,
+          testFirstStructure: false,
+          quality: false,
+        },
+      }
+      expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()
+    })
+  })
+
   describe('gates_regenerate', () => {
     it('should validate gates_regenerate input', () => {
       const input = {
@@ -390,7 +429,7 @@ describe('Proposal Schemas', () => {
     it('should validate validation output', () => {
       const output = {
         hash: 'g03p01ab',
-        passed: true,
+        passedQuantitative: true,
         issues: []
       }
       expect(() => proposal.ProposalValidateOutputSchema.parse(output)).not.toThrow()
@@ -399,7 +438,7 @@ describe('Proposal Schemas', () => {
     it('should validate validation issues', () => {
       const output = {
         hash: 'g03p01ab',
-        passed: false,
+        passedQuantitative: false,
         issues: [
           {
             level: 'error',

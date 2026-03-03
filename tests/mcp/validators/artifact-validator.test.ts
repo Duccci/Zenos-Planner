@@ -74,20 +74,6 @@ This is a test proposal summary.
 
 ---
 
-## Proposal Type
-
-Solitary
-
----
-
-## Coverage & Estimates
-
-### Target Coverage
-
-- **Coverage Threshold**: 90%
-
----
-
 ## Context
 
 ### Why This Change
@@ -125,8 +111,6 @@ No rollback needed.
 const PROPOSAL_TEMPLATE_SECTIONS = {
   required: [
     '## Summary',
-    '## Proposal Type',
-    '## Coverage & Estimates',
     '## Context',
     '## Tasks',
     '## Files Affected',
@@ -396,10 +380,12 @@ describe('artifact-validator', () => {
     it('returns warnings for missing optional sections when templateSections is provided', async () => {
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
 
+      // Include a minimal Objectives section with a checkbox so the structural check passes;
+      // the test intent is to verify optional-section warnings, not objectives validation.
       const result = validateArtifact({
         artifactType: 'gate',
         artifactPath: '/gate.md',
-        content: '# Gate 01\n\n**Status**: pending',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Test objective',
         templateSections: {
           required: [],
           optional: ['## Objectives', '## Requirements'],
@@ -415,10 +401,12 @@ describe('artifact-validator', () => {
     it('returns warning when templateSections is absent (no file I/O)', async () => {
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
 
+      // Include Objectives with a checkbox so structural check passes.
+      // The test intent is to verify the templateSections-absent warning.
       const result = validateArtifact({
         artifactType: 'gate',
         artifactPath: '/gate.md',
-        content: '# Gate 01\n\n**Status**: pending',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Test objective',
       })
 
       expect(result.allowed).toBe(true)
@@ -438,15 +426,142 @@ describe('artifact-validator', () => {
       expect(result.allowed).toBe(true)
     })
 
+    // ---------------------------------------------------------
+    // Check 3: Objectives checkboxes (gate-specific structural)
+    // ---------------------------------------------------------
+
+    it('returns error when Objectives section is empty', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n',
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.errors!.some((e) => e.includes('Objectives section is empty'))).toBe(true)
+    })
+
+    it('returns error when Objectives section has no checkboxes', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- Deliver feature\n- Write docs\n',
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.errors!.some((e) => e.includes('no checkboxes'))).toBe(true)
+    })
+
+    it('passes Objectives check when at least one checked item exists', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [x] Already done\n',
+      })
+
+      // No Objectives error
+      expect(result.errors?.some((e) => e.includes('Objectives'))).toBeFalsy()
+    })
+
+    // ---------------------------------------------------------
+    // Check 4: Stale markers (TBD / TODO / FIXME etc.)
+    // ---------------------------------------------------------
+
+    it('returns error when Objectives section contains stale markers', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content: '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] TBD — define scope\n',
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.errors!.some((e) => e.includes('stale markers'))).toBe(true)
+      expect(result.errors!.some((e) => e.includes('TBD'))).toBe(true)
+    })
+
+    it('returns warning (not error) when Context section contains stale markers', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content:
+          '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Real objective\n\n## Context\nTODO: add background',
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.warnings!.some((w) => w.includes('stale markers'))).toBe(true)
+      expect(result.warnings!.some((w) => w.includes('TODO'))).toBe(true)
+    })
+
+    // ---------------------------------------------------------
+    // Check 5: Scope Boundaries section
+    // ---------------------------------------------------------
+
+    it('returns warning when Scope Boundaries section is empty', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content:
+          '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Real objective\n\n## Scope Boundaries\n',
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.warnings!.some((w) => w.includes('Scope Boundaries section is empty'))).toBe(true)
+    })
+
+    it('returns warning when Scope Boundaries lacks explicit In Scope label', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content:
+          '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Real objective\n\n## Scope Boundaries\n- Everything related to auth\n',
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.warnings!.some((w) => w.includes('"In Scope"'))).toBe(true)
+    })
+
+    it('passes Scope Boundaries check when In Scope content is present', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'gate',
+        artifactPath: '/gate.md',
+        content:
+          '# Gate 01\n\n**Status**: pending\n\n## Objectives\n- [ ] Real objective\n\n## Scope Boundaries\n### In Scope\n- Auth module\n',
+      })
+
+      expect(result.errors?.some((e) => e.includes('Scope Boundaries'))).toBeFalsy()
+      expect(result.warnings?.some((w) => w.includes('Scope Boundaries'))).toBeFalsy()
+    })
+
+    // ---------------------------------------------------------
+    // Original check: Status values
+    // ---------------------------------------------------------
+
     it('accepts all valid Status values', async () => {
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
-      const statuses = ['pending', 'in_progress', 'completed', 'rejected', 'archived']
+      const statuses = ['pending', 'validated', 'in_progress', 'completed', 'rejected', 'archived']
 
       for (const status of statuses) {
         const result = validateArtifact({
           artifactType: 'gate',
           artifactPath: '/gate.md',
-          content: `# Gate 01\n\n**Status**: ${status}\n\n## Overview\n## Objectives\n## Context\n## Requirements\n## Proposals`,
+          // Objectives must have at least one checkbox to pass structural validation
+          content: `# Gate 01\n\n**Status**: ${status}\n\n## Overview\n\n## Objectives\n- [ ] Item\n\n## Context\n## Requirements\n## Proposals`,
           templateSections: GATE_TEMPLATE_SECTIONS,
         })
         expect(result.allowed).toBe(true)
@@ -577,7 +692,7 @@ describe('artifact-validator', () => {
       const { validateArtifactFile } =
         await import('../../../src/mcp/validators/artifact-validator.js')
 
-      const result = await validateArtifactFile('/test.md', 'proposal', 'all', {
+      const result = await validateArtifactFile('/test.md', 'proposal', {
         gateId: 'gate-01',
         hash: 'abc12345',
         allNodes,

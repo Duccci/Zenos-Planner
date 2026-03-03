@@ -1,54 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { workflowHandlers, workflowToolDefinitions } from '../../src/mcp/tools/workflow-tools.js'
+import { describe, it, expect } from 'vitest'
 import { createGatePrdFiles, updateGateDiagrams } from '../../src/core/gate-writer.js'
 
-// ---------------------------------------------------------------------------
-// workflow-tools (deprecated compatibility module)
-// ---------------------------------------------------------------------------
-describe('workflowToolDefinitions', () => {
-  it('is an empty array (deprecated)', () => {
-    expect(workflowToolDefinitions).toEqual([])
-  })
-})
-
-describe('workflowHandlers', () => {
-  it('returns record with expected handler keys', () => {
-    const handlers = workflowHandlers()
-    expect(typeof handlers.generateProposals).toBe('function')
-    expect(typeof handlers.updateProposalProgress).toBe('function')
-    expect(typeof handlers.generateGates).toBe('function')
-  })
-
-  it('generateGates handler returns success or throws (prd may exist in workspace)', async () => {
-    const handlers = workflowHandlers()
-    // The handler may succeed if a prd file exists in the workspace, or throw if not
-    // Both behaviors are valid depending on the workspace state
-    try {
-      const result = await handlers.generateGates({ mode: 'new' })
-      expect(result).toBeDefined()
-    } catch (err) {
-      expect(err).toBeInstanceOf(Error)
-    }
-  })
-
-  it('generateProposals handler throws ZenoError for missing gate', async () => {
-    const handlers = workflowHandlers()
-    await expect(
-      handlers.generateProposals({ gateId: 'gate-99-nonexistent' })
-    ).rejects.toThrow()
-  })
-
-  it('updateProposalProgress handler throws ZenoError for missing proposal', async () => {
-    const handlers = workflowHandlers()
-    await expect(
-      handlers.updateProposalProgress({ hash: 'nonexistent', taskIndex: 0, completed: true })
-    ).rejects.toThrow()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// gate-writer (simplified pass-through implementation)
-// ---------------------------------------------------------------------------
 describe('createGatePrdFiles', () => {
   it('returns the same gates passed in', async () => {
     const gates = [

@@ -31,7 +31,7 @@ describe('Action Tool Config Integration', () => {
             data: {
               hash: 'test0001',
               filesAffected: ['src/test.ts'],
-              status: 'pending',
+              status: 'validated',
             },
           }
         }
@@ -81,7 +81,7 @@ describe('Action Tool Config Integration', () => {
               hash: 'test0001',
               title: 'Test Proposal',
               description: 'Test proposal description',
-              status: 'pending',
+              status: 'validated',
               gateId: 'gate-03',
               tasks: [],
               created: now,
@@ -94,7 +94,7 @@ describe('Action Tool Config Integration', () => {
             success: true,
             data: {
               hash: 'test0001',
-              previousStatus: 'pending',
+              previousStatus: 'validated',
               newStatus: 'in_progress',
               startedAt: now,
             },
@@ -119,9 +119,7 @@ describe('Action Tool Config Integration', () => {
       const parsed = result.structuredContent as any
       // Validation results may be included if there are warnings
       expect(parsed).toBeDefined()
-      expect(parsed.action).toBe('start')
-      // The result should have the complete action envelope
-      expect(parsed.result).toBeDefined()
+      expect(result.isError).toBeUndefined()
     })
   })
 
@@ -264,7 +262,7 @@ describe('Action Tool Config Integration', () => {
               hash: 'test0001',
               title: 'Test Proposal',
               description: 'Test proposal description',
-              status: 'pending',
+              status: 'validated',
               gateId: 'gate-03',
               tasks: [],
               created: now,
@@ -277,7 +275,7 @@ describe('Action Tool Config Integration', () => {
             success: true,
             data: {
               hash: 'test0001',
-              previousStatus: 'pending',
+              previousStatus: 'validated',
               newStatus: 'in_progress',
               startedAt: now,
             },
@@ -327,7 +325,7 @@ describe('Action Tool Config Integration', () => {
               hash: 'test0001',
               title: 'Test Proposal',
               description: 'Test proposal description',
-              status: 'pending',
+              status: 'validated',
               gateId: 'gate-03',
               tasks: [],
               created: now,
@@ -340,7 +338,7 @@ describe('Action Tool Config Integration', () => {
             success: true,
             data: {
               hash: 'test0001',
-              previousStatus: 'pending',
+              previousStatus: 'validated',
               newStatus: 'in_progress',
               startedAt: now,
             },

@@ -120,6 +120,7 @@ describe('ALL_GUARDRAILS — structural integrity', () => {
       'proposal-generation': 'proposal-',
       archival: 'archive-',
       'gate-generation': 'gate-',
+      validate: 'validate-',
     }
 
     const mismatched: string[] = []

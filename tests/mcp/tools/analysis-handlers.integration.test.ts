@@ -17,11 +17,11 @@ describe('Analysis Handlers (integration)', () => {
     }
   })
 
-  it('parses project metrics', async () => {
+  it('parses project metrics via analyze with groupBy', async () => {
     const handlers = analysisHandlers()
     const fakeMetrics = JSON.stringify({ codeMetrics: { lineCount: 100, fileCount: 5 }, timestamp: new Date().toISOString() })
 
-    const res = await handlers.metrics({ mockResult: fakeMetrics })
+    const res = await handlers.analyze({ groupBy: 'repository', mockResult: fakeMetrics })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()

@@ -242,16 +242,16 @@ export const GATE_GENERATION_WORKFLOW: WorkflowStep[] = [
   },
   {
     order: 2,
-    title: 'Gather Project Context',
+    title: 'Gather Project Context (Gate Generation Only)',
     description:
-      'Read the project PRD, existing architecture diagrams, and current requirements. Understand the full project scope before generating gates.',
+      'Read the project PRD and current requirements. This step applies ONLY during gate generation — never during proposal execution.',
     prerequisites: ['Project initialized (zeno/.zeno/config.json exists)'],
     actions: [
-      'Read zeno/PROJECT_PRD.md',
-      'Read zeno/architecture/system-overview.md and data-flow.md',
-      'zeno req list to see all project-level requirements',
+      'Read zeno/overview/PROJECT_PRD.md',
+      'req_action:list to see all project-level requirements',
+      'diagram_action:show { type: "system-overview" } if architecture context is needed',
     ],
-    guidance: 'Requirements-first: all project-level requirements must be defined before gates are generated.',
+    guidance: 'Requirements-first: all project-level requirements must be defined before gates are generated. Use diagram_action:show on-demand for specific diagrams — do not preload all architecture files.',
   },
   {
     order: 3,
@@ -486,17 +486,35 @@ export const VALIDATE_WORKFLOW: WorkflowStep[] = [
     description:
       'Validation has run. Stop here — DO NOT edit any source files or proceed to implementation based solely on this result.',
     actions: [
-      'If passed: true  → proceed to step 2',
-      'If passed: false → fix every error/warning listed in issues[], then call proposal_action:validate again before proceeding',
+      'If passedQuantitative: true  → proceed to step 2 (qualitative review)',
+      'If passedQuantitative: false → fix every error/warning listed in issues[], then call proposal_action:validate again before proceeding',
     ],
     errorHandling:
       'Do not proceed to step 2 if any issue has level: "error". Warnings are advisory; errors are blocking.',
   },
   {
     order: 2,
+    title: 'Qualitative Review',
+    description:
+      'Automated checks verified structure only. Review the proposal content for qualitative correctness — these are things no validator can machine-check.',
+    actions: [
+      'Task descriptions: each task must be specific and actionable, naming concrete files, functions, or code constructs — not vague directives like "update the service"',
+      'Acceptance criteria: each criterion must be testable and measurable; reject phrases like "works correctly", "looks good", or "handles edge cases" without specifics',
+      'File path plausibility: cross-check filesAffected paths against the actual codebase — do the directories exist, do the names match this project\'s conventions?',
+      'Open questions: scan task descriptions, implementation notes, and acceptance criteria for unresolved markers — TODO, TBD, unclear, "?", assumptions stated as facts',
+      'Scope coherence: the proposal should be focused on one cohesive concern; multiple unrelated changes in one proposal are a scope problem',
+      'Rollback adequacy: the Rollback section must describe specific, reversible steps — not just "revert the changes" or "undo the work"',
+    ],
+    errorHandling:
+      'If qualitative issues are found: call proposal_action:reject { hash, rejectionReason: "<specific issue>" } and ask the user to revise the proposal, OR document unresolved questions in questionsFound when calling start. Do not call start with known qualitative issues silently dismissed.',
+    guidance:
+      'Qualitative review is your judgment, not a tool call. Read the actual proposal text (proposal_action:show { hash }) if you have not already done so.',
+  },
+  {
+    order: 3,
     title: 'Start Implementation',
     description:
-      'Validation passed. Call proposal_action:start to transition the proposal to in_progress, complete the pre-apply review, and unlock implementation. This step is mandatory — skipping it bypasses state transition, preReview enforcement, and apply-phase guardrail injection.',
+      'Both automated validation and qualitative review passed. Call proposal_action:start to transition the proposal to in_progress, complete the pre-apply review, and unlock implementation. This step is mandatory — skipping it bypasses state transition, preReview enforcement, and apply-phase guardrail injection.',
     actions: [
       'proposal_action:start { hash: "<hash>", preReview: { phase: "apply", openQuestionsResolved: <bool>, questionsFound: [], assumptionsDocumented: [], blockersIdentified: [], filesVerified: <bool> } }',
     ],

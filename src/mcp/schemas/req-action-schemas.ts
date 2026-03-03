@@ -5,6 +5,8 @@ import {
   ReqDepsWrapperSchema,
   ReqTransferOutputSchema,
   ReqSearchOutputSchema,
+  ReqInheritOutputSchema,
+  ReqTraceOutputSchema,
 } from './requirement-schemas.js'
 
 // ============================================================================
@@ -68,7 +70,7 @@ export type ResetGateOutput = z.infer<typeof ResetGateOutputSchema>
  */
 export const ReqActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'deps', 'transfer', 'search', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'])
+    .enum(['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -77,6 +79,8 @@ export const ReqActionInputSchema = z.object({
         'deps=dependency graph (needs: hash). ' +
         'transfer=move to another gate (needs: hash, targetGateId). ' +
         'search=full-text search (needs: query). ' +
+        'inherit=link existing requirement to a gate for cross-gate reuse (needs: hash, gateId). ' +
+        'trace=full traceability chain — ancestors, children, all referencing gates (needs: hash). ' +
         'db_sync=reconcile proposals DB with disk (upsert new files, remove orphans). ' +
         'db_status=report proposal DB health (orphan count, status breakdown). ' +
         'purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). ' +
@@ -130,6 +134,14 @@ export const ReqActionOutputSchema = z.discriminatedUnion('action', [
     result: ReqSearchOutputSchema,
   }),
   z.object({
+    action: z.literal('inherit'),
+    result: ReqInheritOutputSchema,
+  }),
+  z.object({
+    action: z.literal('trace'),
+    result: ReqTraceOutputSchema,
+  }),
+  z.object({
     action: z.literal('db_sync'),
     result: DbSyncOutputSchema,
   }),
@@ -162,6 +174,10 @@ export function getReqActionOutputSchema(action: string): z.ZodType {
       return ReqTransferOutputSchema
     case 'search':
       return ReqSearchOutputSchema
+    case 'inherit':
+      return ReqInheritOutputSchema
+    case 'trace':
+      return ReqTraceOutputSchema
     case 'db_sync':
       return DbSyncOutputSchema
     case 'db_status':

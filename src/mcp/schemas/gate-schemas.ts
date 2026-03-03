@@ -2,6 +2,9 @@ import { z } from 'zod'
 import {
   GateIdSchema,
   GateStatusEnum,
+  GateTypeEnum,
+  ProposalStatusEnum,
+  RequirementStatusEnum,
   TimestampSchema,
 } from './common-schemas.js'
 
@@ -21,10 +24,10 @@ export type GatesListInput = z.infer<typeof GatesListInputSchema>
 export const GateSummarySchema = z.object({
   id: GateIdSchema,
   name: z.string(),
-  description: z.string(),
+  description: z.string().optional(),
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
-  type: z.enum(['feature', 'infrastructure', 'migration']),
+  type: GateTypeEnum,
   lastUpdated: TimestampSchema,
   proposalCount: z.number().int().min(0),
   completedProposalCount: z.number().int().min(0),
@@ -50,10 +53,10 @@ export type GatesShowInput = z.infer<typeof GatesShowInputSchema>
 export const GateDetailSchema = z.object({
   id: GateIdSchema,
   name: z.string(),
-  description: z.string(),
+  description: z.string().optional(),
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
-  type: z.enum(['feature', 'infrastructure', 'migration']),
+  type: GateTypeEnum,
   objectives: z.array(
     z.object({
       title: z.string(),
@@ -64,7 +67,7 @@ export const GateDetailSchema = z.object({
     z.object({
       hash: z.string(),
       title: z.string(),
-      status: z.enum(['pending', 'in_progress', 'tested', 'archived']),
+      status: RequirementStatusEnum,
       priority: z.enum(['low', 'medium', 'high']).optional(),
     })
   ),
@@ -72,7 +75,7 @@ export const GateDetailSchema = z.object({
     z.object({
       hash: z.string(),
       title: z.string(),
-      status: z.enum(['pending', 'in_progress', 'completed', 'archived', 'rejected', 'cancelled', 'backlog']),
+      status: ProposalStatusEnum,
       tasksCompleted: z.number().int().min(0),
       totalTasks: z.number().int().min(0),
     })
@@ -82,7 +85,7 @@ export const GateDetailSchema = z.object({
 export type GateDetail = z.infer<typeof GateDetailSchema>
 
 // ============================================================================
-// GATES_START - Start a gate (transition from pending to in_progress)
+// GATES_START - Start a gate (transition from validated to in_progress)
 // ============================================================================
 
 export const GatesStartInputSchema = z.object({
@@ -129,6 +132,34 @@ export const GatesCompleteOutputSchema = z.object({
 export type GatesCompleteOutput = z.infer<typeof GatesCompleteOutputSchema>
 
 // ============================================================================
+// GATES_VALIDATE - Dry-run quality + structural checks without completing
+// ============================================================================
+
+export const GatesValidateOutputSchema = z.object({
+  gateId: GateIdSchema,
+  passed: z.boolean(),
+  previousStatus: GateStatusEnum.optional(),
+  newStatus: z.literal('validated').optional(),
+  errors: z.array(z.string()).optional(),
+  warnings: z.array(z.string()).optional(),
+  checks: z.object({
+    /** No duplicate gate IDs and dependencies form an acyclic graph */
+    dependencies: z.boolean(),
+    /** All declared dependency gates are in completed status */
+    dependencyGatesCompleted: z.boolean(),
+    /** Artifact has required sections, valid Status, actionable objectives, no stale markers */
+    artifactStructure: z.boolean(),
+    /** Gate has at least one requirement linked in the database */
+    requirementsCoverage: z.boolean(),
+    /** Proposals exist and satisfy the test-first ordering rule */
+    testFirstStructure: z.boolean(),
+    /** Quality thresholds (coverage, lint, security) are met */
+    quality: z.boolean(),
+  }),
+})
+export type GatesValidateOutput = z.infer<typeof GatesValidateOutputSchema>
+
+// ============================================================================
 // GATES_REGENERATE - Regenerate gate sequence or check for updates
 // ============================================================================
 
@@ -151,29 +182,44 @@ export const GatesRegenerateOutputSchema = z.object({
 export type GatesRegenerateOutput = z.infer<typeof GatesRegenerateOutputSchema>
 
 // ============================================================================
+// ============================================================================
+// CONFIRMATION REQUIRED - Returned when a destructive action needs explicit user permission
+// ============================================================================
+
+export const GatesConfirmationRequiredSchema = z.object({
+  requiresConfirmation: z.literal(true),
+  action: z.enum(['cancel', 'defer']),
+  gateId: GateIdSchema.optional(),
+  message: z.string(),
+})
+export type GatesConfirmationRequired = z.infer<typeof GatesConfirmationRequiredSchema>
+
+// ============================================================================
 // GATES_CANCEL - Cancel a gate (divergent/dropped from roadmap)
 // ============================================================================
 
-export const GatesCancelOutputSchema = z.object({
+export const GatesCancelSuccessSchema = z.object({
   gateId: GateIdSchema,
   previousStatus: GateStatusEnum,
   newStatus: z.literal('cancelled'),
   cancelledAt: TimestampSchema,
   reason: z.string().optional(),
 })
+export const GatesCancelOutputSchema = z.union([GatesCancelSuccessSchema, GatesConfirmationRequiredSchema])
 export type GatesCancelOutput = z.infer<typeof GatesCancelOutputSchema>
 
 // ============================================================================
 // GATES_DEFER - Defer a gate to backlog (off main path, revisit later)
 // ============================================================================
 
-export const GatesDeferOutputSchema = z.object({
+export const GatesDeferSuccessSchema = z.object({
   gateId: GateIdSchema,
   previousStatus: GateStatusEnum,
   newStatus: z.literal('backlog'),
   deferredAt: TimestampSchema,
   reason: z.string().optional(),
 })
+export const GatesDeferOutputSchema = z.union([GatesDeferSuccessSchema, GatesConfirmationRequiredSchema])
 export type GatesDeferOutput = z.infer<typeof GatesDeferOutputSchema>
 
 // ============================================================================

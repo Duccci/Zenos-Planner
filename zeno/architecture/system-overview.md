@@ -1,6 +1,6 @@
 ```mermaid
 graph TB
-    User["User/LLM<br/>(via Cursor"]
+    User["User/LLM<br/>(via Cursor)"]
     
     subgraph "User Interface Layer" 
         CLI["CLI Commands<br/>(Implemented)"]
@@ -129,6 +129,6 @@ graph TB
     classDef planned fill:#2196F3,stroke:#1565C0,stroke-width:2px,color:#fff
     
     class CLI,MCP,ZenoEngine,GateManager,CodeAnalyzer,DepTracker,ReqGenerator,MermaidGen,PRDGen,AgentsGen,SQLite,FileStore,HashRegistry,GitStore implemented
-    class RepoDetector,WorktreeOrch,ConflictDetector,ProposalGen,AutoChecks,QualityGates,DepValidator,ArtifactValidator,GitHooks,GitOps,ProposalApproval inProgress
-    class SubagentOrch,Dashboard,ReplanEngine,HumanApproval planned
+    class RepoDetector,WorktreeOrch,ConflictDetector,AutoChecks,QualityGates,DepValidator,ArtifactValidator,GitHooks,GitOps,ProposalApproval inProgress
+    class SubagentOrch,Dashboard,ReplanEngine,HumanApproval,ProposalGen planned
 ```

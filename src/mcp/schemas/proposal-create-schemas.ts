@@ -17,7 +17,12 @@ export const ProposalTaskInputSchema = z.object({
   /** Acceptance criteria (unchecked by default) */
   acceptanceCriteria: z.array(z.string()).default([]),
 
-  /** Proposal phase: RED (write tests) or GREEN (verify tests pass with implementation) */
+  /**
+   * Task phase: RED (write tests) or GREEN (verify tests pass with implementation).
+   * Required for solitary proposals (which may mix RED and GREEN tasks in one proposal).
+   * Omit for gate-tied proposals — phase is inferred from the proposal's role
+   * (test-suite=RED, implementation=GREEN, test-cleanup=GREEN).
+   */
   phase: z.enum(['RED', 'GREEN']).optional(),
 
   /** File paths this task touches */

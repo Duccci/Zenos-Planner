@@ -4,13 +4,13 @@ import { gateHandlers, gateToolDefinitions } from './gate-tools.js'
 import { requirementHandlers } from './requirement-tools.js'
 import { proposalHandlers, proposalToolDefinitions } from './proposal-tools.js'
 import { configHandlers } from './config-tools.js'
-import { archiveHandlers } from './archive-tools.js'
 import { validationHandlers, validationToolDefinitions } from './validation-tools.js'
 import { templateHandlers, templateToolDefinitions } from './template-tools.js'
 import { repositoryHandlers, repositoryToolDefinitions } from './repository-tools.js'
 import { analysisHandlers, analysisToolDefinitions } from './analysis-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
 import { projectHandlers, projectToolDefinitions } from './project-tools.js'
+import { contextHandlers, contextToolDefinitions } from './context-tools.js'
 import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -32,6 +32,7 @@ const handlerToolDefs = [
   ...validationToolDefinitions,
   ...architectureToolDefinitions,
   ...projectToolDefinitions,
+  ...contextToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -75,10 +76,10 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     requirementHandlers,
     proposalHandlers,
     configHandlers,
-    archiveHandlers,
     validationHandlers,
     architectureHandlers,
     projectHandlers,
+    contextHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)

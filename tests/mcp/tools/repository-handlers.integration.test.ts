@@ -1,6 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { repositoryHandlers } from '../../../src/mcp/tools/repository-tools.js'
-import { ReposListOutputSchema } from '../../../src/mcp/schemas/repository-schemas.js'
+import {
+  ReposListOutputSchema,
+  ReposAddOutputSchema,
+  ReposRemoveOutputSchema,
+} from '../../../src/mcp/schemas/repository-schemas.js'
 
 describe('Repository Handlers (integration)', () => {
   it('parses and validates structured repo list outputs', async () => {
@@ -68,5 +72,45 @@ describe('Repository Handlers (integration)', () => {
     const handlers = repositoryHandlers(fakeRegistry)
     const res = await handlers.repos_action({ action: 'adjust', payload: { adjustments: [] } })
     expect(res.structuredContent).toBeDefined()
+  })
+
+  it.skip('repos_add returns structured output matching ReposAddOutputSchema', async () => { // @red
+    const mockData = { id: 'repo-new', name: 'new-service', type: 'service', path: 'src/new-service' }
+    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
+    const handlers = repositoryHandlers(fakeRegistry)
+    const res = await handlers.repos_action({ action: 'add', payload: { name: 'new-service', type: 'service', path: 'src/new-service' } })
+
+    expect(res).toBeDefined()
+    expect(res.isError).toBeUndefined()
+    expect(res.structuredContent).toBeDefined()
+
+    const parsed = (res.structuredContent as any)?.result ?? res.structuredContent
+    const ok = ReposAddOutputSchema.safeParse(parsed)
+    expect(ok.success).toBe(true)
+  })
+
+  it.skip('repos_remove returns structured output matching ReposRemoveOutputSchema', async () => { // @red
+    const mockData = { removed: true, repositoryId: 'repo-old' }
+    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
+    const handlers = repositoryHandlers(fakeRegistry)
+    const res = await handlers.repos_action({ action: 'remove', payload: { repositoryId: 'repo-old' } })
+
+    expect(res).toBeDefined()
+    expect(res.isError).toBeUndefined()
+    expect(res.structuredContent).toBeDefined()
+
+    const parsed = (res.structuredContent as any)?.result ?? res.structuredContent
+    const ok = ReposRemoveOutputSchema.safeParse(parsed)
+    expect(ok.success).toBe(true)
+  })
+
+  it.skip('repos_add returns error when backend rejects invalid path', async () => { // @red
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'Invalid path: traversal detected' } }),
+    }
+    const handlers = repositoryHandlers(fakeRegistry)
+    const res = await handlers.repos_action({ action: 'add', payload: { name: 'evil', type: 'service', path: '../etc/passwd' } })
+
+    expect(res.isError).toBe(true)
   })
 })

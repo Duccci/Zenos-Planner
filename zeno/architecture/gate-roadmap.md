@@ -28,7 +28,7 @@ graph LR
     G12 --> G13
     G13 --> G14
 
-    classDef pending fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#000
-    classDef in_progress fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    classDef completed fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#000
+    classDef pending fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    classDef in_progress fill:#FFC107,stroke:#F57F17,stroke-width:2px,color:#000
+    classDef completed fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
 ```

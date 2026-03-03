@@ -15,7 +15,7 @@ export interface GuardrailEntry {
   /** Unique stable ID, e.g. 'apply-001' */
   id: string
   /** Workflow domain this guardrail belongs to */
-  topic: 'apply-phase' | 'proposal-generation' | 'archival' | 'gate-generation'
+  topic: 'apply-phase' | 'proposal-generation' | 'archival' | 'gate-generation' | 'validate'
   /** The full guardrail rule as stated in the SKILL.md */
   rule: string
   /** True when a runtime validator enforces this rule */
@@ -465,6 +465,20 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
 // Injected into proposal_action:validate responses to prevent agents from
 // confusing a passed validation result with authorization to begin implementation.
 
+/**
+ * The six qualitative checks that no automated validator can machine-check.
+ * Extracted as a first-class constant so they can be surfaced at the root level
+ * of validate responses as `nextRequiredStep.checklist`, not buried in guidance.
+ */
+export const QUALITATIVE_CHECKLIST: string[] = [
+  'Task descriptions: each task must name concrete files, functions, or code constructs — not vague directives like "update the service"',
+  'Acceptance criteria: each criterion must be testable and measurable — reject phrases like "works correctly", "looks good", or "handles edge cases" without specifics',
+  'File path plausibility: cross-check filesAffected paths against the actual codebase — do the directories exist, do the names match this project\'s conventions?',
+  'Open questions: scan task descriptions, implementation notes, and acceptance criteria for unresolved markers — TODO, TBD, unclear, "?", assumptions stated as facts',
+  'Scope coherence: the proposal must be focused on one cohesive concern — multiple unrelated changes in one proposal are a scope problem',
+  'Rollback adequacy: the Rollback section must describe specific, reversible steps — not just "revert the changes" or "undo the work"',
+]
+
 export const VALIDATE_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'apply-024',
@@ -478,11 +492,20 @@ export const VALIDATE_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'apply-025',
     topic: 'apply-phase',
-    rule: 'After passed: true — call proposal_action:start { hash, preReview: { phase: "apply", openQuestionsResolved, questionsFound, assumptionsDocumented, blockersIdentified, filesVerified } } to begin implementation. After passed: false — fix every listed error/warning, then re-run validate before proceeding.',
+    rule: 'After passedQuantitative: true — call proposal_action:start { hash, preReview: { phase: "apply", openQuestionsResolved, questionsFound, assumptionsDocumented, blockersIdentified, filesVerified } } to begin implementation. After passedQuantitative: false — fix every listed error/warning, then re-run validate before proceeding.',
     mustHaveValidator: false,
     reason:
       'Next-action guidance: prevents agents from skipping proposal_action:start after validation passes, which would bypass preReview enforcement, state transition, and apply-phase guardrail injection.',
     agentRef: ['09-meta-orchestration/workflow-orchestrator'],
+  },
+  {
+    id: 'validate-001',
+    topic: 'validate',
+    rule: 'Automated validators check structure only. Before calling start, perform a qualitative review of the proposal content: (1) Are task descriptions specific and actionable — do they name concrete files or functions? (2) Are acceptance criteria testable and measurable, not vague ("works correctly" fails this test)? (3) Do filesAffected paths look realistic for the actual codebase structure? (4) Scan for unresolved markers — TODO, TBD, unclear, "?", assumption — in task descriptions, notes, and acceptance criteria. (5) Is the scope focused on one cohesive concern, not a mixed bag of unrelated changes? (6) Is the Rollback section specific and actionable, not just "revert the changes"?',
+    mustHaveValidator: false,
+    reason:
+      'Qualitative concerns — task clarity, acceptance criteria precision, scope coherence, realistic file paths, open questions — cannot be machine-checked; they require LLM judgment and must be resolved before a proposal is safe to start.',
+    agentRef: ['04-quality-security/code-reviewer'],
   },
 ]
 

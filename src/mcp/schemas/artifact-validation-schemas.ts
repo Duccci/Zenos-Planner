@@ -11,9 +11,6 @@ import { z } from 'zod'
 export const ArtifactTypeEnum = z.enum(['gate', 'proposal', 'architecture'])
 export type ArtifactType = z.infer<typeof ArtifactTypeEnum>
 
-export const ValidationModeEnum = z.enum(['format', 'structure', 'all'])
-export type ValidationMode = z.infer<typeof ValidationModeEnum>
-
 export const OutputFormatEnum = z.enum(['text', 'json'])
 export type OutputFormat = z.infer<typeof OutputFormatEnum>
 
@@ -27,8 +24,6 @@ export const ArtifactValidateInputSchema = z.object({
     .optional(),
   /** Type of artifact being validated */
   artifactType: ArtifactTypeEnum,
-  /** Validation depth: format-only, structure checks, or all checks */
-  validationMode: ValidationModeEnum.default('format').optional(),
   /** Response format */
   outputFormat: OutputFormatEnum.default('text').optional(),
 })
@@ -42,7 +37,15 @@ export const ArtifactValidateOutputSchema = z.object({
   passed: z.boolean(),
   errors: z.array(z.string()).optional(),
   warnings: z.array(z.string()).optional(),
+  /** Implementation quality score 0–100 when section-implementation validation ran */
+  score: z.number().min(0).max(100).optional(),
   details: z.unknown().optional(),
+  /**
+   * Agent-directed review items requiring LLM judgment.
+   * The calling agent must evaluate each item — mechanical validation
+   * does not substitute for this review.
+   */
+  agentReview: z.array(z.string()).optional(),
 })
 export type ArtifactValidateOutput = z.infer<typeof ArtifactValidateOutputSchema>
 

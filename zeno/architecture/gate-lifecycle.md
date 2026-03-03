@@ -2,18 +2,29 @@
 stateDiagram-v2
     [*] --> pending
 
-    pending --> in_progress: zeno gates start
-    pending --> rejected: zeno gates reject
+    pending --> validated: zeno gates validate
+    pending --> cancelled: zeno gates cancel
+    pending --> backlog: zeno gates defer
+
+    validated --> in_progress: zeno gates start
+    validated --> cancelled: zeno gates cancel
+    validated --> backlog: zeno gates defer
 
     in_progress --> completed: zeno gates complete
-    in_progress --> rejected: zeno gates reject
+    in_progress --> cancelled: zeno gates cancel
+    in_progress --> backlog: zeno gates defer
 
     completed --> [*]
-    rejected --> [*]
+    cancelled --> [*]
 
     note right of pending
-        Gate waiting to be started.
-        Review and approval in progress.
+        Gate waiting to be validated.
+        Validate is required before start.
+    end note
+
+    note right of validated
+        All structural/quality checks passed.
+        Ready to start work.
     end note
 
     note right of in_progress
@@ -26,8 +37,8 @@ stateDiagram-v2
         Git tag created, archived.
     end note
 
-    note right of rejected
-        Gate rejected due to failed checks
-        or human decision. Preserved for rework.
+    note right of cancelled
+        Gate was cancelled or deferred to
+        backlog. Preserved for reference.
     end note
 ```

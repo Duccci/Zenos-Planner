@@ -43,8 +43,7 @@ describe('createEntityActionHandler (unit)', () => {
 
     const res = await handler({ action: 'alpha', payload: {} })
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toHaveProperty('action', 'alpha')
-    expect((res.structuredContent as any).result).toEqual({ ok: true })
+    expect(res.structuredContent).toEqual({ ok: true })
   })
 
   it('returns error when action handler reports failure', async () => {
@@ -143,5 +142,63 @@ describe('createEntityActionHandler (unit)', () => {
     const textContent = res.content?.find((c: any) => c.type === 'text') as { type: 'text'; text: string } | undefined
     const text = String(textContent?.text ?? '')
     expect(text.toLowerCase()).toContain('unknown')
+  })
+
+  it('returns error when actionOutputSchema throws a non-"undefined" error', async () => {
+    const registry = { dummy: true } as any
+    const permissiveInput = z.object({ action: z.string(), payload: z.any().optional() })
+
+    const handler = createEntityActionHandler({
+      entity: 'test',
+      actions: ['alpha'] as const,
+      inputSchema: permissiveInput,
+      outputSchema,
+      actionOutputSchema: () => { throw new Error('Schema lookup failed') },
+      actionHandlers: { alpha: async () => ({ success: true, data: { ok: true } } as FunctionResult) } as any,
+    }, registry)
+
+    const res = await handler({ action: 'alpha' })
+    expect(res.isError).toBe(true)
+    const text = String(res.content?.find((c: any) => c.type === 'text')?.text ?? '')
+    expect(text.toLowerCase()).toContain('failed to get output schema')
+  })
+
+  it('returns error when actionOutputSchema returns undefined', async () => {
+    const registry = { dummy: true } as any
+    const permissiveInput = z.object({ action: z.string(), payload: z.any().optional() })
+
+    const handler = createEntityActionHandler({
+      entity: 'test',
+      actions: ['alpha'] as const,
+      inputSchema: permissiveInput,
+      outputSchema,
+      actionOutputSchema: () => undefined as any,
+      actionHandlers: { alpha: async () => ({ success: true, data: { ok: true } } as FunctionResult) } as any,
+    }, registry)
+
+    const res = await handler({ action: 'alpha' })
+    expect(res.isError).toBe(true)
+    const text = String(res.content?.find((c: any) => c.type === 'text')?.text ?? '')
+    expect(text.toLowerCase()).toContain('undefined')
+  })
+
+  it('returns usage hint when action field is missing from args', async () => {
+    const registry = { dummy: true } as any
+    const permissiveInput = z.object({ action: z.string().optional(), payload: z.any().optional() })
+
+    const handler = createEntityActionHandler({
+      entity: 'test',
+      actions: ['alpha', 'beta'] as const,
+      inputSchema: permissiveInput,
+      outputSchema,
+      actionOutputSchema: () => z.object({ ok: z.boolean() }),
+      actionHandlers: { alpha: async () => ({ success: true, data: { ok: true } } as FunctionResult), beta: async () => ({ success: true, data: { ok: true } } as FunctionResult) } as any,
+    }, registry)
+
+    const res = await handler({ payload: {} })
+    expect(res.isError).toBe(true)
+    const text = String(res.content?.find((c: any) => c.type === 'text')?.text ?? '')
+    expect(text).toContain('action is required')
+    expect(text).toContain('availableActions')
   })
 })

@@ -111,10 +111,31 @@ export const ValidationIssueSchema = z.object({
 })
 export type ValidationIssue = z.infer<typeof ValidationIssueSchema>
 
+const NextRequiredStepSchema = z.object({
+  blocking: z.boolean(),
+  action: z.string(),
+  description: z.string(),
+  checklist: z.array(z.string()).optional(),
+})
+
 export const ProposalValidateOutputSchema = z.object({
   hash: ProposalHashSchema,
-  passed: z.boolean(),
+  passedQuantitative: z.boolean(),
+  previousStatus: ProposalStatusEnum.optional(),
+  newStatus: z.literal('validated').optional(),
   issues: z.array(ValidationIssueSchema),
+  nextRequiredStep: NextRequiredStepSchema.optional(),
+  failedChecks: z.record(z.string(), z.boolean()).optional(),
+  checks: z.object({
+    phases: z.boolean(),
+    scope: z.boolean(),
+    testFileScope: z.boolean(),
+    dependencies: z.boolean(),
+    artifactStructure: z.boolean(),
+    quality: z.boolean(),
+    testFirstPattern: z.boolean(),
+    gateLevelTestFirst: z.boolean().optional(),
+  }).optional(),
   metrics: z
     .object({
       testCoverage: z.number().min(0).max(100).optional(),

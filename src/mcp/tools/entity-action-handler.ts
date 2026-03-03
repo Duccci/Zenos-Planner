@@ -138,15 +138,14 @@ export function createEntityActionHandler<T extends string>(
         result: invokeResult.data as Record<string, unknown>,
       }
 
-      // Validate final envelope against supplied output schema
-      const validatedOutput = config.outputSchema.parse(output)
+      // Validate final envelope against supplied output schema (internal integrity check).
+      config.outputSchema.parse(output)
 
-      // content[0].text carries only the result data (avoids duplicate rendering in
-      // MCP clients that display both content text and structuredContent).
-      // structuredContent retains the full {action, result} envelope for programmatic callers.
+      // Both channels carry the same payload so MCP clients that render both
+      // content text and structuredContent do not present the data twice.
       return {
         content: [{ type: 'text', text: JSON.stringify(invokeResult.data, null, 2) }],
-        structuredContent: validatedOutput as Record<string, unknown>,
+        structuredContent: invokeResult.data as Record<string, unknown>,
       }
     } catch (e) {
       if (e instanceof ZodError) {

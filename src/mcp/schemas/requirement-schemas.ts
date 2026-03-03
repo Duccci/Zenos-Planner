@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   RequirementHashSchema,
   RequirementTypeEnum,
+  RequirementPriorityEnum,
   GateIdSchema,
   TimestampSchema,
   OptionalTimestampSchema,
@@ -21,21 +22,17 @@ export const ReqListInputSchema = z.object({
 })
 export type ReqListInput = z.infer<typeof ReqListInputSchema>
 
+/** Lightweight summary returned by req list — only hash and title to keep context small. */
 export const RequirementSummarySchema = z.object({
   hash: RequirementHashSchema,
   title: z.string(),
-  description: z.string().optional(),
-  type: RequirementTypeEnum,
-  gateId: GateIdSchema,
-  priority: z.enum(['must', 'should', 'could', 'wont']).optional(),
-  created: TimestampSchema,
-  updated: OptionalTimestampSchema,
-  testedAt: OptionalTimestampSchema,
 })
 export type RequirementSummary = z.infer<typeof RequirementSummarySchema>
 
 export const ReqListOutputSchema = z.object({
   requirements: z.array(RequirementSummarySchema),
+  /** Count of requirements that are cross-gate links (not owned by the requested gate) */
+  linkedCount: z.number().int().optional(),
 })
 export type ReqListOutput = z.infer<typeof ReqListOutputSchema>
 
@@ -54,7 +51,7 @@ export const RequirementDetailSchema = z.object({
   description: z.string(),
   type: RequirementTypeEnum,
   gateId: GateIdSchema,
-  priority: z.enum(['must', 'should', 'could', 'wont']).optional(),
+  priority: RequirementPriorityEnum.optional(),
   acceptance: z
     .array(
       z.object({
@@ -137,11 +134,20 @@ export const ReqShowOutputSchema = z.object({
     description: z.string().optional(),
     type: z.string(),
     gateId: z.string(),
+    /** Scope level: 'project' for PRD-level cross-cutting, 'gate' for gate-specific */
+    level: z.enum(['project', 'gate']).optional(),
+    /** For inherited requirements: origin gate that originally defined this */
+    sourceGateId: z.string().optional(),
     priority: z.string().optional(),
     acceptance: z.array(z.object({ criteria: z.string(), completed: z.boolean() })).optional(),
     parentRequirement: z.object({ hash: z.string(), title: z.string() }).optional(),
     childRequirements: z.array(z.object({ hash: z.string(), title: z.string() })).optional(),
     relatedProposals: z.array(z.object({ hash: z.string(), title: z.string() })).optional(),
+    /** All gates that own or explicitly reference this requirement — full traceability */
+    referencingGates: z.array(z.object({
+      gateId: z.string(),
+      role: z.enum(['owner', 'linked']),
+    })).optional(),
     created: z.string(),
     updated: z.string().nullable().optional(),
     testedAt: z.string().nullable().optional(),
@@ -233,3 +239,52 @@ export const DependencyBlockedErrorSchema = z.object({
   }),
 })
 export type DependencyBlockedError = z.infer<typeof DependencyBlockedErrorSchema>
+
+// ============================================================================
+// REQ_INHERIT - Explicitly link an existing requirement to a gate for reuse
+// ============================================================================
+
+export const ReqInheritOutputSchema = z.object({
+  success: z.boolean(),
+  requirementHash: z.string().optional(),
+  requirementTitle: z.string().optional(),
+  ownerGateId: z.string().nullable().optional(),
+  linkedToGateId: z.string().optional(),
+  level: z.enum(['project', 'gate']).optional(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+})
+export type ReqInheritOutput = z.infer<typeof ReqInheritOutputSchema>
+
+// ============================================================================
+// REQ_TRACE - Full traceability chain for a requirement
+// Shows PRD ancestry → owner gate → linked gates → children
+// ============================================================================
+
+const TraceNodeSchema = z.object({
+  hash: z.string(),
+  title: z.string(),
+  gateId: z.string().nullable(),
+  level: z.enum(['project', 'gate']).optional(),
+})
+
+export const ReqTraceOutputSchema = z.object({
+  found: z.boolean(),
+  hash: z.string(),
+  title: z.string().optional(),
+  level: z.enum(['project', 'gate']).optional(),
+  ownerGateId: z.string().nullable().optional(),
+  sourceGateId: z.string().nullable().optional(),
+  type: z.string().optional(),
+  priority: z.string().optional(),
+  /** Parent requirements that this was decomposed from (PRD → gate chain) */
+  ancestors: z.array(TraceNodeSchema).optional(),
+  /** Child requirements decomposed from this one */
+  children: z.array(TraceNodeSchema).optional(),
+  /** All gates that own or reference this requirement */
+  referencingGates: z.array(z.object({
+    gateId: z.string(),
+    role: z.enum(['owner', 'linked']),
+  })).optional(),
+})
+export type ReqTraceOutput = z.infer<typeof ReqTraceOutputSchema>

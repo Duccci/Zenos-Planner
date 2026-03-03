@@ -2,30 +2,30 @@ import { describe, it, expect, vi } from 'vitest'
 import { templateHandlers } from '../../../src/mcp/tools/template-tools.js'
 
 describe('Template Handlers (unit)', () => {
-  it('template_get returns content on success', async () => {
+  it('template_action get returns content on success', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'template-body' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_get({ name: 'gate-prd-template' })
+    const res = await handlers.template_action({ action: 'get', name: 'gate-prd-template' })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
     expect(String(res.structuredContent?.artifact?.content || '')).toContain('# Gate [XX]: [Gate Name]')
   })
 
-  it('template_get with includeContext returns formatted context', async () => {
+  it('template_action get with includeContext returns formatted context', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'context-body' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_get({ name: 'gate-prd-template', includeContext: true })
+    const res = await handlers.template_action({ action: 'get', name: 'gate-prd-template', includeContext: true })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
     expect(String(res.structuredContent?.context || '')).toContain('Name: gate-prd-template')
   })
 
-  it('template_list handles non-json output gracefully', async () => {
+  it('template_action list handles non-json output gracefully', async () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: 'plain-text' } }) }
     const handlers = templateHandlers(fakeRegistry)
-    const res = await handlers.template_list({})
+    const res = await handlers.template_action({ action: 'list' })
     expect(res).toBeDefined()
     expect(res.structuredContent).toBeDefined()
-    expect(Array.isArray(res.structuredContent.templates)).toBe(true)
+    expect(Array.isArray((res.structuredContent as any).templates)).toBe(true)
   })
 })

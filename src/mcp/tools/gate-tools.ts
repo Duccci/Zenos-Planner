@@ -27,9 +27,9 @@ export const gateToolDefinitions = [
     name: 'gates_action',
     description: `REQUIRED TOOL: Use gates_action for ALL gate operations—this is the ONLY way to manage gates.
 
-Actions: list (see all gates, filter by status), show (get gate details by gateId), create (create new gate), generate (generate gates from requirements), start (transition to in_progress), complete (finish gate), regenerate (update roadmap after rescope).
+Actions: list (see all gates, filter by status), show (get gate details by gateId), create (create new gate), generate (generate gates from requirements), validate (dry-run quality/structural checks, needs gateId), start (transition to in_progress), complete (finish gate), regenerate (update roadmap after rescope).
 
-Call this tool whenever: you need to see gates, check gate status/details, start/complete a gate, or manage the roadmap.`,
+Call this tool whenever: you need to see gates, check gate status/details, validate a gate before completing, start/complete a gate, or manage the roadmap.`,
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -44,6 +44,7 @@ import {
   GatesRegenerateOutputSchema,
   GatesCancelOutputSchema,
   GatesDeferOutputSchema,
+  GatesValidateOutputSchema,
 } from '../schemas/gate-schemas.js'
 import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
 import { GateGenerateOutputSchema } from '../schemas/workflow-schemas.js'
@@ -57,7 +58,7 @@ export function gateHandlers(
   const gateActionHandler = createEntityActionHandler(
     {
       entity: 'gate',
-      actions: ['list', 'show', 'create', 'generate', 'start', 'complete', 'regenerate', 'cancel', 'defer'] as const,
+      actions: ['list', 'show', 'create', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'] as const,
       inputSchema: GatesActionInputSchema,
       outputSchema: GatesActionOutputSchema,
       actionOutputSchema(action) {
@@ -74,6 +75,8 @@ export function gateHandlers(
             return GatesStartOutputSchema
           case 'complete':
             return GatesCompleteOutputSchema
+          case 'validate':
+            return GatesValidateOutputSchema
           case 'regenerate':
             return GatesRegenerateOutputSchema
           case 'cancel':
@@ -141,8 +144,239 @@ export function gateHandlers(
           return r.invoke('gates_complete', payload)
         },
         regenerate: async (payload, r) => r.invoke('gates_regenerate', payload),
-        cancel: async (payload, r) => r.invoke('gate_cancel', payload),
-        defer: async (payload, r) => r.invoke('gate_defer', payload),
+        validate: async (payload, r) => {
+          // Dry-run: run quality + structural checks against the gate without completing it.
+          // Gates are held to a higher standard than proposals: they drive proposal creation,
+          // so all checks must pass before a gate is fit to generate proposals.
+          const gateId = (payload as { gateId?: string }).gateId ?? ''
+          const allErrors: string[] = []
+          const allWarnings: string[] = []
+          let qualityPassed = true
+          let testFirstPassed = true
+          let artifactPassed = true
+          let dependencyPassed = true
+          let dependencyGatesCompleted = true
+          let requirementsCoverage = true
+
+          // 1) Artifact structure check
+          try {
+            const { findGateByGateId } = await import('../../utils/artifact-locator.js')
+            const filePath = await findGateByGateId(gateId)
+            if (filePath) {
+              const artifactResult = await validateArtifactFile(filePath, 'gate')
+              if (!artifactResult.allowed) {
+                artifactPassed = false
+                allErrors.push(...(artifactResult.errors ?? []))
+              }
+              allWarnings.push(...(artifactResult.warnings ?? []))
+            }
+          } catch {
+            // artifact check is best-effort
+          }
+
+          // 2) Gate dependency DAG: declared dependencies must form a valid DAG (no cycles).
+          // Mirrors the gates_action:create validator for early detection before complete.
+          let declaredDependencies: string[] = []
+          let allGatesForDeps: Record<string, unknown>[] = []
+          try {
+            const gatesResult = await r.invoke('gates_list', {})
+            if (gatesResult.success) {
+              allGatesForDeps = gatesResult.data as Record<string, unknown>[]
+              const allNodes = new Map<
+                string,
+                { hash: string; dependencies: string[]; gateId: string; gateSequence: number }
+              >()
+              allGatesForDeps.forEach((gate) => {
+                const id = String(gate['id'])
+                const deps = Array.isArray(gate['dependencies'])
+                  ? (gate['dependencies'] as string[])
+                  : []
+                allNodes.set(id, { hash: id, dependencies: deps, gateId: id, gateSequence: parseInt(id.split('-')[1] ?? '') || 0 })
+              })
+              const currentGate = allNodes.get(gateId)
+              if (currentGate) {
+                declaredDependencies = currentGate.dependencies
+                const depResult = validateDependencies({ node: currentGate, allNodes })
+                if (!depResult.allowed) {
+                  dependencyPassed = false
+                  allErrors.push(...(depResult.errors ?? []))
+                }
+                allWarnings.push(...(depResult.warnings ?? []))
+              }
+
+              // 3) All declared dependency gates must be completed.
+              // A gate that depends on incomplete work cannot safely generate proposals —
+              // the upstream context is unfinished and will change.
+              for (const depId of declaredDependencies) {
+                const depGate = allGatesForDeps.find((g) => String(g['id']) === depId)
+                const depStatus = depGate ? String(depGate['status']) : ''
+                if (depStatus !== 'completed') {
+                  dependencyGatesCompleted = false
+                  allErrors.push(
+                    `Dependency gate ${depId} is not completed (status: ${depStatus || 'unknown'}) — complete upstream gates before validating this gate`
+                  )
+                }
+              }
+            }
+          } catch { /* dependency checks are best-effort */ }
+
+          // 4) Quality thresholds
+          const showResult = await r.invoke('gates_show', { gateId })
+          const showData = showResult.success ? (showResult.data as Record<string, unknown>) : {}
+          const existingMetrics = (showData['qualityMetrics'] ?? {}) as Record<string, unknown>
+          const qualityMetrics = {
+            coverage: typeof existingMetrics['testCoverage'] === 'number' ? existingMetrics['testCoverage'] : DEFAULT_QUALITY_STUB_METRICS.coverage,
+            lintErrors: typeof existingMetrics['lintErrors'] === 'number' ? existingMetrics['lintErrors'] : DEFAULT_QUALITY_STUB_METRICS.lintErrors,
+            securityIssues: typeof existingMetrics['securityIssues'] === 'number' ? existingMetrics['securityIssues'] : DEFAULT_QUALITY_STUB_METRICS.securityIssues,
+          }
+          const qualityResult = await validateQuality({ metrics: qualityMetrics })
+          if (!qualityResult.allowed) {
+            qualityPassed = false
+            allErrors.push(...(qualityResult.errors ?? []))
+          }
+          allWarnings.push(...(qualityResult.warnings ?? []))
+
+          // 5) Requirements coverage: gate must have at least one requirement in the DB
+          //    (owned or linked from another gate/PRD).
+          // Gates without requirements provide no decomposition basis for proposals.
+          // This is an error for in_progress gates, a warning for pending gates.
+          try {
+            const reqResult = await r.invoke('req_action', { action: 'list', payload: { gateId } })
+            if (reqResult.success) {
+              const reqData = reqResult.data as {
+                requirements?: unknown[]
+                total?: number
+                linkedCount?: number
+              }
+              const owned = reqData.total ?? reqData.requirements?.length ?? 0
+              const linked = reqData.linkedCount ?? 0
+              const count = owned + linked
+              if (count === 0) {
+                const currentStatus = (showData['status'] as string) || ''
+                if (currentStatus === 'in_progress') {
+                  requirementsCoverage = false
+                  allErrors.push(
+                    `Gate ${gateId} has no requirements (owned or inherited) — run gates_action:start to generate gate-level requirements before proceeding`
+                  )
+                } else {
+                  allWarnings.push(
+                    `Gate ${gateId} has no requirements yet — requirements will be generated when the gate is started`
+                  )
+                }
+              }
+            }
+          } catch { /* requirements check is best-effort */ }
+
+          // 6) Gate-level test-first structure
+          try {
+            const listResult = await r.invoke('proposal_list', { gateId })
+            if (listResult.success) {
+              const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
+                hash: string; lastUpdated?: string
+              }[]
+              if (rows.length > 0) {
+                const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+                const { readFile } = await import('../../utils/file.js')
+                const gateProposals: ProposalGateSibling[] = await Promise.all(
+                  rows.map(async (p) => {
+                    let role: string | undefined
+                    try {
+                      const filePath = await findProposalByHash(p.hash)
+                      if (filePath) {
+                        const content = await readFile(filePath)
+                        const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+                        role = roleMatch?.[1]?.trim()
+                      }
+                    } catch { /* role stays undefined */ }
+                    return { hash: p.hash, role, createdAt: p.lastUpdated ?? new Date().toISOString() }
+                  })
+                )
+                const testFirstResult = validateGateLevelTestFirst(gateProposals)
+                if (!testFirstResult.allowed) {
+                  testFirstPassed = false
+                  allErrors.push(...(testFirstResult.errors ?? []))
+                }
+                allWarnings.push(...(testFirstResult.warnings ?? []))
+              }
+            }
+          } catch {
+            // test-first check is best-effort
+          }
+
+          const passed = allErrors.length === 0
+          const previousStatus = (showData['status'] as string | undefined) ?? 'pending'
+
+          // When all checks pass, advance gate status to 'validated'
+          if (passed && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
+            try {
+              const { getDatabase } = await import('../../storage/database.js')
+              const db = getDatabase()
+              db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(gateId)
+              // Sync to project-overview.json
+              const { syncGatesToProjectOverview } = await import('../../utils/gate-sync.js')
+              await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
+            } catch {
+              // Status update is best-effort; validation result is still returned
+            }
+          }
+
+          return {
+            success: true,
+            data: {
+              gateId,
+              passed,
+              ...(passed && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed'
+                ? { previousStatus, newStatus: 'validated' as const }
+                : {}),
+              errors: allErrors.length > 0 ? allErrors : undefined,
+              warnings: allWarnings.length > 0 ? allWarnings : undefined,
+              checks: {
+                dependencies: dependencyPassed,
+                dependencyGatesCompleted,
+                artifactStructure: artifactPassed,
+                requirementsCoverage,
+                testFirstStructure: testFirstPassed,
+                quality: qualityPassed,
+              },
+            },
+          }
+        },
+        cancel: async (payload, r) => {
+          const { confirmed, gateId } = payload as { confirmed?: boolean; gateId?: string }
+          if (!confirmed) {
+            return {
+              success: true,
+              data: {
+                requiresConfirmation: true,
+                action: 'cancel' as const,
+                gateId,
+                message:
+                  `Cancelling gate${gateId ? ` "${gateId}"` : ''} is irreversible and will mark it as dropped from the roadmap. ` +
+                  'Please confirm with the user before proceeding. ' +
+                  'Re-call with confirmed: true once the user has explicitly approved.',
+              },
+            }
+          }
+          return r.invoke('gate_cancel', payload)
+        },
+        defer: async (payload, r) => {
+          const { confirmed, gateId } = payload as { confirmed?: boolean; gateId?: string }
+          if (!confirmed) {
+            return {
+              success: true,
+              data: {
+                requiresConfirmation: true,
+                action: 'defer' as const,
+                gateId,
+                message:
+                  `Deferring gate${gateId ? ` "${gateId}"` : ''} will move it to the backlog and remove it from the active roadmap. ` +
+                  'Please confirm with the user before proceeding. ' +
+                  'Re-call with confirmed: true once the user has explicitly approved.',
+              },
+            }
+          }
+          return r.invoke('gate_defer', payload)
+        },
       },
       validators: {
         generate: (_payload, _r) => [
@@ -161,7 +395,7 @@ export function gateHandlers(
           },
         ],
         start: (_payload, r) => [
-          // Enforce state transition: only pending (or rejected) gates can be started
+          // Enforce state transition: only validated or rejected gates can be started
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
           createStateTransitionValidator<GateStatus>({
             getCurrentStatus: async () => {
@@ -172,7 +406,7 @@ export function gateHandlers(
               return status ?? null
             },
             targetStatus: 'in_progress',
-            validFromStatuses: ['pending', 'rejected'],
+            validFromStatuses: ['validated', 'rejected'],
             allTransitions: GATE_TRANSITIONS,
             entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
           }),
@@ -183,7 +417,7 @@ export function gateHandlers(
               const { findGateByGateId } = await import('../../utils/artifact-locator.js')
               const filePath = await findGateByGateId(gateId)
               if (!filePath) return { allowed: true }
-              return await validateArtifactFile(filePath, 'gate', 'all')
+              return await validateArtifactFile(filePath, 'gate')
             } catch {
               return { allowed: true }
             }

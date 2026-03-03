@@ -59,7 +59,8 @@ export function projectHandlers(
         // No special validators needed for project operations
         // Basic JSON schema validation is sufficient
       },
-    }
+    },
+    _registry
   )
 
   return {

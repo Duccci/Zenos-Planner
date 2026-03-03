@@ -3,7 +3,7 @@ export const requirementToolDefinitions = [
     name: 'req_action',
     description: `REQUIRED TOOL: Use req_action whenever you need to work with requirements or maintain the proposals database.
 
-Actions: list (retrieve all requirements, optionally filter by gate), show (get requirement details by hash), deps (view requirement dependency graph), transfer (move requirement to different gate), search (full-text search across description and acceptance criteria).
+Actions: list (retrieve all requirements, optionally filter by gate), show (get requirement details by hash), deps (view requirement dependency graph), transfer (move requirement to different gate), search (full-text search across description and acceptance criteria), inherit (link an existing requirement to a gate for cross-gate reuse — needs: hash, gateId), trace (full traceability chain: ancestors, children, and all referencing gates — needs: hash).
 
 DB maintenance actions (call when proposals appear stale or after manual file edits / git operations):
   db_status — report proposals DB health: orphan count, per-status breakdown, disk vs DB row counts.
@@ -17,14 +17,14 @@ Call db_status first to diagnose, then db_sync or purge_orphans to fix.`,
       properties: {
         action: {
           type: 'string',
-          enum: ['list', 'show', 'deps', 'transfer', 'search', 'db_status', 'db_sync', 'purge_orphans', 'reset_gate'],
+          enum: ['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'db_status', 'db_sync', 'purge_orphans', 'reset_gate'],
           description:
-            'Action to perform: "list" (requirements), "show" (details for hash), "deps" (dependency graph), "transfer" (move to gate), "search" (keyword search), "db_status" (proposals DB health), "db_sync" (reconcile DB with disk), "purge_orphans" (remove stale rows), "reset_gate" (wipe+resync one gate)',
+            'Action to perform: "list" (requirements), "show" (details for hash), "deps" (dependency graph), "transfer" (move to gate), "search" (keyword search), "inherit" (link requirement to gate for cross-gate reuse), "trace" (full traceability chain), "db_status" (proposals DB health), "db_sync" (reconcile DB with disk), "purge_orphans" (remove stale rows), "reset_gate" (wipe+resync one gate)',
         },
         payload: {
           type: 'object',
           description:
-            'Action-specific parameters. list: {gateId?, type?, skip?, take?}. show/deps: {hash}. transfer: {hash, targetGateId}. search: {query, gateId?, type?, skip?, take?}. purge_orphans: {gateId?, solitary?, dryRun?} — gateId and solitary are mutually exclusive. reset_gate: {gateId}.',
+            'Action-specific parameters. list: {gateId?, type?, skip?, take?}. show/deps/trace: {hash}. transfer: {hash, targetGateId}. search: {query, gateId?, type?, skip?, take?}. inherit: {hash, gateId}. purge_orphans: {gateId?, solitary?, dryRun?} — gateId and solitary are mutually exclusive. reset_gate: {gateId}.',
         },
       },
       required: ['action'],
@@ -47,7 +47,7 @@ export function requirementHandlers(
   const reqActionHandler = createEntityActionHandler(
     {
       entity: 'requirement',
-      actions: ['list', 'show', 'deps', 'transfer', 'search', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'] as const,
+      actions: ['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'] as const,
       inputSchema: ReqActionInputSchema,
       outputSchema: ReqActionOutputSchema,
       actionOutputSchema: getReqActionOutputSchema,
@@ -69,6 +69,8 @@ export function requirementHandlers(
             payload: { ...rest, gateId: targetGateId },
           })
         },
+        inherit: async (payload, r) => r.invoke('req_action', { action: 'inherit', payload }),
+        trace: async (payload, r) => r.invoke('req_action', { action: 'trace', payload }),
         // DB maintenance actions — delegate directly to the registry handler
         db_status: async (payload, r) =>
           r.invoke('req_action', { action: 'db_status', payload: payload ?? {} }),
