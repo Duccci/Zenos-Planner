@@ -16,10 +16,8 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-
     // Validate against schema
-    const parsed = (res.structuredContent as any)?.result ?? res.structuredContent
+    const parsed = JSON.parse(res.content[0]!.text as string)
     const ok = ReposListOutputSchema.safeParse(parsed)
     expect(ok.success).toBe(true)
   })
@@ -42,7 +40,7 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('repos_detect returns structured output when parsing succeeds', async () => {
@@ -53,7 +51,7 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('repos_deps returns structured dependency graph', async () => {
@@ -71,7 +69,7 @@ describe('Repository Handlers (integration)', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
     const res = await handlers.repos_action({ action: 'adjust', payload: { adjustments: [] } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it.skip('repos_add returns structured output matching ReposAddOutputSchema', async () => { // @red
@@ -82,9 +80,7 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-
-    const parsed = (res.structuredContent as any)?.result ?? res.structuredContent
+    const parsed = JSON.parse(res.content[0]!.text as string)
     const ok = ReposAddOutputSchema.safeParse(parsed)
     expect(ok.success).toBe(true)
   })
@@ -97,9 +93,7 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-
-    const parsed = (res.structuredContent as any)?.result ?? res.structuredContent
+    const parsed = JSON.parse(res.content[0]!.text as string)
     const ok = ReposRemoveOutputSchema.safeParse(parsed)
     expect(ok.success).toBe(true)
   })

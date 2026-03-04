@@ -32,7 +32,6 @@ export function createToolHandler(
               text: JSON.stringify(result.data, null, 2)
             }
           ],
-          structuredContent: result.data as Record<string, unknown>
         }
 
         logger.debug(`Tool execution successful: ${functionName}`)

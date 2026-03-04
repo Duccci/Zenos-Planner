@@ -9,7 +9,7 @@ describe('MCP Template tools (integration)', () => {
     const result = await handler({})
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
-    expect(result.structuredContent).toBeDefined()
+    expect(result.content[0]?.text).toBeDefined()
   })
 
   it('template_get missing param returns validation error', async () => {
@@ -49,7 +49,7 @@ describe('MCP Template tools (integration)', () => {
     expect(result).toBeDefined()
     // Should either return structured content, or throw/return error
     if (result.isError) {
-      expect(result.structuredContent?.error).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     }
   })
 
@@ -62,9 +62,9 @@ describe('MCP Template tools (integration)', () => {
     expect(result).toBeDefined()
     // Either success with artifact, or error (template not found, etc.)
     if (result.isError) {
-      expect(result.structuredContent?.error).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     } else {
-      expect(result.structuredContent).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     }
   })
 
@@ -76,7 +76,7 @@ describe('MCP Template tools (integration)', () => {
     const result = await handler({ name: 'test', includeContext: true })
     expect(result).toBeDefined()
     // Should handle the flag gracefully
-    expect(result.structuredContent).toBeDefined()
+    expect(result.content[0]?.text).toBeDefined()
   })
 
   it('template_get with includeContext as string', async () => {
@@ -87,11 +87,7 @@ describe('MCP Template tools (integration)', () => {
     const result = await handler({ name: 'test', includeContext: 'true' })
     expect(result).toBeDefined()
     // May return structured content or error depending on whether template exists
-    if (result.structuredContent) {
-      expect(result.structuredContent).toBeDefined()
-    } else if (result.isError) {
-      expect(result.content).toBeDefined()
-    }
+    expect(result.content).toBeDefined()
   })
 
   it('template_get with includeContext as false', async () => {
@@ -101,6 +97,6 @@ describe('MCP Template tools (integration)', () => {
     const handler = createToolHandler(registry, 'template_get')
     const result = await handler({ name: 'test', includeContext: false })
     expect(result).toBeDefined()
-    expect(result.structuredContent).toBeDefined()
+    expect(result.content[0]?.text).toBeDefined()
   })
 })

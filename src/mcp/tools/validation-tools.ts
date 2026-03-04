@@ -50,14 +50,6 @@ export function validationHandlers(
         if (outputFormat === 'json') {
           return {
             content: [{ type: 'text', text: JSON.stringify(res, null, 2) }],
-            structuredContent: {
-              passed: res.passed,
-              errors: res.errors,
-              warnings: res.warnings,
-              ...(res.score !== undefined ? { score: res.score } : {}),
-              details: res.details,
-              ...(res.agentReview !== undefined ? { agentReview: res.agentReview } : {}),
-            },
           }
         }
 
@@ -75,13 +67,6 @@ export function validationHandlers(
 
         return {
           content: [{ type: 'text', text }],
-          structuredContent: {
-            passed: res.passed,
-            errors: res.errors,
-            warnings: res.warnings,
-            ...(res.score !== undefined ? { score: res.score } : {}),
-            ...(res.agentReview !== undefined ? { agentReview: res.agentReview } : {}),
-          },
         }
       } catch (err) {
         return handleError(err, { tool: 'artifact_validate' })

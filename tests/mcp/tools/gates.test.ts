@@ -12,7 +12,7 @@ describe('MCP Gates tools (integration)', () => {
 
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
-    const structured = result.structuredContent
+    const structured = JSON.parse((result.content[0] as any).text)
     expect(structured).toBeDefined()
 
     let gatesArray: unknown[] = []
@@ -181,9 +181,9 @@ describe('MCP Gates tools (integration)', () => {
 
     expect(result).toBeDefined()
     // If successful, response should contain preReviewSummary echoed back
-    if (!result.isError && result.structuredContent) {
-      const sc = result.structuredContent as Record<string, unknown>
-      const resultData = sc['result'] as Record<string, unknown> | undefined
+    if (!result.isError && result.content[0]) {
+      const sc = JSON.parse((result.content[0] as any).text) as Record<string, unknown>
+      const resultData = sc as Record<string, unknown> | undefined
       if (resultData?.['preReviewSummary']) {
         const summary = resultData['preReviewSummary'] as Record<string, unknown>
         expect(summary['openQuestionsResolved']).toBe(true)

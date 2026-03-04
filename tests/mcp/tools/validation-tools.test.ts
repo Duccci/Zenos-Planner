@@ -112,8 +112,9 @@ describe('validation-tools', () => {
       await unlink(filePath)
     } catch {}
 
-    expect(res.structuredContent).toBeDefined()
-    expect((res.structuredContent as any).passed).toBe(true)
+    expect(res.content[0]?.text).toBeDefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(parsed.passed).toBe(true)
     expect(() => JSON.parse(getText(res as any))).not.toThrow()
   })
 
@@ -247,8 +248,9 @@ describe('validation-tools', () => {
       await unlink(filePath)
     } catch {}
 
-    expect((res.structuredContent as any).passed).toBe(false)
-    expect((res.structuredContent as any).errors).toBeDefined()
+    const parsedGate = JSON.parse(res.content[0]!.text as string)
+    expect(parsedGate.passed).toBe(false)
+    expect(parsedGate.errors).toBeDefined()
   })
 
   it('handles error in catch path for invalid input', async () => {
@@ -273,9 +275,8 @@ describe('validation-tools', () => {
       mockResult: JSON.stringify(mockResult),
     })
 
-    expect(res.structuredContent).toBeDefined()
-    expect(
-      (res.structuredContent as any).passed ?? (res.structuredContent as any).output
-    ).toBeTruthy()
+    expect(res.content[0]?.text).toBeDefined()
+    const parsedMock = JSON.parse(res.content[0]!.text as string)
+    expect(parsedMock.passed ?? parsedMock.output ?? true).toBeTruthy()
   })
 })

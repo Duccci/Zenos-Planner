@@ -9,8 +9,9 @@ describe('MCP misc tools (integration)', () => {
     const result = await handler({})
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
-    expect(result.structuredContent).toBeDefined()
-    expect(Object.keys(result.structuredContent ?? {}).length).toBeGreaterThan(0)
+    expect(result.content[0]).toBeDefined()
+    const parsedConfig = JSON.parse((result.content[0] as any).text)
+    expect(Object.keys(parsedConfig).length).toBeGreaterThan(0)
   })
 
   it('template_list returns templates array', async () => {
@@ -21,7 +22,7 @@ describe('MCP misc tools (integration)', () => {
     const result = await handler({})
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
-    const structured = result.structuredContent as any
+    const structured = JSON.parse((result.content[0] as any).text)
     // Support both structured array or CLI text output
     if (Array.isArray(structured?.templates)) {
       expect(Array.isArray(structured.templates)).toBe(true)

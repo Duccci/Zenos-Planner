@@ -38,7 +38,6 @@ export function gitTraceHandlers(
 
           return {
             content: [{ type: 'text', text: JSON.stringify(validated_output, null, 2) }],
-            structuredContent: validated_output,
           }
         } else {
           const error = result.error
@@ -53,7 +52,6 @@ export function gitTraceHandlers(
                 ),
               },
             ],
-            structuredContent: { error },
             isError: true,
           }
         }
@@ -61,7 +59,6 @@ export function gitTraceHandlers(
         const message = err instanceof Error ? err.message : String(err)
         return {
           content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
-          structuredContent: { error: { message } },
           isError: true,
         }
       }

@@ -66,7 +66,6 @@ export function createEntityActionHandler<T extends string>(
         }
         return {
           content: [{ type: 'text', text: JSON.stringify(usage, null, 2) }],
-          structuredContent: usage,
           isError: true,
         }
       }
@@ -128,7 +127,6 @@ export function createEntityActionHandler<T extends string>(
           content: [
             { type: 'text', text: JSON.stringify({ error: err?.message ?? 'Unknown' }, null, 2) },
           ],
-          structuredContent: { error: err ?? { message: 'Unknown error' } },
           isError: true,
         }
       }
@@ -141,11 +139,8 @@ export function createEntityActionHandler<T extends string>(
       // Validate final envelope against supplied output schema (internal integrity check).
       config.outputSchema.parse(output)
 
-      // Both channels carry the same payload so MCP clients that render both
-      // content text and structuredContent do not present the data twice.
       return {
         content: [{ type: 'text', text: JSON.stringify(invokeResult.data, null, 2) }],
-        structuredContent: invokeResult.data as Record<string, unknown>,
       }
     } catch (e) {
       if (e instanceof ZodError) {

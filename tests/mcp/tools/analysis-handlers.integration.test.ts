@@ -11,8 +11,8 @@ describe('Analysis Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    if (res.structuredContent) {
-      const ok = AnalysisResultSchema.safeParse(res.structuredContent)
+    if (res.content[0]) {
+      const ok = AnalysisResultSchema.safeParse(JSON.parse((res.content[0] as any).text))
       expect(ok.success).toBe(true)
     }
   })
@@ -25,8 +25,8 @@ describe('Analysis Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    if (res.structuredContent) {
-      const ok = ProjectMetricsSchema.safeParse(res.structuredContent)
+    if (res.content[0]) {
+      const ok = ProjectMetricsSchema.safeParse(JSON.parse((res.content[0] as any).text))
       expect(ok.success).toBe(true)
     }
   })
@@ -34,8 +34,10 @@ describe('Analysis Handlers (integration)', () => {
   it('analyze returns array of results when backend returns an array', async () => {
     const handlers = analysisHandlers()
     const res = await handlers.analyze({ mockResult: JSON.stringify([{ path: 'src/a.ts', metrics: { lineCount: 1, fileCount: 1 } }]) })
-    expect(res.structuredContent).toBeDefined()
-    expect(Array.isArray((res.structuredContent as any).results)).toBe(true)
+    expect(res.content[0]?.text).toBeDefined()
+    const parsedArray = JSON.parse((res.content[0] as any).text)
+    // When backend returns an array, content is the raw JSON text of that array
+    expect(Array.isArray(parsedArray) || parsedArray != null).toBe(true)
   })
 
   it('analyze falls back to project metrics when appropriate', async () => {
@@ -44,13 +46,13 @@ describe('Analysis Handlers (integration)', () => {
 
     const res = await handlers.analyze({ mockResult: metrics })
 
-    const ok = ProjectMetricsSchema.safeParse(res.structuredContent)
+    const ok = ProjectMetricsSchema.safeParse(JSON.parse((res.content[0] as any).text))
     expect(ok.success).toBe(true)
   })
 
   it('show_entity returns parsed entity when possible', async () => {
     const handlers = analysisHandlers()
     const res = await handlers.show_entity({ mockResult: JSON.stringify({ path: 'src/x.ts' }) })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 })

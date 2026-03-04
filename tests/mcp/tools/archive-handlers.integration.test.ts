@@ -14,7 +14,8 @@ describe('Archive Handlers (integration)', () => {
     console.log('archive res:', JSON.stringify(res, null, 2))
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).gateId).toBe('gate-01')
+    const parsedGate = JSON.parse((res.content[0] as any).text)
+    expect(parsedGate?.gateId).toBe('gate-01')
   })
 
   it('parses and validates archive batch output', async () => {
@@ -28,7 +29,8 @@ describe('Archive Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).archivedCount).toBeDefined()
+    const parsedBatch = JSON.parse((res.content[0] as any).text)
+    expect(parsedBatch?.archivedCount).toBeDefined()
   })
 
   it('archive_action returns not implemented when missing registry', async () => {

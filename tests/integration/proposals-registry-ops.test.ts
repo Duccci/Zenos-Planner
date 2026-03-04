@@ -34,6 +34,8 @@ const mockValidateArtifactFile = vi.fn()
 const mockApproveProposal = vi.fn()
 const mockRejectProposal = vi.fn()
 const mockStartProposal = vi.fn()
+const mockRun = vi.fn()
+const mockWriteFile = vi.fn()
 
 vi.mock('../../src/storage/database.js', () => ({
   getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
@@ -76,6 +78,7 @@ vi.mock('../../src/utils/artifact-locator.js', () => ({
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
+  writeFile: (...args: unknown[]) => mockWriteFile(...args),
 }))
 
 vi.mock('../../src/mcp/validators/apply-phase-validator.js', () => ({
@@ -119,9 +122,11 @@ describe('proposals-registry operations', () => {
     registry = new FunctionRegistry()
 
     mockGetDatabase.mockReturnValue({ prepare: mockPrepare })
-    mockPrepare.mockReturnValue({ all: mockAll, get: mockGet })
+    mockPrepare.mockReturnValue({ all: mockAll, get: mockGet, run: mockRun })
     mockAll.mockReturnValue([])
     mockGet.mockReturnValue(undefined)
+    mockRun.mockReturnValue({})
+    mockWriteFile.mockResolvedValue(undefined)
     mockInvokeCommand.mockResolvedValue({ success: true })
     mockApproveProposal.mockResolvedValue({})
     mockRejectProposal.mockResolvedValue({})
@@ -831,6 +836,118 @@ describe('proposals-registry operations', () => {
         success: boolean
       }
       expect(result.success).toBe(false)
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // proposal_cancel
+  // -------------------------------------------------------------------------
+  describe('proposal_cancel', () => {
+    it('returns failure when proposal not found', async () => {
+      mockGet.mockReturnValue(undefined)
+      const result = (await registry.invoke('proposal_cancel', { hash: 'notfound' })) as {
+        success: boolean
+      }
+      expect(result.success).toBe(false)
+    })
+
+    it('cancels proposal when filePath is null (no writeback)', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'in-progress' })
+      mockFindProposalByHash.mockResolvedValue(null)
+
+      const result = (await registry.invoke('proposal_cancel', { hash: 'abc12345', reason: 'no longer needed' })) as {
+        success: boolean; data: { hash: string; newStatus: string; reason: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('cancelled')
+      expect(result.data.reason).toBe('no longer needed')
+    })
+
+    it('cancels proposal with hash starting with # (covers ternary)', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'pending' })
+      mockFindProposalByHash.mockResolvedValue(null)
+
+      const result = (await registry.invoke('proposal_cancel', { hash: '#abc12345' })) as {
+        success: boolean; data: { newStatus: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('cancelled')
+    })
+
+    it('cancels proposal and writes back when filePath is truthy', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'in-progress' })
+      mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/01-test.md')
+      mockReadFile.mockResolvedValue('**Status**: in-progress\nSome content')
+
+      const result = (await registry.invoke('proposal_cancel', { hash: 'abc12345' })) as {
+        success: boolean; data: { newStatus: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('cancelled')
+      // writeback is best-effort; verify readFile was invoked (covers if(filePath) true branch)
+      expect(mockReadFile).toHaveBeenCalledWith('zeno/proposals/gate-01/01-test.md')
+    })
+
+    it('still succeeds when writeback throws (catch is best-effort)', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'pending' })
+      mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/01-test.md')
+      mockReadFile.mockRejectedValue(new Error('disk error'))
+
+      const result = (await registry.invoke('proposal_cancel', { hash: 'abc12345' })) as {
+        success: boolean; data: { newStatus: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('cancelled')
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // proposal_defer
+  // -------------------------------------------------------------------------
+  describe('proposal_defer', () => {
+    it('returns failure when proposal not found', async () => {
+      mockGet.mockReturnValue(undefined)
+      const result = (await registry.invoke('proposal_defer', { hash: 'notfound' })) as {
+        success: boolean
+      }
+      expect(result.success).toBe(false)
+    })
+
+    it('defers proposal when filePath is null', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'in-progress' })
+      mockFindProposalByHash.mockResolvedValue(null)
+
+      const result = (await registry.invoke('proposal_defer', { hash: 'abc12345', reason: 'deprioritized' })) as {
+        success: boolean; data: { hash: string; newStatus: string; reason: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('backlog')
+      expect(result.data.reason).toBe('deprioritized')
+    })
+
+    it('defers proposal with # hash prefix (covers ternary)', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'pending' })
+      mockFindProposalByHash.mockResolvedValue(null)
+
+      const result = (await registry.invoke('proposal_defer', { hash: '#abc12345' })) as {
+        success: boolean; data: { newStatus: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('backlog')
+    })
+
+    it('defers proposal and writes back when filePath is truthy', async () => {
+      mockGet.mockReturnValue({ hash: 'abc12345', status: 'in-progress' })
+      mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/01-test.md')
+      mockReadFile.mockResolvedValue('**Status**: in-progress\nContent')
+
+      const result = (await registry.invoke('proposal_defer', { hash: 'abc12345' })) as {
+        success: boolean; data: { newStatus: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('backlog')
+      // writeback is best-effort; verify readFile was invoked (covers if(filePath) true branch)
+      expect(mockReadFile).toHaveBeenCalledWith('zeno/proposals/gate-01/01-test.md')
     })
   })
 })

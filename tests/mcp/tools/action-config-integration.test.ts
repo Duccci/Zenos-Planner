@@ -116,7 +116,7 @@ describe('Action Tool Config Integration', () => {
         },
       })
 
-      const parsed = result.structuredContent as any
+      const parsed = JSON.parse((result.content[0] as any).text)
       // Validation results may be included if there are warnings
       expect(parsed).toBeDefined()
       expect(result.isError).toBeUndefined()
@@ -299,10 +299,8 @@ describe('Action Tool Config Integration', () => {
 
       // Should still work but with warnings
       expect(result.isError).toBeUndefined()
-      expect(result.structuredContent).toBeDefined()
-      expect(
-        (result.structuredContent as any)?.result?.hash ?? result.structuredContent.hash
-      ).toBeDefined()
+      const parsedHash = JSON.parse((result.content[0] as any).text)
+      expect(parsedHash?.hash).toBeDefined()
     })
 
     it('uses sensible defaults when config missing', async () => {

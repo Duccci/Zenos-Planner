@@ -79,7 +79,7 @@ describe('MCP Requirement tools (integration)', () => {
       const result = await handler({ action: 'list', payload: {} })
       expect(result).toBeDefined()
       expect(result.isError).toBeUndefined()
-      expect(result.structuredContent).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     } finally {
       vi.doUnmock('../../../src/storage/database.js')
     }

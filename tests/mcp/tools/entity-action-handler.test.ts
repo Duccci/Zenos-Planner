@@ -43,7 +43,7 @@ describe('createEntityActionHandler (unit)', () => {
 
     const res = await handler({ action: 'alpha', payload: {} })
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toEqual({ ok: true })
+    expect(JSON.parse((res.content[0] as any).text)).toEqual({ ok: true })
   })
 
   it('returns error when action handler reports failure', async () => {
@@ -119,7 +119,8 @@ describe('createEntityActionHandler (unit)', () => {
     const mockJson = JSON.stringify({ ok: true })
     const res = await handler({ action: 'alpha', mockResult: mockJson })
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toEqual({ ok: true })
+    // Mock path bypasses the { action, result } envelope — verify via content text
+    expect(JSON.parse(res.content[0]!.text as string)).toEqual({ ok: true })
   })
 
   it('returns error for unknown action', async () => {

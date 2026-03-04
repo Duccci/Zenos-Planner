@@ -13,7 +13,7 @@ describe('MCP Analysis tools (integration)', () => {
       const text = result.content?.[0]?.text ? String(result.content?.[0]?.text) : ''
       expect(text.toLowerCase()).toContain('error')
     } else {
-      expect(result.structuredContent).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     }
   })
 

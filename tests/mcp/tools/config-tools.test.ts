@@ -9,7 +9,7 @@ describe('MCP Config tools (integration)', () => {
     const result = await handler({})
     expect(result).toBeDefined()
     expect(result.isError).toBeUndefined()
-    expect(result.structuredContent).toBeDefined()
+    expect(result.content[0]?.text).toBeDefined()
   })
 
   it('config_get with extra invalid param returns validation error', async () => {

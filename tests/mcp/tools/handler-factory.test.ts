@@ -16,7 +16,7 @@ describe('Handler Factory', () => {
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
 
-    expect(res.structuredContent).toEqual({ ok: true, n: 1 })
+    expect(JSON.parse((res.content[0] as any).text)).toMatchObject({ ok: true, n: 1 })
     expect((res.content[0] as any).text).toContain('"ok": true')
   })
 
@@ -27,7 +27,6 @@ describe('Handler Factory', () => {
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
 
-    expect(res.structuredContent).toHaveProperty('output')
     expect((res.content[0] as any).text).toContain('"wrong":')
   })
 
@@ -42,12 +41,12 @@ describe('Handler Factory', () => {
     expect((res.content[0] as any).text).toContain('boom')
   })
 
-  it('createBasicHandler returns text and structuredContent for success', async () => {
+  it('createBasicHandler returns text content for success', async () => {
     const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { a: 1 } }) }
     const handler = createBasicHandler(registry as any, 'fn')
     const res = await handler({})
 
-    expect(res.structuredContent).toEqual({ a: 1 })
+    expect(JSON.parse((res.content[0] as any).text)).toMatchObject({ a: 1 })
     expect((res.content[0] as any).text).toContain('"a": 1')
   })
 
@@ -62,7 +61,7 @@ describe('Handler Factory', () => {
 
     const res = handleMockResult(args as Record<string, unknown>, schema)
     expect(res).not.toBeNull()
-    expect(res?.structuredContent).toEqual({ ok: true, n: 5 })
+    expect(JSON.parse((res?.content[0] as any).text)).toMatchObject({ ok: true, n: 5 })
   })
 
   it('handleMockResult returns fallback when mock does not match schema', () => {
@@ -71,7 +70,7 @@ describe('Handler Factory', () => {
 
     const res = handleMockResult(args as Record<string, unknown>, schema)
     expect(res).not.toBeNull()
-    expect(res?.structuredContent).toHaveProperty('output')
+    expect((res?.content[0] as any)?.text).toContain('"wrong"')
   })
 
   it('runValidators aggregates errors and warnings', async () => {
@@ -88,7 +87,8 @@ describe('Handler Factory', () => {
     const vr = { allowed: false, errors: ['x'] }
     const err = formatValidationError(vr, 'create')
     expect(err.isError).toBe(true)
-    expect(err.structuredContent && (err.structuredContent as any).validation).toBeDefined()
+    const errParsed = JSON.parse((err.content[0] as any).text)
+    expect(errParsed.validation).toBeDefined()
 
     const ni = createNotImplementedHandler('nope')
     expect(ni.isError).toBe(true)
@@ -98,9 +98,9 @@ describe('Handler Factory', () => {
   it('handleError returns structured internal error payload', () => {
     const res = handleError(new Error('boom'), { ctx: 1 })
     expect(res.isError).toBe(true)
-    const sc = res.structuredContent as any
-    expect(sc.error).toBeDefined()
-    expect(String((sc.error.message as string)).toLowerCase()).toContain('boom')
+    const sc = JSON.parse((res.content[0] as any).text)
+    expect(sc.message).toBeDefined()
+    expect(String(sc.message).toLowerCase()).toContain('boom')
   })
 
   it('runValidators treats thrown validator as warning and continues', async () => {
@@ -118,7 +118,7 @@ describe('Handler Factory', () => {
 
     const res = handleMockResult(args as Record<string, unknown>, schema)
     expect(res).not.toBeNull()
-    expect(res?.structuredContent).toEqual({ ok: false })
+    expect(JSON.parse((res?.content[0] as any).text)).toMatchObject({ ok: false })
   })
 
   // Additional branch coverage tests
@@ -135,7 +135,7 @@ describe('Handler Factory', () => {
     const schema = z.object({ ok: z.boolean() })
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler(null as any)
-    expect(res.structuredContent).toEqual({ ok: true })
+    expect(JSON.parse((res.content[0] as any).text)).toMatchObject({ ok: true })
     expect(registry.invoke).toHaveBeenCalledWith('fn', {})
   })
 
@@ -145,7 +145,7 @@ describe('Handler Factory', () => {
     const mockResult = { ok: false }
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({ mockResult: JSON.stringify(mockResult) })
-    expect(res.structuredContent).toEqual(mockResult)
+    expect(JSON.parse((res.content[0] as any).text)).toMatchObject(mockResult)
     expect(registry.invoke).not.toHaveBeenCalled()
   })
 
@@ -154,7 +154,7 @@ describe('Handler Factory', () => {
     const schema = z.object({ ok: z.boolean() })
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
-    expect(res.structuredContent).toEqual({ ok: true })
+    expect(JSON.parse((res.content[0] as any).text)).toMatchObject({ ok: true })
   })
 
   it('createSchemaValidatingHandler handles non-object data', async () => {
@@ -186,8 +186,8 @@ describe('Handler Factory', () => {
     const schema = z.object({})
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
-    const sc = res.structuredContent as any
-    expect(sc.error?.context?.field).toBe('name')
+    const parsed = JSON.parse((res.content[0] as any).text)
+    expect(parsed.context?.field).toBe('name')
   })
 
   it('handleMockResult returns null when no mockResult present', () => {
@@ -221,7 +221,7 @@ describe('Handler Factory', () => {
     const schema = z.object({ ok: z.boolean() })
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({ mockResult: 'not-json-string' })
-    expect(res.structuredContent).toHaveProperty('output')
+    expect((res.content[0] as any).text).toBe('not-json-string')
   })
 
   it('createSchemaValidatingHandler handles registry.invoke throwing (catch block)', async () => {
@@ -230,9 +230,9 @@ describe('Handler Factory', () => {
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
     expect(res.isError).toBe(true)
-    const sc = res.structuredContent as any
-    expect(sc.error?.code).toBe('INTERNAL_ERROR')
-    expect(String(sc.error?.message)).toContain('registry crash')
+    const sc = JSON.parse((res.content[0] as any).text)
+    expect(sc.code).toBe('INTERNAL_ERROR')
+    expect(String(sc.message)).toContain('registry crash')
   })
 
   it('createSchemaValidatingHandler handles registry.invoke throwing non-Error (catch block)', async () => {
@@ -241,8 +241,8 @@ describe('Handler Factory', () => {
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
     const res = await handler({})
     expect(res.isError).toBe(true)
-    const sc = res.structuredContent as any
-    expect(String(sc.error?.message)).toContain('string-error')
+    const sc2 = JSON.parse((res.content[0] as any).text)
+    expect(String(sc2.message)).toContain('string-error')
   })
 
   it('withGuidance returns result unchanged when result.success is false', async () => {

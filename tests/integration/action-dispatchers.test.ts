@@ -88,7 +88,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.proposals).toEqual(mockProposals)
   })
 
@@ -112,7 +112,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.hash).toBe('prop0001')
   })
 
@@ -138,7 +138,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.hash).toBe('prop0002')
   })
 
@@ -158,7 +158,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.passedQuantitative).toBe(true)
   })
 
@@ -227,7 +227,7 @@ describe('Proposal Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.reason).toBe('Requires changes')
   })
 
@@ -349,7 +349,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.gates).toEqual(mockGates)
   })
 
@@ -376,7 +376,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.id).toBe('gate-03')
   })
 
@@ -419,7 +419,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed.gateId).toBe('gate-04')
   })
 
@@ -616,8 +616,7 @@ describe('Action Dispatcher Output Schema Validation', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    // structuredContent carries the action payload directly (no envelope)
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed).toHaveProperty('proposals')
   })
 
@@ -650,8 +649,7 @@ describe('Action Dispatcher Output Schema Validation', () => {
     })
 
     expect(result.content).toBeDefined()
-    const parsed = result.structuredContent as any
-    // structuredContent carries the action payload directly (no envelope)
+    const parsed = JSON.parse((result.content[0] as any).text)
     expect(parsed).toHaveProperty('gates')
   })
 })

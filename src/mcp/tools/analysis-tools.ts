@@ -59,13 +59,6 @@ export function analysisHandlers(
 
       const mock = handleMockResult(args, analyzeOutputSchema)
       if (mock) {
-        // Maintain legacy shape: when backend returns an array of results, wrap as { results: [...] }
-        if (Array.isArray(mock.structuredContent)) {
-          return {
-            content: mock.content,
-            structuredContent: { results: mock.structuredContent },
-          }
-        }
         return mock
       }
 

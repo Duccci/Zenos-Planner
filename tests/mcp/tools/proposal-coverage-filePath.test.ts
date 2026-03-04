@@ -80,8 +80,8 @@ describe('Proposal Tools – filePath branch coverage', () => {
       // Should not be a parse/schema error
       expect(text.toLowerCase()).not.toContain('parse')
     } else {
-      // If it passed, structuredContent should exist
-      expect(res.structuredContent).toBeDefined()
+      // If it passed, content should be defined
+      expect((res.content[0] as any)?.text).toBeDefined()
     }
   })
 

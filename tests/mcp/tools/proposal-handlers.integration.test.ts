@@ -14,7 +14,8 @@ describe('Proposal Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    const ok = ProposalListOutputSchema.safeParse((res.structuredContent as any)?.result ?? res.structuredContent)
+    const parsedList = JSON.parse(res.content[0]!.text as string)
+    const ok = ProposalListOutputSchema.safeParse(parsedList)
     if (!ok.success) console.error('Proposal schema errors:', JSON.stringify(ok.error.format(), null, 2))
     expect(ok.success).toBe(true)
   })
@@ -30,7 +31,8 @@ describe('Proposal Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    const ok = ProposalDetailSchema.safeParse((res.structuredContent as any)?.result ?? res.structuredContent)
+    const parsedDetail = JSON.parse(res.content[0]!.text as string)
+    const ok = ProposalDetailSchema.safeParse(parsedDetail)
     expect(ok.success).toBe(true)
   })
 
@@ -52,7 +54,7 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = proposalHandlers(fakeRegistry)
     const res = await handlers.proposal_action({ action: 'approve', payload: { hash: 'abcd1234' } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates proposal reject output', async () => {
@@ -60,7 +62,7 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = proposalHandlers(fakeRegistry)
     const res = await handlers.proposal_action({ action: 'reject', payload: { hash: 'abcd1234', rejectionReason: 'Nope' } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates proposal start output', async () => {
@@ -68,7 +70,7 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = proposalHandlers(fakeRegistry)
     const res = await handlers.proposal_action({ action: 'start', payload: { hash: 'abcd1234' } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   // ── Idempotent start ──────────────────────────────────────────────────────
@@ -86,9 +88,8 @@ describe('Proposal Handlers (integration)', () => {
     // State transition validator sees in_progress == targetStatus → idempotent allowed:true
     // Action handler also returns idempotent success
     expect(res).toBeDefined()
-    const sc = res.structuredContent as any
-    const result = sc?.result ?? sc
-    expect(result?.newStatus ?? result?.status ?? 'in_progress').toBe('in_progress')
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(parsed?.newStatus ?? parsed?.status ?? 'in_progress').toBe('in_progress')
   })
 
   // ── Gate-level test-first check (start validators, lines 844-862) ─────────

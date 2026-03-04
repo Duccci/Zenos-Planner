@@ -61,7 +61,7 @@ const allToolDefs = [...toolMetaMap.entries()].map(([name, meta]) => ({
  *
  * Precedence: Handler-based tools are registered first and take precedence
  * over CLI-backed function implementations. This allows handlers to provide
- * predictable, schema-validated `structuredContent` for LLM integration while
+ * consistent, schema-validated responses for LLM integration while
  * still relying on function registry implementations as a backend when needed.
  */
 export function registerTools(server: McpServer, registry: FunctionRegistry): string[] {

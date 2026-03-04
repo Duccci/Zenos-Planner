@@ -22,7 +22,7 @@ describe('createEntityActionHandler', () => {
 
     const res = await handler({ action: 'ok', mockResult: { hello: 'mock' } })
 
-    expect(res.structuredContent).toEqual({ hello: 'mock' })
+    expect(JSON.parse((res.content[0] as any).text)).toEqual({ hello: 'mock' })
   })
 
   it('blocks action when validator returns errors', async () => {
@@ -43,7 +43,7 @@ describe('createEntityActionHandler', () => {
     const res = await handler({ action: 'change', payload: {} })
 
     expect(res.isError).toBe(true)
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any).text)
     expect(sc.validation.errors).toContain('nope')
   })
 
@@ -63,7 +63,7 @@ describe('createEntityActionHandler', () => {
     const res = await handler({ action: 'do', payload: { foo: 'bar' } })
 
     expect(res.isError).not.toBe(true)
-    expect(res.structuredContent).toEqual({ ok: true })
+    expect(JSON.parse((res.content[0] as any).text)).toEqual({ ok: true })
   })
 
   it('returns error envelope when invocation fails', async () => {
@@ -82,6 +82,6 @@ describe('createEntityActionHandler', () => {
     const res = await handler({ action: 'do', payload: {} })
 
     expect(res.isError).toBe(true)
-    expect((res.structuredContent as any).error.message).toBe('boom')
+    expect(JSON.parse((res.content[0] as any).text).error).toBe('boom')
   })
 })

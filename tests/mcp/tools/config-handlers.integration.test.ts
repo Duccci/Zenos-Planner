@@ -15,7 +15,7 @@ describe('Config Handlers (integration)', () => {
       hashAlgorithm: 'sha256',
       hashLength: 16
     }
-    
+
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: configData })
     }
@@ -25,8 +25,8 @@ describe('Config Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-    expect(res.structuredContent.qualityThresholds?.codeCoverage).toBe(90)
+    const parsedCfg = JSON.parse((res.content[0] as any).text)
+    expect(parsedCfg.qualityThresholds?.codeCoverage).toBe(90)
   })
 
   it('returns an error when backend fails', async () => {

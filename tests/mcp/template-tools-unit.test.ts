@@ -73,7 +73,7 @@ describe('template-tools coverage', () => {
         includeContext: true,
       })
       expect(result.isError).toBeUndefined()
-      expect(result.structuredContent).toHaveProperty('context')
+      expect(result.content[0]?.text as string).toContain('Name: gate-prd')
     })
 
     it('should handle includeContext as string "true"', async () => {
@@ -85,7 +85,7 @@ describe('template-tools coverage', () => {
         includeContext: 'true',
       })
       expect(result.isError).toBeUndefined()
-      expect(result.structuredContent).toHaveProperty('context')
+      expect(result.content[0]?.text as string).toContain('Name: gate-prd')
     })
 
     it('should handle get errors', async () => {

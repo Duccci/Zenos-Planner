@@ -58,7 +58,7 @@ describe('Gate Tools – filePath branch coverage', () => {
     // validate ran and read the file (test-suite role found, no cleanup → warning or error)
     // Even if testFirstStructure fails, the action itself succeeds (no isError)
     // isError would only fire on an unhandled exception — acceptable either way
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any)?.text ?? '{}')
     const result = sc?.result ?? sc
     // checks.testFirstStructure may be false (1 test-suite, 0 cleanup → failure)
     // but the field should exist if validate succeeded, OR res.isError may be true

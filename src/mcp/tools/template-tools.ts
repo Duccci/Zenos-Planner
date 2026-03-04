@@ -26,14 +26,12 @@ async function handleList(): Promise<CallToolResult> {
     const templates = await discovery.getTemplates()
     return {
       content: [{ type: 'text', text: JSON.stringify({ templates }, null, 2) }],
-      structuredContent: { templates },
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
     return {
       content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      structuredContent: { error: payload },
       isError: true,
     }
   }
@@ -62,7 +60,6 @@ async function handleGet(
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-        structuredContent: { error: payload },
         isError: true,
       }
     }
@@ -71,16 +68,14 @@ async function handleGet(
       const context = `Name: ${name}\nArtifact: ${artifactStr}`
       return {
         content: [{ type: 'text', text: context }],
-        structuredContent: { context, artifact },
       }
     }
-    return { content: [{ type: 'text', text: artifactStr }], structuredContent: { artifact } }
+    return { content: [{ type: 'text', text: artifactStr }] }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
     return {
       content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      structuredContent: { error: payload },
       isError: true,
     }
   }

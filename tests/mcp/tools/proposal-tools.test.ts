@@ -13,7 +13,7 @@ describe('MCP Proposal tools (integration)', () => {
       const text = result.content?.[0]?.text ? String(result.content?.[0]?.text) : ''
       expect(text.toLowerCase()).toContain('error')
     } else {
-      expect(result.structuredContent).toBeDefined()
+      expect(result.content[0]?.text).toBeDefined()
     }
   })
 
@@ -285,7 +285,7 @@ describe('MCP Proposal tools (integration)', () => {
     const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
     const registry = createFunctionRegistry()
     const handler = createToolHandler(registry, 'proposal_action')
-    
+
     // Missing hash should trigger validation error
     const result = await handler({
       action: 'approve',

@@ -13,7 +13,8 @@ describe('Requirement Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).requirements).toBeDefined()
+    const parsedList = JSON.parse(res.content[0]!.text as string)
+    expect(parsedList.requirements).toBeDefined()
   })
 
   it('parses dependency graph outputs', async () => {
@@ -27,7 +28,8 @@ describe('Requirement Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).graph).toBeDefined()
+    const parsedDeps = JSON.parse(res.content[0]!.text as string)
+    expect(parsedDeps.graph).toBeDefined()
   })
 
   it('parses and validates requirement show output', async () => {
@@ -41,7 +43,8 @@ describe('Requirement Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).requirement).toBeDefined()
+    const parsedShow = JSON.parse(res.content[0]!.text as string)
+    expect(parsedShow.requirement).toBeDefined()
   })
 
   it('parses and validates req_transfer output', async () => {
@@ -55,6 +58,7 @@ describe('Requirement Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect((res.structuredContent as any).hash).toBe('abcd123401234567')
+    const parsedTransfer = JSON.parse(res.content[0]!.text as string)
+    expect(parsedTransfer.hash).toBe('abcd123401234567')
   })
 })

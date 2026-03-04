@@ -12,9 +12,8 @@ describe('Gate Handlers Integration', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-
-    const ok = GatesListOutputSchema.safeParse((res.structuredContent as any)?.result ?? res.structuredContent)
+    const parsedList = JSON.parse((res.content[0] as any).text)
+    const ok = GatesListOutputSchema.safeParse(parsedList)
     expect(ok.success).toBe(true)
   })
 
@@ -36,9 +35,8 @@ describe('Gate Handlers Integration', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
-
-    const ok = GateDetailSchema.safeParse((res.structuredContent as any)?.result ?? res.structuredContent)
+    const parsedShow = JSON.parse((res.content[0] as any).text)
+    const ok = GateDetailSchema.safeParse(parsedShow)
     expect(ok.success).toBe(true)
   })
 
@@ -50,7 +48,7 @@ describe('Gate Handlers Integration', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates gates_start output on success', async () => {
@@ -58,7 +56,7 @@ describe('Gate Handlers Integration', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'start', payload: { gateId: 'gate-01' } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates gates_complete output on success', async () => {
@@ -66,7 +64,7 @@ describe('Gate Handlers Integration', () => {
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'complete', payload: { gateId: 'gate-01' } })
-    expect(res.structuredContent).toBeDefined()
+    expect(res.content[0]?.text).toBeDefined()
   })
 
   // ── Idempotent start ──────────────────────────────────────────────────────
@@ -83,7 +81,7 @@ describe('Gate Handlers Integration', () => {
     // The state transition validator will also call gates_show and see in_progress → idempotent no-op
     const res = await handlers.gates_action({ action: 'start', gateId: 'gate-01' })
     expect(res.isError).toBeUndefined()
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any).text)
     // Returned result or action result should reflect in_progress
     const result = sc?.result ?? sc
     expect(result?.newStatus ?? result?.status ?? 'in_progress').toBe('in_progress')
@@ -102,7 +100,7 @@ describe('Gate Handlers Integration', () => {
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'complete', gateId: 'gate-01' })
     expect(res.isError).toBeUndefined()
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any).text)
     const result = sc?.result ?? sc
     expect(result?.newStatus ?? result?.status ?? 'completed').toBe('completed')
   })
@@ -154,7 +152,7 @@ describe('Gate Handlers Integration', () => {
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'validate', gateId: 'gate-01' })
     expect(res.isError).toBeUndefined()
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any).text)
     const result = sc?.result ?? sc
     expect(result?.passed).toBe(true)
     // Passed path strips all-true checks noise; nextRequiredStep carries the qualitative review mandate
@@ -185,7 +183,7 @@ describe('Gate Handlers Integration', () => {
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'validate', gateId: 'gate-02' })
     expect(res).toBeDefined()
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any)?.text ?? '{}')
     const result = sc?.result ?? sc
     // testFirstStructure check was executed — result is either passed (nextRequiredStep) or failed (failedChecks)
     expect(result?.nextRequiredStep ?? result?.failedChecks).toBeDefined()
@@ -211,7 +209,7 @@ describe('Gate Handlers Integration', () => {
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({ action: 'validate', gateId: 'gate-03' })
     expect(res).toBeDefined()
-    const sc = res.structuredContent as any
+    const sc = JSON.parse((res.content[0] as any)?.text ?? '{}')
     const result = sc?.result ?? sc
     // cyclic dependency → passed:false, failedChecks.dependencies is present
     expect(result?.passed).toBe(false)

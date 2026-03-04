@@ -8,7 +8,8 @@ describe('Template Handlers (unit)', () => {
     const res = await handlers.template_action({ action: 'get', name: 'gate-prd-template' })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(String(res.structuredContent?.artifact?.content || '')).toContain('# Gate [XX]: [Gate Name]')
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(String(parsed?.content || '')).toContain('# Gate [XX]: [Gate Name]')
   })
 
   it('template_action get with includeContext returns formatted context', async () => {
@@ -17,7 +18,7 @@ describe('Template Handlers (unit)', () => {
     const res = await handlers.template_action({ action: 'get', name: 'gate-prd-template', includeContext: true })
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
-    expect(String(res.structuredContent?.context || '')).toContain('Name: gate-prd-template')
+    expect(String(res.content[0]?.text || '')).toContain('Name: gate-prd-template')
   })
 
   it('template_action list handles non-json output gracefully', async () => {
@@ -25,7 +26,8 @@ describe('Template Handlers (unit)', () => {
     const handlers = templateHandlers(fakeRegistry)
     const res = await handlers.template_action({ action: 'list' })
     expect(res).toBeDefined()
-    expect(res.structuredContent).toBeDefined()
-    expect(Array.isArray((res.structuredContent as any).templates)).toBe(true)
+    expect(res.content[0]?.text).toBeDefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(Array.isArray(parsed.templates)).toBe(true)
   })
 })
