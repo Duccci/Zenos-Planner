@@ -451,13 +451,12 @@ export function registerGatesCommands(program: Command): void {
           passed: boolean
           errors?: string[]
           warnings?: string[]
-          checks: {
-            dependencies: boolean
-            dependencyGatesCompleted: boolean
-            artifactStructure: boolean
-            requirementsCoverage: boolean
-            testFirstStructure: boolean
-            quality: boolean
+          failedChecks?: Record<string, boolean>
+          nextRequiredStep?: {
+            blocking: boolean
+            action: string
+            description: string
+            checklist?: string[]
           }
         }>('validate', { gateId: normalizedId })
 
@@ -470,13 +469,6 @@ export function registerGatesCommands(program: Command): void {
         const data = result.data
 
         logger.info(`\nValidating Gate: ${data.gateId}`)
-        logger.info('Checks:')
-        logger.info(`  dependencies (DAG):      ${data.checks.dependencies ? 'pass' : 'FAIL'}`)
-        logger.info(`  dependency gates done:   ${data.checks.dependencyGatesCompleted ? 'pass' : 'FAIL'}`)
-        logger.info(`  artifact structure:      ${data.checks.artifactStructure ? 'pass' : 'FAIL'}`)
-        logger.info(`  requirements coverage:   ${data.checks.requirementsCoverage ? 'pass' : 'FAIL'}`)
-        logger.info(`  test-first structure:    ${data.checks.testFirstStructure ? 'pass' : 'FAIL'}`)
-        logger.info(`  quality thresholds:      ${data.checks.quality ? 'pass' : 'FAIL'}`)
 
         if (data.warnings && data.warnings.length > 0) {
           logger.info('\nWarnings:')
@@ -488,9 +480,22 @@ export function registerGatesCommands(program: Command): void {
           for (const e of data.errors) logger.error(`  ${e}`)
         }
 
+        if (data.failedChecks && Object.keys(data.failedChecks).length > 0) {
+          logger.info('\nFailed checks:')
+          for (const [check] of Object.entries(data.failedChecks)) {
+            logger.error(`  ${check}: FAIL`)
+          }
+        }
+
         logger.info('')
         if (data.passed) {
           logger.info('Gate validation passed.')
+          if (data.nextRequiredStep?.checklist && data.nextRequiredStep.checklist.length > 0) {
+            logger.info('\nQualitative review required before gates_action:start:')
+            for (const item of data.nextRequiredStep.checklist) {
+              logger.info(`  - ${item}`)
+            }
+          }
         } else {
           logger.error('Gate validation failed. Address errors before completing.')
           process.exit(1)
@@ -539,7 +544,7 @@ export function registerGatesCommands(program: Command): void {
       if (!recentGate) {
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
         const archivedGateList = listArchivedGates(archivePath)
-        
+
         // Get the most recently completed gate (last in sorted list)
         if (archivedGateList.length > 0) {
           const mostRecent = archivedGateList[archivedGateList.length - 1]

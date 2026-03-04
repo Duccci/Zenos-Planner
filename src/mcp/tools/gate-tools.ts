@@ -11,6 +11,7 @@ import { validateArtifactFile } from '../validators/artifact-validator.js'
 import {
   GATE_GENERATION_GUARDRAILS,
   GATE_GENERATION_WORKFLOW,
+  GATE_QUALITATIVE_CHECKLIST,
   toNarrativeRules,
   toCompactWorkflow,
 } from '../content/index.js'
@@ -320,23 +321,56 @@ export function gateHandlers(
             }
           }
 
+          if (passed) {
+            // Structural checks all passed: strip redundant all-true checks noise.
+            // Only surface what the agent must act on next — mirrors proposal_action:validate.
+            return {
+              success: true,
+              data: {
+                gateId,
+                passed: true,
+                ...(previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed'
+                  ? { previousStatus, newStatus: 'validated' as const }
+                  : {}),
+                warnings: allWarnings.length > 0 ? allWarnings : undefined,
+                nextRequiredStep: {
+                  blocking: true,
+                  action: 'qualitative-review',
+                  description:
+                    'Structural checks passed. Qualitative review is MANDATORY before calling gates_action:start — do NOT call start based solely on this result.',
+                  checklist: GATE_QUALITATIVE_CHECKLIST,
+                },
+              },
+            }
+          }
+
+          // Structural checks failed: only surface the checks that failed so
+          // the agent sees exactly what to fix — mirrors proposal_action:validate.
+          const allChecks = {
+            dependencies: dependencyPassed,
+            dependencyGatesCompleted,
+            artifactStructure: artifactPassed,
+            requirementsCoverage,
+            testFirstStructure: testFirstPassed,
+            quality: qualityPassed,
+          }
+          const failedChecks = Object.fromEntries(
+            Object.entries(allChecks).filter(([, v]) => !v)
+          )
+
           return {
             success: true,
             data: {
               gateId,
-              passed,
-              ...(passed && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed'
-                ? { previousStatus, newStatus: 'validated' as const }
-                : {}),
+              passed: false,
               errors: allErrors.length > 0 ? allErrors : undefined,
               warnings: allWarnings.length > 0 ? allWarnings : undefined,
-              checks: {
-                dependencies: dependencyPassed,
-                dependencyGatesCompleted,
-                artifactStructure: artifactPassed,
-                requirementsCoverage,
-                testFirstStructure: testFirstPassed,
-                quality: qualityPassed,
+              ...(Object.keys(failedChecks).length > 0 ? { failedChecks } : {}),
+              nextRequiredStep: {
+                blocking: true,
+                action: 'fix-structural-errors',
+                description:
+                  'Structural checks failed. Fix every error in errors[] and re-run gates_action:validate before proceeding.',
               },
             },
           }

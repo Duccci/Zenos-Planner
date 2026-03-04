@@ -272,7 +272,42 @@ describe('Gate Schemas', () => {
   })
 
   describe('gates_validate', () => {
-    it('should validate gates_validate output when passed', () => {
+    it('should validate gates_validate output when passed (no checks, has nextRequiredStep)', () => {
+      const output = {
+        gateId: 'gate-01',
+        passed: true,
+        nextRequiredStep: {
+          blocking: true,
+          action: 'qualitative-review',
+          description: 'Structural checks passed. Qualitative review is MANDATORY before calling gates_action:start.',
+          checklist: ['Gate objectives are still current.'],
+        },
+      }
+      expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()
+    })
+
+    it('should validate gates_validate output with errors (failedChecks only)', () => {
+      const output = {
+        gateId: 'gate-02',
+        passed: false,
+        errors: ['Dependency gate gate-01 is not completed (status: in_progress)', 'Gate gate-02 has no requirements'],
+        warnings: ['Gate Scope Boundaries section lacks an "In Scope" list'],
+        failedChecks: {
+          dependencyGatesCompleted: false,
+          requirementsCoverage: false,
+          testFirstStructure: false,
+          quality: false,
+        },
+        nextRequiredStep: {
+          blocking: true,
+          action: 'fix-structural-errors',
+          description: 'Structural checks failed. Fix every error in errors[] and re-run gates_action:validate before proceeding.',
+        },
+      }
+      expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()
+    })
+
+    it('should still accept checks field when present (backward compat)', () => {
       const output = {
         gateId: 'gate-01',
         passed: true,
@@ -283,24 +318,6 @@ describe('Gate Schemas', () => {
           requirementsCoverage: true,
           testFirstStructure: true,
           quality: true,
-        },
-      }
-      expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()
-    })
-
-    it('should validate gates_validate output with errors', () => {
-      const output = {
-        gateId: 'gate-02',
-        passed: false,
-        errors: ['Dependency gate gate-01 is not completed (status: in_progress)', 'Gate gate-02 has no requirements'],
-        warnings: ['Gate Scope Boundaries section lacks an "In Scope" list'],
-        checks: {
-          dependencies: true,
-          dependencyGatesCompleted: false,
-          artifactStructure: true,
-          requirementsCoverage: false,
-          testFirstStructure: false,
-          quality: false,
         },
       }
       expect(() => gate.GatesValidateOutputSchema.parse(output)).not.toThrow()

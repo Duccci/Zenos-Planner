@@ -479,6 +479,19 @@ export const QUALITATIVE_CHECKLIST: string[] = [
   'Rollback adequacy: the Rollback section must describe specific, reversible steps — not just "revert the changes" or "undo the work"',
 ]
 
+/**
+ * Gate-level qualitative checks that no automated validator can machine-check.
+ * Surfaced as `nextRequiredStep.checklist` in gates_action:validate when all structural checks pass.
+ */
+export const GATE_QUALITATIVE_CHECKLIST: string[] = [
+  'Gate objectives are still current, achievable, and unambiguous — no stale wording from an earlier project phase.',
+  'Requirements coverage is meaningful: each requirement maps to a concrete, testable deliverable — not just checkbox entries.',
+  'Proposal count is appropriate for the gate scope — neither a single monolithic proposal nor an excessive number of micro-proposals.',
+  'Test-first ordering is intentional: RED proposals establish the failure baseline before GREEN proposals implement the fix.',
+  'Dependencies on other gates reflect the real execution order; no unnecessary blocking relationships exist.',
+  'Gate PRD objectives are achievable within a single gate; if the scope spans more than one milestone, consider splitting the gate.',
+]
+
 export const VALIDATE_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'apply-024',

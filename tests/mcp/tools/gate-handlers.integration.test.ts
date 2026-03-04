@@ -157,9 +157,10 @@ describe('Gate Handlers Integration', () => {
     const sc = res.structuredContent as any
     const result = sc?.result ?? sc
     expect(result?.passed).toBe(true)
-    expect(result?.checks).toBeDefined()
-    expect(result?.checks?.requirementsCoverage).toBe(true)
-    expect(result?.checks?.dependencyGatesCompleted).toBe(true)
+    // Passed path strips all-true checks noise; nextRequiredStep carries the qualitative review mandate
+    expect(result?.nextRequiredStep).toBeDefined()
+    expect(result?.nextRequiredStep?.action).toBe('qualitative-review')
+    expect(result?.nextRequiredStep?.checklist).toBeDefined()
   })
 
   it('validate action includes testFirstStructure check when proposals exist', async () => {
@@ -186,8 +187,8 @@ describe('Gate Handlers Integration', () => {
     expect(res).toBeDefined()
     const sc = res.structuredContent as any
     const result = sc?.result ?? sc
-    // testFirstStructure check was executed
-    expect(result?.checks?.testFirstStructure !== undefined).toBe(true)
+    // testFirstStructure check was executed — result is either passed (nextRequiredStep) or failed (failedChecks)
+    expect(result?.nextRequiredStep ?? result?.failedChecks).toBeDefined()
   })
 
   it('validate action reports dependency errors when gate has cyclic dependency', async () => {
@@ -212,8 +213,9 @@ describe('Gate Handlers Integration', () => {
     expect(res).toBeDefined()
     const sc = res.structuredContent as any
     const result = sc?.result ?? sc
-    // dependency check may have found issues
-    expect(result?.checks?.dependencies !== undefined).toBe(true)
+    // cyclic dependency → passed:false, failedChecks.dependencies is present
+    expect(result?.passed).toBe(false)
+    expect(result?.failedChecks?.dependencies).toBeDefined()
   })
 
   // ── cancel and defer handlers ─────────────────────────────────────────────

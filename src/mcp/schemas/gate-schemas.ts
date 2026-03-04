@@ -135,6 +135,13 @@ export type GatesCompleteOutput = z.infer<typeof GatesCompleteOutputSchema>
 // GATES_VALIDATE - Dry-run quality + structural checks without completing
 // ============================================================================
 
+const GateNextRequiredStepSchema = z.object({
+  blocking: z.boolean(),
+  action: z.string(),
+  description: z.string(),
+  checklist: z.array(z.string()).optional(),
+})
+
 export const GatesValidateOutputSchema = z.object({
   gateId: GateIdSchema,
   passed: z.boolean(),
@@ -142,6 +149,16 @@ export const GatesValidateOutputSchema = z.object({
   newStatus: z.literal('validated').optional(),
   errors: z.array(z.string()).optional(),
   warnings: z.array(z.string()).optional(),
+  /**
+   * Present only when checks fail — contains only the checks that did NOT pass.
+   * Omitted when all checks pass to avoid all-true noise.
+   */
+  failedChecks: z.record(z.string(), z.boolean()).optional(),
+  /**
+   * Full check results. Present only inline during transitional states;
+   * omitted from the handler response when all checks pass (replaced by nextRequiredStep)
+   * or when checks fail (replaced by failedChecks).
+   */
   checks: z.object({
     /** No duplicate gate IDs and dependencies form an acyclic graph */
     dependencies: z.boolean(),
@@ -155,7 +172,13 @@ export const GatesValidateOutputSchema = z.object({
     testFirstStructure: z.boolean(),
     /** Quality thresholds (coverage, lint, security) are met */
     quality: z.boolean(),
-  }),
+  }).optional(),
+  /**
+   * The mandatory next action after validation.
+   * - passed=true  → qualitative-review (checklist items require agent judgment)
+   * - passed=false → fix-structural-errors (fix every error in errors[] first)
+   */
+  nextRequiredStep: GateNextRequiredStepSchema.optional(),
 })
 export type GatesValidateOutput = z.infer<typeof GatesValidateOutputSchema>
 
