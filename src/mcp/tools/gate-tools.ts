@@ -178,6 +178,7 @@ export function gateHandlers(
           // 2) Gate dependency DAG: declared dependencies must form a valid DAG (no cycles).
           // Mirrors the gates_action:create validator for early detection before complete.
           let declaredDependencies: string[] = []
+          // eslint-disable-next-line no-useless-assignment
           let allGatesForDeps: Record<string, unknown>[] = []
           try {
             const gatesResult = await r.invoke('gates_list', {})

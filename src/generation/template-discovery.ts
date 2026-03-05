@@ -36,7 +36,7 @@ export async function discoverTemplates(projectRoot: string): Promise<Template[]
   const results: Template[] = []
 
   async function scanDir(dir: string, category: 'markdown' | 'architecture'): Promise<void> {
-    let entries: string[] = []
+    let entries: string[]
     try {
       entries = await fs.readdir(dir)
     } catch {

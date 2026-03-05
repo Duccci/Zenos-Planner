@@ -5,7 +5,6 @@
  * Handles: list, show, start, complete, regenerate
  */
 
-/* eslint-disable @typescript-eslint/unbound-method */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { normalizeGateId } from '../utils/normalize.js'
@@ -23,7 +22,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     async () => {
       const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
-      let summaries: Awaited<ReturnType<typeof getGatesFromOverview>> = []
+      let summaries: Awaited<ReturnType<typeof getGatesFromOverview>>
 
       try {
         const overview = await readProjectOverview()
@@ -324,8 +323,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
       const overview = await readProjectOverview()
-      let previousStatus = 'pending'
-      let gateName = normalizedId
+      let previousStatus: string
+      let gateName = ''
       let gateHash: string | undefined
 
       // Find and remove gate from its current section
@@ -384,8 +383,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
       const overview = await readProjectOverview()
-      let previousStatus = 'pending'
-      let gateName = normalizedId
+      let previousStatus: string
+      let gateName = ''
       let complexity: string | undefined
 
       // Find and remove gate from its current section

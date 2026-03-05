@@ -42,7 +42,8 @@ export function generateAgentsMD(projectConfig: ZenoConfig): string {
     }
   } catch (err) {
     throw new Error(
-      `agents-generator: failed to read template at "${templatePath}": ${String(err)}`
+      `agents-generator: failed to read template at "${templatePath}": ${String(err)}`,
+      { cause: err }
     );
   }
 

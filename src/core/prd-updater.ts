@@ -71,11 +71,11 @@ function extractGateSections(content: string): {
   // Extract sections
   const beforeActive = content.substring(0, activeIndex)
 
-  let activeSection = ''
-  let beforeArchived = ''
-  let archivedSection = ''
-  let afterArchived = ''
-  let hasArchivedSection = false
+  let activeSection: string
+  let beforeArchived: string
+  let archivedSection: string
+  let afterArchived: string
+  let hasArchivedSection: boolean
 
   if (archivedIndex !== -1) {
     // Archived section exists
@@ -99,12 +99,14 @@ function extractGateSections(content: string): {
     beforeArchived = ''
     archivedSection = ''
     afterArchived = content.substring(postMVPIndex)
+    hasArchivedSection = false
   } else {
     // No archived section and no Post-MVP section
     activeSection = content.substring(activeIndex)
     beforeArchived = ''
     archivedSection = ''
     afterArchived = ''
+    hasArchivedSection = false
   }
 
   return {

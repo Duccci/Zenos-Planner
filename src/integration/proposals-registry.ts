@@ -5,7 +5,7 @@
  * Handles: list, show, start, validate, approve, reject
  */
 
-/* eslint-disable @typescript-eslint/unbound-method, @typescript-eslint/no-unnecessary-condition */
+/* eslint-disable @typescript-eslint/no-unnecessary-condition */
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
@@ -616,7 +616,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           console.warn('Proposal validation warnings:', validationResult.warnings)
         }
       } catch (err) {
-        throw new Error(`Failed to validate proposal before starting: ${String(err)}`)
+        throw new Error(`Failed to validate proposal before starting: ${String(err)}`, { cause: err })
       }
 
       // Pull git user info if not provided

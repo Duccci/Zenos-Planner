@@ -11,7 +11,7 @@ export interface Gate {
 
 export async function discoverGates(projectRoot: string): Promise<Gate[]> {
   const gatesDir = path.join(projectRoot, 'zeno', 'gates')
-  let entries: string[] = []
+  let entries: string[]
   try {
     entries = await fs.readdir(gatesDir)
   } catch {

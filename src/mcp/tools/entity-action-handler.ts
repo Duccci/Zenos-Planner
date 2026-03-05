@@ -92,7 +92,10 @@ export function createEntityActionHandler<T extends string>(
           throw error
         }
         // Re-throw other schema-related errors with context
-        throw new Error(`Failed to get output schema for action "${action}": ${error instanceof Error ? error.message : String(error)}`)
+        throw new Error(
+          `Failed to get output schema for action "${action}": ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error }
+        )
       }
 
       // If caller provided a mock result, validate against per-action schema

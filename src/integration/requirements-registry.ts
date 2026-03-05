@@ -131,6 +131,7 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
 
   // State machine to parse tables within the section
   let inTable = false
+  // eslint-disable-next-line no-useless-assignment
   let headerCells: string[] = []
   let hashCol = -1
   let nameCol = -1
@@ -149,8 +150,6 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
       currentSubsection = classifySubsection(trimmed)
       // Reset table state at subsection boundary
       inTable = false
-      headerCells = []
-      hashCol = nameCol = typeCol = priorityCol = sourceGateCol = -1
       continue
     }
 
@@ -178,8 +177,6 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
     // End of current table (non-pipe line or new heading)
     if (inTable && (!trimmed.startsWith('|') || trimmed.startsWith('###') || trimmed.startsWith('## '))) {
       inTable = false
-      headerCells = []
-      hashCol = nameCol = typeCol = priorityCol = sourceGateCol = -1
       // Don't skip — the line might start a new subsection or table header
       if (trimmed.startsWith('### ')) {
         currentSubsection = classifySubsection(trimmed)
