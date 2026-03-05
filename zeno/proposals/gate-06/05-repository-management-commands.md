@@ -1,9 +1,10 @@
 # Proposal: Repository Management Commands
 
-**Hash**: #7a175468  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #cb19655eee60ab38  
-**Status**: pending  
+**Hash**: #7a175468
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #cb19655eee60ab38
+**Status**: pending
+**Role**: implementation
 **Created**: 2026-03-01
 
 ---
@@ -53,11 +54,11 @@ Gate 06 requires full `repos` CLI commands and MCP function-registry operations.
 
 ### Task 1: Implement repos CLI subcommands (list, add, remove)
 
-**Phase**: GREEN  
-**File(s)**: `src/cli/commands/repos.ts`  
+**Phase**: GREEN
+**File(s)**: `src/cli/commands/repos.ts`
 **Action**: modify
 
-Replace the `list`, `add`, and `remove` stub handlers in the Commander subcommands. `list` calls `listRepositories(projectRoot)` and formats as table. `add` accepts `--name`, `--path`, `--type` options and calls `createRepository(projectRoot, data)`. `remove` accepts `<id>` argument and calls `deleteRepository(projectRoot, id)`. Output formatted via Commander's `outputConfiguration`.
+Replace the `list`, `add`, and `remove` stub handlers in the Commander subcommands. `list` calls `listRepositories(undefined, projectRoot)` and formats as table. `add` accepts `--name`, `--path`, `--type` options and calls `saveRepository({ name, path, type, hash }, projectRoot)` where `hash` is derived from the name+path. `remove` accepts `<id>` argument and calls `deleteRepository(id, projectRoot)`. Output formatted via Commander's `outputConfiguration`.
 
 **Acceptance**:
 
@@ -72,11 +73,11 @@ Replace the `list`, `add`, and `remove` stub handlers in the Commander subcomman
 
 ### Task 2: Implement repos CLI subcommands (deps, detect, adjust)
 
-**Phase**: GREEN  
-**File(s)**: `src/cli/commands/repos.ts`  
+**Phase**: GREEN
+**File(s)**: `src/cli/commands/repos.ts`
 **Action**: modify
 
-Replace the `deps`, `detect`, and `adjust` stub handlers. `deps` calls `getRepoDependencyGraph(projectRoot)` and renders edges as table with optional circular-dependency warnings. `detect` calls `detectBoundaries(projectRoot)` from boundary-detection module and displays recommendations. `adjust` accepts `--apply` flag to apply recommended boundaries by calling `applyBoundaryRecommendations(projectRoot, recommendations)`.
+Replace the `deps`, `detect`, and `adjust` stub handlers. `deps` calls `getRepoDependencyGraph(projectRoot)` and renders edges as table with optional circular-dependency warnings. `detect` calls `detectRepositoryBoundaries(projectRoot, { persist: false })` from `boundary-detection.ts` and displays the returned `recommendations` array. `adjust` accepts `--apply` flag; without it, displays recommendations (same as `detect`); with `--apply`, calls `detectRepositoryBoundaries(projectRoot, { persist: true })` to persist the boundaries.
 
 **Acceptance**:
 
@@ -91,11 +92,11 @@ Replace the `deps`, `detect`, and `adjust` stub handlers. `deps` calls `getRepoD
 
 ### Task 3: Wire remaining schema-registry repository operations
 
-**Phase**: GREEN  
-**File(s)**: `src/integration/schema-registry.ts`  
+**Phase**: GREEN
+**File(s)**: `src/integration/schema-registry.ts`
 **Action**: modify
 
-Replace the `repos_list`, `repos_detect`, and `repos_adjust` handlers in `registerRepositoryOps` to call storage/core modules directly instead of `invokeCommand`. `repos_list` calls `listRepositories`. `repos_detect` calls `detectBoundaries`. `repos_adjust` calls `applyBoundaryRecommendations`. Map returns to match respective Zod output schemas.
+Replace the `repos_list`, `repos_detect`, and `repos_adjust` handlers in `registerRepositoryOps` to call storage/core modules directly instead of `invokeCommand`. `repos_list` calls `listRepositories(typeFilter, projectRoot)`. `repos_detect` calls `detectRepositoryBoundaries(projectRoot, { persist: false })`. `repos_adjust` calls `detectRepositoryBoundaries(projectRoot, { persist: true })`. Map returns to match respective Zod output schemas.
 
 **Acceptance**:
 
@@ -118,7 +119,7 @@ Replace the `repos_list`, `repos_detect`, and `repos_adjust` handlers in `regist
 
 ## Implementation Notes
 
-Import storage functions from `../../storage/repository-storage.js` and `../../storage/repository-dependencies.js`. Import boundary detection from `../../core/boundary-detection.js`. The Commander subcommand structure already exists with `.action()` handlers — only the handler bodies change. Follow the pattern established by other CLI commands (e.g., `gates.ts`).
+Import `listRepositories`, `saveRepository`, `deleteRepository` from `../../storage/repository-storage.js`. Import `getRepoDependencyGraph`, `detectCircularDependencies` from `../../storage/repository-dependencies.js`. Import `detectRepositoryBoundaries` from `../../core/boundary-detection.js`. The Commander subcommand structure already exists with `.action()` handlers — only the handler bodies change. Follow the pattern established by other CLI commands (e.g., `gates.ts`).
 
 ---
 
@@ -128,14 +129,15 @@ Import storage functions from `../../storage/repository-storage.js` and `../../s
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.1
+**Last Updated**: 2026-03-05
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log
 
 | Version | Date       | Summary         | Author |
 | ------- | ---------- | --------------- | ------ |
+| 1.0.1   | 2026-03-05 | Fix function names: createRepository→saveRepository, detectBoundaries→detectRepositoryBoundaries, applyBoundaryRecommendations→detectRepositoryBoundaries w/ persist flag | zeno |
 | 1.0.0   | 2026-03-01 | Initial version | zeno   |

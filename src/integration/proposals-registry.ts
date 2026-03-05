@@ -11,6 +11,7 @@ import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 import { normalizePath } from '../utils/file.js'
+import type { ProposalStatus } from '../core/transitions.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -1077,20 +1078,26 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const passedQuantitative = errors.length === 0
       const previousStatus = proposal.status ?? 'pending'
 
-      // When all checks pass, advance proposal status to 'validated'
+      // When all checks pass, advance proposal status to 'validated'.
+      // This is a required transition—not best-effort.
+      let newStatus = previousStatus as ProposalStatus
       if (passedQuantitative && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
         try {
           db.prepare(`UPDATE proposals SET status = 'validated', updated_at = CURRENT_TIMESTAMP WHERE hash = ?`).run(validated.hash)
-        } catch {
-          // Status update is best-effort; validation result is still returned
+          newStatus = 'validated'
+        } catch (err) {
+          // Status update failure is a fatal error—the LLM must know
+          const statusErr = `Failed to advance proposal ${validated.hash} to validated status: ${err instanceof Error ? err.message : String(err)}`
+          errors.push(statusErr)
+          throw new Error(statusErr, { cause: err })
         }
       }
 
       return {
         hash: validated.hash,
         passedQuantitative,
-        ...(passedQuantitative && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed'
-          ? { previousStatus, newStatus: 'validated' as const }
+        ...(newStatus !== previousStatus
+          ? { previousStatus, newStatus }
           : {}),
         issues: [
           ...errors.map(msg => ({ level: 'error' as const, category: 'validation', message: msg })),

@@ -71,7 +71,6 @@ export function architectureHandlers(
       if (!args) {
         return {
           content: [{ type: 'text', text: JSON.stringify({ code: 'INVALID_ARGS', message: 'Arguments cannot be null' }, null, 2) }],
-          structuredContent: { code: 'INVALID_ARGS', message: 'Arguments cannot be null' },
         }
       }
 
@@ -83,14 +82,12 @@ export function architectureHandlers(
           const templates = await discovery.getTemplates()
           return {
             content: [{ type: 'text', text: JSON.stringify({ templates }, null, 2) }],
-            structuredContent: { templates },
           }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
           return {
             content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-            structuredContent: { error: payload },
             isError: true,
           }
         }
@@ -102,7 +99,6 @@ export function architectureHandlers(
         if (typeof nameVal !== 'string' || nameVal.length === 0) {
           return {
             content: [{ type: 'text', text: JSON.stringify({ code: 'VALIDATION_ERROR', message: 'name is required for get_template' }, null, 2) }],
-            structuredContent: { error: { code: 'VALIDATION_ERROR', message: 'name is required for get_template' } },
             isError: true,
           }
         }
@@ -113,7 +109,6 @@ export function architectureHandlers(
             const payload = { code: 'NOT_FOUND', message: `Template not found: ${nameVal}`, timestamp: new Date().toISOString() }
             return {
               content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-              structuredContent: { error: payload },
               isError: true,
             }
           }
@@ -122,16 +117,14 @@ export function architectureHandlers(
             const context = `Name: ${nameVal}\nArtifact: ${artifactStr}`
             return {
               content: [{ type: 'text', text: context }],
-              structuredContent: { context, artifact },
             }
           }
-          return { content: [{ type: 'text', text: artifactStr }], structuredContent: { artifact } }
+          return { content: [{ type: 'text', text: artifactStr }] }
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err)
           const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
           return {
             content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-            structuredContent: { error: payload },
             isError: true,
           }
         }

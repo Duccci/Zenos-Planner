@@ -14,6 +14,8 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 import { parseCommitsForHashes } from '../utils/git.js'
+import { getRepoDependencyGraph, detectCircularDependencies } from '../storage/repository-dependencies.js'
+import { listRepositories } from '../storage/repository-storage.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
@@ -138,26 +140,56 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
     schema: z.object({})
   })
 
-  registry.register('repos_deps', async (params) => {
-    const validated = z.object({ repositoryId: z.string().optional() }).parse(params)
-    const result = await invokeCommand('repos_deps', validated)
-    if (!result.success) {
-      throw new Error(result.error ?? 'repos_deps failed')
-    }
-    try {
-      const parsed = JSON.parse(result.output) as unknown
-      if (parsed && typeof parsed === 'object' && 'repositories' in parsed) {
-        return parsed
+  registry.register('repos_deps', (params) => {
+    const { repositoryId } = params as { repositoryId?: string }
+    const projectRoot = process.cwd()
+
+    const graph = getRepoDependencyGraph(projectRoot)
+    const circles = detectCircularDependencies(projectRoot)
+    const allRepos = listRepositories(undefined, projectRoot)
+
+    // Build a hash→full-repo lookup to enrich dependency nodes
+    const repoByHash = new Map(allRepos.map(r => [r.hash, r]))
+
+    const validEdgeTypes = new Set(['imports', 'extends', 'references'])
+
+    let edges = graph.edges.map(e => ({
+      from: e.from,
+      to: e.to,
+      type: (validEdgeTypes.has(e.depType) ? e.depType : 'references') as 'imports' | 'extends' | 'references',
+    }))
+
+    let repositories = graph.repositories.map(node => {
+      const full = repoByHash.get(node.hash)
+      return {
+        id: node.hash,
+        name: node.name,
+        type: (full?.type ?? 'service') as 'main' | 'service' | 'library' | 'tool',
+        path: full?.path ?? '',
       }
-      return { repositories: [], edges: [] }
-    } catch {
-      return { repositories: [], edges: [] }
+    })
+
+    if (repositoryId) {
+      const id = repositoryId
+      edges = edges.filter(e => e.from === id || e.to === id)
+      const neighborHashes = new Set<string>()
+      for (const e of edges) {
+        neighborHashes.add(e.from)
+        neighborHashes.add(e.to)
+      }
+      repositories = repositories.filter(r => neighborHashes.has(r.id))
+    }
+
+    return {
+      repositories,
+      edges,
+      ...(circles.length > 0 ? { circularDependencies: circles } : {}),
     }
   }, {
     description: 'Show cross-repository dependencies',
     parameters: [],
     returnType: 'RepositoryDependencyGraph',
-    schema: z.object({})
+    schema: z.object({ repositoryId: z.string().optional() })
   })
 
   registry.register('repos_detect', async () => {

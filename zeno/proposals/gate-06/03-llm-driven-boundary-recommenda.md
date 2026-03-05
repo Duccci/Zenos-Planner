@@ -3,7 +3,7 @@
 **Hash**: #0c081a5a
 **Gate**: gate-06 - Multi-Repo & Subproject Detection
 **Requirement**: #10a621a3715172ae
-**Status**: pending
+**Status**: validated
 **Created**: 2026-03-01
 
 ---
@@ -14,25 +14,7 @@ Implements the hybrid boundary detection service that serializes Gate 02's `Code
 
 ---
 
-## Proposal Type
-
-**GREEN**
-
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
-
 **Role**: implementation
-
----
-
-## Coverage & Estimates
-
-### Target Coverage
-
-- **Coverage Threshold**: 90%
-- **Lines to Cover**: ~120 (serializer, boundary detection service, subagent invocation)
-- **Target Coverage**: 120 × 0.90 = 108 lines must be tested
-
----
 
 ## Single-Phase Requirement
 

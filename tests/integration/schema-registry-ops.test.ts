@@ -16,6 +16,9 @@ import {
 
 const mockInvokeCommand = vi.fn()
 const mockParseCommitsForHashes = vi.fn()
+const mockGetRepoDependencyGraph = vi.fn()
+const mockDetectCircularDependencies = vi.fn()
+const mockListRepositories = vi.fn()
 
 vi.mock('../../src/integration/command-invoker.js', () => ({
   invokeCommand: (...args: unknown[]) => mockInvokeCommand(...args),
@@ -23,6 +26,15 @@ vi.mock('../../src/integration/command-invoker.js', () => ({
 
 vi.mock('../../src/utils/git.js', () => ({
   parseCommitsForHashes: (...args: unknown[]) => mockParseCommitsForHashes(...args),
+}))
+
+vi.mock('../../src/storage/repository-dependencies.js', () => ({
+  getRepoDependencyGraph: (...args: unknown[]) => mockGetRepoDependencyGraph(...args),
+  detectCircularDependencies: (...args: unknown[]) => mockDetectCircularDependencies(...args),
+}))
+
+vi.mock('../../src/storage/repository-storage.js', () => ({
+  listRepositories: (...args: unknown[]) => mockListRepositories(...args),
 }))
 
 // Prevent arch_generate from writing to the real zeno/architecture/ directory
@@ -41,6 +53,10 @@ describe('schema-registry operations', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // Default storage stubs so non-repos_deps tests are unaffected
+    mockGetRepoDependencyGraph.mockReturnValue({ repositories: [], edges: [] })
+    mockDetectCircularDependencies.mockReturnValue([])
+    mockListRepositories.mockReturnValue([])
     registry = new FunctionRegistry()
     registerRepositoryOps(registry)
     registerArchitectureOps(registry)
@@ -71,15 +87,76 @@ describe('schema-registry operations', () => {
   })
 
   describe('repos_deps', () => {
-    it('returns result on success', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true, data: { graph: {} } })
+    it('returns graph from storage', async () => {
+      mockGetRepoDependencyGraph.mockReturnValue({
+        repositories: [{ hash: 'abc123', name: 'core' }],
+        edges: [{ from: 'abc123', to: 'def456', depType: 'imports' }],
+      })
+      mockListRepositories.mockReturnValue([
+        { hash: 'abc123', name: 'core', type: 'library', path: 'packages/core' },
+      ])
 
-      const result = (await registry.invoke('repos_deps', {})) as { success: boolean }
+      const result = (await registry.invoke('repos_deps', {})) as {
+        success: boolean
+        data: { repositories: unknown[]; edges: unknown[] }
+      }
       expect(result.success).toBe(true)
+      expect(result.data.repositories).toEqual([
+        { id: 'abc123', name: 'core', type: 'library', path: 'packages/core' },
+      ])
+      expect(result.data.edges).toEqual([
+        { from: 'abc123', to: 'def456', type: 'imports' },
+      ])
+      expect(mockGetRepoDependencyGraph).toHaveBeenCalled()
+      expect(mockDetectCircularDependencies).toHaveBeenCalled()
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_deps', expect.anything())
     })
 
-    it('throws on invokeCommand failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Deps failed' })
+    it('includes circularDependencies when cycles detected', async () => {
+      mockDetectCircularDependencies.mockReturnValue([['abc123', 'def456']])
+
+      const result = (await registry.invoke('repos_deps', {})) as {
+        success: boolean
+        data: { circularDependencies: string[][] }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.circularDependencies).toEqual([['abc123', 'def456']])
+    })
+
+    it('omits circularDependencies when no cycles', async () => {
+      const result = (await registry.invoke('repos_deps', {})) as {
+        success: boolean
+        data: Record<string, unknown>
+      }
+      expect(result.success).toBe(true)
+      expect(result.data).not.toHaveProperty('circularDependencies')
+    })
+
+    it('filters graph to repositoryId neighborhood', async () => {
+      mockGetRepoDependencyGraph.mockReturnValue({
+        repositories: [
+          { hash: 'aaa', name: 'svc-a' },
+          { hash: 'bbb', name: 'svc-b' },
+          { hash: 'ccc', name: 'svc-c' },
+        ],
+        edges: [
+          { from: 'aaa', to: 'bbb', depType: 'imports' },
+          { from: 'bbb', to: 'ccc', depType: 'imports' },
+        ],
+      })
+
+      const result = (await registry.invoke('repos_deps', { repositoryId: 'aaa' })) as {
+        success: boolean
+        data: { repositories: { id: string }[]; edges: unknown[] }
+      }
+      expect(result.success).toBe(true)
+      // Only edges touching 'aaa' and their neighbors
+      expect(result.data.edges).toHaveLength(1)
+      expect(result.data.repositories.map(r => r.id)).toEqual(['aaa', 'bbb'])
+    })
+
+    it('returns success: false when storage throws', async () => {
+      mockGetRepoDependencyGraph.mockImplementation(() => { throw new Error('DB error') })
 
       const result = (await registry.invoke('repos_deps', {})) as { success: boolean }
       expect(result.success).toBe(false)
