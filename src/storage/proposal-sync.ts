@@ -16,6 +16,31 @@ import type Database from 'better-sqlite3'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { normalizeDateTime } from '../utils/datetime.js'
+import { parseProposalFrontmatter } from './frontmatter.js'
+
+/**
+ * Map any Zeno workflow status to the values accepted by the DB CHECK constraint:
+ *   ('pending', 'approved', 'rejected', 'in_progress', 'completed')
+ *
+ * 'validated' appears in proposal `.md` files after automated checks pass but
+ * before human approval — it does not map to an approved DB status, so we keep
+ * it as 'pending' in the DB.  The DB row's lifecycle fields carry the true
+ * state once the human acts.
+ */
+const PROPOSAL_STATUS_MAP: Record<string, string> = {
+  pending:     'pending',
+  validated:   'validated',
+  in_progress: 'in_progress',
+  completed:   'completed',
+  approved:    'approved',
+  rejected:    'rejected',
+  cancelled:   'rejected',
+  backlog:     'pending',
+}
+
+function normalizeProposalStatus(raw: string): string {
+  return PROPOSAL_STATUS_MAP[raw] ?? 'pending'
+}
 
 /** Walk `dir` recursively, yielding paths of .md files. Skips `archive` subdirectories and non-canonical proposal files. */
 function* walkMd(dir: string): Generator<string> {
@@ -55,17 +80,56 @@ interface ParsedProposalMetadata {
   gateId: string | null
   requirementId: string | null
   createdAt: string | null
+  // lifecycle fields — populated from frontmatter when available
+  approvedAt: string | null
+  approvedBy: string | null
+  rejectedAt: string | null
+  rejectedBy: string | null
+  startedAt: string | null
+  startedBy: string | null
+  implementedAt: string | null
 }
 
 /** Extract Zeno proposal metadata from a markdown file's content. */
 function parseProposalMetadata(content: string, filePath: string): ParsedProposalMetadata | null {
+  // ── 1. Try frontmatter (preferred: typed, complete, includes lifecycle fields) ──
+  const fm = parseProposalFrontmatter(content)
+
+  // Title: first # Proposal: <title> line (always from body — not in frontmatter)
+  const titleMatch = /^#\s+Proposal:\s+(.+)$/m.exec(content)
+
+  if (fm) {
+    const title = titleMatch?.[1]?.trim() ?? path.basename(filePath, '.md')
+    // Gate ID: prefer frontmatter gate_id; fall back to directory inference
+    let gateId = fm.gate_id ?? null
+    if (!gateId) {
+      const gateMatch = /[/\\]proposals[/\\](gate-\d+|solitary)[/\\]/.exec(filePath)
+      const folderName = gateMatch?.[1] ?? null
+      gateId = folderName === 'solitary' ? null : folderName
+    }
+    return {
+      hash: fm.hash,
+      title,
+      status: fm.status ?? 'pending',
+      gateId,
+      requirementId: fm.requirement_id ?? null,
+      createdAt: fm.created_at ?? null,
+      approvedAt: fm.approved_at ?? null,
+      approvedBy: fm.approved_by ?? null,
+      rejectedAt: fm.rejected_at ?? null,
+      rejectedBy: fm.rejected_by ?? null,
+      startedAt: fm.started_at ?? null,
+      startedBy: fm.started_by ?? null,
+      implementedAt: fm.implemented_at ?? null,
+    }
+  }
+
+  // ── 2. Regex fallback (existing files without frontmatter) ──────────────────
   // Hash: **Hash**: #<hash> or **Hash**: <hash>
   const hashMatch = /\*\*Hash\*\*:\s*#?([a-zA-Z0-9_-]+)/.exec(content)
   if (!hashMatch?.[1]) return null
   const hash = hashMatch[1].trim()
 
-  // Title: first # Proposal: <title> line
-  const titleMatch = /^#\s+Proposal:\s+(.+)$/m.exec(content)
   const title = titleMatch?.[1]?.trim() ?? path.basename(filePath, '.md')
 
   // Status: **Status**: <status>
@@ -86,7 +150,21 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
   const createdMatch = /\*\*Created\*\*:\s*([^\n\r]+)/.exec(content)
   const createdAt = createdMatch?.[1]?.trim() ?? null
 
-  return { hash, title, status, gateId, requirementId, createdAt }
+  return {
+    hash,
+    title,
+    status,
+    gateId,
+    requirementId,
+    createdAt,
+    approvedAt: null,
+    approvedBy: null,
+    rejectedAt: null,
+    rejectedBy: null,
+    startedAt: null,
+    startedBy: null,
+    implementedAt: null,
+  }
 }
 
 /**
@@ -117,8 +195,20 @@ export function syncProposalsFromDisk(
 
   const nowIso = new Date().toISOString()
   const upsert = db.prepare(`
-    INSERT INTO proposals (id, gate_id, requirement_id, title, status, hash, created_at, updated_at)
-    VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO proposals
+      (id, gate_id, requirement_id, title, status, hash,
+       created_at, updated_at,
+       approved_at, approved_by,
+       rejected_at, rejected_by,
+       started_at,  started_by,
+       implemented_at)
+    VALUES
+      (lower(hex(randomblob(16))), ?, ?, ?, ?, ?,
+       ?, ?,
+       ?, ?,
+       ?, ?,
+       ?, ?,
+       ?)
     ON CONFLICT(hash) DO UPDATE SET
       title          = excluded.title,
       requirement_id = COALESCE(excluded.requirement_id, proposals.requirement_id),
@@ -127,6 +217,8 @@ export function syncProposalsFromDisk(
         ELSE excluded.gate_id
       END,
       updated_at     = excluded.updated_at
+    -- lifecycle fields are NOT re-written on conflict; DB state is authoritative
+    -- for rows that already exist.
   `)
   // Used to validate FK before inserting: prevents FK constraint violations when
   // the referenced requirement doesn't exist in the DB yet.
@@ -165,7 +257,14 @@ export function syncProposalsFromDisk(
           ? meta.requirementId
           : null
 
-      upsert.run(meta.gateId, resolvedRequirementId, meta.title, meta.status, meta.hash, normalizeDateTime(meta.createdAt, nowIso), nowIso)
+      upsert.run(
+        meta.gateId, resolvedRequirementId, meta.title, normalizeProposalStatus(meta.status), meta.hash,
+        normalizeDateTime(meta.createdAt, nowIso), nowIso,
+        meta.approvedAt, meta.approvedBy,
+        meta.rejectedAt, meta.rejectedBy,
+        meta.startedAt,  meta.startedBy,
+        meta.implementedAt
+      )
     }
   })
 

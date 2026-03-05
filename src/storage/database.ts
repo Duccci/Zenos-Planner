@@ -239,12 +239,13 @@ export interface DatabaseInitResult {
  * @param options - Configuration options
  * @param options.syncProposals - Sync proposal files from disk (default: false)
  * @param options.syncRequirements - Restore requirements from version-controlled manifest (default: false)
+ * @param options.syncGates - Restore gate rows from gate markdown frontmatter (default: false)
  * @returns Initialization result
  * @throws DatabaseError if initialization fails
  */
 export async function initializeDatabase(
   projectRoot: string = process.cwd(),
-  options: { syncProposals?: boolean; syncRequirements?: boolean } = {}
+  options: { syncProposals?: boolean; syncRequirements?: boolean; syncGates?: boolean } = {}
 ): Promise<DatabaseInitResult> {
   try {
     // Ensure .zeno directory exists
@@ -272,6 +273,17 @@ export async function initializeDatabase(
     const tableCount = db
       .prepare("SELECT COUNT(*) as count FROM sqlite_master WHERE type='table'")
       .get() as { count: number }
+
+    // Sync gate files from disk before proposals so FK constraints are satisfied.
+    // Gates must exist in the DB before proposals that reference them via gate_id.
+    if (options.syncGates) {
+      try {
+        const { syncGatesFromDisk } = await import('./gate-sync.js')
+        syncGatesFromDisk(db, projectRoot)
+      } catch {
+        // Non-fatal: zeno/gates/ may not exist yet on a fresh project
+      }
+    }
 
     // Sync proposal files from disk if requested.
     // Only run in production contexts (CLI, MCP, init, completions).

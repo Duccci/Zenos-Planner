@@ -749,7 +749,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Tool Name:** `proposal_action`
 **Purpose:** Manage implementation proposals—detailed plans for satisfying gate requirements.
 
-### proposal_action: list
+#### proposal_action: list
 
 **Description:** List proposals, optionally filter by gate or status.
 
@@ -1372,7 +1372,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 **Tool Name:** `reg_action`
 **Purpose:** Query and manage the requirements database (single source of truth for what must be built).
 
-### reg_action: list
+#### reg_action: list
 
 **Description:** Retrieve all requirements, optionally filtered by gate, type, or priority.
 

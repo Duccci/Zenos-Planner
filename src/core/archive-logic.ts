@@ -191,7 +191,7 @@ export async function archiveGate(
   // Step 7: Git operations
   const tagName = createTagName(gateId, gateName)
 
-  const commitMessage = stripAnsi(`chore(${gateId}): Archive gate: ${gateName}
+  const commitMessage = stripAnsi(`feat(${gateId}): Archive gate: ${gateName}
 
 Consolidated ${String(consolidation.requirementsFulfilled.length)} requirements fulfilled
 ${String(consolidation.nextDependencies.length)} next dependencies identified
@@ -306,7 +306,7 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
 
   // Step 8: Git commit
   const commitMessage = stripAnsi(
-    `chore(proposal): Archive proposal ${proposalHash} - ${proposalInfo.title}
+    `chore(proposal): archive ${proposalHash} - ${proposalInfo.title}
 
 - Moved from zeno/proposals/${proposalInfo.gateId ?? 'solitary'}/ to zeno/proposals/archive/
 - Added archival metadata${completionNotes !== undefined ? `\n- Completion Notes: ${completionNotes}` : ''}`

@@ -38,7 +38,7 @@ describe('repository-storage', () => {
     await rm(TEST_DIR, { recursive: true, force: true })
   })
 
-  it.skip('saves and retrieves a repository by hash', async () => { // @red
+  it('saves and retrieves a repository by hash', async () => {
     await saveRepository(
       { name: 'my-service', type: 'service', path: '/projects/my-service', hash: 'abc12345' },
       TEST_DIR
@@ -49,19 +49,19 @@ describe('repository-storage', () => {
     expect(repo?.type).toBe('service')
   })
 
-  it.skip('returns undefined for unknown hash', async () => { // @red
+  it('returns undefined for unknown hash', async () => {
     const repo = await getRepositoryByHash('doesnotexist', TEST_DIR)
     expect(repo).toBeUndefined()
   })
 
-  it.skip('lists all repositories', async () => { // @red
+  it('lists all repositories', async () => {
     await saveRepository({ name: 'svc-a', type: 'service', path: '/projects/svc-a', hash: 'hash-a' }, TEST_DIR)
     await saveRepository({ name: 'lib-b', type: 'library', path: '/projects/lib-b', hash: 'hash-b' }, TEST_DIR)
     const repos = await listRepositories(undefined, TEST_DIR)
     expect(repos).toHaveLength(2)
   })
 
-  it.skip('filters repositories by type', async () => { // @red
+  it('filters repositories by type', async () => {
     await saveRepository({ name: 'svc-a', type: 'service', path: '/projects/svc-a', hash: 'hash-a' }, TEST_DIR)
     await saveRepository({ name: 'lib-b', type: 'library', path: '/projects/lib-b', hash: 'hash-b' }, TEST_DIR)
     const services = await listRepositories('service', TEST_DIR)
@@ -69,37 +69,37 @@ describe('repository-storage', () => {
     expect(services[0]?.type).toBe('service')
   })
 
-  it.skip('updates repository name', async () => { // @red
+  it('updates repository name', async () => {
     await saveRepository({ name: 'tool-c', type: 'tool', path: '/projects/tool-c', hash: 'hash-c' }, TEST_DIR)
     await updateRepository('hash-c', { name: 'tool-c-renamed' }, TEST_DIR)
     const repo = await getRepositoryByHash('hash-c', TEST_DIR)
     expect(repo?.name).toBe('tool-c-renamed')
   })
 
-  it.skip('deletes a repository', async () => { // @red
+  it('deletes a repository', async () => {
     await saveRepository({ name: 'app-d', type: 'app', path: '/projects/app-d', hash: 'hash-d' }, TEST_DIR)
     await deleteRepository('hash-d', TEST_DIR)
     const repo = await getRepositoryByHash('hash-d', TEST_DIR)
     expect(repo).toBeUndefined()
   })
 
-  it.skip('throws on duplicate hash', async () => { // @red
+  it('throws on duplicate hash', async () => {
     await saveRepository({ name: 'svc-e', type: 'service', path: '/projects/svc-e', hash: 'dup-hash' }, TEST_DIR)
-    await expect(
+    expect(() =>
       saveRepository({ name: 'svc-e2', type: 'service', path: '/projects/svc-e2', hash: 'dup-hash' }, TEST_DIR)
-    ).rejects.toThrow()
+    ).toThrow()
   })
 
-  it.skip('rejects paths with .. sequences', async () => { // @red
-    await expect(
+  it('rejects paths with .. sequences', async () => {
+    expect(() =>
       saveRepository(
         { name: 'evil', type: 'service', path: '/projects/../etc/passwd', hash: 'hash-evil' },
         TEST_DIR
       )
-    ).rejects.toThrow(/traversal|invalid|\.\./i)
+    ).toThrow(/traversal|invalid|\.\./i)
   })
 
-  it.skip('round-trips metadata through JSON serialization', async () => { // @red
+  it('round-trips metadata through JSON serialization', async () => {
     const metadata = { tags: ['backend', 'api'], version: '2.0.0' }
     await saveRepository(
       { name: 'svc-meta', type: 'service', path: '/projects/svc-meta', hash: 'hash-meta', metadata },

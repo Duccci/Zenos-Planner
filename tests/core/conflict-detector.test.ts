@@ -17,7 +17,7 @@ describe('conflict-detector', () => {
     vi.clearAllMocks()
   })
 
-  it.skip('detects conflict between two proposals sharing a file', async () => { // @red
+  it('detects conflict between two proposals sharing a file', async () => {
     const proposals: TestProposal[] = [
       { hash: 'prop-a', filesAffected: ['src/storage/repository-storage.ts', 'src/types.ts'] },
       { hash: 'prop-b', filesAffected: ['src/storage/repository-storage.ts', 'src/cli/index.ts'] },
@@ -33,7 +33,7 @@ describe('conflict-detector', () => {
     expect(conflict?.proposalHash).toBe('prop-b')
   })
 
-  it.skip('reports no conflicts when proposals touch distinct files', async () => { // @red
+  it('reports no conflicts when proposals touch distinct files', async () => {
     const proposals: TestProposal[] = [
       { hash: 'prop-a', filesAffected: ['src/storage/repository-storage.ts'] },
       { hash: 'prop-b', filesAffected: ['src/cli/repos.ts'] },
@@ -46,7 +46,7 @@ describe('conflict-detector', () => {
     expect(result.conflicts).toHaveLength(0)
   })
 
-  it.skip('conflict report includes file paths and proposal hashes', async () => { // @red
+  it('conflict report includes file paths and proposal hashes', async () => {
     const proposals: TestProposal[] = [
       { hash: 'prop-x', filesAffected: ['src/core/boundary-detection.ts', 'src/types.ts'] },
       { hash: 'prop-y', filesAffected: ['src/types.ts'] },
@@ -62,7 +62,7 @@ describe('conflict-detector', () => {
     expect(Array.isArray(conflict?.conflictingFiles)).toBe(true)
   })
 
-  it.skip('detects cross-repository conflicts when repos share a file path', async () => { // @red
+  it('detects cross-repository conflicts when repos share a file path', async () => {
     const proposals: TestProposal[] = [
       { hash: 'prop-r1', repositoryId: 'repo-api', filesAffected: ['shared/types.ts', 'src/api.ts'] },
       { hash: 'prop-r2', repositoryId: 'repo-client', filesAffected: ['shared/types.ts', 'src/client.ts'] },
@@ -76,7 +76,7 @@ describe('conflict-detector', () => {
     expect(conflict?.proposalHash).toBe('prop-r2')
   })
 
-  it.skip('does not report the target proposal as conflicting with itself', async () => { // @red
+  it('does not report the target proposal as conflicting with itself', async () => {
     const proposals: TestProposal[] = [
       { hash: 'prop-self', filesAffected: ['src/storage/repository-storage.ts'] },
     ]

@@ -337,6 +337,8 @@ export function gateHandlers(
                 nextRequiredStep: {
                   blocking: true,
                   action: 'qualitative-review',
+                  agentInstruction:
+                    'YOU (the LLM) must perform this review now — do NOT present this checklist to the user or ask them to verify anything. Read the gate PRD and proposals immediately and evaluate every item in checklist[] yourself. This is LLM judgment work. Only call gates_action:start once you have verified all items pass.',
                   description:
                     'Structural checks passed. Qualitative review is MANDATORY before calling gates_action:start — do NOT call start based solely on this result.',
                   checklist: GATE_QUALITATIVE_CHECKLIST,

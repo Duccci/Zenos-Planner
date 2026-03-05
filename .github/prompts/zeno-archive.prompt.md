@@ -34,12 +34,12 @@ agent: agent
 6. **Update project state** - Update current_gate_id (status remains `completed`)
 7. **Commit changes** - Use `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
    - Construct commit message using `git.commitFormat` (e.g., `<type>(<scope>): <subject>\n\n<body>`) with:
-     - **type**: `chore` (archive) or appropriate type
-     - **scope**: `gate-XX` (include gate ID)
+     - **type**: `feat` (gate commits are always `feat`)
+     - **scope**: `gate-XX` (include the specific gate ID, e.g. `gate-03`)
      - **subject**: `Archive gate: gate-XX-name`
      - **body**: 1-3 line summary of consolidated proposals and key metrics (coverage, tests, linting, type errors), plus any notable commits.
    - Stage all changes: `git add -A`
-   - Create commit using the formatted message (including version prefix if applicable, e.g., `X.Y.Z chore(gate-XX): Archive gate: gate-XX-name`)
+   - Create commit using the formatted message (including version prefix if applicable, e.g., `X.Y.Z feat(gate-XX): Archive gate: gate-XX-name`)
    - Push commit and tags to configured remote: `git push <git.remote> <current-branch>` and `git push <git.remote> --tags`
 
 **Gather Git Provenance**
@@ -204,8 +204,8 @@ zeno/
 
 - Call `config_get()` to retrieve `git.commitFormat`, `git.remote`, and current `version`.
 - Construct commit message using `git.commitFormat` and the following mapping:
-  - **type**: `chore` (archive)
-  - **scope**: `proposal` or `gate-XX` (include gate ID)
+  - **type**: `chore` (proposal commits are always `chore`)
+  - **scope**: `proposal` (always use `proposal` — never the gate ID)
   - **subject**: `Archive proposal: [Title] (#<hash>)`
   - **body**: short summary of the artifact being archived (1-3 lines), key quality metrics (coverage, tests, lint, type errors), and list of major commits or files changed.
 - Stage all changes: `git add -A`

@@ -5,6 +5,8 @@ import {
   RepositoryDependencyGraphSchema,
   ReposDetectOutputSchema,
   ReposAdjustOutputSchema,
+  ReposAddOutputSchema,
+  ReposRemoveOutputSchema,
 } from '../schemas/repository-schemas.js'
 import {
   RepositoryActionInputSchema,
@@ -30,7 +32,7 @@ export function repositoryHandlers(
   const reposActionHandler = createEntityActionHandler(
     {
       entity: 'repository',
-      actions: ['list', 'detect', 'deps', 'adjust'] as const,
+      actions: ['list', 'detect', 'deps', 'adjust', 'add', 'remove'] as const,
       inputSchema: RepositoryActionInputSchema,
       outputSchema: RepositoryActionOutputSchema,
       actionOutputSchema(action) {
@@ -43,6 +45,10 @@ export function repositoryHandlers(
             return RepositoryDependencyGraphSchema
           case 'adjust':
             return ReposAdjustOutputSchema
+          case 'add':
+            return ReposAddOutputSchema
+          case 'remove':
+            return ReposRemoveOutputSchema
           default:
             throw new Error(`Unknown repository action: ${String(action)}`)
         }
@@ -52,6 +58,8 @@ export function repositoryHandlers(
         detect: async (payload, r) => r.invoke('repos_detect', payload),
         deps: async (payload, r) => r.invoke('repos_deps', payload),
         adjust: async (payload, r) => r.invoke('repos_adjust', payload),
+        add: async (payload, r) => r.invoke('repos_add', payload),
+        remove: async (payload, r) => r.invoke('repos_remove', payload),
       },
     },
     registry

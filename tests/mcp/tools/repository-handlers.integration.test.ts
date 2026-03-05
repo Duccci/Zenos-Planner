@@ -72,7 +72,7 @@ describe('Repository Handlers (integration)', () => {
     expect(res.content[0]?.text).toBeDefined()
   })
 
-  it.skip('repos_add returns structured output matching ReposAddOutputSchema', async () => { // @red
+  it('repos_add returns structured output matching ReposAddOutputSchema', async () => {
     const mockData = { id: 'repo-new', name: 'new-service', type: 'service', path: 'src/new-service' }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
@@ -85,7 +85,7 @@ describe('Repository Handlers (integration)', () => {
     expect(ok.success).toBe(true)
   })
 
-  it.skip('repos_remove returns structured output matching ReposRemoveOutputSchema', async () => { // @red
+  it('repos_remove returns structured output matching ReposRemoveOutputSchema', async () => {
     const mockData = { removed: true, repositoryId: 'repo-old' }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
@@ -98,7 +98,7 @@ describe('Repository Handlers (integration)', () => {
     expect(ok.success).toBe(true)
   })
 
-  it.skip('repos_add returns error when backend rejects invalid path', async () => { // @red
+  it('repos_add returns error when backend rejects invalid path', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'Invalid path: traversal detected' } }),
     }

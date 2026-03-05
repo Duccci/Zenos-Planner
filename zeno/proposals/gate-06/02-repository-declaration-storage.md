@@ -3,7 +3,7 @@
 **Hash**: #1f01eca0
 **Gate**: gate-06 - Multi-Repo & Subproject Detection
 **Requirement**: #4bc74e36854c4221
-**Status**: pending
+**Status**: completed
 **Role**: implementation
 **Created**: 2026-03-01
 **Files Affected**: `src/storage/migrations/schema.sql`, `src/storage/repository-storage.ts`, `src/storage/repository-dependencies.ts`
@@ -57,11 +57,11 @@ Add a `CREATE TABLE IF NOT EXISTS repo_dependencies` block to the canonical `sch
 
 **Acceptance Criteria**:
 
-- [ ] `repo_dependencies` table added to `schema.sql` with all columns
-- [ ] Foreign key constraints reference `repositories.hash`
-- [ ] Unique constraint prevents duplicate dependency edges
-- [ ] Schema applies cleanly on both fresh and existing databases (idempotent)
-- [ ] All RED tests pass
+- [x] `repo_dependencies` table added to `schema.sql` with all columns
+- [x] Foreign key constraints reference `repositories.hash`
+- [x] Unique constraint prevents duplicate dependency edges
+- [x] Schema applies cleanly on both fresh and existing databases (idempotent)
+- [x] All RED tests pass
 
 ---
 
@@ -75,12 +75,12 @@ Create the repository storage module following the `metrics-storage.ts` function
 
 **Acceptance Criteria**:
 
-- [ ] All CRUD functions implemented: save, get-by-hash, list, list-with-filter, update, delete
-- [ ] `RepositoryRow` → `Repository` mapper handles metadata JSON parse/stringify
-- [ ] Path validation rejects `..` sequences with descriptive error
-- [ ] All SQL uses parameterized statements (no string interpolation)
-- [ ] All RED tests pass
-- [ ] Guardrails verified (no new tests)
+- [x] All CRUD functions implemented: save, get-by-hash, list, list-with-filter, update, delete
+- [x] `RepositoryRow` → `Repository` mapper handles metadata JSON parse/stringify
+- [x] Path validation rejects `..` sequences with descriptive error
+- [x] All SQL uses parameterized statements (no string interpolation)
+- [x] All RED tests pass
+- [x] Guardrails verified (no new tests)
 
 ---
 
@@ -94,11 +94,11 @@ Create dependency storage module with functions: `addRepoDependency(sourceHash, 
 
 **Acceptance Criteria**:
 
-- [ ] All dependency CRUD functions implemented: add, get, remove, graph, detect-circular
-- [ ] Circular dependency detection uses iterative DFS (no recursion stack overflow)
-- [ ] Graph query returns nodes and edges matching `RepositoryDependencyGraphSchema`
-- [ ] All RED tests pass
-- [ ] Guardrails verified (no new tests)
+- [x] All dependency CRUD functions implemented: add, get, remove, graph, detect-circular
+- [x] Circular dependency detection uses iterative DFS (no recursion stack overflow)
+- [x] Graph query returns nodes and edges matching `RepositoryDependencyGraphSchema`
+- [x] All RED tests pass
+- [x] Guardrails verified (no new tests)
 
 ---
 

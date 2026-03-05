@@ -1,8 +1,19 @@
+---
+zeno:
+  id: gate-XX
+  name: '[Gate Name]'
+  sequence: XX
+  type: feature   # feature | quality | rescope
+  status: pending
+  hash: gXXslug
+  created_at: 'YYYY-MM-DD'
+  depends_on: []   # optional: ['gate-01', 'gate-02']
+---
+
 # Gate [XX]: [Gate Name]
 
-**Hash**: #[hash]  
+**Hash**: `#gXXslug`  
 **Status**: pending  
-**Role**: [test-suite | implementation | test-cleanup | solitary]  
 **Type**: [feature | quality | rescope]  
 **Created**: [YYYY-MM-DD]  
 **Sequence**: [X of Y]

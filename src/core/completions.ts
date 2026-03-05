@@ -540,7 +540,7 @@ export async function completeGate(
 
     await syncWithGit({
       commitMessage: stripAnsi(
-        `chore(gate): complete ${gateId} - ${gate.name}\n\nVersion: ${newVersion}\n`
+        `feat(${gateId}): complete ${gate.name}\n\nVersion: ${newVersion}\n`
       ),
       tagName,
       tagMessage,

@@ -38,10 +38,15 @@ export function registerReposCommands(program: Command): void {
   reposCmd
     .command('detect')
     .description('Re-run repository boundary detection')
-    .action(() => {
+    .option(
+      '--reanalyzeCrossRepo <bool>',
+      'Re-analyze cross-repository dependencies (true/false)',
+      'false'
+    )
+    .action((opts: { reanalyzeCrossRepo: string }) => {
       logger.info('Repositories command: detect')
+      logger.info(`reanalyzeCrossRepo: ${opts.reanalyzeCrossRepo}`)
       logger.info('Not yet implemented - Gate 5 required')
-      logger.info('This command will analyze codebase and detect repository boundaries')
     })
 
   reposCmd
@@ -51,5 +56,25 @@ export function registerReposCommands(program: Command): void {
       logger.info('Repositories command: adjust')
       logger.info('Not yet implemented - Gate 5 required')
       logger.info('This command will allow manual adjustment of repository boundaries')
+    })
+
+  reposCmd
+    .command('add')
+    .description('Register a repository')
+    .requiredOption('--path <path>', 'Repository root path')
+    .option('--type <type>', 'Repository type (service, library, app, tool)', 'library')
+    .option('--name <name>', 'Repository name')
+    .action(() => {
+      logger.info('Repositories command: add')
+      logger.info('Not yet implemented - Gate 6 required')
+    })
+
+  reposCmd
+    .command('remove')
+    .description('Unregister a repository')
+    .requiredOption('--id <id>', 'Repository ID or hash')
+    .action(() => {
+      logger.info('Repositories command: remove')
+      logger.info('Not yet implemented - Gate 6 required')
     })
 }

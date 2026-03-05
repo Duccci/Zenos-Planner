@@ -48,21 +48,21 @@ describe('repository-dependencies', () => {
     await rm(TEST_DIR, { recursive: true, force: true })
   })
 
-  it.skip('adds and retrieves a dependency', async () => { // @red
+  it('adds and retrieves a dependency', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     const deps = await getRepoDependencies('hash-a', TEST_DIR)
     expect(deps).toHaveLength(1)
     expect(deps[0]?.targetRepoHash).toBe('hash-b')
   })
 
-  it.skip('removes a dependency', async () => { // @red
+  it('removes a dependency', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await removeRepoDependency('hash-a', 'hash-b', 'imports', TEST_DIR)
     const deps = await getRepoDependencies('hash-a', TEST_DIR)
     expect(deps).toHaveLength(0)
   })
 
-  it.skip('returns full dependency graph with nodes and edges', async () => { // @red
+  it('returns full dependency graph with nodes and edges', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-b', 'hash-c', 'references', undefined, TEST_DIR)
     const graph = await getRepoDependencyGraph(TEST_DIR)
@@ -70,7 +70,7 @@ describe('repository-dependencies', () => {
     expect(graph.repositories.length).toBeGreaterThanOrEqual(2)
   })
 
-  it.skip('detects circular dependency of length 2 (A→B→A)', async () => { // @red
+  it('detects circular dependency of length 2 (A→B→A)', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-b', 'hash-a', 'imports', undefined, TEST_DIR)
     const cycles = await detectCircularDependencies(TEST_DIR)
@@ -80,7 +80,7 @@ describe('repository-dependencies', () => {
     expect(flat).toContain('hash-b')
   })
 
-  it.skip('detects circular dependency of length 3 (A→B→C→A)', async () => { // @red
+  it('detects circular dependency of length 3 (A→B→C→A)', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-b', 'hash-c', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-c', 'hash-a', 'imports', undefined, TEST_DIR)
@@ -91,20 +91,20 @@ describe('repository-dependencies', () => {
     expect(flat).toContain('hash-c')
   })
 
-  it.skip('returns no cycles when graph is acyclic', async () => { // @red
+  it('returns no cycles when graph is acyclic', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-b', 'hash-c', 'imports', undefined, TEST_DIR)
     const cycles = await detectCircularDependencies(TEST_DIR)
     expect(cycles).toHaveLength(0)
   })
 
-  it.skip('enforces FK constraint on non-existent source repo', async () => { // @red
-    await expect(
+  it('enforces FK constraint on non-existent source repo', async () => {
+    expect(() =>
       addRepoDependency('nonexistent-hash', 'hash-b', 'imports', undefined, TEST_DIR)
-    ).rejects.toThrow()
+    ).toThrow()
   })
 
-  it.skip('returns transitive edges visible in the graph', async () => { // @red
+  it('returns transitive edges visible in the graph', async () => { // @red
     await addRepoDependency('hash-a', 'hash-b', 'imports', undefined, TEST_DIR)
     await addRepoDependency('hash-b', 'hash-c', 'imports', undefined, TEST_DIR)
     const graph = await getRepoDependencyGraph(TEST_DIR)

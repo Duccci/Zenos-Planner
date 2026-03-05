@@ -4,6 +4,8 @@ import {
   ReposDetectOutputSchema,
   RepositoryDependencyGraphSchema,
   ReposAdjustOutputSchema,
+  ReposAddOutputSchema,
+  ReposRemoveOutputSchema,
 } from './repository-schemas.js'
 
 /**
@@ -26,14 +28,16 @@ import {
  */
 export const RepositoryActionInputSchema = z.object({
   action: z
-    .enum(['list', 'detect', 'deps', 'adjust'])
+    .enum(['list', 'detect', 'deps', 'adjust', 'add', 'remove'])
     .optional()
     .describe(
       'Action to perform. ' +
         'list=view detected repositories (optional: type filter). ' +
         'detect=re-run boundary detection (optional: reanalyzeCrossRepo). ' +
         'deps=view dependency graph (optional: repositoryId). ' +
-        'adjust=manually adjust boundaries (needs: adjustments array).'
+        'adjust=manually adjust boundaries (needs: adjustments array). ' +
+        'add=register a repository (needs: name, type, path). ' +
+        'remove=unregister a repository (needs: repositoryId).'
     ),
 
   // --- list filters ---
@@ -50,6 +54,10 @@ export const RepositoryActionInputSchema = z.object({
 
   // --- deps fields ---
   repositoryId: z.string().optional().describe('Scope dependency graph to this repo (deps)'),
+
+  // --- add fields ---
+  name: z.string().optional().describe('Repository name (add)'),
+  path: z.string().optional().describe('Repository root path (add)'),
 
   // --- adjust fields ---
   adjustments: z
@@ -90,6 +98,14 @@ export const RepositoryActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('adjust'),
     result: ReposAdjustOutputSchema,
+  }),
+  z.object({
+    action: z.literal('add'),
+    result: ReposAddOutputSchema,
+  }),
+  z.object({
+    action: z.literal('remove'),
+    result: ReposRemoveOutputSchema,
   }),
 ])
 

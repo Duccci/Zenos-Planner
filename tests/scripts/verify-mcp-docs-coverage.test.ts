@@ -49,7 +49,7 @@ describe('verify-mcp-docs-coverage', () => {
     }
   })
 
-  it.skip('should have action sections for proposal_action', () => { // @red
+  it('should have action sections for proposal_action', () => {
     const docContent = fs.readFileSync(docPath, 'utf-8')
     const actions = ['list', 'show', 'start', 'validate', 'approve', 'reject']
     for (const action of actions) {
@@ -57,7 +57,7 @@ describe('verify-mcp-docs-coverage', () => {
     }
   })
 
-  it.skip('should have action sections for reg_action', () => { // @red
+  it('should have action sections for reg_action', () => {
     const docContent = fs.readFileSync(docPath, 'utf-8')
     const actions = ['list', 'show', 'deps']
     for (const action of actions) {

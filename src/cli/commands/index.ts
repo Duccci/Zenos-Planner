@@ -18,6 +18,7 @@ import { registerConfigCommand } from './config.js'
 import { registerMcpCommands } from './mcp.js'
 import { registerTraceCommand } from './trace.js'
 import { registerDbCommands } from './db.js'
+import { registerRegistryCommands } from './registry.js'
 
 /**
  * Register all commands with the CLI program
@@ -39,4 +40,5 @@ export function registerCommands(program: Command): void {
   registerProposalCommands(program)
   registerMcpCommands(program)
   registerDbCommands(program)
+  registerRegistryCommands(program)
 }

@@ -294,8 +294,8 @@ function generateRedSuiteTasks(objectives: string[], totalCoverageTarget: number
   for (const objective of objectives) {
     tasks += `### Task ${String(taskNum)}: Write Unit Tests for ${objective}
 
-**Phase**: RED  
-**File(s)**: \`tests/[module]/${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.test.ts\`  
+**Phase**: RED
+**File(s)**: \`tests/[module]/${objective.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.test.ts\`
 **Action**: create
 
 Write comprehensive test cases covering happy paths, error conditions, and edge cases for "${objective}". Use mocks and fixtures to isolate units under test.
@@ -314,8 +314,8 @@ Write comprehensive test cases covering happy paths, error conditions, and edge 
 
   tasks += `### Task ${String(taskNum)}: Set Up Shared Test Fixtures and Stubs
 
-**Phase**: RED  
-**File(s)**: \`tests/[module]/fixtures.ts\`  
+**Phase**: RED
+**File(s)**: \`tests/[module]/fixtures.ts\`
 **Action**: create
 
 Create reusable test fixtures, mock builders, and stub implementations for all module dependencies. Target ${totalCoverageTarget.toString()} total lines of coverage across all objectives.
@@ -335,7 +335,7 @@ Create reusable test fixtures, mock builders, and stub implementations for all m
 function generateImplementationTasks(objective: string): string {
   return `### Task 1: Implement ${objective}
 
-**File(s)**: \`src/[module]/[feature].ts\`  
+**File(s)**: \`src/[module]/[feature].ts\`
 **Action**: create | modify
 
 Implement the functions and methods required for "${objective}". Focus on making the RED tests for this objective pass. Do not add or modify test files.
@@ -357,8 +357,8 @@ function generateGreenVerificationTasks(objectives: string[], coverageThreshold:
 
   return `### Task 1: Attach Implementation to Tests & Verify All Pass
 
-**Phase**: GREEN  
-**File(s)**: \`tests/[module]/*.test.ts\`  
+**Phase**: GREEN
+**File(s)**: \`tests/[module]/*.test.ts\`
 **Action**: modify
 
 Wire all implementation modules into the test suite so that every RED test now passes with real implementations instead of stubs. Verify full integration between test suite and implementation code.
@@ -378,8 +378,8 @@ ${objectiveList}
 
 ### Task 2: Coverage Gap Analysis & Edge Case Tests
 
-**Phase**: GREEN  
-**File(s)**: \`tests/[module]/*.test.ts\`  
+**Phase**: GREEN
+**File(s)**: \`tests/[module]/*.test.ts\`
 **Action**: modify
 
 Review test coverage reports and identify uncovered code paths. Add edge case tests if gaps exist. Ensure coverage meets or exceeds the quality threshold.

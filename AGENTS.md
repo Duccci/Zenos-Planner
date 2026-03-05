@@ -286,6 +286,7 @@ project-root/
     - Implementation happens directly without intermediate approval workflow
     - Zeno validates implementation matches proposal specifications
     - All changes remain in active proposal files until gate completion
+    - **After completing each task**: immediately mark its checkbox `[x]` in the proposal markdown file before moving to the next task — this creates a durable checkpoint so interrupted sessions can read the proposal and resume from the first unchecked task
 2. **Gate Completion**: When all proposals implemented, run `zeno gates complete <gate-id>` to:
     - Commit all implementation work
     - Archive all proposals automatically

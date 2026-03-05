@@ -59,6 +59,8 @@ Each gate file contains objectives, deliverables, requirements references, and d
 
 Each proposal is self-contained: title, hash, gate, tasks (checkbox list), files affected, dependencies, and acceptance criteria. A proposal contains all information needed for execution — do not load external documents unless the proposal explicitly references them.
 
+**Task completion checkpointing**: After finishing each task during apply phase, immediately mark its checkbox `[x]` in the proposal markdown file before starting the next task. If the session crashes or is interrupted, the next session reads the proposal file to find the first unchecked task and resumes from there — no duplicated work.
+
 ### Commits & Traceability
 
 Commits reference artifact hashes using the `commitFormat` from `.zeno/config.json`:

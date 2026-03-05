@@ -204,6 +204,8 @@ export function proposalHandlers(
                 nextRequiredStep: {
                   blocking: true,
                   action: 'qualitative-review',
+                  agentInstruction:
+                    'YOU (the LLM) must perform this review now — do NOT present this checklist to the user or ask them to verify anything. Read the proposal content immediately and evaluate every item in checklist[] yourself. This is LLM judgment work. Only call proposal_action:start once you have verified all items pass.',
                   description:
                     'Structural checks passed. Qualitative review is MANDATORY before calling proposal_action:start — do NOT call start based solely on this result.',
                   checklist: QUALITATIVE_CHECKLIST,

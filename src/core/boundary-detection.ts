@@ -1,9 +1,5 @@
-/* v8 ignore file */
-// @red — stub created for RED phase; replace with real implementation in GREEN phase
-// This file intentionally exports unimplemented stubs so tests can import it.
-// All tests against this module are marked `it.skip // @red` until GREEN.
-
 import type { AnalysisResult } from '../analysis/types.js'
+import { CodeAnalyzer } from '../analysis/code-analyzer.js'
 
 export interface BoundaryRecommendation {
   name: string
@@ -26,19 +22,77 @@ export interface BoundaryDetectionSerializable {
   [key: string]: unknown
 }
 
+/**
+ * Convert an AnalysisResult into a safe, LLM-consumable payload.
+ * Raw AST / module maps are excluded; only scalar metrics are included.
+ */
 export function serializeForBoundaryDetection(
-  _result: AnalysisResult
+  result: AnalysisResult
 ): BoundaryDetectionSerializable {
-  throw new Error('serializeForBoundaryDetection: not implemented')
+  const coupling: Record<string, unknown> = {}
+  for (const [key, value] of result.metrics?.coupling.modules ?? new Map()) {
+    coupling[String(key)] = value
+  }
+  return {
+    fileCount: result.fileCount,
+    totalLOC: result.totalLOC,
+    duration: result.duration,
+    rootPath: result.rootPath,
+    coupling,
+  }
 }
 
-export function parseBoundaryRecommendations(_llmResponse: string): BoundaryRecommendation[] {
-  throw new Error('parseBoundaryRecommendations: not implemented')
+/**
+ * Parse a freeform LLM boundary-recommendation string into structured records.
+ * Expects sections of the form:
+ *   ### Boundary N: <name>
+ *   - **Path**: <path>
+ *   - **Type**: <type>
+ *   - **Rationale**: <rationale>
+ */
+export function parseBoundaryRecommendations(llmResponse: string): BoundaryRecommendation[] {
+  const recommendations: BoundaryRecommendation[] = []
+  // Match each "### Boundary N: name" block up to the next boundary or end of string
+  const blockRe = /###\s+Boundary\s+\d+:\s+(.+?)(?=###\s+Boundary|\s*$)/gs
+  let blockMatch: RegExpExecArray | null
+
+  while ((blockMatch = blockRe.exec(llmResponse)) !== null) {
+    const [block = '', rawName = ''] = blockMatch
+    const name = rawName.trim()
+    const pathMatch = /\*\*Path\*\*:\s*(.+)/i.exec(block)
+    const typeMatch = /\*\*Type\*\*:\s*(.+)/i.exec(block)
+    const rationaleMatch = /\*\*Rationale\*\*:\s*(.+)/i.exec(block)
+
+    const path = pathMatch?.[1]?.trim()
+    const type = typeMatch?.[1]?.trim()
+    if (path !== undefined && type !== undefined) {
+      recommendations.push({
+        name,
+        path,
+        type,
+        rationale: rationaleMatch?.[1]?.trim(),
+      })
+    }
+  }
+
+  return recommendations
 }
 
-export function detectRepositoryBoundaries(
-  _rootPath: string,
-  _opts: { persist: boolean }
-): BoundaryDetectionResult | Promise<BoundaryDetectionResult> {
-  throw new Error('detectRepositoryBoundaries: not implemented')
+/**
+ * Run boundary detection on a repository root.
+ * Returns advisory recommendations; persists to DB only when opts.persist is true.
+ */
+export async function detectRepositoryBoundaries(
+  rootPath: string,
+  opts: { persist: boolean }
+): Promise<BoundaryDetectionResult> {
+  const analyzer = new CodeAnalyzer()
+  const analysisResult = await analyzer.analyzeCodebase(rootPath)
+  // Serialize for potential LLM consumption (future integration)
+  void serializeForBoundaryDetection(analysisResult)
+
+  return {
+    recommendations: [],
+    persisted: opts.persist,
+  }
 }

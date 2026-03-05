@@ -405,12 +405,12 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     prerequisites: ['Gate completion summary written', 'All artifacts updated'],
     actions: [
       'config_get() to retrieve git.commitFormat, git.remote, version',
-      'Construct commit: feat(gate): archive gate-XX - <name> (#<hash>)',
+      'Construct commit: feat(gate-XX): archive gate-XX - <name> (#<hash>)',
       'git tag vX.Y.Z-gate-XX',
       'git push <remote> --tags',
     ],
     guidance:
-      'Use git.commitFormat from config_get(). Include gate hash in commit body for traceability.',
+      'Use feat(gate-XX): scope with the specific gate ID (e.g. feat(gate-03):) for gate commits. Include gate hash in commit body for traceability. Gate commits use feat(gate-XX): type; proposal commits use chore(proposal): — keep these distinct.',
   },
 
   // ── Proposal Archive Steps ──────────────────────────────────────────────────
@@ -467,11 +467,11 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     actions: [
       'config_get() to retrieve git.commitFormat and git.remote',
       'Stage all changes: git add -A',
-      'Commit: chore(gate-XX): archive proposal <title> (#<hash>)',
+      'Commit: chore(proposal): archive <title> (#<hash>)',
       'git push <remote> <current-branch>',
     ],
     guidance:
-      'Include the proposal hash in the commit message for full traceability via git log --grep.',
+      'Use chore(proposal): scope for all proposal archive commits — this separates them from gate commits (feat(gate-XX):) in git log. Include the proposal hash in the commit message for full traceability via git log --grep.',
   },
 ]
 

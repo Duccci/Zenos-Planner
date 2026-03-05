@@ -8,10 +8,11 @@ import {
 
 const mockAnalyzeCodebase = vi.fn()
 
+// Plain function — not arrow — required for constructor use with `new CodeAnalyzer()`
 vi.mock('../../src/analysis/code-analyzer.js', () => ({
-  CodeAnalyzer: vi.fn().mockImplementation(() => ({
-    analyzeCodebase: mockAnalyzeCodebase,
-  })),
+  CodeAnalyzer: function MockCodeAnalyzer() {
+    return { analyzeCodebase: mockAnalyzeCodebase }
+  },
 }))
 
 describe('boundary-detection', () => {
@@ -19,7 +20,7 @@ describe('boundary-detection', () => {
     vi.clearAllMocks()
   })
 
-  it.skip('serializes AnalysisResult to a stable JSON schema', () => { // @red
+  it('serializes AnalysisResult to a stable JSON schema', () => {
     const result = createAnalysisResult()
     const serialized = serializeForBoundaryDetection(result)
 
@@ -30,7 +31,7 @@ describe('boundary-detection', () => {
     expect(serialized).toHaveProperty('rootPath')
   })
 
-  it.skip('includes coupling, LOC, and file counts in serialized output', () => { // @red
+  it('includes coupling, LOC, and file counts in serialized output', () => {
     const result = createAnalysisResult({ fileCount: 55, totalLOC: 4200 })
     const serialized = serializeForBoundaryDetection(result)
 
@@ -41,7 +42,7 @@ describe('boundary-detection', () => {
     expect(serialized).toHaveProperty('coupling')
   })
 
-  it.skip('does not include raw AST in serialized output', () => { // @red
+  it('does not include raw AST in serialized output', () => {
     const result = createAnalysisResult()
     const serialized = serializeForBoundaryDetection(result)
 
@@ -50,7 +51,7 @@ describe('boundary-detection', () => {
     expect(JSON.stringify(serialized)).not.toContain('"ast"')
   })
 
-  it.skip('parses boundary recommendations from fixture LLM response string', () => { // @red
+  it('parses boundary recommendations from fixture LLM response string', () => {
     const recommendations = parseBoundaryRecommendations(FIXTURE_BOUNDARY_RECOMMENDATION)
 
     expect(Array.isArray(recommendations)).toBe(true)
@@ -60,7 +61,7 @@ describe('boundary-detection', () => {
     expect(recommendations[0]).toHaveProperty('path')
   })
 
-  it.skip('returns recommendations as advisory (not persisted)', async () => { // @red
+  it('returns recommendations as advisory (not persisted)', async () => {
     mockAnalyzeCodebase.mockResolvedValue(createAnalysisResult())
 
     const result = await detectRepositoryBoundaries('/projects/test', { persist: false })
@@ -70,7 +71,7 @@ describe('boundary-detection', () => {
     expect(result.persisted).toBe(false)
   })
 
-  it.skip('handles CodeAnalyzer failure gracefully', async () => { // @red
+  it('handles CodeAnalyzer failure gracefully', async () => {
     mockAnalyzeCodebase.mockRejectedValue(new Error('Analysis failed'))
 
     await expect(
@@ -78,7 +79,7 @@ describe('boundary-detection', () => {
     ).rejects.toThrow('Analysis failed')
   })
 
-  it.skip('handles empty analysis result (zero files)', async () => { // @red
+  it('handles empty analysis result (zero files)', async () => {
     mockAnalyzeCodebase.mockResolvedValue(
       createAnalysisResult({ fileCount: 0, totalLOC: 0, modules: new Map() })
     )

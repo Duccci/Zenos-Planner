@@ -1,8 +1,3 @@
-/* v8 ignore file */
-// @red — stub created for RED phase; replace with real implementation in GREEN phase
-// This file intentionally exports unimplemented stubs so tests can import it.
-// All tests against this module are marked `it.skip // @red` until GREEN.
-
 export interface ProposalConflict {
   proposalHash: string
   conflictingFiles: string[]
@@ -19,9 +14,30 @@ export interface ProposalLike {
   filesAffected: string[]
 }
 
+/**
+ * Detect which proposals share files with the target proposal.
+ * Returns every overlapping proposal along with the shared file paths.
+ * The target proposal is never reported as conflicting with itself.
+ */
 export function detectConflicts(
-  _proposalHash: string,
-  _proposals: ProposalLike[]
-): ConflictDetectionResult | Promise<ConflictDetectionResult> {
-  throw new Error('detectConflicts: not implemented')
+  proposalHash: string,
+  proposals: ProposalLike[]
+): ConflictDetectionResult {
+  const target = proposals.find(p => p.hash === proposalHash)
+  if (!target) {
+    return { hasConflicts: false, conflicts: [] }
+  }
+
+  const targetFiles = new Set(target.filesAffected)
+  const conflicts: ProposalConflict[] = []
+
+  for (const proposal of proposals) {
+    if (proposal.hash === proposalHash) continue
+    const conflictingFiles = proposal.filesAffected.filter(f => targetFiles.has(f))
+    if (conflictingFiles.length > 0) {
+      conflicts.push({ proposalHash: proposal.hash, conflictingFiles })
+    }
+  }
+
+  return { hasConflicts: conflicts.length > 0, conflicts }
 }

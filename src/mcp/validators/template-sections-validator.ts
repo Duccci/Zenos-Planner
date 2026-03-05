@@ -27,6 +27,8 @@ import type { ValidationResult } from './types.js'
 export interface TemplateSections {
   required: string[]
   optional: string[]
+  /** True when the template itself begins with a YAML frontmatter block (---). */
+  hasFrontmatter: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -43,6 +45,7 @@ export interface TemplateSections {
 export function parseTemplateSections(templateContent: string): TemplateSections {
   const required: string[] = []
   const optional: string[] = []
+  const hasFrontmatter = /^---\s*\n[\s\S]*?\n---/m.test(templateContent.trimStart())
 
   // Split on lines that start with '## ', retaining the delimiter so each
   // chunk begins with its own heading.
@@ -71,7 +74,7 @@ export function parseTemplateSections(templateContent: string): TemplateSections
     }
   }
 
-  return { required, optional }
+  return { required, optional, hasFrontmatter }
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +92,14 @@ export function validateTemplateSections(
 ): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
+
+  // Check frontmatter presence (warning only — existing files may predate the template update)
+  if (templateSections.hasFrontmatter && !/^---\s*\n[\s\S]*?\n---/m.test(proposalContent.trimStart())) {
+    warnings.push(
+      'Missing zeno frontmatter block (---\nzeno:\n  ...\n---). ' +
+        'Add the frontmatter header so registry rebuild can reconstruct this entry without regex fallback.'
+    )
+  }
 
   for (const section of templateSections.required) {
     if (!proposalContent.includes(section)) {

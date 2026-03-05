@@ -53,19 +53,19 @@ describe('Repos command coverage', () => {
     )
   })
 
-  it.skip('should execute repos add and log the declared repository path', async () => { // @red
+  it('should execute repos add and log the declared repository path', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'add', '--path', 'src/my-service', '--type', 'service'])
 
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Repositories command: add')
   })
 
-  it.skip('should execute repos remove and log the target repository id', async () => { // @red
+  it('should execute repos remove and log the target repository id', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'remove', '--id', 'repo-abc123'])
 
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Repositories command: remove')
   })
 
-  it.skip('should pass --reanalyzeCrossRepo false to detect without cross-repo re-analysis', async () => { // @red
+  it('should pass --reanalyzeCrossRepo false to detect without cross-repo re-analysis', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'detect', '--reanalyzeCrossRepo', 'false'])
 
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Repositories command: detect')
@@ -74,7 +74,7 @@ describe('Repos command coverage', () => {
     )
   })
 
-  it.skip('should pass --reanalyzeCrossRepo true to detect with cross-repo re-analysis', async () => { // @red
+  it('should pass --reanalyzeCrossRepo true to detect with cross-repo re-analysis', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'detect', '--reanalyzeCrossRepo', 'true'])
 
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Repositories command: detect')

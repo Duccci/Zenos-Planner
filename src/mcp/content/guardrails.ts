@@ -200,6 +200,14 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     reason: 'File convention: archival is automatic at gate completion; this prevents premature manual moves',
     agentRef: ['09-meta-orchestration/workflow-orchestrator'],
   },
+  {
+    id: 'apply-026',
+    topic: 'apply-phase',
+    rule: 'After completing each task, immediately mark its checkbox [x] in the proposal markdown file before moving to the next task. This creates a durable checkpoint: if the session crashes or the LLM is interrupted, the next session can read the proposal file to determine which tasks are done and resume from the first unchecked task.',
+    mustHaveValidator: false,
+    reason: 'Crash-recovery principle: per-task checkbox updates persist completed work without requiring an MCP tool call per task. "Immediately after" is a behavioral requirement enforced by workflow convention, not a runtime constraint.',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/error-coordinator'],
+  },
 ]
 
 // ─── Proposal Generation Guardrails ───────────────────────────────────────────
@@ -471,12 +479,12 @@ export const DATABASE_ACCESS_GUARDRAILS: GuardrailEntry[] = [
  * of validate responses as `nextRequiredStep.checklist`, not buried in guidance.
  */
 export const QUALITATIVE_CHECKLIST: string[] = [
-  'Task descriptions: each task must name concrete files, functions, or code constructs — not vague directives like "update the service"',
-  'Acceptance criteria: each criterion must be testable and measurable — reject phrases like "works correctly", "looks good", or "handles edge cases" without specifics',
-  'File path plausibility: cross-check filesAffected paths against the actual codebase — do the directories exist, do the names match this project\'s conventions?',
-  'Open questions: scan task descriptions, implementation notes, and acceptance criteria for unresolved markers — TODO, TBD, unclear, "?", assumptions stated as facts',
-  'Scope coherence: the proposal must be focused on one cohesive concern — multiple unrelated changes in one proposal are a scope problem',
-  'Rollback adequacy: the Rollback section must describe specific, reversible steps — not just "revert the changes" or "undo the work"',
+  'Read every task description and confirm it names a concrete file, function, or code construct — flag any task that uses vague language like "update the service" or "improve the handler" without specifics',
+  'Read every acceptance criterion and confirm it is testable and measurable — flag phrases like "works correctly", "looks good", or "handles edge cases" that lack concrete success conditions',
+  'Cross-check every path in filesAffected against the actual codebase right now — verify the directories exist and the file names match this project\'s naming conventions',
+  'Scan task descriptions, implementation notes, and acceptance criteria for unresolved markers — flag any TODO, TBD, unclear, "?", or assumption stated as fact',
+  'Evaluate whether the proposal focuses on one cohesive concern — flag it if it bundles multiple unrelated changes that should be separate proposals',
+  'Read the Rollback section and confirm it describes specific, reversible steps — flag it if it only says "revert the changes" or equivalent without actionable detail',
 ]
 
 /**
@@ -484,12 +492,12 @@ export const QUALITATIVE_CHECKLIST: string[] = [
  * Surfaced as `nextRequiredStep.checklist` in gates_action:validate when all structural checks pass.
  */
 export const GATE_QUALITATIVE_CHECKLIST: string[] = [
-  'Gate objectives are still current, achievable, and unambiguous — no stale wording from an earlier project phase.',
-  'Requirements coverage is meaningful: each requirement maps to a concrete, testable deliverable — not just checkbox entries.',
-  'Proposal count is appropriate for the gate scope — neither a single monolithic proposal nor an excessive number of micro-proposals.',
-  'Test-first ordering is intentional: RED proposals establish the failure baseline before GREEN proposals implement the fix.',
-  'Dependencies on other gates reflect the real execution order; no unnecessary blocking relationships exist.',
-  'Gate PRD objectives are achievable within a single gate; if the scope spans more than one milestone, consider splitting the gate.',
+  'Read the gate objectives and confirm they are still current, achievable, and unambiguous — flag any stale wording that no longer matches the project\'s current direction.',
+  'Read every requirement and confirm it maps to a concrete, testable deliverable — flag requirements that are vague checkbox entries without measurable acceptance criteria.',
+  'Count the proposals and evaluate whether the count is appropriate for the gate scope — flag if a single monolithic proposal is doing too much or if there are excessive micro-proposals.',
+  'Verify test-first ordering: RED proposals must establish a failing test baseline before any GREEN proposals implement the fix — flag any ordering violation.',
+  'Read the gate dependency declarations and confirm they reflect the real execution order — flag any unnecessary blocking relationships.',
+  'Evaluate whether the gate PRD objectives are achievable within a single gate — flag the gate for splitting if the scope spans more than one distinct milestone.',
 ]
 
 export const VALIDATE_GUARDRAILS: GuardrailEntry[] = [

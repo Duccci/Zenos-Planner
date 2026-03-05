@@ -1,10 +1,19 @@
+---
+zeno:
+  hash: '{{HASH}}'
+  gate_id: '{{GATE_ID}}'
+  requirement_id: null   # replace with requirement hash or remove
+  status: pending
+  created_at: '{{DATE}}'
+---
+
 # Proposal: [Proposal Title]
 
-**Hash**: #[Generated SHA-256 first 16 chars]
-**Gate**: [Gate ID] - [Gate Name]
+**Hash**: #{{HASH}}
+**Gate**: {{GATE_ID}} - [Gate Name]
 **Requirement**: #[Requirement Hash] (optional - may address gate-level objective)
-**Status**: pending | validated | in_progress | completed | rejected
-**Created**: [DATE]
+**Status**: pending
+**Created**: {{DATE}}
 
 ---
 

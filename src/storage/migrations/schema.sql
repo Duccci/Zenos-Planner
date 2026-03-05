@@ -33,10 +33,21 @@ CREATE TABLE IF NOT EXISTS repositories (
   name       TEXT      NOT NULL,
   path       TEXT      NOT NULL,
   type       TEXT      NOT NULL
-    CHECK (type IN ('main', 'service', 'library', 'tool')),
+    CHECK (type IN ('main', 'service', 'library', 'tool', 'app')),
   hash       TEXT      UNIQUE NOT NULL,
   metadata   TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS repo_dependencies (
+  id                  TEXT      PRIMARY KEY,
+  source_repo_hash    TEXT      NOT NULL REFERENCES repositories(hash),
+  target_repo_hash    TEXT      NOT NULL REFERENCES repositories(hash),
+  dependency_type     TEXT      NOT NULL
+    CHECK (dependency_type IN ('imports', 'extends', 'references')),
+  metadata            TEXT,
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (source_repo_hash, target_repo_hash, dependency_type)
 );
 
 CREATE TABLE IF NOT EXISTS requirements (
@@ -67,7 +78,7 @@ CREATE TABLE IF NOT EXISTS proposals (
   requirement_id   TEXT      REFERENCES requirements(id),
   title            TEXT      NOT NULL,
   status           TEXT      NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'approved', 'rejected', 'in_progress', 'completed')),
+    CHECK (status IN ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')),
   hash             TEXT      UNIQUE NOT NULL,
   created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -141,6 +152,10 @@ CREATE INDEX IF NOT EXISTS idx_gates_completed_by ON gates(completed_by);
 
 CREATE INDEX IF NOT EXISTS idx_repositories_hash ON repositories(hash);
 CREATE INDEX IF NOT EXISTS idx_repositories_type ON repositories(type);
+
+CREATE INDEX IF NOT EXISTS idx_repo_deps_source ON repo_dependencies(source_repo_hash);
+CREATE INDEX IF NOT EXISTS idx_repo_deps_target ON repo_dependencies(target_repo_hash);
+CREATE INDEX IF NOT EXISTS idx_repo_deps_type   ON repo_dependencies(dependency_type);
 
 CREATE INDEX IF NOT EXISTS idx_requirements_hash        ON requirements(hash);
 CREATE INDEX IF NOT EXISTS idx_requirements_parent      ON requirements(parent_id);

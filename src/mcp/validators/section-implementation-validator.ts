@@ -57,8 +57,10 @@ const STALE_MARKER_RE = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING\s+SOON)\b/gi
 /** HTML comment blocks — includes content that could bleed into artifacts */
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g
 
-/** Markers that identify a line as pure markdown structure (not content) */
-const MARKDOWN_STRUCTURE_RE = /^(?:#{1,6}\s|[-*]{3,}$|\|[-| :]+\||\s*$)/
+/** Markers that identify a line as pure markdown structure (not content).
+ *  Matches: headings, horizontal rules, table separator rows, all table rows
+ *  (any line starting with `|`), and blank lines. */
+const MARKDOWN_STRUCTURE_RE = /^(?:#{1,6}\s|[-*]{3,}$|\||\s*$)/
 
 // ---------------------------------------------------------------------------
 // Types
