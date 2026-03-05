@@ -41,7 +41,7 @@ export interface StateFile {
     sequence: number
     name: string
     hash: string
-    status: 'pending' | 'in_progress' | 'completed' | 'rejected'
+    status: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
     type: string
     createdAt: string
     completedAt: string | null

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+﻿import { z } from 'zod'
 import {
   ReqListOutputSchema,
   ReqShowOutputSchema,
@@ -59,7 +59,7 @@ export const ResetGateOutputSchema = z.object({
 export type ResetGateOutput = z.infer<typeof ResetGateOutputSchema>
 
 /**
- * Flat, self-documenting input schema for the req_action tool.
+ * Flat, self-documenting input schema for the reg_action tool.
  *
  * action required for all calls:
  *   list     — list requirements; optional: gateId, type, skip, take

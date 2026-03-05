@@ -1,6 +1,5 @@
 import {
   AnalyzeInputSchema,
-  ShowEntityInputSchema,
 } from '../schemas/analysis-schemas.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -18,11 +17,6 @@ export const analysisToolDefinitions = [
       'Analyze codebase or path for metrics. Provide `groupBy` (repository|language|type) to get project-wide grouped metrics instead of a per-path analysis.',
     inputSchema: AnalyzeInputSchema,
   },
-  {
-    name: 'show_entity',
-    description: 'Show entity analysis by hash',
-    inputSchema: ShowEntityInputSchema,
-  },
 ]
 
 import { AnalysisResultSchema, ProjectMetricsSchema } from '../schemas/analysis-schemas.js'
@@ -38,9 +32,6 @@ export function analysisHandlers(
   ])
   const analyzeHandler = _registry
     ? createSchemaValidatingHandler(_registry, 'analyze', analyzeOutputSchema)
-    : undefined
-  const showHandler = _registry
-    ? createSchemaValidatingHandler(_registry, 'show_entity', AnalysisResultSchema)
     : undefined
   const metricsHandler = _registry
     ? createSchemaValidatingHandler(_registry, 'metrics', ProjectMetricsSchema)
@@ -66,14 +57,7 @@ export function analysisHandlers(
       return await analyzeHandler(args)
     },
 
-    async show_entity(args: Record<string, unknown>): Promise<CallToolResult> {
-      const mock = handleMockResult(args, AnalysisResultSchema)
-      if (mock) return mock
-
-      if (!showHandler) return createNotImplementedHandler('Show entity not implemented yet.')
-      return await showHandler(args)
-    },
-
     // metrics removed as standalone tool — use analyze({ groupBy: '...' }) instead
+    // show_entity removed — use context_action with requirement/repository/gate/proposal action instead
   }
 }

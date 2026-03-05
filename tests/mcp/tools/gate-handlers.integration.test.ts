@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { gateHandlers } from '../../../src/mcp/tools/gate-tools.js'
 import { GatesListOutputSchema, GateDetailSchema } from '../../../src/mcp/schemas/gate-schemas.js'
 
@@ -144,8 +144,8 @@ describe('Gate Handlers Integration', () => {
         if (name === 'gates_show') return { success: true, data: { id: 'gate-01', status: 'in_progress', qualityMetrics: { testCoverage: 95, lintErrors: 0, securityIssues: 0 } } }
         if (name === 'gates_list') return { success: true, data: [] }
         if (name === 'proposal_list') return { success: true, data: { proposals: [] } }
-        // requirements coverage: req_action:list returns at least one requirement so the check passes
-        if (name === 'req_action') return { success: true, data: { requirements: [{ id: 'req-01', title: 'Test requirement' }], total: 1, linkedCount: 0 } }
+        // requirements coverage: reg_action:list returns at least one requirement so the check passes
+        if (name === 'reg_action') return { success: true, data: { requirements: [{ id: 'req-01', title: 'Test requirement' }], total: 1, linkedCount: 0 } }
         return { success: true, data: {} }
       }),
     }

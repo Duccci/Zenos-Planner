@@ -34,8 +34,8 @@ describe('Domain Registries', () => {
     const registry = new FunctionRegistry()
     registerRequirementsOps(registry)
 
-    expect(registry.get('req_action')).toBeDefined()
-    const schema = (registry.get('req_action') as any).schema
+    expect(registry.get('reg_action')).toBeDefined()
+    const schema = (registry.get('reg_action') as any).schema
     expect(() => schema.parse({ action: 'show', payload: { hash: 'r1' } })).not.toThrow()
   })
 

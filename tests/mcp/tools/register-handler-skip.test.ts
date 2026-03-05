@@ -16,10 +16,10 @@ describe('MCP Tools Registration (handlers)', () => {
 
     const result = registerTools(fakeServer, registry)
 
-    // Ensure handler-based registration wins: only one registration call for template_action
-    const occurences = registeredCalls.filter(n => n === 'template_action').length
-    expect(occurences).toBe(1)
-    // And the result array should still contain the tool
-    expect(result).toContain('template_action')
+    // template_action was merged into diagram_action; it should no longer be registered
+    expect(registeredCalls.filter(n => n === 'template_action').length).toBe(0)
+    expect(result).not.toContain('template_action')
+    // diagram_action covers all diagram + template operations
+    expect(result).toContain('diagram_action')
   })
 })

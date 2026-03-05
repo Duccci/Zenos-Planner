@@ -53,7 +53,7 @@ vi.mock('../../src/core/metrics-capture.js', () => ({
 }));
 
 import { archiveGate, archiveBatch, archiveProposal } from '../../src/core/archive-logic.js';
-import { readFile, writeFile, mkdir, readdir, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { loadConfig, getZenoDir } from '../../src/utils/config.js';
 import { consolidateGateProposals } from '../../src/utils/gate-consolidation.js';
@@ -90,7 +90,6 @@ beforeEach(() => {
   vi.mocked(writeFile).mockResolvedValue(undefined);
   vi.mocked(mkdir).mockResolvedValue(undefined);
   vi.mocked(readdir).mockResolvedValue([]);
-  vi.mocked(unlink).mockResolvedValue(undefined);
   vi.mocked(existsSync).mockReturnValue(true);
   vi.mocked(readdirSync).mockReturnValue([]);
   vi.mocked(validateGateReady).mockResolvedValue({ filePath: '/project/zeno/gates/gate-01-test-gate.md' } as any);
@@ -383,7 +382,7 @@ describe('updateArchitectureOnGateCompletion', () => {
         throw new Error('write fail');
       }
     });
-    
+
     vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFile).mockImplementation(async () => '# Gate 01');
 
@@ -399,15 +398,19 @@ describe('updateArchitectureOnGateCompletion', () => {
       'hash123456789abc-old.md', // duplicate
       'hash123456789abc-backup.md', // duplicate
     ]);
-    vi.mocked(unlink).mockResolvedValue(undefined);
     vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFile).mockResolvedValue('# Gate 01');
+
+    // Mock fs.unlink via dynamic import (used in archiveProposal)
+    const fsImportSpy = vi.spyOn(await import('node:fs/promises'), 'unlink').mockResolvedValue(undefined as any);
 
     const result = await archiveProposal('hash123456789abc');
 
     // Should attempt to remove duplicates
-    expect(unlink).toHaveBeenCalled();
+    expect(fsImportSpy).toHaveBeenCalled();
     expect(result.success).toBe(true);
+
+    fsImportSpy.mockRestore();
   });
 
   it('handles unlink errors when removing duplicate files', async () => {
@@ -416,21 +419,24 @@ describe('updateArchitectureOnGateCompletion', () => {
       'hash123456789abc.md',
       'hash123456789abc-old.md', // duplicate
     ]);
-    // Mock unlink to fail on first call (removing duplicate)
-    vi.mocked(unlink).mockRejectedValue(new Error('Permission denied'));
     vi.mocked(existsSync).mockReturnValue(true);
     vi.mocked(readFile).mockResolvedValue('# Proposal Content');
+
+    // Mock unlink to fail via dynamic import
+    const fsImportSpy = vi.spyOn(await import('node:fs/promises'), 'unlink').mockRejectedValue(new Error('Permission denied'));
 
     const result = await archiveProposal('hash123456789abc');
 
     // Should still succeed even if duplicate removal fails
     expect(result.success).toBe(true);
+
+    fsImportSpy.mockRestore();
   });
 
   it('detects and replaces changelog section when present', async () => {
     // Uncovered branch: lines 108-111 - changelog section detection and replacement
     const gateContentWithChangelog = `# Gate 01
-    
+
 ## Changelog
 
 Old entry`;

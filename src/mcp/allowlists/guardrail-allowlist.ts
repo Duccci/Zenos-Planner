@@ -14,7 +14,7 @@
  * **Must have validator** = guardrails that constrain concrete system behavior:
  * - File scope constraints (only modify explicit Files Affected)
  * - Git operations (blocked during apply phase)
- * - State transitions (pending → in_progress → completed)
+ * - State transitions (pending → validated → in_progress → completed)
  * - Test modification limits (gate-tied vs solitary rules)
  *
  * Pattern matching is case-insensitive regex. If a guardrail statement in a skill file

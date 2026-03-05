@@ -7,10 +7,12 @@
 import type { Command } from 'commander'
 import { input, confirm, editor } from '@inquirer/prompts'
 import { logger } from '../../utils/logger.js'
+import { createProjectStructure } from '../../scaffold/index.js'
+import { RequirementGenerator } from '../../generation/requirement-generator.js'
+import { generateGates } from '../../core/gate-generator.js'
 import { directoryExists } from '../../utils/file.js'
-import { findProjectRoot, loadConfig } from '../../utils/config.js'
-import { getGlobalRegistry } from '../../integration/function-implementations.js'
-import { syncMemoryFromProjectOverview } from '../../utils/memory-sync.js'
+import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig } from '../../utils/config.js'
+import { initializeDatabase } from '../../storage/database.js'
 
 /**
  * Validate project name
@@ -36,6 +38,51 @@ function validateCodebasePath(path: string): boolean | string {
     return `Directory does not exist: ${path}`
   }
   return true
+}
+
+/**
+ * Run the initialization workflow
+ */
+async function runInitWorkflow(projectName: string, endState: string): Promise<void> {
+  const projectRoot = process.cwd()
+
+  logger.info('Initializing Zeno project...')
+  logger.info(`Project: ${projectName}`)
+  logger.info(`Root: ${projectRoot}`)
+
+  // 1. Create project structure
+  logger.info('Creating project structure...')
+  const createdPaths = await createProjectStructure(projectRoot)
+  logger.info(`Created ${createdPaths.length.toString()} directories/files`)
+
+  // 2. Update config with project name and end state
+  const config = getDefaultConfig(projectName, endState)
+  await saveConfig(config, projectRoot)
+
+  // 3. Initialize database
+  logger.info('Initializing database...')
+  await initializeDatabase(projectRoot)
+
+  // 4. Generate project requirements
+  logger.info('Generating project requirements...')
+  const reqGen = new RequirementGenerator()
+  const requirements = reqGen.generateFromEndState(endState)
+  logger.info(`Generated ${requirements.length.toString()} project requirements`)
+
+  // 5. Generate gates
+  logger.info('Generating project gates...')
+  const gatesResult = generateGates(endState, undefined, requirements)
+  logger.info(
+    `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
+  )
+
+  logger.info('Project initialized successfully!')
+  logger.info('')
+  logger.info('Next steps:')
+  logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
+  logger.info('  2. Check zeno/architecture/ for system diagrams')
+  logger.info('  3. Run "zeno gates list" to see your roadmap')
+  logger.info('  4. Start with "zeno gates start gate-01"')
 }
 
 /**
@@ -122,41 +169,7 @@ export function registerInitCommand(program: Command): void {
           return
         }
 
-        // Invoke the project_init function via registry
-        const registry = getGlobalRegistry()
-        const result = await registry.invoke('project_init', { projectName, endState })
-
-        if (result.success) {
-          const data = result.data as {
-            message?: string
-            gatesGenerated: number
-            requirementsGenerated: number
-          }
-          logger.info('Project initialized successfully!')
-          logger.info('')
-          logger.info('Next steps:')
-          logger.info('  1. Review zeno/overview/PROJECT_PRD.md for project overview')
-          logger.info('  2. Check zeno/architecture/ for system diagrams')
-          logger.info('  3. Run "zeno gates list" to see your roadmap')
-          logger.info('  4. Start with "zeno gates start gate-01"')
-          logger.info(`Generated ${String(data.gatesGenerated)} gates and ${String(data.requirementsGenerated)} requirements`)
-
-          // Seed .serena/memories/project_overview.md with initial gate roadmap
-          try {
-            await syncMemoryFromProjectOverview(projectRoot)
-          } catch {
-            // Non-fatal — memory file may not exist in all environments
-          }
-        } else {
-          const error = result.error as { code: string; message: string }
-          if (error.code === 'PROJECT_EXISTS') {
-            logger.info(error.message)
-            logger.info('Use --force to reinitialize anyway.')
-          } else {
-            logger.error(`Initialization failed: ${error.message}`)
-            process.exit(1)
-          }
-        }
+        await runInitWorkflow(projectName, endState)
       } catch (error) {
         if (error instanceof Error && error.name === 'ExitPromptError') {
           logger.info('Initialization cancelled')
@@ -169,4 +182,3 @@ export function registerInitCommand(program: Command): void {
       }
     })
 }
-

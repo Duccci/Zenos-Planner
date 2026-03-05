@@ -1,9 +1,8 @@
 /**
  * Context Diagram Generator
  *
- * Generates a context diagram showing the system boundary and external dependencies.
- * ASPIRATIONAL: Shows desired system boundary based on PRD vision and target interactions.
- * Identifies external actors (users, LLMs, Git, etc.) and their relationships to Zeno.
+ * Generates a context diagram showing the system boundary and external dependencies,
+ * identifying external actors and systems that interact with the core system.
  */
 
 import type { DiagramContext } from '../diagram-generator-base.js'
@@ -22,108 +21,87 @@ export class ContextDiagramGenerator extends DiagramGeneratorBase {
   }
 
   /**
-   * Generate a context diagram showing system boundary and external dependencies.
-   * Based on PRD vision of how Zeno interacts with external systems.
+   * Generate a context diagram showing the system boundary and external dependencies.
+   * Reads existing context-diagram.md if available and extracts mermaid content;
+   * otherwise generates an aspirational context diagram.
    */
-  generateContent(context: DiagramContext): string {
-    // Try to find documented context diagram
+  generateContent(_context: DiagramContext): string {
+    // Try to read existing context diagram file
+    const templatePath = join(
+      process.cwd(),
+      'templates/architecture-templates/context-diagram-template.md'
+    )
     try {
-      const contextPath = join(process.cwd(), 'zeno', 'architecture', 'context-diagram.md')
-      const contextContent = readFileSync(contextPath, 'utf-8')
-      const diagram = this.extractMermaidFromMarkdown(contextContent)
-      if (diagram) {
-        return diagram
-      }
+      const raw = readFileSync(templatePath, 'utf-8')
+      const extracted = this.extractMermaidFromMarkdown(raw)
+      if (extracted) return extracted
     } catch {
-      // File not found; proceed to generation
+      // File not found or unreadable; fall through to aspirational diagram
     }
 
-    // Generate aspirational context diagram based on PRD
-    return this.generateAspirationaContextDiagram(context)
-  }
-
-  /**
-   * Extract Mermaid diagram from markdown documentation.
-   */
-  private extractMermaidFromMarkdown(markdown: string): string | null {
-    const match = /```mermaid\n([\s\S]*?)\n```/.exec(markdown)
-    return match?.[1] ?? null
-  }
-
-  /**
-   * Generate aspirational context diagram based on PRD vision.
-   * Shows Zeno's system boundary and interactions with external actors and systems.
-   */
-  private generateAspirationaContextDiagram(_context: DiagramContext): string {
+    // Generate aspirational Mermaid context diagram with subgraph boundary
     const diagram = `graph TB
-    subgraph "External Actors & Systems"
-        HumanUser["Human Developer<br/>(via Cursor IDE)"]
-        LLMEngine["🤖 LLM Engine<br/>(Claude/GPT/Local)"]
-        GitSystem["📦 Git & GitHub<br/>Version Control"]
-        FileSystem["📁 File System<br/>Project Source"]
+    subgraph External Actors
+      User["👤 User/Client"]
+      LLM["🤖 LLM Provider"]
+      Git["📦 Git Repository"]
     end
-    
-    subgraph "Zeno's Planner System"
-        direction TB
-        CLI["CLI Interface<br/>zeno command"]
-        MCP["MCP Server<br/>LLM Tool Interface"]
-        Core["Core Engine<br/>Gate Generation & Decomposition"]
-        DB[("SQLite Database<br/>Requirements/Repos/Proposals")]
+
+    subgraph Zeno System
+      Core["⚙️ Core Engine"]
+      CLI["📝 CLI Interface"]
+      MCP["🔌 MCP Server"]
     end
-    
-    subgraph "Project Artifacts"
-        PRD["PROJECT_PRD.md<br/>Vision & Decisions"]
-        GatesByPRD["Gate Definitions<br/>Objectives & Reqs"]
-        Architecture["Architecture Diagrams<br/>Aspirational Design"]
+
+    subgraph Storage
+      SQLite[("💾 SQLite DB")]
+      FS["📁 File System"]
+      Cache["🗄️ Cache Layer"]
     end
-    
-    %% External -> Zeno
-    HumanUser -->|interactive CLI commands| CLI
-    HumanUser -->|reviews diagrams & PRD| PRD
-    LLMEngine -->|MCP tool calls| MCP
-    GitSystem -->|source code & history| Core
-    FileSystem -->|project metadata| Core
-    
-    %% Zeno internal flow
-    CLI -->|generates/manages| Core
-    MCP -->|serves tools to| LLMEngine
-    Core -->|reads/writes| DB
-    Core -->|generates| GatesByPRD
-    Core -->|generates| Architecture
-    
-    %% Zeno -> External
-    Core -->|commits/tags| GitSystem
-    Core -->|creates/updates| PRD
-    Core -->|writes| FileSystem
-    
-    %% Feedback loops
-    LLMEngine -->|uses context from| Architecture
-    LLMEngine -->|uses requirements from| DB
-    HumanUser -->|approves proposals| Core
-    
-    classDef external fill:#FF6B6B,stroke:#CC5555,stroke-width:2px,color:#fff
-    classDef zenoBoundary fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff
-    classDef artifacts fill:#50E3C2,stroke:#2FA284,stroke-width:2px,color:#fff
-    classDef actor fill:#F5A623,stroke:#D68910,stroke-width:2px,color:#fff
-    
-    class HumanUser,LLMEngine,GitSystem,FileSystem external
-    class CLI,MCP,Core,DB zenoBoundary
-    class PRD,GatesByPRD,Architecture artifacts`
+
+    User -->|Commands/Input| CLI
+    User -->|MCP Calls| MCP
+    CLI -->|Delegates| Core
+    MCP -->|Invokes| Core
+
+    LLM -->|Prompts/Templates| MCP
+    Core -->|API Calls| LLM
+
+    Git -->|Source History| Core
+    Core -->|Commits/Tags| Git
+
+    Core -->|Read/Write| SQLite
+    Core -->|Read/Write| FS
+    Core -->|Cache Ops| Cache
+
+    classDef systemBoundary fill:#4A90E2,stroke:#2E5C8A,stroke-width:3px,color:#fff,font-weight:bold
+    classDef actor fill:#7B68EE,stroke:#5A4AB8,stroke-width:2px,color:#fff
+    classDef storage fill:#FFA500,stroke:#CC8400,stroke-width:2px,color:#fff
+
+    class Core,CLI,MCP systemBoundary
+    class User,LLM,Git actor
+    class SQLite,FS,Cache storage`
 
     return diagram
   }
 
   /**
-   * Count context diagram nodes for complexity analysis.
+   * Extract mermaid content from a markdown string.
    */
-  protected override countNodes(_context: DiagramContext): number {
-    // Context diagram shows 8-10 external/internal entities
-    return 10
+  private extractMermaidFromMarkdown(markdown: string): string | null {
+    const match = /```mermaid\n([\s\S]*?)```/.exec(markdown)
+    return match?.[1] != null ? match[1].trimEnd() : null
   }
 
-  protected override countEdges(_context: DiagramContext): number {
-    // Approximately 12-15 interactions
-    return 13
+  /**
+   * Count context diagram components.
+   */
+  protected override countNodes(_context: DiagramContext): number {
+    return 10 // User, LLM, Git, Core, CLI, MCP, SQLite, FS, Cache + boundary
+  }
+
+  protected override countEdges(): number {
+    return 13 // All directed edges between system components and external actors
   }
 }
 

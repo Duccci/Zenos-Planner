@@ -60,8 +60,7 @@ describe('Greenfield Project Integration', () => {
     // 2. Verify zeno/ directory created
     // 3. Verify PROJECT_PRD.md created
     // 4. Verify gates generated
-    // 5. Verify zeno/README.md created
-    // 6. Verify database initialized
+    // 5. Verify database initialized
 
     // Placeholder assertion
     expect(true).toBe(true)

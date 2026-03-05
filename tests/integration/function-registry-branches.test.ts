@@ -217,7 +217,7 @@ describe('FunctionRegistry - branch coverage', () => {
       returnType: 'null',
       schema: z.object({}),
     })
-    registry.register('req_action', () => null, {
+    registry.register('reg_action', () => null, {
       description: 'req action',
       parameters: [],
       returnType: 'null',
@@ -226,7 +226,7 @@ describe('FunctionRegistry - branch coverage', () => {
     const gatesFns = registry.getByCategory('gates')
     expect(gatesFns.map((f) => f.name)).toContain('gates_list')
     expect(gatesFns.map((f) => f.name)).toContain('gates_show')
-    expect(gatesFns.map((f) => f.name)).not.toContain('req_action')
+    expect(gatesFns.map((f) => f.name)).not.toContain('reg_action')
   })
 
   it('getByCategory returns empty array for unknown category', () => {

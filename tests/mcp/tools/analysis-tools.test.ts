@@ -17,12 +17,12 @@ describe('MCP Analysis tools (integration)', () => {
     }
   })
 
-  it('show_entity missing param returns validation error', async () => {
+  it('context_action:requirement missing hash returns validation error', async () => {
     const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
     const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
     const registry = createFunctionRegistry()
-    const handler = createToolHandler(registry, 'show_entity')
-    const result = await handler({})
+    const handler = createToolHandler(registry, 'context_action')
+    const result = await handler({ action: 'requirement' })
     expect(result).toBeDefined()
     expect(result.isError).toBe(true)
   })

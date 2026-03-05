@@ -1,4 +1,4 @@
-import { z } from 'zod'
+﻿import { z } from 'zod'
 import {
   RequirementHashSchema,
   RequirementTypeEnum,
@@ -122,7 +122,7 @@ export const DependencyGraphSchema = z.object({
 export type DependencyGraph = z.infer<typeof DependencyGraphSchema>
 
 // ============================================================================
-// REQ_SHOW output — wrapped envelope returned by req_action show
+// REQ_SHOW output — wrapped envelope returned by reg_action show
 // Uses permissive string types for DB-sourced IDs to avoid strict regex failures
 // on real data. Only INPUT schemas need strict validation.
 // ============================================================================
@@ -157,7 +157,7 @@ export const ReqShowOutputSchema = z.object({
 })
 export type ReqShowOutput = z.infer<typeof ReqShowOutputSchema>
 
-// REQ_DEPS output — wrapped envelope returned by req_action deps
+// REQ_DEPS output — wrapped envelope returned by reg_action deps
 export const ReqDepsWrapperSchema = z.object({
   graph: z.object({
     root: z.string(),

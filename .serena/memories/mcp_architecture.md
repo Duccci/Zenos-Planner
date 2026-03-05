@@ -27,7 +27,7 @@ Core helpers for building handlers:
 
 `createEntityActionHandler(config: EntityActionConfig)` — generic handler factory that implements the
 `list | show | create | update | delete | start | complete` action pattern used by gates, requirements,
-proposals (gates_action, req_action, proposal_action tools). Central pattern — understand this before
+proposals (gates_action, reg_action, proposal_action tools). Central pattern — understand this before
 adding new entity-level MCP tools.
 
 ## Tool Files in `src/mcp/tools/`
@@ -35,7 +35,7 @@ adding new entity-level MCP tools.
 | File | MCP Tools Provided |
 |------|--------------------|
 | `gate-tools.ts` | gates_action |
-| `requirement-tools.ts` | req_action |
+| `requirement-tools.ts` | reg_action |
 | `proposal-tools.ts` | proposal_action |
 | `archive-tools.ts` | archive_action |
 | `config-tools.ts` | config_get, config_set |

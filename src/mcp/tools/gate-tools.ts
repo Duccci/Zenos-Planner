@@ -1,4 +1,4 @@
-import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
+﻿import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
 import { validateDependencies,
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
@@ -242,7 +242,7 @@ export function gateHandlers(
           // Gates without requirements provide no decomposition basis for proposals.
           // This is an error for in_progress gates, a warning for pending gates.
           try {
-            const reqResult = await r.invoke('req_action', { action: 'list', payload: { gateId } })
+            const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } })
             if (reqResult.success) {
               const reqData = reqResult.data as {
                 requirements?: unknown[]

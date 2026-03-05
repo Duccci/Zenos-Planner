@@ -156,7 +156,7 @@ zenos-planner/
 | File | Purpose |
 | ------ | --------- |
 | `zeno-engine.ts` | Top-level orchestrator coordinating all core workflows |
-| `transitions.ts` | Gate and proposal state machine (pending → in_progress → completed) |
+| `transitions.ts` | Gate and proposal state machine (pending → validated → in_progress → completed) |
 | `gate-generation.ts` | Gate decomposition and PRD generation logic |
 | `gate-generator.ts` | Gate content builder (objective, requirements decomposition) |
 | `gate-planner.ts` | Roadmap planning and gate sequencing strategy |

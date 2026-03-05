@@ -183,8 +183,8 @@ Merge Orchestration & Worktree Cleanup
 - `worktree_remove`: Manually delete worktree (MCP: `worktree_remove`)
 - `worktree_merge`: Merge branch with conflict handling (MCP: `worktree_merge`)
 
-**Alternative**: Single-agent execution only, local-only planning (no specialized planning agents), manual subagent creation, external orchestration tools  
-**Rationale**: Specialized agents reduce context size and improve quality at both planning and implementation levels. Planning phase specialization ensures architectural soundness, requirement decomposition accuracy, and optimal parallelization identification (agents selected dynamically from `agents/` submodule based on task requirements). Implementation specialization improves code quality through domain focus. Cursor workflows provide native integration for spawning agents. VS Code delegation preserves conversation history across hand-offs, enabling seamless context transfer. Git worktrees eliminate branch switching overhead, reduce merge conflicts, and enable true parallel work. Orchestrator coordinates merges, preventing serialization points.  
+**Alternative**: Single-agent execution only, local-only planning (no specialized planning agents), manual subagent creation, external orchestration tools
+**Rationale**: Specialized agents reduce context size and improve quality at both planning and implementation levels. Planning phase specialization ensures architectural soundness, requirement decomposition accuracy, and optimal parallelization identification (agents selected dynamically from `agents/` submodule based on task requirements). Implementation specialization improves code quality through domain focus. Cursor workflows provide native integration for spawning agents. VS Code delegation preserves conversation history across hand-offs, enabling seamless context transfer. Git worktrees eliminate branch switching overhead, reduce merge conflicts, and enable true parallel work. Orchestrator coordinates merges, preventing serialization points.
 **Trade-offs**: Gained 40-60% time reduction on gate completion through parallelization, improved architectural and code quality through dual-phase specialization, reduced context bloat, and better requirement accuracy; added complexity in planning phase coordination and multi-tier agent management. Mitigation: planning agents work synchronously and report to Local Agent (no async complexity), specialized agents selected dynamically from `agents/` submodule capabilities.
 
 ### 13. Git Worktrees for Isolated Parallel Agent Development
@@ -254,8 +254,8 @@ Merge Orchestration & Worktree Cleanup
 - Prevents serialization points: all independent proposals work in parallel
 - Improves code quality: each agent has full isolated build/test environment
 
-**Alternatives Considered**: Single shared worktree with branch switching, separate clones (disk intensive), monolithic agent execution (sequential only)  
-**Rationale**: Git worktrees provide isolated filesystem state while maintaining single `.git` database, enabling minimal disk overhead. Each proposal/gate gets dedicated worktree with its own branch. Orchestrator creates/manages worktrees and coordinates merge ordering to prevent conflicts. Auto-cleanup prevents orphaned worktrees.  
+**Alternatives Considered**: Single shared worktree with branch switching, separate clones (disk intensive), monolithic agent execution (sequential only)
+**Rationale**: Git worktrees provide isolated filesystem state while maintaining single `.git` database, enabling minimal disk overhead. Each proposal/gate gets dedicated worktree with its own branch. Orchestrator creates/manages worktrees and coordinates merge ordering to prevent conflicts. Auto-cleanup prevents orphaned worktrees.
 **Trade-offs**: Gained true parallelization and isolated development; added disk space overhead (partial clones per worktree), added complexity to orchestrator merge coordination, requires robust cleanup strategy. Mitigation: auto-cleanup on approval, periodic pruning, disk space monitoring, `zeno worktree` commands for manual management.
 
 ## Architecture Principles
@@ -285,11 +285,11 @@ Zeno is designed for AI agents to invoke all operations during workflow executio
 
 | Category     | Function                             | Status Transition        | When LLM Invokes             |
 | ------------ | ------------------------------------ | ------------------------ | ---------------------------- |
-| Gates        | `zeno gates start <id>`              | pending -> in_progress   | Starting work on a gate      |
+| Gates        | `zeno gates start <id>`              | validated -> in_progress | Starting work on a gate      |
 | Gates        | `zeno gates complete <id>`           | in_progress -> completed | All gate requirements tested |
 | Requirements | `zeno req status <hash> implemented` | pending -> implemented   | Code written for requirement |
 | Requirements | `zeno req status <hash> tested`      | implemented -> tested    | Tests pass for requirement   |
-| Proposals    | `zeno proposal start <hash>`         | pending -> in_progress   | Beginning implementation     |
+| Proposals    | `zeno proposal start <hash>`         | validated -> in_progress | Beginning implementation     |
 | Proposals    | `zeno proposal validate <hash>`      | (runs checks)            | Before requesting approval   |
 | Proposals    | `zeno proposal approve <hash>`       | in_progress -> completed | Human approved (LLM records) |
 | Proposals    | `zeno proposal reject <hash>`        | -> rejected              | Human rejected (LLM records) |
@@ -937,7 +937,7 @@ created_at: TIMESTAMP
 id: TEXT (UUID, primary key)
 title: TEXT (not null)
 summary: TEXT
-status: ENUM('pending', 'in_progress', 'completed', 'rejected')
+status: ENUM('pending', 'validated', 'in_progress', 'completed', 'rejected')
 hash: TEXT (unique, proposal content hash)
 gate_id: TEXT (nullable, gate this proposal belongs to)
 role: ENUM('test-suite', 'implementation', 'test-cleanup', 'solitary')
@@ -1109,6 +1109,6 @@ Output: {
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-01-04  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-01-04
 **Owner**: Zeno's Planner Development Team

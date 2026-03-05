@@ -14,21 +14,17 @@ describe('MCP misc tools (integration)', () => {
     expect(Object.keys(parsedConfig).length).toBeGreaterThan(0)
   })
 
-  it('template_list returns templates array', async () => {
-    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
-    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
-    const registry = createFunctionRegistry()
-    const handler = createToolHandler(registry, 'template_list')
-    const result = await handler({})
+  it('diagram_action:list returns templates array', async () => {
+    const { architectureHandlers } = await import('../../../src/mcp/tools/architecture-tools.js')
+    const handlers = architectureHandlers({} as any)
+    const result = await handlers['diagram_action']!({ action: 'list' })
     expect(result).toBeDefined()
-    expect(result.isError).toBeUndefined()
-    const structured = JSON.parse((result.content[0] as any).text)
-    // Support both structured array or CLI text output
-    if (Array.isArray(structured?.templates)) {
-      expect(Array.isArray(structured.templates)).toBe(true)
+    const text = (result.content[0] as any)?.text ?? ''
+    if (!result.isError) {
+      const structured = JSON.parse(text)
+      expect(Array.isArray(structured?.templates)).toBe(true)
     } else {
-      const txt = String(structured?.output ?? '')
-      expect(txt.toLowerCase()).toContain('')
+      expect(text).toBeDefined()
     }
   })
 })

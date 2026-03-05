@@ -20,7 +20,7 @@ export interface ProjectStatus {
 
 export interface GateSummary {
   id: string
-  status: 'pending' | 'in_progress' | 'completed'
+  status: 'pending' | 'validated' | 'in_progress' | 'completed'
   description: string
   requirements: number
   proposals: number

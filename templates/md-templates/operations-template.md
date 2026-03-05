@@ -1,7 +1,7 @@
 # Operations Runbook
 
-**Purpose**: Operational procedures for deployment, monitoring, recovery, and environment management  
-**Generated**: [DATE]  
+**Purpose**: Operational procedures for deployment, monitoring, recovery, and environment management
+**Generated**: [DATE]
 **Status**: [Draft/Approved/Implemented]
 
 ---
@@ -59,19 +59,25 @@
 ### Backup Strategy
 
 - **Frequency**: [Schedule]
+
 - **Retention**: [Duration]
+
 - **Location**: [Where backups are stored]
+
 - **Validation**: [How backups are tested]
 
 ### Recovery Objectives
 
 - **RTO**: [Recovery Time Objective]
+
 - **RPO**: [Recovery Point Objective]
 
 ### Failover Procedures
 
 1. [Detection and notification]
+
 2. [Switchover steps]
+
 3. [Validation and communication]
 
 ---
@@ -92,19 +98,25 @@
 ### Network Security
 
 - **Firewall**: [Rules and policies]
+
 - **DDoS Protection**: [Mitigation strategy]
+
 - **VPN**: [Admin access configuration]
 
 ### Data Security
 
 - **Encryption at Rest**: [Implementation]
+
 - **Encryption in Transit**: [TLS configuration]
+
 - **Key Management**: [KMS/Secrets manager]
 
 ### Access Control
 
 - **IAM**: [Role-based access]
+
 - **Secrets**: [Credential management]
+
 - **Audit Logging**: [Access tracking]
 
 ---
@@ -118,10 +130,10 @@
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
+**Document Version**: [MAJOR.MINOR.PATCH]
+**Last Updated**: [YYYY-MM-DD]
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: [git.user.name]
 **Reviewers**: [git.user.name]
 
 ### Change Log

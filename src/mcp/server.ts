@@ -1,4 +1,4 @@
-/**
+﻿/**
  * MCP Server Implementation
  *
  * Implements the Model Context Protocol server using @modelcontextprotocol/sdk
@@ -26,7 +26,7 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
 ## Database Access via MCP Tools
 
 **All database queries must use MCP tools, not custom scripts:**
-- Use \`req_action\` tool to query requirements (list, show, deps, transfer, search)
+- Use \`reg_action\` tool to query requirements (list, show, deps, transfer)
 - Use \`gates_action\` tool to manage gates (list, show, create, start, complete)
 - Use \`proposal_action\` tool to work with proposals
 
@@ -35,7 +35,7 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
 ## Workflow
 
 1. Use gates_action to view/create gates and understand roadmap
-2. Use req_action to list and understand requirements
+2. Use reg_action to list and understand requirements
 3. Use proposal_action to create and manage proposals
 4. Use config_get to access configuration and quality thresholds
 
@@ -54,6 +54,9 @@ Always specify the project path when working with project-specific tools. Follow
   // Register resources for project artifacts
   const { registerResources } = await import('./resources/index.js')
   const resourceResult = await registerResources(server, workspacePath, { watch: true })
+  const resourceCountNumber =
+    typeof resourceResult === 'number' ? resourceResult : resourceResult.count
+  logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)
 
   // Store resource watcher for cleanup on server shutdown
   let resourceWatcher: { close: () => void } | undefined
@@ -78,16 +81,6 @@ export async function main(): Promise<void> {
 
     logger.info('Starting Zeno MCP server...')
     logger.info(`Workspace: ${workspacePath}`)
-
-    // Ensure DB is initialised and proposal files are synced before handling any
-    // MCP tool requests. This is the MCP entry point which previously skipped
-    // initializeDatabase, leaving existing proposals invisible until a write ran.
-    try {
-      const { initializeDatabase } = await import('../storage/database.js')
-      await initializeDatabase(workspacePath, { syncProposals: true, syncRequirements: true })
-    } catch (err) {
-      logger.warn('Database initialization warning (non-fatal):', err)
-    }
 
     const server = await createMcpServer(workspacePath)
     const transport = new StdioServerTransport()

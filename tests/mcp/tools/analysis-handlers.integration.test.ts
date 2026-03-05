@@ -50,9 +50,9 @@ describe('Analysis Handlers (integration)', () => {
     expect(ok.success).toBe(true)
   })
 
-  it('show_entity returns parsed entity when possible', async () => {
+  it('analyze (no groupBy) returns structured result', async () => {
     const handlers = analysisHandlers()
-    const res = await handlers.show_entity({ mockResult: JSON.stringify({ path: 'src/x.ts' }) })
+    const res = await handlers.analyze({ mockResult: JSON.stringify({ path: 'src/x.ts' }) })
     expect(res.content[0]?.text).toBeDefined()
   })
 })

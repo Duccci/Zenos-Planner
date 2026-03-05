@@ -1367,12 +1367,12 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-## req_action – Requirements Database Query
+## reg_action – Requirements Database Query
 
-**Tool Name:** `req_action`
+**Tool Name:** `reg_action`
 **Purpose:** Query and manage the requirements database (single source of truth for what must be built).
 
-### req_action: list
+### reg_action: list
 
 **Description:** Retrieve all requirements, optionally filtered by gate, type, or priority.
 
@@ -1440,7 +1440,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-#### req_action: show
+#### reg_action: show
 
 **Description:** Get detailed requirement information by hash.
 
@@ -1481,7 +1481,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-#### req_action: deps
+#### reg_action: deps
 
 **Description:** View requirement dependency graph.
 
@@ -1541,7 +1541,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-#### req_action: transfer
+#### reg_action: transfer
 
 **Description:** Move a requirement from one gate to another.
 
@@ -2174,9 +2174,9 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 State transitions are enforced at the MCP handler level. See [zeno/architecture/mcp-workflows.md](../zeno/architecture/mcp-workflows.md) for detailed state machine diagrams and lifecycle documentation.
 
-**Gate States:** `pending` → `in_progress` → `completed | rejected | cancelled` (or from `rejected/cancelled` back to `in_progress`)
+**Gate States:** `pending` → `validated` → `in_progress` → `completed | rejected | cancelled` (or from `rejected` back to `in_progress`)
 
-**Proposal States:** `pending` → `in_progress` → `completed | rejected | archived`
+**Proposal States:** `pending` → `validated` → `in_progress` → `completed | rejected | archived`
 
 See the architecture document for preconditions and postconditions on each transition.
 

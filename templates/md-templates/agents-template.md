@@ -1,4 +1,4 @@
-﻿# [Project Name]: AI Agent Context Guide
+# [Project Name]: AI Agent Context Guide
 
 > **Project-specific instructions**: Replace this line with team conventions, architecture notes, or coding standards. Everything inside the Zeno block below is managed automatically — do not edit it manually.
 
@@ -16,11 +16,11 @@
 | Current gate status | `gates_action:list` |
 | Gate details & objectives | `context_action:gate { gateId }` |
 | Proposal working context | `context_action:proposal { hash }` |
-| Requirements for gate | `req_action:list { gateId }` |
-| Specific requirement | `req_action:show { hash }` |
+| Requirements for gate | `reg_action:list { gateId }` |
+| Specific requirement | `reg_action:show { hash }` |
 | Proposal details | `proposal_action:show { hash }` |
 | Quality thresholds | `config_get` |
-| Hash lookup | `show_entity { hash }` |
+| Hash lookup | `context_action { hash, action: 'requirement'\|'repository'\|'gate'\|'proposal' }` |
 | Project config | `config_get` |
 
 ### Context Phase Rules
@@ -43,15 +43,15 @@
 
 | MCP Tool | Actions | Purpose |
 | -------- | ------- | ------- |
-| `context_action` | `gate`, `proposal` | Get working context (objectives, tasks, requirements, files) |
+| `context_action` | `gate`, `proposal`, `requirement`, `repository` | Get working context or resolve any entity by hash/name |
 | `gates_action` | `list`, `show`, `create`, `generate`, `start`, `complete`, `regenerate` | Gate lifecycle |
 | `proposal_action` | `list`, `show`, `create`, `generate`, `validate`, `approve`, `reject`, `start`, `progress` | Proposal lifecycle |
-| `req_action` | `list`, `show`, `deps`, `transfer`, `search` | Requirements queries |
+| `reg_action` | `list`, `show`, `deps`, `transfer`, `search` | Requirements queries |
 | `archive_action` | `gate`, `batch` | Finalize completed work |
 | `diagram_action` | `show`, `generate` | Architecture diagrams (on-demand) |
 | `repos_action` | `list`, `detect`, `deps`, `adjust` | Repository management |
 | `config_get` | — | Quality thresholds and configuration |
-| `show_entity` | — | Resolve hash to entity |
+| `show_entity` removed | — | Replaced by `context_action` — use `requirement` or `repository` action |
 
 ### Reading Artifacts
 

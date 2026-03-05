@@ -13,7 +13,7 @@ export interface GateMetadata {
   hash: string;
   name: string;
   sequence: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'rejected';
+  status: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected';
   type: 'feature' | 'quality' | 'rescope';
 }
 

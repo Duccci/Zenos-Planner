@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Zeno Function Signature Registry
  *
  * Registry of all Zeno functions that LLMs can invoke.
@@ -202,7 +202,7 @@ export class FunctionRegistry {
   getByCategory(category: string): RegisteredFunction[] {
     const categoryPrefixes: Record<string, string[]> = {
       gates: ['gates_'],
-      requirements: ['req_'],
+      requirements: ['reg_'],
       proposals: ['proposal_'],
       architecture: ['arch_'],
       templates: ['getTemplate', 'loadAllTemplates', 'getTemplatesByCategory'],
@@ -282,7 +282,7 @@ export const functionRegistry: FunctionDefinition[] = [
     examples: ['gates_complete("gate-01") - Complete gate 1'],
   },
   {
-    name: 'req_action',
+    name: 'reg_action',
     description: 'Unified requirement actions: list | show | deps | transfer',
     parameters: [
       {
@@ -295,10 +295,9 @@ export const functionRegistry: FunctionDefinition[] = [
     ],
     returnType: 'any',
     examples: [
-      'req_action({ action: "list", payload: { gateId: "gate-02" } }) - List requirements',
-      'req_action({ action: "show", payload: { hash: "#a3f9c2d1" } }) - Show requirement details',
-      'req_action({ action: "transfer", payload: { hash: "#a3f9c2d1", gateId: "gate-04" } }) - Transfer requirement',
-      'req_action({ action: "search", payload: { query: "authentication", gateId: "gate-02" } }) - Search requirements',
+      'reg_action({ action: "list", payload: { gateId: "gate-02" } }) - List requirements',
+      'reg_action({ action: "show", payload: { hash: "#a3f9c2d1" } }) - Show requirement details',
+      'reg_action({ action: "transfer", payload: { hash: "#a3f9c2d1", gateId: "gate-04" } }) - Transfer requirement',
     ],
   },
   {
@@ -381,7 +380,7 @@ export const functionRegistry: FunctionDefinition[] = [
       {
         name: 'status',
         type: 'string',
-        description: 'Optional status filter: pending, in_progress, completed, rejected, cancelled, backlog',
+        description: 'Optional status filter: pending, in_progress, completed, rejected',
         required: false,
       },
     ],
@@ -482,39 +481,6 @@ export const functionRegistry: FunctionDefinition[] = [
     ],
     returnType: 'Diagram',
     examples: ['arch_show("system") - Show system overview diagram'],
-  },
-  {
-    name: 'arch_catalogue',
-    description: 'Get the complete catalogue of available architecture diagram types',
-    parameters: [],
-    returnType: 'DiagramCatalogue[]',
-    examples: ['arch_catalogue() - Get all diagram types with metadata'],
-  },
-  {
-    name: 'arch_select',
-    description: 'Record selected diagram types for a specific gate',
-    parameters: [
-      {
-        name: 'gateHash',
-        type: 'string',
-        description: 'The hash of the gate to select diagrams for',
-        required: true,
-      },
-      {
-        name: 'diagramTypes',
-        type: 'string[]',
-        description: 'Array of diagram type names to select',
-        required: true,
-      },
-      {
-        name: 'descriptors',
-        type: 'object',
-        description: 'Optional custom descriptions for selected diagrams',
-        required: false,
-      },
-    ],
-    returnType: 'void',
-    examples: ['arch_select("#gate-02", ["sequence", "deployment"]) - Select conditional diagrams for a gate'],
   },
   {
     name: 'show',

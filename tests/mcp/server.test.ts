@@ -74,9 +74,9 @@ describe('MCP Server', () => {
         m.replace('Registered MCP tool: ', '').replace('Registered MCP handler tool: ', '')
       )
 
-      expect(toolNames.length).toBeGreaterThanOrEqual(12)
+      expect(toolNames.length).toBeGreaterThanOrEqual(11)
       expect(toolNames).toContain('gates_action')
-      expect(toolNames).toContain('req_action')
+      expect(toolNames).toContain('reg_action')
       expect(toolNames).toContain('proposal_action')
     })
 

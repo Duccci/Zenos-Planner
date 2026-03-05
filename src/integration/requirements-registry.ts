@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Requirement Operations Registry
  *
  * Registers all requirement-related operations with the function registry.
@@ -400,7 +400,7 @@ function collectDiskHashes(proposalsDir: string): Set<string> {
 export function registerRequirementsOps(registry: FunctionRegistry): void {
   // Unified requirement action handler: list | show | deps | transfer
   registry.register(
-    'req_action',
+    'reg_action',
     (params) => {
       const validated = z.object({ action: z.string(), payload: z.any().optional() }).parse(params)
       const storage = new RequirementStorage()
@@ -673,7 +673,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             byStatus,
             message:
               orphaned.length > 0
-                ? `${String(orphaned.length)} orphaned DB row(s) found. Run req_action { action: "purge_orphans" } to clean up.`
+                ? `${String(orphaned.length)} orphaned DB row(s) found. Run reg_action { action: "purge_orphans" } to clean up.`
                 : 'Database proposals table is consistent with disk.',
           }
         }
@@ -804,7 +804,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
         }
 
         default:
-          throw new Error(`Unknown req_action: ${validated.action}`)
+          throw new Error(`Unknown reg_action: ${validated.action}`)
       }
     },
     {

@@ -7,7 +7,7 @@ export interface Proposal {
   hash: string
   title: string
   type: 'gate-specific' | 'solitary'
-  status?: 'pending' | 'in_progress' | 'completed' | 'rejected'
+  status?: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
   gateId?: string
   createdAt?: string
 }
@@ -23,17 +23,17 @@ export async function discoverProposals(projectRoot: string): Promise<Proposal[]
       const parts = rel.split(path.sep)
       const type = parts.includes('solitary') ? 'solitary' : 'gate-specific'
       const content = await fs.readFile(full, 'utf-8')
-      
+
       // Extract metadata from proposal frontmatter
       const metadata = parseProposalMetadata(content)
-      
+
       // Get title from metadata or file
       const title = metadata.title ?? path.basename(full, '.md')
-      
+
       const gateId = parts.find((p) => /^gate-\d{2}/.test(p))
       const statusValue = metadata.status
-      const status = statusValue && ['pending', 'in_progress', 'completed', 'rejected'].includes(statusValue)
-        ? (statusValue as 'pending' | 'in_progress' | 'completed' | 'rejected')
+      const status = statusValue && ['pending', 'validated', 'in_progress', 'completed', 'rejected'].includes(statusValue)
+        ? (statusValue as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected')
         : 'pending'
       proposals.push({
         hash: metadata.hash ?? path.basename(full, '.md'),

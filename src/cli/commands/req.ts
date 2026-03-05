@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Requirements Command Category
  *
  * Commands for querying and managing requirements.
@@ -32,7 +32,7 @@ export function registerReqCommands(program: Command): void {
         if (options.gate) {
           params.gateId = options.gate
         }
-        const result = await registry.invoke('req_action', { action: 'list', payload: params })
+        const result = await registry.invoke('reg_action', { action: 'list', payload: params })
         if (result.success) {
           const data = result.data as { requirements?: RequirementSummary[] }
           const requirements = data.requirements ?? []
@@ -54,7 +54,7 @@ export function registerReqCommands(program: Command): void {
     .action(async (hash: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_action', { action: 'show', payload: { hash } })
+        const result = await registry.invoke('reg_action', { action: 'show', payload: { hash } })
         if (result.success) {
           const data = result.data as {
             requirement?: {
@@ -95,7 +95,7 @@ export function registerReqCommands(program: Command): void {
     .action(async (hash: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_action', { action: 'deps', payload: { hash } })
+        const result = await registry.invoke('reg_action', { action: 'deps', payload: { hash } })
         if (result.success) {
           const graph = (result.data as { graph?: unknown }).graph
           if (graph) {
@@ -119,7 +119,7 @@ export function registerReqCommands(program: Command): void {
     .action(async (hash: string, gateId: string) => {
       try {
         const registry = getGlobalRegistry()
-        const result = await registry.invoke('req_action', {
+        const result = await registry.invoke('reg_action', {
           action: 'transfer',
           payload: { hash, gateId },
         })
@@ -145,7 +145,7 @@ export function registerReqCommands(program: Command): void {
       ) => {
         try {
           const registry = getGlobalRegistry()
-          const result = await registry.invoke('req_action', {
+          const result = await registry.invoke('reg_action', {
             action: 'search',
             payload: {
               query,

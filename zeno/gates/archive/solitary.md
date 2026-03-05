@@ -54,7 +54,7 @@ Exposed `project_action: init` and `project_action: status` as unified MCP tools
 
 **Completed**: 2026-02-22
 
-Consolidated and replaced `docs/MCP-TOOLS-REVIEW.md` with a single authoritative `docs/MCP-TOOLS.md` covering every MCP tool action: input schema, validators executed, preconditions, output schema, error codes, and example request/response for all six tools (gates_action, proposal_action, req_action, repos_action, archive_action, config_get) and 27 actions. Added CI verification script that prevents new tool actions from shipping without documentation. 100% documentation coverage achieved, 19 tests passing, all quality thresholds met.
+Consolidated and replaced `docs/MCP-TOOLS-REVIEW.md` with a single authoritative `docs/MCP-TOOLS.md` covering every MCP tool action: input schema, validators executed, preconditions, output schema, error codes, and example request/response for all six tools (gates_action, proposal_action, reg_action, repos_action, archive_action, config_get) and 27 actions. Added CI verification script that prevents new tool actions from shipping without documentation. 100% documentation coverage achieved, 19 tests passing, all quality thresholds met.
 
 ### Guardrail CI Drift Check (#s26022203ci-drift)
 
@@ -80,7 +80,7 @@ High-level implementation: Extracted and centralized duplicated MCP handler util
 
 **Completed**: 2026-02-12
 
-High-level implementation: Introduced unified `req_action` and `archive_action` tools consolidating individual requirement and archive handlers into single action-based tools. Deleted all redundant individual handlers (`req_list`, `req_show`, `req_deps`, `req_transfer`, `archive_gate`, `archive_proposal`, `archive_batch`) and their tool definitions. Eliminated ~150 LOC of dead code while maintaining zero change to MCP API. All existing tests pass without modification.
+High-level implementation: Introduced unified `reg_action` and `archive_action` tools consolidating individual requirement and archive handlers into single action-based tools. Deleted all redundant individual handlers (`req_list`, `req_show`, `req_deps`, `req_transfer`, `archive_gate`, `archive_proposal`, `archive_batch`) and their tool definitions. Eliminated ~150 LOC of dead code while maintaining zero change to MCP API. All existing tests pass without modification.
 
 ### Centralize MCP Schema Registry (#s20260212registry)
 

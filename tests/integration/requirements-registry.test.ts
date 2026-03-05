@@ -147,22 +147,22 @@ describe('Requirements Registry wiring', () => {
     vi.clearAllMocks()
   })
 
-  describe('req_action handler', () => {
+  describe('reg_action handler', () => {
     it('should be registered', () => {
-      const func = registry.get('req_action')
+      const func = registry.get('reg_action')
       expect(func).toBeDefined()
-      expect(func?.name).toBe('req_action')
+      expect(func?.name).toBe('reg_action')
       expect(func?.description).toContain('requirement')
     })
 
     it('should have correct schema', () => {
-      const func = registry.get('req_action')
+      const func = registry.get('reg_action')
       expect(func?.schema).toBeDefined()
     })
 
     describe('list action', () => {
       it('should list project requirements when project=true', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { project: true },
         })
@@ -176,7 +176,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should list gate requirements when gateId is provided', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-01' },
         })
@@ -188,7 +188,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should list all requirements when no filter provided', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: {},
         })
@@ -200,7 +200,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should handle missing payload', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
         })
 
@@ -211,7 +211,7 @@ describe('Requirements Registry wiring', () => {
 
     describe('show action', () => {
       it('should show requirement details', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'show',
           payload: { hash: 'test-hash' },
         })
@@ -225,7 +225,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should include children and ancestors', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'show',
           payload: { hash: 'test-hash' },
         })
@@ -238,7 +238,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should return null requirement for non-existent hash', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'show',
           payload: { hash: 'non-existent' },
         })
@@ -252,7 +252,7 @@ describe('Requirements Registry wiring', () => {
 
     describe('deps action', () => {
       it('should show requirement dependencies', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'deps',
           payload: { hash: 'test-hash' },
         })
@@ -266,7 +266,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should return null for non-existent requirement', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'deps',
           payload: { hash: 'non-existent' },
         })
@@ -279,7 +279,7 @@ describe('Requirements Registry wiring', () => {
 
     describe('transfer action', () => {
       it('should transfer requirement to new gate', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'transfer',
           payload: { hash: 'test-hash', gateId: 'gate-02' },
         })
@@ -290,7 +290,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should return transfer result with metadata', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'transfer',
           payload: { hash: 'test-hash', gateId: 'gate-02' },
         })
@@ -305,7 +305,7 @@ describe('Requirements Registry wiring', () => {
 
     describe('search action', () => {
       it('should search requirements by query', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'search',
           payload: { query: 'test' },
         })
@@ -315,7 +315,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should support gateId filter', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'search',
           payload: { query: 'test', gateId: 'gate-01' },
         })
@@ -326,7 +326,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should support type filter', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'search',
           payload: { query: 'test', type: 'functional' },
         })
@@ -340,16 +340,16 @@ describe('Requirements Registry wiring', () => {
     describe('error handling', () => {
       it('should throw on invalid action', () => {
         expect(() => {
-          registry.get('req_action')?.implementation({
+          registry.get('reg_action')?.implementation({
             action: 'invalid-action',
             payload: {},
           })
-        }).toThrow('Unknown req_action')
+        }).toThrow('Unknown reg_action')
       })
 
       it('should throw on required payload missing', () => {
         expect(() => {
-          registry.get('req_action')?.implementation({
+          registry.get('reg_action')?.implementation({
             action: 'show',
             payload: {}, // Missing hash
           })
@@ -357,7 +357,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('should handle missing payload gracefully for list action', () => {
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: undefined,
         })
@@ -369,20 +369,20 @@ describe('Requirements Registry wiring', () => {
   })
 
   describe('Registry validation', () => {
-    it('req_action should have proper description', () => {
-      const func = registry.get('req_action')
+    it('reg_action should have proper description', () => {
+      const func = registry.get('reg_action')
       expect(func?.description).toMatch(/list|show|deps|transfer/i)
     })
 
-    it('req_action should have action parameter defined', () => {
-      const func = registry.get('req_action')
+    it('reg_action should have action parameter defined', () => {
+      const func = registry.get('reg_action')
       const actionParam = func?.parameters.find((p) => p.name === 'action')
       expect(actionParam).toBeDefined()
       expect(actionParam?.required).toBe(true)
     })
 
-    it('req_action should have schema validation', () => {
-      const func = registry.get('req_action')
+    it('reg_action should have schema validation', () => {
+      const func = registry.get('reg_action')
       expect(func?.schema).toBeDefined()
 
       // Should validate action is string
@@ -396,8 +396,8 @@ describe('Requirements Registry wiring', () => {
   })
 
   describe('Integration with FunctionRegistry', () => {
-    it('should invoke req_action through registry.invoke', async () => {
-      const result = await registry.invoke('req_action', {
+    it('should invoke reg_action through registry.invoke', async () => {
+      const result = await registry.invoke('reg_action', {
         action: 'list',
         payload: { project: true },
       })
@@ -409,7 +409,7 @@ describe('Requirements Registry wiring', () => {
     })
 
     it('should handle parameter validation errors', async () => {
-      const result = await registry.invoke('req_action', {
+      const result = await registry.invoke('reg_action', {
         action: 'show',
         payload: {}, // Missing required hash
       })
@@ -418,7 +418,7 @@ describe('Requirements Registry wiring', () => {
     })
 
     it('should return error for unknown action', async () => {
-      const result = await registry.invoke('req_action', {
+      const result = await registry.invoke('reg_action', {
         action: 'unknown',
         payload: {},
       })
@@ -431,7 +431,7 @@ describe('Requirements Registry wiring', () => {
     it('show — returns null requirement when hash not found', () => {
       mockGetRequirementByHash.mockReturnValueOnce(null)
 
-      const result = registry.get('req_action')?.implementation({
+      const result = registry.get('reg_action')?.implementation({
         action: 'show',
         payload: { hash: 'missing-hash' },
       }) as { requirement: null; children: unknown[]; ancestors: unknown[] }
@@ -444,7 +444,7 @@ describe('Requirements Registry wiring', () => {
     it('deps — returns null graph when requirement not found', () => {
       mockGetRequirementByHash.mockReturnValueOnce(null)
 
-      const result = registry.get('req_action')?.implementation({
+      const result = registry.get('reg_action')?.implementation({
         action: 'deps',
         payload: { hash: 'missing-hash' },
       }) as { graph: null }
@@ -465,7 +465,7 @@ describe('Requirements Registry wiring', () => {
       mockGetRequirementChildren.mockReturnValueOnce([])
       mockGetRequirementAncestors.mockReturnValueOnce([])
 
-      const result = registry.get('req_action')?.implementation({
+      const result = registry.get('reg_action')?.implementation({
         action: 'show',
         payload: { hash: 'no-ac' },
       }) as { requirement: { acceptance: unknown; parentRequirement: unknown } }
@@ -491,7 +491,7 @@ describe('Requirements Registry wiring', () => {
           { hash: 'orphan-2', status: 'in_progress', gate_id: null },
         ])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'db_status',
         }) as { total: number; orphaned: number; byStatus: Record<string, number>; message: string }
 
@@ -508,7 +508,7 @@ describe('Requirements Registry wiring', () => {
         mockReadFileSyncFs.mockReturnValue('**Hash**: known-hash\n\nSome content')
         mockDbAll.mockReturnValue([{ hash: 'known-hash', status: 'completed', gate_id: 'gate-01' }])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'db_status',
         }) as { orphaned: number; message: string }
 
@@ -519,7 +519,7 @@ describe('Requirements Registry wiring', () => {
       it('returns zero counts for empty proposals table', () => {
         mockDbAll.mockReturnValue([])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'db_status',
         }) as { total: number; orphaned: number; onDisk: number }
 
@@ -539,7 +539,7 @@ describe('Requirements Registry wiring', () => {
         // SELECT hash FROM proposals → one orphan not on disk
         mockDbAll.mockReturnValue([{ hash: 'orphan-hash' }])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'db_sync',
         }) as { before: number; after: number; added: number; orphansRemoved: number; message: string }
 
@@ -560,7 +560,7 @@ describe('Requirements Registry wiring', () => {
         mockReadFileSyncFs.mockReturnValue('**Hash**: known-hash')
         mockDbAll.mockReturnValue([{ hash: 'known-hash' }])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'db_sync',
         }) as { orphansRemoved: number }
 
@@ -574,7 +574,7 @@ describe('Requirements Registry wiring', () => {
           { hash: 'o1', gate_id: 'gate-01', title: 'A', status: 'pending' },
         ])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'purge_orphans',
           payload: { dryRun: true },
         }) as { dryRun: boolean; removed: number; orphans: unknown[]; message: string }
@@ -593,7 +593,7 @@ describe('Requirements Registry wiring', () => {
           { hash: 'o2', gate_id: 'gate-01', title: 'C', status: 'in_progress' },
         ])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'purge_orphans',
           payload: {},
         }) as { removed: number; dryRun: boolean; message: string }
@@ -609,7 +609,7 @@ describe('Requirements Registry wiring', () => {
           { hash: 'g1', gate_id: 'gate-02', title: 'D', status: 'pending' },
         ])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'purge_orphans',
           payload: { gateId: 'gate-02' },
         }) as { gateId: string | null; message: string }
@@ -626,7 +626,7 @@ describe('Requirements Registry wiring', () => {
       it('filters solitary (gate_id IS NULL) when solitary=true', () => {
         mockDbAll.mockReturnValue([])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'purge_orphans',
           payload: { solitary: true },
         }) as { solitary: boolean; message: string }
@@ -640,7 +640,7 @@ describe('Requirements Registry wiring', () => {
       })
 
       it('throws when both gateId and solitary are provided', async () => {
-        const result = await registry.invoke('req_action', {
+        const result = await registry.invoke('reg_action', {
           action: 'purge_orphans',
           payload: { gateId: 'gate-01', solitary: true },
         })
@@ -654,7 +654,7 @@ describe('Requirements Registry wiring', () => {
         mockDbRun.mockReturnValue({ changes: 3 })
         mockDbGet.mockReturnValue({ count: 2 })
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'reset_gate',
           payload: { gateId: 'gate-03' },
         }) as { gateId: string; deletedCount: number; resyncedCount: number; message: string }
@@ -719,7 +719,7 @@ describe('Requirements Registry wiring', () => {
           return ''
         })
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-06' },
         }) as { requirements: Array<{ hash: string; title: string }> }
@@ -746,7 +746,7 @@ describe('Requirements Registry wiring', () => {
         // Gate file not found
         mockReaddirSyncFs.mockReturnValue([])
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-99' },
         }) as { requirements: unknown[]; error: string }
@@ -783,7 +783,7 @@ describe('Requirements Registry wiring', () => {
           return ''
         })
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-07' },
         }) as { requirements: unknown[]; error: string }
@@ -796,7 +796,7 @@ describe('Requirements Registry wiring', () => {
       it('does not attempt fallback when gateId is not provided', () => {
         mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: {},
         }) as { requirements: unknown[]; error?: string }
@@ -872,7 +872,7 @@ describe('Requirements Registry wiring', () => {
           return ''
         })
 
-        const result = registry.get('req_action')?.implementation({
+        const result = registry.get('reg_action')?.implementation({
           action: 'list',
           payload: { gateId: 'gate-06' },
         }) as { requirements: Array<{ hash: string; title: string }> }

@@ -70,7 +70,7 @@ stateDiagram-v2
 **`complete` (in_progress → completed)**
 
 - *Pre*: Gate status must be `in_progress`
-- *Pre*: Quality metrics must meet configured thresholds (`codeCoverage ≥90%`, `securityVulnerabilities = 0`, `lintingErrorRate <0.01%`)
+- *Pre*: Quality metrics must meet configured thresholds from `zeno/.zeno/config.json` (`qualityThresholds.codeCoverage`, `qualityThresholds.securityVulnerabilities`, `qualityThresholds.lintingErrorRate`)
 - *Post*: Gate status = `completed`; git tag created; proposals archived
 - *Idempotent*: Calling `complete` on an already `completed` gate returns success (no-op)
 

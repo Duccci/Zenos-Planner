@@ -80,6 +80,7 @@ export function createSchemaValidatingHandler(
           if (validated.success) {
             return {
               content: [{ type: 'text', text: JSON.stringify(validated.data, null, 2) }],
+              structuredContent: validated.data as Record<string, unknown>,
             }
           }
         }
@@ -89,6 +90,7 @@ export function createSchemaValidatingHandler(
           typeof rawMock === 'string' ? rawMock : JSON.stringify(rawMock, null, 2)
         return {
           content: [{ type: 'text', text: fallbackText }],
+          structuredContent: { output: rawMock } as Record<string, unknown>,
         }
       }
 
@@ -108,6 +110,7 @@ export function createSchemaValidatingHandler(
           if (validated.success) {
             return {
               content: [{ type: 'text', text: JSON.stringify(validated.data, null, 2) }],
+              structuredContent: validated.data as Record<string, unknown>,
             }
           } else {
             logger.warn(`Output schema validation failed for "${functionName}"`, {
@@ -130,6 +133,7 @@ export function createSchemaValidatingHandler(
               : JSON.stringify(extracted, null, 2)
         return {
           content: [{ type: 'text', text: fallbackText }],
+          structuredContent: { output: extracted } as Record<string, unknown>,
         }
       } else {
         // Non-success result: return structured error envelope per unified schema
@@ -188,6 +192,7 @@ export function createBasicHandler(
         const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
         return {
           content: [{ type: 'text', text }],
+          structuredContent: (typeof data === 'object' && data !== null ? data : { data }) as Record<string, unknown>,
         }
       } else {
         const err: FunctionErrorResponse = result.error
@@ -264,6 +269,7 @@ export function handleMockResult(
     if (ok.success) {
       return {
         content: [{ type: 'text', text: JSON.stringify(ok.data, null, 2) }],
+        structuredContent: ok.data as Record<string, unknown>,
       }
     }
   }
@@ -272,6 +278,7 @@ export function handleMockResult(
   const fallbackText = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2)
   return {
     content: [{ type: 'text', text: fallbackText }],
+    structuredContent: { output: raw } as Record<string, unknown>,
   }
 }
 
@@ -316,6 +323,7 @@ export function formatValidationError(
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(errorOutput, null, 2) }],
+    structuredContent: errorOutput,
     isError: true,
   }
 }
@@ -352,6 +360,7 @@ export function handleError(error: unknown, context?: Record<string, unknown>): 
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    structuredContent: { error: payload },
     isError: true,
   }
 }

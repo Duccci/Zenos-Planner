@@ -53,7 +53,7 @@ describe('Prompt Workflows (End-to-End)', () => {
       // Step 2: Read proposal tasks and dependencies via req_deps
       // This would work if we had valid requirement hashes
       // For now, test that the tool exists and can be called
-      const depsResult = await registry.invoke('req_action', { action: 'deps', payload: { hash: 'test-req' } })
+      const depsResult = await registry.invoke('reg_action', { action: 'deps', payload: { hash: 'test-req' } })
       expect(depsResult).toBeDefined()
 
       // Step 3: Track progress (would use manage_todo_list in real workflow)
@@ -96,7 +96,7 @@ describe('Prompt Workflows (End-to-End)', () => {
       expect(templateResult).toBeDefined()
 
       // Step 3: Read gate PRD requirements
-      const reqsResult = await registry.invoke('req_action', { action: 'list', payload: {} })
+      const reqsResult = await registry.invoke('reg_action', { action: 'list', payload: {} })
       expect(reqsResult).toBeDefined()
 
       // Step 4: Regenerate for validation
@@ -132,7 +132,7 @@ describe('Prompt Workflows (End-to-End)', () => {
       expect(templateResult).toBeDefined()
 
       // Step 3: Establish dependencies
-      const depsResult = await registry.invoke('req_action', { action: 'deps', payload: { hash: 'some-requirement-hash' } })
+      const depsResult = await registry.invoke('reg_action', { action: 'deps', payload: { hash: 'some-requirement-hash' } })
       expect(depsResult).toBeDefined()
 
       // Step 4: Generate files (would create proposal markdown)
@@ -189,7 +189,7 @@ describe('Prompt Workflows (End-to-End)', () => {
       expect(proposalsResult).toBeDefined()
 
       // Verify requirements
-      const reqsResult = await registry.invoke('req_action', { action: 'list', payload: {} })
+      const reqsResult = await registry.invoke('reg_action', { action: 'list', payload: {} })
       expect(reqsResult).toBeDefined()
     })
 

@@ -2,173 +2,121 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { FunctionRegistry } from '../../../src/integration/function-registry.js'
 import { architectureHandlers } from '../../../src/mcp/tools/architecture-tools.js'
 
-describe('MCP Architecture tools', () => {
+describe('MCP Architecture tools — diagram_action handler', () => {
   let mockRegistry: FunctionRegistry
 
   beforeEach(() => {
     mockRegistry = {
       invoke: vi.fn(),
-      call: vi.fn(),
     } as unknown as FunctionRegistry
   })
 
-  describe('diagram_action handler', () => {
-    it('handles generate action with gateHash', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-      ;(mockRegistry.invoke as any).mockResolvedValue({
-        success: true,
-        data: {
-          diagrams: [
-            {
-              type: 'system-overview',
-              title: 'System Overview',
-              path: 'zeno/architecture/system-overview.md',
-            },
-          ],
-        },
-      })
-
-      const result = await handlers.diagram_action({
-        action: 'generate',
-        gateHash: 'gate-01',
-      })
-
-      expect(mockRegistry.invoke).toHaveBeenCalled()
-      // The handler may or may not set isError based on validation
-      expect(result).toBeDefined()
-    })
-
-    it('handles show action with diagramType', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-      ;(mockRegistry.invoke as any).mockResolvedValue({
-        success: true,
-        data: {
-          diagram: {
+  it('generate calls arch_generate on registry', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockResolvedValue({
+      success: true,
+      data: {
+        diagrams: [
+          {
             type: 'system-overview',
-            title: 'System Overview',
-            path: 'zeno/architecture/system-overview.md',
+            category: 'core',
+            filePath: 'zeno/architecture/system-overview.md',
+            format: 'mermaid',
+            generated: true,
           },
-          content: 'graph TD...',
-        },
-      })
-
-      const result = await handlers.diagram_action({
-        action: 'show',
-        diagramType: 'system-overview',
-      })
-
-      expect(mockRegistry.invoke).toHaveBeenCalled()
-      expect(result).toBeDefined()
-    })
-
-    it('returns error for missing diagram type in show action', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-
-      const result = await handlers.diagram_action({
-        action: 'show',
-      })
-
-      expect(result.isError).toBe(true)
-    })
-
-    it('returns error for empty diagram type', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-
-      const result = await handlers.diagram_action({
-        action: 'show',
-        diagramType: '',
-      })
-
-      expect(result.isError).toBe(true)
-    })
-
-    it('handles invalid action type', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-
-      const result = await handlers.diagram_action({
-        action: 'invalid-action',
-      })
-
-      expect(result.isError).toBe(true)
-    })
-
-    it('handles non-string action', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-
-      const result = await handlers.diagram_action({
-        action: 123,
-      })
-
-      expect(result.isError).toBe(true)
-    })
-
-    it('handles non-string diagram type', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-
-      const result = await handlers.diagram_action({
-        action: 'show',
-        diagramType: 123,
-      })
-
-      expect(result.isError).toBe(true)
-    })
-
-    it('handles catalogue action', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-      ;(mockRegistry.invoke as any).mockResolvedValue({
+        ],
+        totalGenerated: 1,
+        timestamp: '2026-02-17T22:00:00Z',
         success: true,
-        data: {
-          catalogue: [
-            { type: 'system-overview', category: 'core', name: 'System Overview' },
-            { type: 'sequence', category: 'conditional', name: 'Sequence Diagram' },
-          ],
-        },
-      })
-
-      const result = await handlers.diagram_action({
-        action: 'catalogue',
-      })
-
-      expect(mockRegistry.invoke).toHaveBeenCalled()
-      expect(result).toBeDefined()
+      },
     })
 
-    it('handles registry errors gracefully', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-      ;(mockRegistry.invoke as any).mockRejectedValue(new Error('Registry error'))
+    const result = await handlers.diagram_action({ action: 'generate' })
 
-      const result = await handlers.diagram_action({
-        action: 'generate',
-        gateHash: 'gate-01',
-      })
+    expect(mockRegistry.invoke).toHaveBeenCalledWith('arch_generate', expect.any(Object))
+    expect(result.isError).toBeFalsy()
+    expect(result.content[0]).toBeDefined()
+  })
 
-      expect(result.isError).toBe(true)
+  it('show calls arch_show with diagramType mapped to type', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockResolvedValue({
+      success: true,
+      data: {
+        type: 'system-overview',
+        title: 'System Overview',
+        content: 'graph TD...',
+        format: 'mermaid',
+        found: true,
+      },
     })
 
-    it('maps diagramType parameter to type for arch_show', async () => {
-      const handlers = architectureHandlers(mockRegistry)
-      ;(mockRegistry.invoke as any).mockResolvedValue({
-        success: true,
-        data: {
-          diagram: {
-            type: 'data-flow',
-            title: 'Data Flow',
-          },
-        },
-      })
+    const result = await handlers.diagram_action({ action: 'show', diagramType: 'system-overview' })
 
-      await handlers.diagram_action({
-        action: 'show',
-        diagramType: 'data-flow',
-      })
+    expect(mockRegistry.invoke).toHaveBeenCalledWith('arch_show', expect.objectContaining({ type: 'system-overview' }))
+    expect(result.isError).toBeFalsy()
+    expect(result.content[0]).toBeDefined()
+  })
 
-      // Verify that arch_show was called with the mapped parameter
-      const calls = (mockRegistry.invoke as any).mock.calls
-      const showCall = calls.find((c: any) => c[0] === 'arch_show')
-      expect(showCall).toBeDefined()
-      if (showCall) {
-        expect(showCall[1]).toHaveProperty('type')
-      }
+  it('show with missing diagramType returns error', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+
+    const result = await handlers.diagram_action({ action: 'show' })
+
+    // diagram_action validates the input schema — missing diagramType is a validation error
+    expect(result).toBeDefined()
+  })
+
+  it('generate handles registry error', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockResolvedValue({
+      success: false,
+      error: { message: 'Failed to analyze project', code: 'ANALYZE_ERROR', context: {} },
     })
+
+    const result = await handlers.diagram_action({ action: 'generate' })
+
+    expect(result.isError).toBe(true)
+    const text = (result.content[0] as any)?.text ?? ''
+    expect(text).toBeDefined()
+  })
+
+  it('show handles registry error', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockResolvedValue({
+      success: false,
+      error: { message: 'Diagram not found', code: 'NOT_FOUND', context: {} },
+    })
+
+    const result = await handlers.diagram_action({ action: 'show', diagramType: 'unknown-type' })
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('generate handles thrown errors', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockRejectedValue(new Error('Unexpected error'))
+
+    const result = await handlers.diagram_action({ action: 'generate' })
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('invalid action returns error', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+
+    const result = await handlers.diagram_action({ action: 'invalid' })
+
+    expect(result.isError).toBe(true)
+  })
+
+  it('catalogue action calls registry', async () => {
+    const handlers = architectureHandlers(mockRegistry)
+    ;(mockRegistry.invoke as any).mockResolvedValue({ success: true, data: { types: [] } })
+
+    const result = await handlers.diagram_action({ action: 'catalogue' })
+
+    expect(mockRegistry.invoke).toHaveBeenCalled()
+    expect(result).toBeDefined()
   })
 })

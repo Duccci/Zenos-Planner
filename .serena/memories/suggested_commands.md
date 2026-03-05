@@ -59,9 +59,9 @@ Zeno-specific commands must be invoked via MCP server tools, not the CLI.
 | Init project | `gates_action` |
 | List/show gates | `gates_action` |
 | Start/complete gate | `gates_action` |
-| List/show requirements | `req_action` |
+| List/show requirements | `reg_action` |
 | List/show/start proposals | `proposal_action` |
-| Resolve hash | `mcp_zeno-planner_show_entity` |
+| Resolve hash | `mcp_zeno-planner_context_action` (action: requirement/repository/gate/proposal) |
 | Archive gate | `archive_action` |
 | Code metrics | `mcp_zeno-planner_metrics` |
 

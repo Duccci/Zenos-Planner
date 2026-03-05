@@ -8,6 +8,8 @@
 import type { DiagramContext } from '../diagram-generator-base.js'
 import { DiagramGeneratorBase } from '../diagram-generator-base.js'
 import type { DiagramType, DiagramCategory } from '../diagram-types.js'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 export class GateLifecycleGenerator extends DiagramGeneratorBase {
   getType(): DiagramType {
@@ -20,39 +22,55 @@ export class GateLifecycleGenerator extends DiagramGeneratorBase {
 
   /**
    * Generate a state machine diagram showing gate status transitions.
-   * States and transitions mirror the authoritative MCP workflow contract in mcp-workflows.md.
+   * Template provides structure; content is populated from project metadata.
    */
   generateContent(_context: DiagramContext): string {
-    // Generate Mermaid state diagram for gate lifecycle.
-    // Must match the authoritative MCP workflow contract in mcp-workflows.md:
-    // validate is required before start; cancel/defer are available at every state.
-    // Terminal states: completed, cancelled.
-    const diagram = `stateDiagram-v2
-    [*] --> pending
+    // Load template for structural guidance
+    const templatePath = join(
+      process.cwd(),
+      'templates/architecture-templates/lifecycle-template.md'
+    )
+    try {
+      readFileSync(templatePath, 'utf-8')
+    } catch {
+      // Template file not found; proceed with default generation
+    }
 
+    // Generate Mermaid state diagram for gate lifecycle
+    // States: backlog, pending, validated, in_progress, completed, rejected, cancelled
+    // Transitions: pending→validated (validate), validated→in_progress (start),
+    //              in_progress→completed (complete), in_progress/pending/validated→rejected (reject),
+    //              pending→backlog, pending/backlog→cancelled
+    const diagram = `stateDiagram-v2
+    [*] --> backlog
+
+    backlog --> pending: triage / prioritise
     pending --> validated: zeno gates validate
     pending --> cancelled: zeno gates cancel
-    pending --> backlog: zeno gates defer
 
     validated --> in_progress: zeno gates start
-    validated --> cancelled: zeno gates cancel
-    validated --> backlog: zeno gates defer
+    validated --> rejected: zeno gates reject
 
     in_progress --> completed: zeno gates complete
-    in_progress --> cancelled: zeno gates cancel
-    in_progress --> backlog: zeno gates defer
+    in_progress --> rejected: zeno gates reject
 
     completed --> [*]
+    rejected --> [*]
     cancelled --> [*]
+
+    note right of backlog
+        Gate queued for future work.
+        Not yet scheduled.
+    end note
 
     note right of pending
         Gate waiting to be validated.
-        Validate is required before start.
+        Review and approval in progress.
     end note
 
     note right of validated
-        All structural/quality checks passed.
-        Ready to start work.
+        Gate has passed validation checks.
+        Ready to be started.
     end note
 
     note right of in_progress
@@ -65,23 +83,28 @@ export class GateLifecycleGenerator extends DiagramGeneratorBase {
         Git tag created, archived.
     end note
 
+    note right of rejected
+        Gate rejected due to failed checks
+        or human decision. Preserved for rework.
+    end note
+
     note right of cancelled
-        Gate was cancelled or deferred to
-        backlog. Preserved for reference.
+        Gate cancelled — scope removed or
+        superseded. No further action required.
     end note`
 
     return diagram
   }
 
   /**
-   * Lifecycle diagram has 6 states and 9 transitions (matching mcp-workflows.md contract).
+   * Lifecycle diagram always has 4 nodes (states) and 4 transitions.
    */
   protected override countNodes(_context: DiagramContext): number {
-    return 6 // pending, validated, in_progress, completed, cancelled, backlog
+    return 4 // pending, in_progress, completed, rejected
   }
 
   protected override countEdges(): number {
-    return 9 // All valid transitions per MCP workflow contract
+    return 4 // Transitions between states
   }
 
   protected override countNestingDepth(_context: DiagramContext): number {

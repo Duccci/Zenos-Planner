@@ -6,7 +6,7 @@
 | **Gate** | Concrete, measurable milestone representing an actual deliverable; status: `pending` → `validated` → `in_progress` → `completed` or `rejected` |
 | **Gate PRD** | Per-gate specification file at `gates/gate-XX-name.md`; contains objectives, deliverables, requirement refs, and dependencies |
 | **Hash** | Content-addressable 16-char SHA-256 prefix (`#a3f9c2d1`) used to reference gates, requirements, proposals, and artifacts without repeating full paths |
-| **MCP** | Model Context Protocol — server interface exposing Zeno tools (`req_action`, `gates_action`, `proposal_action`, etc.) to AI agents |
+| **MCP** | Model Context Protocol — server interface exposing Zeno tools (`reg_action`, `gates_action`, `proposal_action`, etc.) to AI agents |
 | **Multi-Repo** | Project configuration spanning multiple independent repositories; boundaries detected via hybrid `CodeAnalyzer` + `architect-reviewer` analysis |
 | **PRD** | Product Requirements Document — used at both project level (`PROJECT_PRD.md`) and gate level (`gates/gate-XX-name.md`) |
 | **Proposal** | Implementation plan for a set of requirements within a gate; stored in `proposals/gate-XX/<name>.md`; status: `pending` → `validated` → `in_progress` → `completed` or `rejected` |

@@ -60,7 +60,7 @@ describe('Requirements Commands', () => {
 
     await program.parseAsync(['node', 'test', 'req', 'list', '--gate', 'gate-01'])
 
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'list', payload: { gateId: 'gate-01' } })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'list', payload: { gateId: 'gate-01' } })
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Requirements'))
   })
 
@@ -82,7 +82,7 @@ describe('Requirements Commands', () => {
     await program.parseAsync(['node', 'test', 'req', 'list', '--project'])
 
     // should call req_list with no gateId
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'list', payload: {} })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'list', payload: {} })
     // should show project requirement
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Project Req'))
   })
@@ -120,7 +120,7 @@ describe('Requirements Commands', () => {
 
     await program.parseAsync(['node', 'test', 'req', 'show', 'r#1'])
 
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'show', payload: { hash: 'r#1' } })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'show', payload: { hash: 'r#1' } })
     expect(logger.info).toHaveBeenCalledWith('Requirement: r#1')
     expect(logger.info).toHaveBeenCalledWith('Parent: r#0')
   })
@@ -153,7 +153,7 @@ describe('Requirements Commands', () => {
 
     await program.parseAsync(['node', 'test', 'req', 'deps', 'r#1'])
 
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'deps', payload: { hash: 'r#1' } })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'deps', payload: { hash: 'r#1' } })
     expect(logger.info).toHaveBeenCalledWith('Dependency graph for r#1:')
     expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('"root": "r#1"'))
   })
@@ -183,7 +183,7 @@ describe('Requirements Commands', () => {
 
     await program.parseAsync(['node', 'test', 'req', 'transfer', 'r#1', 'gate-04'])
 
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'transfer', payload: { hash: 'r#1', gateId: 'gate-04' } })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'transfer', payload: { hash: 'r#1', gateId: 'gate-04' } })
     expect(logger.info).toHaveBeenCalledWith('Requirement r#1 transferred to gate gate-04')
   })
 
@@ -212,7 +212,7 @@ describe('Requirements Commands', () => {
       gateId: 'gate-01',
       type: 'functional',
     }
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { action: 'search', payload })
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { action: 'search', payload })
     expect(logger.info).toHaveBeenCalled()
   })
 
@@ -236,7 +236,7 @@ describe('Requirements Commands', () => {
 
     await program.parseAsync(['node', 'test', 'req', 'search', 'test'])
 
-    expect(registry.invoke).toHaveBeenCalledWith('req_action', { 
+    expect(registry.invoke).toHaveBeenCalledWith('reg_action', { 
       action: 'search', 
       payload: { query: 'test' }
     })

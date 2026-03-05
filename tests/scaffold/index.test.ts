@@ -24,14 +24,14 @@ describe('Scaffolding', () => {
     } catch {
       // Ignore errors
     }
-    
+
     testDir = await mkdtemp(join(tmpdir(), 'zeno-test-'))
-    
+
     // Set up migrations directory structure for database initialization tests
     // This allows initializeDatabase to find and run migrations
     const migrationsDir = join(testDir, 'src', 'storage', 'migrations')
     await ensureDir(migrationsDir)
-    
+
     // Copy the initial migration file from the project
     const projectMigrationsDir = join(process.cwd(), 'src', 'storage', 'migrations')
     try {
@@ -70,6 +70,7 @@ describe('Scaffolding', () => {
       expect(await directoryExists(join(testDir, 'zeno/architecture'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/proposals'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/requirements'))).toBe(true)
+      expect(await directoryExists(join(testDir, 'zeno/subprojects'))).toBe(true)
     })
 
     it('should create initial config.json', async () => {

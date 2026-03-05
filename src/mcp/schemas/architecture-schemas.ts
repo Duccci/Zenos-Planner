@@ -149,7 +149,7 @@ export type ArchDiagramShowOutput = z.infer<typeof ArchDiagramShowOutputSchema>
  */
 export const DiagramActionInputSchema = z.object({
   action: z
-    .enum(['catalogue', 'select', 'generate', 'show', 'render'])
+    .enum(['catalogue', 'select', 'generate', 'show', 'render', 'list_template', 'get_template'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -157,7 +157,9 @@ export const DiagramActionInputSchema = z.object({
         'select=record selections for a gate (needs: gateHash, diagramTypes). ' +
         'generate=generate diagrams (optional: gateHash, diagramType). ' +
         'show=retrieve a diagram (needs: diagramType; optional: gateHash). ' +
-        'render=render raw DOT syntax to SVG using local Graphviz CLI (needs: dotSyntax).'
+        'render=render raw DOT syntax to SVG using local Graphviz CLI (needs: dotSyntax). ' +
+        'list_template=list all available templates. ' +
+        'get_template=retrieve a template by name (needs: name; optional: includeContext).'
     ),
 
   // --- select fields ---
@@ -176,6 +178,13 @@ export const DiagramActionInputSchema = z.object({
 
   // --- render fields ---
   dotSyntax: z.string().optional().describe('Raw Graphviz DOT syntax to render to SVG (render)'),
+
+  // --- template get fields ---
+  name: z.string().optional().describe('Template name to retrieve (get)'),
+  includeContext: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .describe('When true, wraps artifact with name context metadata (get)'),
 })
 
 export type DiagramActionInput = z.infer<typeof DiagramActionInputSchema>
@@ -196,6 +205,8 @@ export const DiagramActionOutputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('generate'), result: ArchDiagramGenerateOutputSchema }),
   z.object({ action: z.literal('show'), result: ArchDiagramShowOutputSchema }),
   z.object({ action: z.literal('render'), result: ArchDiagramRenderOutputSchema }),
+  z.object({ action: z.literal('list_template'), result: z.object({ templates: z.array(z.unknown()) }) }),
+  z.object({ action: z.literal('get_template'), result: z.looseObject({}) }),
 ])
 
 export type DiagramActionOutput = z.infer<typeof DiagramActionOutputSchema>
@@ -212,6 +223,10 @@ export function getDiagramActionOutputSchema(action: string): z.ZodType {
       return ArchDiagramShowOutputSchema
     case 'render':
       return ArchDiagramRenderOutputSchema
+    case 'list_template':
+      return z.object({ templates: z.array(z.unknown()) })
+    case 'get_template':
+      return z.looseObject({})
     default:
       // z.unknown() has def.type='unknown' → normalizeObjectSchema returns undefined → _zod TypeError.
       // Use passthrough object: accepts any shape and normalizes correctly.

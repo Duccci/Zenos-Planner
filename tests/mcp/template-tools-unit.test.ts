@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { templateHandlers } from '../../src/mcp/tools/template-tools.js'
+import { architectureHandlers } from '../../src/mcp/tools/architecture-tools.js'
 import type { FunctionRegistry } from '../../src/integration/function-registry.js'
 
 const mockGetTemplates = vi.fn()
@@ -13,20 +13,20 @@ vi.mock('../../src/generation/artifact-discovery-service.js', () => ({
   }),
 }))
 
-describe('template-tools coverage', () => {
+describe('diagram_action template coverage', () => {
   let handlers: Record<string, (args: Record<string, unknown>) => Promise<CallToolResult>>
 
   beforeEach(() => {
     vi.clearAllMocks()
     const mockRegistry = {} as FunctionRegistry
-    handlers = templateHandlers(mockRegistry)
+    handlers = architectureHandlers(mockRegistry)
   })
 
-  describe('template_action: list', () => {
+  describe('diagram_action: list_template', () => {
     it('should list templates', async () => {
       mockGetTemplates.mockResolvedValue([{ name: 'gate-prd', path: '/templates/gate.md' }])
 
-      const result = await handlers['template_action']!({ action: 'list' })
+      const result = await handlers['diagram_action']!({ action: 'list_template' })
       expect(result.isError).toBeUndefined()
       expect(result.content).toBeDefined()
     })
@@ -34,71 +34,71 @@ describe('template-tools coverage', () => {
     it('should handle errors', async () => {
       mockGetTemplates.mockRejectedValue(new Error('discovery failed'))
 
-      const result = await handlers['template_action']!({ action: 'list' })
+      const result = await handlers['diagram_action']!({ action: 'list_template' })
       expect(result.isError).toBe(true)
     })
   })
 
-  describe('template_action: get', () => {
+  describe('diagram_action: get_template', () => {
     it('should get a template by name', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_action']!({ action: 'get', name: 'gate-prd' })
+      const result = await handlers['diagram_action']!({ action: 'get_template', name: 'gate-prd' })
       expect(result.isError).toBeUndefined()
     })
 
     it('should return error for missing name', async () => {
-      const result = await handlers['template_action']!({ action: 'get' })
+      const result = await handlers['diagram_action']!({ action: 'get_template' })
       expect(result.isError).toBe(true)
     })
 
     it('should return error for empty name', async () => {
-      const result = await handlers['template_action']!({ action: 'get', name: '' })
+      const result = await handlers['diagram_action']!({ action: 'get_template', name: '' })
       expect(result.isError).toBe(true)
     })
 
     it('should return not found for unknown template', async () => {
       mockGetArtifact.mockResolvedValue(null)
 
-      const result = await handlers['template_action']!({ action: 'get', name: 'nonexistent' })
+      const result = await handlers['diagram_action']!({ action: 'get_template', name: 'nonexistent' })
       expect(result.isError).toBe(true)
     })
 
     it('should include context when requested', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_action']!({
-        action: 'get',
+      const result = await handlers['diagram_action']!({
+        action: 'get_template',
         name: 'gate-prd',
         includeContext: true,
       })
       expect(result.isError).toBeUndefined()
-      expect(result.content[0]?.text as string).toContain('Name: gate-prd')
+      expect((result.content[0] as any)?.text as string).toContain('Name: gate-prd')
     })
 
     it('should handle includeContext as string "true"', async () => {
       mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
 
-      const result = await handlers['template_action']!({
-        action: 'get',
+      const result = await handlers['diagram_action']!({
+        action: 'get_template',
         name: 'gate-prd',
         includeContext: 'true',
       })
       expect(result.isError).toBeUndefined()
-      expect(result.content[0]?.text as string).toContain('Name: gate-prd')
+      expect((result.content[0] as any)?.text as string).toContain('Name: gate-prd')
     })
 
     it('should handle get errors', async () => {
       mockGetArtifact.mockRejectedValue(new Error('read error'))
 
-      const result = await handlers['template_action']!({ action: 'get', name: 'gate-prd' })
+      const result = await handlers['diagram_action']!({ action: 'get_template', name: 'gate-prd' })
       expect(result.isError).toBe(true)
     })
   })
 
-  describe('template_action: unknown action', () => {
+  describe('diagram_action: unknown action', () => {
     it('should return error for unknown action', async () => {
-      const result = await handlers['template_action']!({ action: 'unknown' })
+      const result = await handlers['diagram_action']!({ action: 'unknown' })
       expect(result.isError).toBe(true)
     })
   })

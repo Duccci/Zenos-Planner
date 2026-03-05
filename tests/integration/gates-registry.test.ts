@@ -187,6 +187,77 @@ describe('gates-registry coverage', () => {
       const data = result.data as { lastUpdated: string }
       expect(data.lastUpdated).toBeTruthy()
     })
+
+    it('returns gate with expected structure when file operations complete', async () => {
+      const gateSummary = {
+        id: 'gate-01',
+        name: 'Setup',
+        hash: 'h1',
+        status: 'completed',
+        sequence: 1,
+      }
+      mockReadProjectOverview.mockResolvedValue({})
+      mockGetGatesFromOverview.mockReturnValue([gateSummary])
+
+      const result = (await registry.invoke('gates_show', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { description: string; objectives: unknown[] }
+      }
+      expect(result.success).toBe(true)
+      // Verify structure contains expected fields
+      expect(typeof result.data.description).toBe('string')
+      expect(Array.isArray(result.data.objectives)).toBe(true)
+    })
+
+    it('gates_show returns data with all expected fields', async () => {
+      const gateSummary = {
+        id: 'gate-01',
+        name: 'Setup',
+        hash: 'h1',
+        status: 'completed',
+        sequence: 1,
+      }
+      mockReadProjectOverview.mockResolvedValue({})
+      mockGetGatesFromOverview.mockReturnValue([gateSummary])
+
+      const result = (await registry.invoke('gates_show', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: Record<string, unknown>
+      }
+      expect(result.success).toBe(true)
+      const data = result.data
+      expect(data).toHaveProperty('id')
+      expect(data).toHaveProperty('name')
+      expect(data).toHaveProperty('description')
+      expect(data).toHaveProperty('sequence')
+      expect(data).toHaveProperty('status')
+      expect(data).toHaveProperty('type')
+      expect(data).toHaveProperty('objectives')
+      expect(data).toHaveProperty('requirements')
+      expect(data).toHaveProperty('proposals')
+      expect(data).toHaveProperty('lastUpdated')
+    })
+
+    it('gates_show handles gate with null completedAt', async () => {
+      const gateSummary = {
+        id: 'gate-02',
+        name: 'Core',
+        hash: 'h2',
+        status: 'in_progress',
+        sequence: 2,
+        completedAt: null,
+      }
+      mockReadProjectOverview.mockResolvedValue({})
+      mockGetGatesFromOverview.mockReturnValue([gateSummary])
+
+      const result = (await registry.invoke('gates_show', { gateId: 'gate-02' })) as {
+        success: boolean
+        data: { lastUpdated: string }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.lastUpdated).toBeTruthy()
+      expect(typeof result.data.lastUpdated).toBe('string')
+    })
   })
 
   describe('gates_start', () => {

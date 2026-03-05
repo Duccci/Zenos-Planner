@@ -383,7 +383,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
         .replace(/\[DATE\]/g, createdDate)
         .replace(/\[Gate ID\] - \[Gate Name\]/g, gateLabel)
-        .replace(/pending \| in_progress \| completed \| rejected/g, 'pending')
+        .replace(/pending \| validated \| in_progress \| completed \| rejected/g, 'pending')
         .replace(/\*\*Requirement\*\*: #\[Requirement Hash\] \(optional - may address gate-level objective\) {2}\n/g, '')
 
       // Update summary section

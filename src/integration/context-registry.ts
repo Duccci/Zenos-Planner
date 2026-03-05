@@ -1,9 +1,11 @@
 /**
  * Context Operations Registry
  *
- * Registers context_gate and context_proposal operations with the function
- * registry. These provide compact working context by querying the registry DB,
- * replacing the need to load full PRD / architecture documents during execution.
+ * Registers context_gate, context_proposal, context_requirement, and
+ * context_repository operations with the function registry. These provide
+ * compact working context by querying the registry DB, replacing both the need
+ * to load full PRD / architecture documents during execution and the old
+ * show_entity tool. Resolves entities by hash or by name/id.
  */
 
 import { z } from 'zod'
@@ -46,16 +48,56 @@ interface DependencyRow {
   description: string | null
 }
 
+interface RepositoryRow {
+  id: string
+  name: string
+  path: string
+  type: string
+  hash: string
+  metadata: string | null
+  created_at: string
+}
+
+interface RequirementDetailRow {
+  id: string
+  description: string
+  type: string
+  priority: string
+  level: string
+  hash: string
+  gate_id: string | null
+  acceptance_criteria: string | null
+  created_at: string
+}
+
 // ── Input schemas ────────────────────────────────────────────────────────────
 
 const ContextGateInputSchema = z.object({
-  gateId: z.string().min(1),
+  gateId: z.string().min(1).optional(),
+  hash: z.string().min(1).optional(),
   operationMode: z.enum(['planning', 'execution']).optional(),
+}).superRefine((data, ctx) => {
+  if (!data.gateId && !data.hash) {
+    ctx.addIssue({ code: 'custom', path: ['gateId'], message: 'gate action requires gateId or hash' })
+  }
 })
 
 const ContextProposalInputSchema = z.object({
   hash: z.string().min(1),
   operationMode: z.enum(['planning', 'execution']).optional(),
+})
+
+const ContextRequirementInputSchema = z.object({
+  hash: z.string().min(1),
+})
+
+const ContextRepositoryInputSchema = z.object({
+  hash: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+}).superRefine((data, ctx) => {
+  if (!data.hash && !data.name) {
+    ctx.addIssue({ code: 'custom', path: ['hash'], message: 'repository action requires hash or name' })
+  }
 })
 
 // ── Registration ─────────────────────────────────────────────────────────────
@@ -67,19 +109,26 @@ export function registerContextOps(registry: FunctionRegistry): void {
   registry.register(
     'context_gate',
     (params: Record<string, unknown>) => {
-      const { gateId, operationMode } = ContextGateInputSchema.parse(params)
+      const { gateId, hash, operationMode } = ContextGateInputSchema.parse(params)
 
       try {
         const db = getDatabase()
 
-        // Gate metadata
-        const gate = db
-          .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE id = ?')
-          .get(gateId) as GateRow | undefined
+        // Resolve gate by gateId or hash
+        let gate: GateRow | undefined
+        if (gateId) {
+          gate = db
+            .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE id = ?')
+            .get(gateId) as GateRow | undefined
+        } else if (hash) {
+          gate = db
+            .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE hash = ?')
+            .get(hash) as GateRow | undefined
+        }
 
         if (!gate) {
           return {
-            error: { code: 'GATE_NOT_FOUND', message: `Gate not found: ${gateId}` },
+            error: { code: 'GATE_NOT_FOUND', message: `Gate not found: ${(gateId ?? hash) ?? 'unknown'}` },
           }
         }
 
@@ -234,6 +283,123 @@ export function registerContextOps(registry: FunctionRegistry): void {
       ],
       returnType: 'ProposalContextOutput',
       schema: ContextProposalInputSchema,
+    }
+  )
+
+  /**
+   * context_requirement: full details for a requirement by hash
+   */
+  registry.register(
+    'context_requirement',
+    (params: Record<string, unknown>) => {
+      const { hash } = ContextRequirementInputSchema.parse(params)
+
+      try {
+        const db = getDatabase()
+
+        const req = db
+          .prepare(
+            'SELECT id, description, type, priority, level, hash, gate_id, acceptance_criteria, created_at FROM requirements WHERE hash = ?'
+          )
+          .get(hash) as RequirementDetailRow | undefined
+
+        if (!req) {
+          return {
+            error: { code: 'REQUIREMENT_NOT_FOUND', message: `Requirement not found: ${hash}` },
+          }
+        }
+
+        return {
+          id: req.id,
+          description: req.description,
+          type: req.type,
+          priority: req.priority,
+          level: req.level,
+          hash: req.hash,
+          gateId: req.gate_id,
+          acceptanceCriteria: req.acceptance_criteria,
+          createdAt: req.created_at,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error(`context_requirement failed: ${message}`)
+        throw error
+      }
+    },
+    {
+      description: 'Resolve a requirement hash to its full details',
+      parameters: [
+        { name: 'hash', type: 'string', description: 'Requirement hash', required: true },
+      ],
+      returnType: 'RequirementContextOutput',
+      schema: ContextRequirementInputSchema,
+    }
+  )
+
+  /**
+   * context_repository: full details for a repository by hash or name
+   */
+  registry.register(
+    'context_repository',
+    (params: Record<string, unknown>) => {
+      const { hash, name } = ContextRepositoryInputSchema.parse(params)
+
+      try {
+        const db = getDatabase()
+
+        let repo: RepositoryRow | undefined
+        if (hash) {
+          repo = db
+            .prepare(
+              'SELECT id, name, path, type, hash, metadata, created_at FROM repositories WHERE hash = ?'
+            )
+            .get(hash) as RepositoryRow | undefined
+        } else if (name) {
+          repo = db
+            .prepare(
+              'SELECT id, name, path, type, hash, metadata, created_at FROM repositories WHERE name = ?'
+            )
+            .get(name) as RepositoryRow | undefined
+        }
+
+        if (!repo) {
+          return {
+            error: { code: 'REPOSITORY_NOT_FOUND', message: `Repository not found: ${(hash ?? name) ?? 'unknown'}` },
+          }
+        }
+
+        let metadata: Record<string, unknown> | null = null
+        if (repo.metadata) {
+          try {
+            metadata = JSON.parse(repo.metadata) as Record<string, unknown>
+          } catch {
+            metadata = null
+          }
+        }
+
+        return {
+          id: repo.id,
+          name: repo.name,
+          path: repo.path,
+          type: repo.type,
+          hash: repo.hash,
+          metadata,
+          createdAt: repo.created_at,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        logger.error(`context_repository failed: ${message}`)
+        throw error
+      }
+    },
+    {
+      description: 'Resolve a repository hash or name to its full details',
+      parameters: [
+        { name: 'hash', type: 'string', description: 'Repository hash', required: false },
+        { name: 'name', type: 'string', description: 'Repository name', required: false },
+      ],
+      returnType: 'RepositoryContextOutput',
+      schema: ContextRepositoryInputSchema,
     }
   )
 }

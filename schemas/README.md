@@ -27,7 +27,7 @@ Located in `src/mcp/schemas/`:
 - **Action Schemas**: Input/output validation for MCP tool handlers
   - `gates-action-schemas.ts` - Gates action validation
   - `proposal-action-schemas.ts` - Proposal action validation
-  - `req-action-schemas.ts` - Requirements action validation
+  - `reg-action-schemas.ts` - Requirements action validation
   - `archive-schemas.ts` - Archive action validation
   - `config-schemas.ts` - Configuration query validation
   - And others for specific tool operations

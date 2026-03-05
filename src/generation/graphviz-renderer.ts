@@ -34,12 +34,21 @@ export class GraphvizRenderer {
    */
   async isAvailable(): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
-      // shell:true ensures Windows resolves 'dot.exe' via PATHEXT without
-      // needing a platform-specific executable name.
-      execFile('dot', ['-V'], { shell: true }, (error: unknown) => {
+      execFile('dot', ['-V'], {}, (error: unknown) => {
         resolve(!error)
       })
     })
+  }
+
+  /**
+   * Build a markdown `<img>` reference pointing to a pre-rendered SVG file.
+   * Suitable for embedding rendered Graphviz output in markdown documents.
+   *
+   * @param relativePath - Relative path to the SVG file (e.g. 'dot-diagrams/system-overview.svg')
+   * @param alt - Alt text for the image. Defaults to "Architecture Diagram".
+   */
+  buildMarkdownImgRef(relativePath: string, alt = 'Architecture Diagram'): string {
+    return `<img src="${relativePath}" alt="${alt}" />`
   }
 
   /**
@@ -49,12 +58,9 @@ export class GraphvizRenderer {
   async renderToSvg(dotSyntax: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
-        // shell:true ensures Windows resolves 'dot.exe' via PATHEXT without
-        // needing a platform-specific executable name.
         const proc = spawn('dot', ['-Tsvg'], {
           timeout: 10000,
           stdio: ['pipe', 'pipe', 'pipe'],
-          shell: true,
         })
 
         let stdout = ''
@@ -116,36 +122,22 @@ export class GraphvizRenderer {
   }
 
   /**
-   * Build a markdown `<img>` reference to a sidecar SVG file.
-   *
-   * VS Code's DOMPurify sanitizer strips `transform` attributes from inline SVG `<g>` elements,
-   * pushing content out of the viewport. Referencing an external `.svg` file via `<img>` avoids
-   * this entirely and is the recommended approach for rendered diagrams.
-   *
-   * @param svgRelativePath Relative path from the `.md` file to the `.svg` sidecar
-   *   (e.g. `"dot-diagrams/system-overview.svg"`)
-   * @param altText Alt-text for the `<img>` element
-   * @returns HTML `<img>` tag suitable for embedding in a Markdown file
+   * Embed SVG in markdown, optionally wrapped in a collapse block if it exceeds size threshold
+   * @param svg SVG content (string)
+   * @param summary HTML summary text for the collapse block
+   * @param collapseThresholdBytes Size in bytes; if SVG exceeds this, wrap in <details>
+   * @returns Markdown with embedded or collapsed SVG
    */
-  buildMarkdownImgRef(svgRelativePath: string, altText?: string): string {
-    const alt = altText ?? 'Architecture Diagram'
-    return `<img src="${svgRelativePath}" alt="${alt}" style="display:block;max-width:100%;height:auto;" />`
-  }
+  embedInMarkdown(svg: string, summary: string, collapseThresholdBytes = 50000): string {
+    const svgBytes = Buffer.byteLength(svg, 'utf8')
 
-  /**
-   * Embed SVG into Markdown, wrapping in a collapsible `<details>` block when the
-   * SVG byte-length exceeds `collapseThresholdBytes`.
-   *
-   * @param svg            Raw SVG string to embed
-   * @param summary        Text for the `<summary>` element when collapsed
-   * @param collapseThresholdBytes  Byte-length threshold above which the SVG is wrapped
-   * @returns Either the bare SVG string or a `<details>` block containing it
-   */
-  embedInMarkdown(svg: string, summary: string, collapseThresholdBytes: number): string {
-    if (svg.length <= collapseThresholdBytes) {
-      return svg
+    if (svgBytes > collapseThresholdBytes) {
+      // Wrap in collapsible block for large SVGs
+      return ['<details>', `<summary>${summary}</summary>`, '', svg, '', '</details>'].join('\n')
     }
-    return `<details>\n<summary>${summary}</summary>\n${svg}\n</details>`
+
+    // Embed directly for small SVGs
+    return svg
   }
 }
 

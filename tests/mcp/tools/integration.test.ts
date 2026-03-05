@@ -44,18 +44,18 @@ describe('MCP entity-action integration smoke tests', () => {
     expect(createInvalid.isError).toBe(true)
   })
 
-  it('req_action: list and show validations', async () => {
+  it('reg_action: list and show validations', async () => {
     const { requirementHandlers } = await import('../../../src/mcp/tools/requirement-tools.js')
     const registry = new MockFunctionRegistry() as any
-    registry.setMockResult('req_action', { requirements: [] })
+    registry.setMockResult('reg_action', { requirements: [] })
 
     const handlers = requirementHandlers(registry)
 
-    const listRes = await handlers.req_action({ action: 'list', payload: {} })
+    const listRes = await handlers.reg_action({ action: 'list', payload: {} })
     expect(listRes).toBeDefined()
     expect(listRes.isError).toBeUndefined()
 
-    const showInvalid = await handlers.req_action({ action: 'show', payload: {} })
+    const showInvalid = await handlers.reg_action({ action: 'show', payload: {} })
     expect(showInvalid.isError).toBe(true)
   })
 

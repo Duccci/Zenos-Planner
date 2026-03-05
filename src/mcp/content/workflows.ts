@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Workflow Constants — Step-by-step procedural guidance for MCP-driven workflows.
  *
  * Each exported array describes the ordered steps an agent should follow for a
@@ -248,7 +248,7 @@ export const GATE_GENERATION_WORKFLOW: WorkflowStep[] = [
     prerequisites: ['Project initialized (zeno/.zeno/config.json exists)'],
     actions: [
       'Read zeno/overview/PROJECT_PRD.md',
-      'req_action:list to see all project-level requirements',
+      'reg_action:list to see all project-level requirements',
       'diagram_action:show { type: "system-overview" } if architecture context is needed',
     ],
     guidance: 'Requirements-first: all project-level requirements must be defined before gates are generated. Use diagram_action:show on-demand for specific diagrams — do not preload all architecture files.',

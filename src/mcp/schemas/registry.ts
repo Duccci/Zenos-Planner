@@ -1,7 +1,7 @@
-import { z } from 'zod'
+﻿import { z } from 'zod'
 import { GatesActionInputSchema, GatesActionOutputSchema } from './gates-action-schemas.js'
 import { ProposalActionInputSchema, ProposalActionOutputSchema } from './proposal-action-schemas.js'
-import { ReqActionInputSchema, ReqActionOutputSchema } from './req-action-schemas.js'
+import { ReqActionInputSchema, ReqActionOutputSchema } from './reg-action-schemas.js'
 import {
   RepositoryActionInputSchema,
   RepositoryActionOutputSchema,
@@ -12,7 +12,7 @@ import { ContextActionInputSchema, ContextActionOutputSchema } from './context-a
 
 /**
  * Central tool registry: declarative mapping of MCP tools to their actions and schemas.
- * Keep entries limited to unified action tools (gates_action, proposal_action, req_action, template_action)
+ * Keep entries limited to unified action tools (gates_action, proposal_action, reg_action, template_action)
  */
 export const ToolRegistry = {
   gates: {
@@ -44,12 +44,12 @@ export const ToolRegistry = {
   },
 
   requirements: {
-    toolName: 'req_action',
+    toolName: 'reg_action',
     actions: ['list', 'show', 'deps', 'transfer'] as const,
     inputSchema: ReqActionInputSchema,
     outputSchema: ReqActionOutputSchema,
     description:
-      'REQUIRED: Use req_action to query the requirements database. Actions: list (all/by gate), show (details by hash), deps (dependency graph), transfer (move to different gate), search (full-text keyword search). Call this whenever you need requirement info.',
+      'REQUIRED: Use reg_action to query the requirements database. Actions: list (all/by gate), show (details by hash), deps (dependency graph), transfer (move to different gate), search (full-text keyword search). Call this whenever you need requirement info.',
   },
 
   repositories: {
@@ -80,11 +80,11 @@ export const ToolRegistry = {
   },
   context: {
     toolName: 'context_action',
-    actions: ['gate', 'proposal'] as const,
+    actions: ['gate', 'proposal', 'requirement', 'repository'] as const,
     inputSchema: ContextActionInputSchema,
     outputSchema: ContextActionOutputSchema,
     description:
-      'Get compact working context for a gate or proposal. Actions: gate (needs: gateId) returns objectives, proposals, and requirements. proposal (needs: hash) returns proposal details, parent gate, requirements, and dependencies. Use this instead of loading full PRD or architecture documents during execution.',
+      'Get compact working context for any Zeno entity. Actions: gate (needs: gateId or hash) returns objectives, proposals, and requirements. proposal (needs: hash) returns proposal details, parent gate, requirements, and dependencies. requirement (needs: hash) returns full requirement details. repository (needs: hash or name) returns repository details. Replaces the former show_entity tool — use this instead of loading full PRD or architecture documents during execution.',
   },
 } as const
 

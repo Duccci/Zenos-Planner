@@ -12,8 +12,14 @@ function cleanupNulFile() {
 
 function run(cmd, options = {}) {
   console.log(`> ${cmd}`)
+  const { env: extraEnv, ...rest } = options
   try {
-    execSync(cmd, { stdio: 'inherit', shell: true, ...options })
+    execSync(cmd, {
+      stdio: 'inherit',
+      shell: true,
+      env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0', ...extraEnv },
+      ...rest,
+    })
   } catch (err) {
     cleanupNulFile()
     process.exit(err.status || 1)

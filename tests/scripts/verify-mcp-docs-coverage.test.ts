@@ -31,9 +31,9 @@ describe('verify-mcp-docs-coverage', () => {
     expect(docContent).toContain('## proposal_action')
   })
 
-  it('should have documentation for req_action tool', () => {
+  it('should have documentation for reg_action tool', () => {
     const docContent = fs.readFileSync(docPath, 'utf-8')
-    expect(docContent).toContain('## req_action')
+    expect(docContent).toContain('## reg_action')
   })
 
   it('should have documentation for config_get tool', () => {
@@ -57,11 +57,11 @@ describe('verify-mcp-docs-coverage', () => {
     }
   })
 
-  it.skip('should have action sections for req_action', () => { // @red
+  it.skip('should have action sections for reg_action', () => { // @red
     const docContent = fs.readFileSync(docPath, 'utf-8')
     const actions = ['list', 'show', 'deps']
     for (const action of actions) {
-      expect(docContent).toContain(`#### req_action: ${action}`)
+      expect(docContent).toContain(`#### reg_action: ${action}`)
     }
   })
 

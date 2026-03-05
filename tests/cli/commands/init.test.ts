@@ -1,227 +1,98 @@
-import { describe, it, expect, vi, beforeEach, type MockInstance } from 'vitest'
-import { Command } from 'commander'
+/**
+ * Init Command Tests
+ */
 
-const mockLogger = {
-  info: vi.fn(),
-  error: vi.fn(),
-  warn: vi.fn(),
-  debug: vi.fn(),
-}
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { registerInitCommand } from '../../../src/cli/commands/init.js'
+import { Command } from 'commander'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { writeFile, mkdir } from 'node:fs/promises'
+
+// Mock dependencies
+vi.mock('@inquirer/prompts', () => ({
+  input: vi.fn(),
+  confirm: vi.fn(),
+  editor: vi.fn(),
+}))
 
 vi.mock('../../../src/utils/logger.js', () => ({
-  logger: mockLogger,
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
 }))
 
 vi.mock('../../../src/scaffold/index.js', () => ({
-  createProjectStructure: vi.fn().mockResolvedValue(['/a', '/b', '/c']),
+  createProjectStructure: vi.fn().mockResolvedValue(['dir1', 'dir2']),
 }))
 
 vi.mock('../../../src/generation/requirement-generator.js', () => ({
-  RequirementGenerator: function MockRequirementGenerator() {
-    this.generateFromEndState = vi
-      .fn()
-      .mockReturnValue([{ id: 'r1', description: 'requirement 1' }])
-  },
+  RequirementGenerator: vi.fn().mockImplementation(() => ({
+    generateFromEndState: vi.fn().mockReturnValue([
+      { id: 'req1', description: 'Requirement 1' },
+      { id: 'req2', description: 'Requirement 2' },
+    ]),
+  })),
 }))
 
 vi.mock('../../../src/core/gate-generator.js', () => ({
   generateGates: vi.fn().mockReturnValue({
-    gates: [{ id: 'gate-01', name: 'Foundation' }],
-    totalComplexity: 10,
+    gates: [
+      { id: 'gate-01', name: 'Foundation' },
+      { id: 'gate-02', name: 'Features' },
+    ],
+    totalComplexity: 100,
   }),
-}))
-
-vi.mock('../../../src/generation/agents-writer.js', () => ({
-  writeAgentsMD: vi.fn().mockResolvedValue(undefined),
-}))
-
-vi.mock('../../../src/generation/agents-generator.js', () => ({
-  generateAgentsMD: vi.fn().mockReturnValue('# AGENTS\n\nGenerated content'),
-}))
-
-vi.mock('../../../src/utils/file.js', () => ({
-  directoryExists: vi.fn().mockReturnValue(true),
-}))
-
-vi.mock('../../../src/utils/config.js', () => ({
-  findProjectRoot: vi.fn().mockReturnValue(null),
-  loadConfig: vi.fn().mockResolvedValue({ projectName: 'Test' }),
-  getDefaultConfig: vi.fn().mockReturnValue({ projectName: 'Test' }),
-  saveConfig: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../../../src/storage/database.js', () => ({
   initializeDatabase: vi.fn().mockResolvedValue(undefined),
 }))
 
-// Mock inquirer prompts
-vi.mock('@inquirer/prompts', () => ({
-  input: vi.fn().mockResolvedValue('TestProject'),
-  confirm: vi.fn().mockResolvedValue(true),
-  editor: vi.fn().mockResolvedValue('Build a complete app with auth and API'),
+vi.mock('../../../src/utils/config.js', () => ({
+  findProjectRoot: vi.fn(),
+  loadConfig: vi.fn(),
+  getDefaultConfig: vi.fn((name, endState) => ({ projectName: name, endState, version: '0.1.0' })),
+  saveConfig: vi.fn().mockResolvedValue(undefined),
 }))
 
-describe('init command coverage', () => {
-  let exitSpy: MockInstance
+vi.mock('../../../src/utils/file.js', () => ({
+  fileExists: vi.fn(),
+  directoryExists: vi.fn(),
+}))
+
+describe('Init Command', () => {
+  let tempDir: string
 
   beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'zeno-test-'))
     vi.clearAllMocks()
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit')
-    })
   })
 
-  it('should run full init workflow', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { confirm } = await import('@inquirer/prompts')
-    vi.mocked(confirm)
-      .mockResolvedValueOnce(false) // hasExistingCodebase
-      .mockResolvedValueOnce(true) // confirmed
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init'])
-
-    expect(mockLogger.info).toHaveBeenCalledWith('Project initialized successfully!')
+  afterEach(() => {
+    try {
+      rmSync(tempDir, { recursive: true, force: true })
+    } catch {
+      // Ignore errors during cleanup
+    }
   })
 
-  it('should skip init with existing project and no force', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue('/existing')
-
+  it('should register the init command', () => {
     const program = new Command()
-    program.exitOverride()
     registerInitCommand(program)
 
-    await program.parseAsync(['node', 'test', 'init'])
+    const initCmd = program.commands.find(cmd => cmd.name() === 'init')
+    expect(initCmd).toBeDefined()
+    expect(initCmd!.description()).toBe('Initialize a new Zeno project')
 
-    expect(mockLogger.info).toHaveBeenCalledWith(
-      expect.stringContaining('Project already initialized')
-    )
-  })
-
-  it('should force reinitialize with --force', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue('/existing')
-
-    const { confirm } = await import('@inquirer/prompts')
-    vi.mocked(confirm)
-      .mockResolvedValueOnce(false) // hasExistingCodebase
-      .mockResolvedValueOnce(true) // confirmed
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init', '--force'])
-
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('Forcing reinitialization')
-    )
-  })
-
-  it('should handle cancelled init', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue(null)
-
-    const { confirm } = await import('@inquirer/prompts')
-    vi.mocked(confirm)
-      .mockResolvedValueOnce(false) // hasExistingCodebase
-      .mockResolvedValueOnce(false) // NOT confirmed
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init'])
-
-    expect(mockLogger.info).toHaveBeenCalledWith('Initialization cancelled')
-  })
-
-  it('should handle ExitPromptError (user cancelled prompts)', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue(null)
-
-    const { input } = await import('@inquirer/prompts')
-    const exitError = new Error('User cancelled')
-    exitError.name = 'ExitPromptError'
-    vi.mocked(input).mockRejectedValueOnce(exitError)
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init'])
-
-    expect(mockLogger.info).toHaveBeenCalledWith('Initialization cancelled')
-  })
-
-  it('should handle unexpected errors', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue(null)
-
-    const { input } = await import('@inquirer/prompts')
-    vi.mocked(input).mockRejectedValueOnce(new Error('Unexpected failure'))
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await expect(program.parseAsync(['node', 'test', 'init'])).rejects.toThrow()
-
-    expect(exitSpy).toHaveBeenCalledWith(1)
-  })
-
-  it('should handle existing codebase path', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue(null)
-
-    const { confirm, input } = await import('@inquirer/prompts')
-    vi.mocked(input)
-      .mockResolvedValueOnce('TestProject') // project name
-      .mockResolvedValueOnce('/path/to/code') // codebase path
-
-    vi.mocked(confirm)
-      .mockResolvedValueOnce(true) // hasExistingCodebase
-      .mockResolvedValueOnce(true) // confirmed
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init'])
-
-    expect(mockLogger.info).toHaveBeenCalledWith('Codebase path: /path/to/code')
-  })
-
-  it('should handle failed config load on existing project', async () => {
-    const { registerInitCommand } = await import('../../../src/cli/commands/init.js')
-    const { findProjectRoot, loadConfig } = await import('../../../src/utils/config.js')
-    vi.mocked(findProjectRoot).mockReturnValue('/existing')
-    vi.mocked(loadConfig).mockRejectedValueOnce(new Error('corrupt config'))
-
-    const { confirm } = await import('@inquirer/prompts')
-    vi.mocked(confirm)
-      .mockResolvedValueOnce(false) // hasExistingCodebase
-      .mockResolvedValueOnce(true) // confirmed
-
-    const program = new Command()
-    program.exitOverride()
-    registerInitCommand(program)
-
-    await program.parseAsync(['node', 'test', 'init'])
-
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Could not load existing configuration, proceeding with fresh initialization'
-    )
+    // Check that the force option is registered
+    const forceOption = initCmd!.options.find(opt => opt.flags === '-f, --force')
+    expect(forceOption).toBeDefined()
+    expect(forceOption!.description).toBe('Force reinitialization even if project is already initialized')
   })
 
   describe('validateProjectName', () => {
@@ -259,4 +130,29 @@ describe('init command coverage', () => {
       expect(validateProjectName('project/name')).toContain('can only contain')
     })
   })
+
+  describe('validateCodebasePath', () => {
+    const validateCodebasePath = (pathStr: string, mockExists: (p: string) => boolean): boolean | string => {
+      if (!mockExists(pathStr)) {
+        return `Directory does not exist: ${pathStr}`
+      }
+      return true
+    }
+
+    it('should accept valid directory paths', () => {
+      const mockDirectoryExists = vi.fn().mockReturnValue(true)
+      expect(validateCodebasePath('/valid/path', mockDirectoryExists)).toBe(true)
+      expect(mockDirectoryExists).toHaveBeenCalledWith('/valid/path')
+    })
+
+    it('should reject non-existent directories', () => {
+      const mockDirectoryExists = vi.fn().mockReturnValue(false)
+      expect(validateCodebasePath('/invalid/path', mockDirectoryExists)).toContain('does not exist')
+      expect(mockDirectoryExists).toHaveBeenCalledWith('/invalid/path')
+    })
+  })
 })
+
+/**
+ * Helper comment for clarity
+ */

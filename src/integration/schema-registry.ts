@@ -22,6 +22,20 @@ import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
+function safeToString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value instanceof Error) return value.message
+  try {
+    if (value == null) return ''
+    if (typeof value === 'object') return JSON.stringify(value)
+    if (typeof value === 'symbol') return value.toString()
+    if (typeof value === 'function') return '[function]'
+    return String(value as number | boolean | bigint)
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Build comprehensive diagram context from project artifacts.
  * Reads PRD, gates, and project metadata to enable aspirational architecture generation.
@@ -53,8 +67,9 @@ async function buildDiagramContext(): Promise<DiagramContext> {
         }
       }
       if (Object.keys(decisions).length > 0) {
-        context.metadata ??= {}
-        context.metadata.technicalDecisions = decisions
+        const metadata: Record<string, unknown> = context.metadata ?? {}
+        metadata['technicalDecisions'] = decisions
+        context.metadata = metadata
       }
     } catch (e) {
       // PRD not found or read error - proceed with minimal context
@@ -74,11 +89,12 @@ async function buildDiagramContext(): Promise<DiagramContext> {
         status: gate.status as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
       }))
 
-      // Add metadata about gate progress
-      context.metadata ??= {}
+      // Add metadata about gate progress (use a typed local metadata object)
       const implementedCount = allGates.filter((g) => g.status === 'completed').length
-      context.metadata.targetGateCount = allGates.length
-      context.metadata.implementedGateCount = implementedCount
+      const gateMetadata: Record<string, unknown> = context.metadata ?? {}
+      gateMetadata['targetGateCount'] = allGates.length
+      gateMetadata['implementedGateCount'] = implementedCount
+      context.metadata = gateMetadata
     } catch (e) {
       // Project overview not found - proceed with what we have
       void e
@@ -240,11 +256,14 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       if (r.svgContent && r.dotSource) {
         // Graphviz diagram — write sidecars, .md holds only the <img> reference
         mkdirSync(dotDiagramsDir, { recursive: true })
-        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.dot`), r.dotSource, 'utf-8')
-        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.svg`), r.svgContent, 'utf-8')
+        const dotSource = safeToString(r.dotSource)
+        const svgContent = safeToString(r.svgContent)
+        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.dot`), dotSource, 'utf-8')
+        writeFileSync(join(dotDiagramsDir, `${r.diagramType}.svg`), svgContent, 'utf-8')
       }
       const filePath = join(archDir, `${r.diagramType}.md`)
-      writeFileSync(filePath, r.markdown, 'utf-8')
+      const markdown = safeToString(r.markdown)
+      writeFileSync(filePath, markdown, 'utf-8')
       written.push(filePath)
     }
 
@@ -329,10 +348,13 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     mkdirSync(archDir, { recursive: true })
     if (output.svgContent && output.dotSource) {
       mkdirSync(dotDiagramsDir, { recursive: true })
-      writeFileSync(join(dotDiagramsDir, `${diagramType}.dot`), output.dotSource, 'utf-8')
-      writeFileSync(join(dotDiagramsDir, `${diagramType}.svg`), output.svgContent, 'utf-8')
+      const dotSourceOut = safeToString(output.dotSource)
+      const svgContentOut = safeToString(output.svgContent)
+      writeFileSync(join(dotDiagramsDir, `${diagramType}.dot`), dotSourceOut, 'utf-8')
+      writeFileSync(join(dotDiagramsDir, `${diagramType}.svg`), svgContentOut, 'utf-8')
     }
-    writeFileSync(archFile, output.markdown, 'utf-8')
+    const markdownOut = safeToString(output.markdown)
+    writeFileSync(archFile, markdownOut, 'utf-8')
 
     return {
       type: diagramType,
@@ -600,7 +622,7 @@ export function registerAnalysisOps(registry: FunctionRegistry): void {
 
   registry.register('git_trace', async (params) => {
     const validated = GitTraceInputSchema.parse(params)
-    
+
     const commits = await parseCommitsForHashes(
       validated.artifactHash,
       {

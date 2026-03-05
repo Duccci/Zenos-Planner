@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { logger } from '../../utils/logger.js'
 import { gateHandlers, gateToolDefinitions } from './gate-tools.js'
-import { requirementHandlers } from './requirement-tools.js'
+import { requirementHandlers, requirementToolDefinitions } from './requirement-tools.js'
 import { proposalHandlers, proposalToolDefinitions } from './proposal-tools.js'
-import { configHandlers } from './config-tools.js'
+import { configHandlers, configToolDefinitions } from './config-tools.js'
+import { gitTraceHandlers, gitTraceToolDefinitions } from './git-trace-tools.js'
 import { validationHandlers, validationToolDefinitions } from './validation-tools.js'
-import { templateHandlers, templateToolDefinitions } from './template-tools.js'
 import { repositoryHandlers, repositoryToolDefinitions } from './repository-tools.js'
 import { analysisHandlers, analysisToolDefinitions } from './analysis-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
@@ -24,15 +24,17 @@ type HandlerFactory = (registry: FunctionRegistry) => Record<string, HandlerFn>
 
 // Collect handler-level definitions provided by handler modules
 const handlerToolDefs = [
-  ...templateToolDefinitions,
   ...repositoryToolDefinitions,
   ...analysisToolDefinitions,
   ...gateToolDefinitions,
+  ...requirementToolDefinitions,
   ...proposalToolDefinitions,
+  ...configToolDefinitions,
   ...validationToolDefinitions,
   ...architectureToolDefinitions,
   ...projectToolDefinitions,
   ...contextToolDefinitions,
+  ...gitTraceToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -69,7 +71,6 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
 
   // Register handler-based tools first to allow them to override CLI-backed functions
   const handlerFactories: HandlerFactory[] = [
-    templateHandlers,
     repositoryHandlers,
     analysisHandlers,
     gateHandlers,
@@ -80,6 +81,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     architectureHandlers,
     projectHandlers,
     contextHandlers,
+    gitTraceHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)

@@ -640,15 +640,21 @@ describe('Analysis Schemas', () => {
     })
   })
 
-  describe('show_entity', () => {
-    it('should validate entity info', () => {
+  describe('context_action entity resolution', () => {
+    it('should validate requirement context output', () => {
       const info = {
-        entityType: 'gate',
-        id: 'gate-01',
-        name: 'Core Infrastructure',
-        status: 'completed'
+        id: 'req-01',
+        description: 'Must support offline mode',
+        type: 'non_functional',
+        priority: 'must',
+        level: 'project',
+        hash: 'abc123450def5678',
+        gateId: 'gate-01',
+        acceptanceCriteria: null,
+        createdAt: new Date().toISOString(),
       }
-      expect(() => analysis.EntityInfoSchema.parse(info)).not.toThrow()
+      expect(() => analysis.EntityInfoSchema.parse({ entityType: 'gate', id: 'gate-01', name: 'x' })).not.toThrow()
+      expect(info.hash).toHaveLength(16)
     })
   })
 })

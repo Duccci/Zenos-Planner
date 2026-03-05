@@ -46,7 +46,7 @@ function parseNavToolRefs(md: string): string[] {
   const section = md.match(/#{2,3} Quick Navigation[\s\S]*?(?=\n#{2,3} )/)?.[0] ?? ''
   return [...section.matchAll(/\|\s+`([^`]+)`/g)]
     .map(m => m[1].trim())
-    .filter(v => v.includes('_action') || v === 'config_get' || v.includes('show_entity'))
+    .filter(v => v.includes('_action') || v === 'config_get')
 }
 
 // Parse from the inner ZENO block only

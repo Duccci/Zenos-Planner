@@ -6,7 +6,7 @@ export interface Gate {
   sequence: number
   name: string
   description?: string
-  status?: 'pending' | 'in_progress' | 'completed' | 'rejected'
+  status?: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected'
 }
 
 export async function discoverGates(projectRoot: string): Promise<Gate[]> {
