@@ -1,9 +1,9 @@
 # Zeno's Planner
 
-[![Test](https://github.com/yourusername/zenos-planner/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/test.yml)
-[![Lint](https://github.com/yourusername/zenos-planner/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/lint.yml)
-[![Security](https://github.com/yourusername/zenos-planner/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/security.yml)
-[![Coverage](https://github.com/yourusername/zenos-planner/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/yourusername/zenos-planner/actions/workflows/coverage.yml)
+[![Test](https://github.com/Duccci/zenos-planner/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/Duccci/zenos-planner/actions/workflows/test.yml)
+[![Lint](https://github.com/Duccci/zenos-planner/actions/workflows/lint.yml/badge.svg?branch=main)](https://github.com/Duccci/zenos-planner/actions/workflows/lint.yml)
+[![Security](https://github.com/Duccci/zenos-planner/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Duccci/zenos-planner/actions/workflows/security.yml)
+[![Coverage](https://github.com/Duccci/zenos-planner/actions/workflows/coverage.yml/badge.svg?branch=main)](https://github.com/Duccci/zenos-planner/actions/workflows/coverage.yml)
 
 Zeno's Planner is an LLM-friendly project planning and orchestration tool that decomposes high-level goals into iterative milestones (gates), with human approval and automated quality checks at every step. Inspired by Zeno's dichotomy paradox — each gate brings the project progressively closer to the end goal.
 
