@@ -109,6 +109,7 @@ vi.mock('../../src/utils/artifact-locator.js', () => ({
 vi.mock('../../src/utils/file.js', () => ({
   readFile: vi.fn().mockResolvedValue(''),
   writeFile: (...args: unknown[]) => mockWriteFile(...args),
+  normalizePath: (p: string) => p.replace(/\\/g, '/'),
 }))
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(false),

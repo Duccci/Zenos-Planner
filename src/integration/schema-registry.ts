@@ -274,7 +274,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
         format: r.renderingBackend,
         generated: true,
         content: r.markdown,
-        filePath: join('zeno', 'architecture', `${r.diagramType}.md`),
+        filePath: `zeno/architecture/${r.diagramType}.md`,
       })),
       totalGenerated: results.length,
       timestamp: new Date().toISOString(),
@@ -336,7 +336,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
         content,
         format,
         found: true,
-        filePath: join('zeno', 'architecture', `${diagramType}.md`),
+        filePath: `zeno/architecture/${diagramType}.md`,
       }
     }
 
@@ -362,7 +362,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       content: output.markdown,
       format: output.renderingBackend,
       found: true,
-      filePath: join('zeno', 'architecture', `${diagramType}.md`),
+      filePath: `zeno/architecture/${diagramType}.md`,
     }
   }, {
     description: 'Show a specific type of architecture diagram',

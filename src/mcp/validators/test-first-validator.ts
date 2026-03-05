@@ -331,3 +331,93 @@ export function validateGateLevelTestFirst(gateProposals: ProposalGateSibling[])
     warnings: result.warnings.length > 0 ? result.warnings : undefined,
   }
 }
+
+// ---------------------------------------------------------------------------
+// RED test coverage check
+// ---------------------------------------------------------------------------
+
+export interface ImplementationProposalFiles {
+  /** Hash of an implementation (or any sibling) proposal */
+  hash: string
+  /** Files declared in the proposal's Files Affected table */
+  filesAffected: string[]
+}
+
+export interface RedTestCoverageContext {
+  /** Hash of the RED/test-suite proposal being validated */
+  proposalHash: string
+  /** Files declared in the RED proposal's Files Affected (expected to be test files) */
+  redTestFiles: string[]
+  /** Sibling proposals in the same gate whose files need RED test coverage */
+  implementationProposals: ImplementationProposalFiles[]
+}
+
+/**
+ * Derives the bare module basename from a file path, stripping directory and extension.
+ * e.g. "src/core/my-module.ts" -> "my-module"
+ */
+function moduleBaseName(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  const filename = normalized.slice(normalized.lastIndexOf('/') + 1)
+  const dotIndex = filename.lastIndexOf('.')
+  return dotIndex > 0 ? filename.slice(0, dotIndex) : filename
+}
+
+/**
+ * Returns true when at least one test file in `testFiles` appears to cover `implFile`.
+ * A test file covers an impl file when the test file's basename starts with the impl
+ * file's module name (e.g. "my-module.test.ts" covers "my-module.ts").
+ */
+function hasTestCoverage(implFile: string, testFiles: string[]): boolean {
+  const baseName = moduleBaseName(implFile)
+  if (!baseName) return false
+
+  return testFiles.some((tf) => {
+    const normalizedTf = tf.replace(/\\/g, '/')
+    const tfFilename = normalizedTf.slice(normalizedTf.lastIndexOf('/') + 1)
+    // Accept: "baseName.test.ts", "baseName.spec.ts", "baseName.test.js", etc.
+    return tfFilename.startsWith(baseName + '.')
+  })
+}
+
+/**
+ * For a RED (test-suite) proposal, verify that every new implementation file
+ * declared in sibling proposals has a corresponding test file in this proposal's
+ * Files Affected list.
+ *
+ * Iterates through all sibling proposals, collects their non-test files, and checks
+ * that the RED proposal contains a matching test file for each. This ensures the RED
+ * test suite establishes acceptance criteria for every file that implementation
+ * proposals will create before implementation begins.
+ */
+export function validateRedTestCoverage(context: RedTestCoverageContext): ValidationResult {
+  const errors: string[] = []
+
+  // Collect all non-test files from sibling proposals that lack test coverage
+  const uncoveredEntries: { file: string; proposalHash: string }[] = []
+
+  for (const proposal of context.implementationProposals) {
+    for (const file of proposal.filesAffected) {
+      if (isImplementationFile(file) && !hasTestCoverage(file, context.redTestFiles)) {
+        uncoveredEntries.push({ file, proposalHash: proposal.hash })
+      }
+    }
+  }
+
+  if (uncoveredEntries.length > 0) {
+    const fileList = uncoveredEntries
+      .map((e) => `  - ${e.file} (from proposal #${e.proposalHash})`)
+      .join('\n')
+    errors.push(
+      `RED test suite is missing coverage for ${String(uncoveredEntries.length)} implementation ` +
+        `file(s) declared in sibling proposals. Add test files for:\n${fileList}\n` +
+        `Every file a sibling proposal creates must have a corresponding *.test.ts (or *.spec.ts) ` +
+        `entry in this RED proposal's Files Affected so acceptance criteria exist before implementation begins.`
+    )
+  }
+
+  return {
+    allowed: errors.length === 0,
+    errors: errors.length > 0 ? errors : undefined,
+  }
+}

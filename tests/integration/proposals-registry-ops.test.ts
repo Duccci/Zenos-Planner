@@ -26,6 +26,7 @@ const mockValidateScope = vi.fn()
 const mockValidateTestFileScope = vi.fn()
 const mockValidateTestFirstPattern = vi.fn()
 const mockValidateGateLevelTestFirst = vi.fn()
+const mockValidateRedTestCoverage = vi.fn()
 const mockFindProposalByHash = vi.fn()
 const mockReadFile = vi.fn()
 const mockValidateApplyPhase = vi.fn()
@@ -66,6 +67,7 @@ vi.mock('../../src/mcp/validators/scope-validator.js', () => ({
 vi.mock('../../src/mcp/validators/test-first-validator.js', () => ({
   validateTestFirstPattern: (...args: unknown[]) => mockValidateTestFirstPattern(...args),
   validateGateLevelTestFirst: (...args: unknown[]) => mockValidateGateLevelTestFirst(...args),
+  validateRedTestCoverage: (...args: unknown[]) => mockValidateRedTestCoverage(...args),
 }))
 
 vi.mock('../../src/mcp/validators/proposal-phases-validator.js', () => ({
@@ -139,6 +141,7 @@ describe('proposals-registry operations', () => {
     mockValidateTestFileScope.mockReturnValue({ allowed: true, errors: [], warnings: [] })
     mockValidateTestFirstPattern.mockReturnValue({ allowed: true, errors: [], warnings: [] })
     mockValidateGateLevelTestFirst.mockReturnValue({ allowed: true, errors: [], warnings: [] })
+    mockValidateRedTestCoverage.mockReturnValue({ allowed: true })
     mockValidateArtifactFile.mockResolvedValue({ allowed: true, errors: [], warnings: [] })
     mockLoadConfig.mockResolvedValue({ quality: { coverageThreshold: 90 } })
     mockFindProposalByHash.mockResolvedValue(null)

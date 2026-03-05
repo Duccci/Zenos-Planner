@@ -140,9 +140,9 @@ zeno/
    Update the proposal file with completion metadata:
 
    ```markdown
-   **Status**: completed  
-   **Implemented**: [DATE]  
-   **Archived**: [DATE]  
+   **Status**: completed
+   **Implemented**: [DATE]
+   **Archived**: [DATE]
    **Archived By**: [git user.name or "system"]
    ```
 
@@ -151,9 +151,9 @@ zeno/
    ```markdown
    ## Completion Summary
 
-   **Tasks Completed**: [X/X]  
-   **Files Modified**: [count]  
-   **Test Coverage**: [X%]  
+   **Tasks Completed**: [X/X]
+   **Files Modified**: [count]
+   **Test Coverage**: [X%]
    **Commits**: [commit hash(es)]
 
    ### Artifacts Created
@@ -223,7 +223,7 @@ zeno/
 
    ```
    All proposals for Gate XX are completed.
-   
+
    To archive the gate: `/zeno-archive gate-XX`
    This will:
    - Consolidate proposals
@@ -236,7 +236,7 @@ zeno/
 
     Location: zeno/proposals/archive/<hash>.md
     Gate: gate-XX - [Gate Name]
-    
+
     Requirements updated:
       - #req1: [Name] -> tested
       - #req2: [Name] -> tested
@@ -245,12 +245,12 @@ zeno/
       - #p02... (now ready for implementation)
 
     Gate status: [X/Y proposals completed]
-    
+
     Changes committed and pushed:
       - All implementation files, tests, and artifacts included
       - Proposal moved to completed directory
       - Gate document updated
-    
+
     Next steps:
       - If more proposals remain: `/zeno-apply #next-hash`
       - If gate complete: `/zeno-archive gate-XX`
@@ -306,9 +306,9 @@ This reduces context size while preserving critical breadcrumbs for future refer
    Update the proposal file with completion metadata:
 
    ```markdown
-   **Status**: completed  
-   **Implemented**: [DATE]  
-   **Archived**: [DATE]  
+   **Status**: completed
+   **Implemented**: [DATE]
+   **Archived**: [DATE]
    **Archived By**: [git user.name or "system"]
    ```
 
@@ -338,14 +338,14 @@ This reduces context size while preserving critical breadcrumbs for future refer
 
     Location: zeno/proposals/archive/solitary/#hash.md
     Consolidated to: zeno/gates/archive/solitary.md
-    
+
     Implementation summary added to registry under [Category] section.
 
     Changes committed and pushed:
       - Proposal moved to archive
       - Consolidation file updated
       - Solitary directory cleaned of completed work
-    
+
     Next steps:
       - Continue with other pending solitary proposals
       - Or return to gate work with next proposal

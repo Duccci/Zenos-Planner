@@ -12,8 +12,10 @@ import { describe, it, expect } from 'vitest'
 import {
   validateTestFirstPattern,
   validateGateLevelTestFirst,
+  validateRedTestCoverage,
   type TestFirstValidationContext,
   type ProposalGateSibling,
+  type RedTestCoverageContext,
 } from '../../../src/mcp/validators/test-first-validator.js'
 
 describe('test-first-validator', () => {
@@ -729,16 +731,119 @@ describe('test-first-validator', () => {
       expect(result.allowed).toBe(true)
     })
 
-    it('should handle Windows-style paths', () => {
+    it('should recognize files under the src/ root', () => {
       const context: TestFirstValidationContext = {
         proposalHash: '#abc123',
         role: 'test-suite',
         isGateTied: true,
-        filesAffected: ['src\\feature.test.ts'],
+        filesAffected: ['src/feature.test.ts'],
       }
 
       const result = validateTestFirstPattern(context)
       expect(result.allowed).toBe(true)
     })
+  })
+})
+
+describe('validateRedTestCoverage', () => {
+  it('allows when there are no sibling proposals', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.test.ts'],
+      implementationProposals: [],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('allows when every impl file has a matching test file', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.test.ts', 'tests/core/bar.test.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['src/core/foo.ts', 'src/core/bar.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('fails when an impl file has no matching test file', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.test.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['src/core/foo.ts', 'src/core/bar.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(false)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors![0]).toContain('bar.ts')
+    expect(result.errors![0]).toContain('impl001')
+  })
+
+  it('fails for multiple uncovered files across multiple sibling proposals', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.test.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['src/core/foo.ts', 'src/core/bar.ts'] },
+        { hash: 'impl002', filesAffected: ['src/core/baz.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(false)
+    expect(result.errors![0]).toContain('2 implementation')
+    expect(result.errors![0]).toContain('bar.ts')
+    expect(result.errors![0]).toContain('baz.ts')
+  })
+
+  it('ignores test files in sibling proposals (only checks impl files)', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.test.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['tests/core/extra.test.ts', 'src/core/foo.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    // tests/core/extra.test.ts is a test file — ignored; src/core/foo.ts is covered
+    expect(result.allowed).toBe(true)
+  })
+
+  it('matches by basename regardless of directory depth', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/deep/nested/my-module.test.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['src/very/deep/path/my-module.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('handles spec files as valid test coverage', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: ['tests/core/foo.spec.ts'],
+      implementationProposals: [
+        { hash: 'impl001', filesAffected: ['src/core/foo.ts'] },
+      ],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('allows when sibling proposals have no files_affected', () => {
+    const ctx: RedTestCoverageContext = {
+      proposalHash: 'red001',
+      redTestFiles: [],
+      implementationProposals: [{ hash: 'impl001', filesAffected: [] }],
+    }
+    const result = validateRedTestCoverage(ctx)
+    expect(result.allowed).toBe(true)
   })
 })

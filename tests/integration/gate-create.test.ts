@@ -71,6 +71,7 @@ vi.mock('fs/promises', () => ({
 
 vi.mock('../../src/utils/file.js', () => ({
   writeFile: (...args: unknown[]) => mockWriteFile(...args),
+  normalizePath: (p: string) => p.replace(/\\/g, '/'),
 }))
 
 vi.mock('path', () => ({

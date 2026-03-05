@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
+import { normalizePath } from '../utils/file.js'
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -455,7 +456,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
         const fileName = `${date}-01-${slug}.md`
-        filePath = join(process.cwd(), 'zeno', 'proposals', 'solitary', fileName)
+        filePath = normalizePath(join(process.cwd(), 'zeno', 'proposals', 'solitary', fileName))
       } else {
         // Gate-tied: zeno/proposals/gate-XX/NN-name.md
         const gateNumMatch = validated.gateId ? /\d+/.exec(validated.gateId)?.[0] : undefined
@@ -465,13 +466,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
         const fileName = `01-${slug}.md`
-        filePath = join(
+        filePath = normalizePath(join(
           process.cwd(),
           'zeno',
           'proposals',
           `gate-${gateNum.padStart(2, '0')}`,
           fileName
-        )
+        ))
       }
 
       // Write proposal file
@@ -675,7 +676,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { validateProposalPhases } =
         await import('../mcp/validators/proposal-phases-validator.js')
       const { validateScope, validateTestFileScope } = await import('../mcp/validators/scope-validator.js')
-      const { validateTestFirstPattern, validateGateLevelTestFirst } =
+      const { validateTestFirstPattern, validateGateLevelTestFirst, validateRedTestCoverage } =
         await import('../mcp/validators/test-first-validator.js')
       const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
       const { readFile } = await import('../utils/file.js')
@@ -694,6 +695,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         quality: true,
         testFirstPattern: true,
         gateLevelTestFirst: undefined as boolean | undefined,
+        redTestCoverage: undefined as boolean | undefined,
       }
 
       // Load proposal from database
@@ -942,6 +944,49 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      // ── 9) RED coverage: every impl file in sibling proposals needs a test in this suite ──
+      if (!isSolitary && gateId) {
+        try {
+          const proposalFilePath = await findProposalByHash(validated.hash)
+          let currentRole: string | undefined
+          if (proposalFilePath) {
+            const content = await readFile(proposalFilePath)
+            const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+            currentRole = roleMatch?.[1]?.trim()
+          }
+
+          if (currentRole === 'test-suite') {
+            const siblingRows = db
+              .prepare(
+                "SELECT hash, files_affected FROM proposals WHERE gate_id = ? AND hash != ?"
+              )
+              .all(gateId, validated.hash) as {
+              hash: string
+              files_affected?: string | null
+            }[]
+
+            const implementationProposals = siblingRows.map((r) => ({
+              hash: r.hash,
+              filesAffected: r.files_affected
+                ? (JSON.parse(r.files_affected) as string[])
+                : [],
+            }))
+
+            const coverageResult = validateRedTestCoverage({
+              proposalHash: validated.hash,
+              redTestFiles: filesAffected,
+              implementationProposals,
+            })
+            checks.redTestCoverage = coverageResult.allowed
+            if (!coverageResult.allowed) {
+              if (coverageResult.errors) errors.push(...coverageResult.errors)
+            }
+          }
+        } catch {
+          // non-fatal
+        }
+      }
+
       const passedQuantitative = errors.length === 0
       const previousStatus = proposal.status ?? 'pending'
 
@@ -983,6 +1028,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
               quality: checks.quality,
               testFirstPattern: checks.testFirstPattern,
               gateLevelTestFirst: checks.gateLevelTestFirst,
+              ...(checks.redTestCoverage !== undefined
+                ? { redTestCoverage: checks.redTestCoverage }
+                : {}),
             },
       }
     },

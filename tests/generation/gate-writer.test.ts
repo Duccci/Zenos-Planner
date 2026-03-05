@@ -21,7 +21,7 @@ describe('Gate Writer', () => {
 
     const result = await writeGatePRD(content, gateNumber, gateName);
 
-    expect(mockWriteFile).toHaveBeenCalledWith('zeno\\gates\\gate-01-test-gate.md', content, 'utf-8');
-    expect(result).toBe('zeno\\gates\\gate-01-test-gate.md');
+    expect(mockWriteFile).toHaveBeenCalledWith('zeno/gates/gate-01-test-gate.md', content, 'utf-8');
+    expect(result).toBe('zeno/gates/gate-01-test-gate.md');
   });
 });

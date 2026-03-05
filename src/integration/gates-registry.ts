@@ -13,6 +13,7 @@ import { resolveLastUpdated } from '../utils/datetime.js'
 
 import { join } from 'node:path'
 import { getZenoDir } from '../utils/config.js'
+import { normalizePath } from '../utils/file.js'
 
 export function registerGatesOps(registry: FunctionRegistry): void {
   // In-process implementation for listing gates (faster than spawning CLI)
@@ -510,7 +511,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       // Write gate file
       const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
-      const filePath = join(process.cwd(), 'zeno', 'gates', fileName)
+      const filePath = normalizePath(join(process.cwd(), 'zeno', 'gates', fileName))
 
       const { writeFile } = await import('../utils/file.js')
       await writeFile(filePath, gateContent, 'utf-8')

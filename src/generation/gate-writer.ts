@@ -5,7 +5,6 @@
  */
 
 import { writeFile } from '../utils/file.js';
-import { join } from 'path';
 
 export async function writeGatePRD(
   gatePRD: string,
@@ -13,7 +12,7 @@ export async function writeGatePRD(
   gateName: string
 ): Promise<string> {
   const fileName = `gate-${gateNumber.toString().padStart(2, '0')}-${gateName.replace(/\s+/g, '-').toLowerCase()}.md`;
-  const filePath = join('zeno', 'gates', fileName);
+  const filePath = `zeno/gates/${fileName}`;
 
   await writeFile(filePath, gatePRD, 'utf-8');
 
