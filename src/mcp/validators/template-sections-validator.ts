@@ -113,6 +113,20 @@ export function validateTemplateSections(
     }
   }
 
+  // Warn about sections in the document that are not defined in the template.
+  // Only meaningful when the template itself declares at least one section.
+  const knownSections = new Set([...templateSections.required, ...templateSections.optional])
+  if (knownSections.size > 0) {
+    const contentHeadings = [...proposalContent.matchAll(/^(## .+)$/gm)].map((m) =>
+      (m[1] ?? '').trimEnd()
+    )
+    for (const heading of contentHeadings) {
+      if (!knownSections.has(heading)) {
+        warnings.push(`Extraneous section: "${heading}" is not defined in the template`)
+      }
+    }
+  }
+
   return {
     allowed: errors.length === 0,
     errors: errors.length > 0 ? errors : undefined,

@@ -136,6 +136,7 @@ export const ProposalValidateOutputSchema = z.object({
     testFirstPattern: z.boolean(),
     gateLevelTestFirst: z.boolean().optional(),
     redTestCoverage: z.boolean().optional(),
+    requirementsCoverage: z.boolean().optional(),
   }).optional(),
   metrics: z
     .object({

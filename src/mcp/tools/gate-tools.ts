@@ -241,9 +241,11 @@ export function gateHandlers(
           // 5) Requirements coverage: gate must have at least one requirement in the DB
           //    (owned or linked from another gate/PRD).
           // Gates without requirements provide no decomposition basis for proposals.
-          // This is an error for in_progress gates, a warning for pending gates.
+          // Requirements are mandatory for gate validation regardless of gate status —
+          // project-level requirements should be attributed to the gate before validation,
+          // and gate-level requirements are generated when gates_action:start is called.
           try {
-            const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } })
+            const reqResult = await r.invoke('reg_action', { action: 'list', gateId })
             if (reqResult.success) {
               const reqData = reqResult.data as {
                 requirements?: unknown[]
@@ -254,17 +256,12 @@ export function gateHandlers(
               const linked = reqData.linkedCount ?? 0
               const count = owned + linked
               if (count === 0) {
-                const currentStatus = (showData['status'] as string) || ''
-                if (currentStatus === 'in_progress') {
-                  requirementsCoverage = false
-                  allErrors.push(
-                    `Gate ${gateId} has no requirements (owned or inherited) — run gates_action:start to generate gate-level requirements before proceeding`
-                  )
-                } else {
-                  allWarnings.push(
-                    `Gate ${gateId} has no requirements yet — requirements will be generated when the gate is started`
-                  )
-                }
+                requirementsCoverage = false
+                allErrors.push(
+                  `Gate ${gateId} has no requirements in the database (owned or inherited). ` +
+                  `Attribute project-level requirements to this gate via reg_action, ` +
+                  `or run gates_action:start to auto-generate gate-level requirements.`
+                )
               }
             }
           } catch { /* requirements check is best-effort */ }

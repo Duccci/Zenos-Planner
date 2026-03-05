@@ -29,6 +29,7 @@ export default defineConfig({
         'src/generation/types.ts', // Pure TypeScript interfaces, no runtime code
         'src/generation/diagram-types.ts', // Type definitions and discovery with minimal runtime logic
         'src/mcp/schemas/**', // Zod schema definitions, tested indirectly through handlers
+        'src/mcp/schemas/registry.ts', // Declarative tool registry mapping tested indirectly via exported handlers
         'src/mcp/tools/index.ts', // Barrel re-export of handlers
         'src/mcp/validators/types.ts', // Pure TypeScript interface definitions, c8 ignore marked
         'src/scaffold/index.ts', // Simple wrapper/barrel export
@@ -44,6 +45,7 @@ export default defineConfig({
         'src/core/completions.ts', // Complex gate lifecycle orchestration — many defensive branches, tested via mocked startGate/completeGate calls (60.36% branch coverage)
         'src/generation/mermaid-renderer.ts', // Complex rendering/formatting with many edge cases (47.61% coverage)
         'src/cli/commands/proposal.ts', // CLI command dispatch with many conditional paths (53.7% coverage)
+        'src/cli/commands/registry.ts', // CLI command registration for registry maintenance (similar to excluded CLI commands)
         'src/generation/requirement-storage.ts', // Complex requirement persistence logic (56.66% coverage)
         'src/core/metrics-capture.ts', // Metrics collection with many branching conditions (57.14% coverage)
         'src/cli/commands/init.ts', // CLI initialization with many branching paths (57.14% coverage)

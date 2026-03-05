@@ -117,6 +117,50 @@ export interface ArtifactValidationContext {
 }
 
 /**
+ * Validate the Open Questions section in a proposal or gate document.
+ *
+ * The section is optional — its absence always passes.  When present the body
+ * must satisfy one of:
+ *   • empty / whitespace only
+ *   • contains only "N/A" or "null" text (case-insensitive)
+ *   • every checkbox item is resolved: `- [x]` (no `- [ ]` items remain)
+ *
+ * A single unresolved `- [ ]` item is a blocking error because unresolved
+ * questions indicate the artifact is not ready for approval / proposal generation.
+ */
+function validateOpenQuestions(content: string): ValidationResult {
+  const sectionMatch = /##\s+Open Questions\b([\s\S]*?)(?=\n##\s|\s*$)/i.exec(content)
+  if (!sectionMatch) {
+    return { allowed: true }
+  }
+
+  const body = sectionMatch[1] ?? ''
+  const bodyTrimmed = body.trim()
+
+  // Empty, "N/A", or "null" body → no questions to resolve.
+  if (!bodyTrimmed || /^(?:N\/A|null)$/i.test(bodyTrimmed)) {
+    return { allowed: true }
+  }
+
+  // Detect unresolved checkbox items: `- [ ] text` or `* [ ] text`
+  const unresolvedMatches = [...body.matchAll(/^[-*]\s+\[\s+\]\s+.+/gm)]
+  if (unresolvedMatches.length > 0) {
+    const questions = unresolvedMatches
+      .map((m) => m[0].replace(/^[-*]\s+\[\s+\]\s+/, '').trim().slice(0, 100))
+    return {
+      allowed: false,
+      errors: [
+        `Open Questions section has ${String(unresolvedMatches.length)} unresolved question(s). ` +
+          `Mark each as [x] once resolved, or remove questions that no longer apply:\n` +
+          questions.map((q) => `  • ${q}`).join('\n'),
+      ],
+    }
+  }
+
+  return { allowed: true }
+}
+
+/**
  * Validate a proposal artifact comprehensively.
  *
  * ALWAYS enforces both format and structure validation.
@@ -251,6 +295,13 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
     const depResult = validateDependencies(depContext)
     errors.push(...(depResult.errors ?? []))
     warnings.push(...(depResult.warnings ?? []))
+  }
+
+  // Check 7: Open Questions — all questions must be resolved (or section absent / N/A)
+  {
+    const oqResult = validateOpenQuestions(content)
+    errors.push(...(oqResult.errors ?? []))
+    warnings.push(...(oqResult.warnings ?? []))
   }
 
   // =========================================================================
@@ -405,6 +456,13 @@ function validateGateArtifact(context: ArtifactValidationContext): ValidationRes
   // Gates with associated proposals must validate Test-First pattern at gate level
   // This is enforced when gate is completed or at proposal approval time
   // (structure checks delegated to validateTestFirstPattern when proposals are available)
+
+  // Check 7: Open Questions — all questions must be resolved (or section absent / N/A)
+  {
+    const oqResult = validateOpenQuestions(content)
+    errors.push(...(oqResult.errors ?? []))
+    warnings.push(...(oqResult.warnings ?? []))
+  }
 
   // =========================================================================
   // PHASE 3: AGENT-DIRECTED QUALITATIVE REVIEW

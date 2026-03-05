@@ -102,6 +102,14 @@ The Description column must be self-contained â€” the apply agent reads onl
 
 ---
 
+## Open Questions
+
+[Optional: Capture questions that need resolution before or during implementation. Mark each item `[x]` once the question is answered. The validator requires every listed question to be resolved (`[x]`) before approval — or set this section to `N/A` if there are no open questions. Remove this section entirely if it is not needed.]
+
+- [ ] [Question text — replace once resolved or remove this placeholder]
+
+---
+
 ## Tasks
 
 Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.

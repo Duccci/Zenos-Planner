@@ -3,7 +3,7 @@
  *
  * Covers:
  *   parseTemplateSections  - required vs optional heading detection
- *   validateTemplateSections - error on missing required, warning on missing optional
+ *   validateTemplateSections - error on missing required, warning on missing optional, warning on extraneous
  *   loadTemplateSections    - file I/O with cache, falls back gracefully on missing file
  *   clearTemplateSectionsCache - cache invalidation
  */
@@ -160,6 +160,43 @@ describe('validateTemplateSections', () => {
     expect(result.allowed).toBe(true)
     expect(result.errors).toBeUndefined()
     expect(result.warnings).toBeUndefined()
+  })
+
+  it('warns on a section present in the document but not in the template', () => {
+    const content =
+      '## Summary\n\nFoo\n\n## Tasks\n\nBar\n\n## Files Affected\n\nBaz\n\n## Custom Extra\n\nThis is not in the template.\n'
+    const result = validateTemplateSections(content, sections)
+    expect(result.allowed).toBe(true)
+    expect(result.warnings).toBeDefined()
+    const extraWarning = result.warnings!.find((w) => w.includes('Extraneous section'))
+    expect(extraWarning).toBeDefined()
+    expect(extraWarning).toContain('## Custom Extra')
+  })
+
+  it('does not warn about extraneous sections when template has no sections defined', () => {
+    const content = '## Random Section\n\nSome content.\n'
+    const result = validateTemplateSections(content, { required: [], optional: [] })
+    expect(result.allowed).toBe(true)
+    expect(result.warnings).toBeUndefined()
+  })
+
+  it('warns on multiple extraneous sections', () => {
+    const content =
+      '## Summary\n\nFoo\n\n## Tasks\n\nBar\n\n## Files Affected\n\nBaz\n' +
+      '## Extra One\n\nA.\n\n## Extra Two\n\nB.\n'
+    const result = validateTemplateSections(content, sections)
+    const extraWarnings = result.warnings!.filter((w) => w.includes('Extraneous section'))
+    expect(extraWarnings).toHaveLength(2)
+    expect(extraWarnings.some((w) => w.includes('## Extra One'))).toBe(true)
+    expect(extraWarnings.some((w) => w.includes('## Extra Two'))).toBe(true)
+  })
+
+  it('does not warn about extraneous for sections that are optional in the template', () => {
+    const content =
+      '## Summary\n\nFoo\n\n## Tasks\n\nBar\n\n## Files Affected\n\nBaz\n\n## Implementation Notes\n\nOpt.\n'
+    const result = validateTemplateSections(content, sections)
+    const extraWarnings = (result.warnings ?? []).filter((w) => w.includes('Extraneous section'))
+    expect(extraWarnings).toHaveLength(0)
   })
 })
 

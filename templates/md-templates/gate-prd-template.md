@@ -12,10 +12,10 @@ zeno:
 
 # Gate [XX]: [Gate Name]
 
-**Hash**: `#gXXslug`  
-**Status**: pending  
-**Type**: [feature | quality | rescope]  
-**Created**: [YYYY-MM-DD]  
+**Hash**: `#gXXslug`
+**Status**: pending
+**Type**: [feature | quality | rescope]
+**Created**: [YYYY-MM-DD]
 **Sequence**: [X of Y]
 
 <!-- Status lifecycle:
@@ -69,6 +69,14 @@ zeno:
 
 - [Deferred feature]
 - [Deferred feature]
+
+## Open Questions
+
+[Optional: Capture questions that need resolution before gate start or proposal generation. Mark each item `[x]` once answered. The validator requires every listed question to be resolved (`[x]`) before proposals can be generated — or set this section to `N/A` if there are none. Remove this section entirely if not needed.]
+
+- [ ] [Question text — replace once resolved or remove this placeholder]
+
+---
 
 ## Requirements
 
@@ -348,10 +356,10 @@ graph LR
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
+**Document Version**: [MAJOR.MINOR.PATCH]
+**Last Updated**: [YYYY-MM-DD]
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: [git.user.name]
 **Reviewers**: [git.user.name]
 
 ### Change Log

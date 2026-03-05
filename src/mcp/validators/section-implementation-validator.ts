@@ -158,7 +158,7 @@ export function extractLLMInstructionFragments(rawBody: string): string[] {
   let match: RegExpExecArray | null
   const commentPattern = /<!--([\s\S]*?)-->/g
 
-   
+
   while ((match = commentPattern.exec(rawBody)) !== null) {
     const commentText = match[1] ?? ''
     let blockCount = 0
@@ -215,6 +215,18 @@ export function extractScaffoldFingerprints(commentStrippedBody: string): string
     // Skip if the entire content is a single bracket placeholder
     if (/^\[[^\]]{4,120}\]$/.test(content)) continue
 
+    // Skip document-metadata bold fields that are expected to appear verbatim
+    // in every artifact (e.g. **Versioning**: SemVer; bump on any change …).
+    // Such lines carry no placeholder and are NOT scaffold — the implementer
+    // must not change them, so matching them as "unchanged scaffold" is a
+    // false positive.  We only guard bold key-value lines that have no
+    // bracket or double-brace placeholder.
+    if (
+      /^\*\*[^*]+\*\*:/.test(content) &&
+      !/\[[^\]]{4,120}\]/.test(content) &&
+      !content.includes('{{')
+    ) continue
+
     const fingerprint = content.slice(0, 45)
     if (!seen.has(fingerprint)) {
       seen.add(fingerprint)
@@ -268,7 +280,11 @@ export function parseSectionSpecs(templateContent: string): SectionSpec[] {
     // ── Structural feature detection ───────────────────────────────────────
     const requiresCheckboxes = /- \[[ x]\]/i.test(body)
     const requiresList = /^\s*[-*]\s+\S/m.test(body)
-    const requiresTable = /\|.+\|.+\|/.test(body)
+    // Only treat the section as requiring a table when the template itself
+    // contains a line that STARTS with | (an actual table row).  Inline pipe
+    // characters used as separators inside prose (e.g. "create | modify | …")
+    // must not trigger this flag.
+    const requiresTable = /^\s*\|.+\|.+\|/m.test(body)
 
     // ── Minimum word threshold (15% of template body density, min 5) ───────
     const cleanBody = body.replace(/[#|*`[]{}()>-]/g, ' ')

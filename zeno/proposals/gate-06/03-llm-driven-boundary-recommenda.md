@@ -1,9 +1,9 @@
 # Proposal: LLM-Driven Boundary Recommendation
 
-**Hash**: #0c081a5a  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #10a621a3715172ae  
-**Status**: pending  
+**Hash**: #0c081a5a
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #10a621a3715172ae
+**Status**: pending
 **Created**: 2026-03-01
 
 ---
@@ -20,6 +20,8 @@ Implements the hybrid boundary detection service that serializes Gate 02's `Code
 
 - **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
 
+**Role**: implementation
+
 ---
 
 ## Coverage & Estimates
@@ -29,6 +31,12 @@ Implements the hybrid boundary detection service that serializes Gate 02's `Code
 - **Coverage Threshold**: 90%
 - **Lines to Cover**: ~120 (serializer, boundary detection service, subagent invocation)
 - **Target Coverage**: 120 × 0.90 = 108 lines must be tested
+
+---
+
+## Single-Phase Requirement
+
+All tasks in this proposal are GREEN phase only. No new test files may be added; test coverage is defined exclusively by the sibling RED test-suite proposal (`#c5e27b7d`).
 
 ---
 
@@ -49,39 +57,40 @@ Gate 06 requires a hybrid `detect` workflow: `CodeAnalyzer` produces structured 
 
 ## Tasks
 
-### Task 1: Implement CodeAnalyzer output serializer
+### Task 1: Extend `serializeForBoundaryDetection` with per-directory metrics
 
-**Phase**: GREEN  
-**File(s)**: `src/core/boundary-detection.ts`  
-**Action**: create
+**Phase**: GREEN
+**File(s)**: `src/core/boundary-detection.ts`
+**Action**: modify
 
-Create a `serializeAnalysisForBoundaryDetection(result: AnalysisResult)` function that transforms the raw `AnalysisResult` into a stable JSON schema suitable for LLM consumption. Extract only structured metrics: file counts per directory, LOC per directory, coupling scores from `CouplingMetrics`, dependency graph edges (source → target), and import/export topology. Explicitly exclude raw AST data and file contents to prevent data leakage. Define `BoundaryAnalysisInput` interface for the serialized output.
+Extend the existing `serializeForBoundaryDetection(result: AnalysisResult): BoundaryDetectionSerializable` function to include per-directory file counts, per-directory LOC, dependency graph edges (source → target), and import/export topology. `BoundaryDetectionSerializable` already excludes raw AST data and file contents; extend it with explicit typed properties for `directoryFileCounts`, `directoryLOC`, and `dependencyEdges` rather than relying on the catch-all index signature.
 
 **Acceptance**:
 
-- [ ] Serialized output includes coupling scores, LOC, dependency edges, file counts
-- [ ] Raw AST data and file contents are excluded
-- [ ] `BoundaryAnalysisInput` interface is exported and documented
+- [ ] `BoundaryDetectionSerializable` has explicit typed properties: `directoryFileCounts: Record<string, number>`, `directoryLOC: Record<string, number>`, `dependencyEdges: Array<{ source: string; target: string }>`
+- [ ] `serializeForBoundaryDetection` populates those fields from `AnalysisResult`
+- [ ] Raw AST data and file contents remain excluded
 - [ ] All RED tests pass
 - [ ] Guardrails verified (no new tests)
 
 ---
 
-### Task 2: Implement boundary detection service with subagent invocation
+### Task 2: Wire subagent invocation into `detectRepositoryBoundaries`
 
-**Phase**: GREEN  
-**File(s)**: `src/core/boundary-detection.ts`  
+**Phase**: GREEN
+**File(s)**: `src/core/boundary-detection.ts`
 **Action**: modify
 
-Add `detectBoundaries(rootPath: string, options?: DetectOptions)` function that orchestrates the full workflow: (1) invoke `CodeAnalyzer.analyzeCodebase(rootPath)`, (2) serialize via `serializeAnalysisForBoundaryDetection`, (3) invoke the architect-reviewer subagent with the serialized metrics and a structured prompt requesting boundary recommendations, (4) parse the subagent response into `ReposDetectOutput` matching the existing Zod schema. The subagent invocation should be abstracted behind a `BoundaryAnalyzer` interface to allow mocking in tests.
+Add a `BoundaryAnalyzer` interface (`analyze(input: BoundaryDetectionSerializable): Promise<BoundaryRecommendation[]>`) that abstracts subagent invocation. Refactor `detectRepositoryBoundaries(rootPath: string, opts: { persist: boolean })` to accept an optional `analyzer?: BoundaryAnalyzer` parameter (defaults to an `ArchitectReviewerBoundaryAnalyzer` implementation that invokes the architect-reviewer subagent with a structured prompt). The orchestration order is: (1) `CodeAnalyzer.analyzeCodebase(rootPath)`, (2) `serializeForBoundaryDetection`, (3) `analyzer.analyze(serialized)`, (4) populate `BoundaryDetectionResult.recommendations`. Error handling must cover `CodeAnalyzer` failure and analyzer timeout/rejection. Recommendations are returned without auto-persistence regardless of `opts.persist` (persistence handled by downstream storage layer).
 
 **Acceptance**:
 
-- [ ] `detectBoundaries` orchestrates the full CodeAnalyzer → serialize → subagent flow
-- [ ] Subagent invocation is behind `BoundaryAnalyzer` interface (injectable, mockable)
-- [ ] Return type matches `ReposDetectOutputSchema`
-- [ ] Error handling covers CodeAnalyzer failure and subagent timeout/error
-- [ ] Recommendations are returned without auto-persistence
+- [ ] `BoundaryAnalyzer` interface is exported from `src/core/boundary-detection.ts`
+- [ ] `detectRepositoryBoundaries` accepts optional `analyzer?: BoundaryAnalyzer` and uses it for subagent calls
+- [ ] Default `ArchitectReviewerBoundaryAnalyzer` invokes the architect-reviewer subagent with serialized metrics
+- [ ] Error handling covers `CodeAnalyzer` failure and analyzer rejection (propagates typed errors)
+- [ ] `BoundaryDetectionResult.recommendations` is populated from analyzer output
+- [ ] Recommendations are not auto-persisted
 - [ ] All RED tests pass
 - [ ] Guardrails verified (no new tests)
 
@@ -91,26 +100,26 @@ Add `detectBoundaries(rootPath: string, options?: DetectOptions)` function that 
 
 | File | Phase | Action | Description |
 | ---- | ----- | ------ | ----------- |
-| `src/core/boundary-detection.ts` | GREEN | create | Boundary detection service with serializer and subagent orchestration |
+| `src/core/boundary-detection.ts` | GREEN | modify | Extend serializer with per-directory metrics; add `BoundaryAnalyzer` interface; wire subagent invocation into `detectRepositoryBoundaries` |
 
 ---
 
 ## Implementation Notes
 
-The `BoundaryAnalyzer` interface should define a single `analyze(input: BoundaryAnalysisInput): Promise<ReposDetectOutput>` method. The default implementation invokes the architect-reviewer subagent. Tests inject a mock implementation. The subagent prompt should reference the stable field names from `BoundaryAnalysisInput` so the architect-reviewer can deterministically parse the input.
+`BoundaryAnalyzer` defines a single `analyze(input: BoundaryDetectionSerializable): Promise<BoundaryRecommendation[]>` method. The production implementation (`ArchitectReviewerBoundaryAnalyzer`) constructs a structured prompt referencing the stable field names of `BoundaryDetectionSerializable` (e.g. `coupling`, `directoryLOC`, `dependencyEdges`) so the architect-reviewer subagent can deterministically parse the input. Tests inject a mock `BoundaryAnalyzer` that returns fixture data. The existing `parseBoundaryRecommendations(llmResponse: string)` helper can be used by the default implementation to parse the subagent's freeform response into `BoundaryRecommendation[]`.
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: Delete `src/core/boundary-detection.ts`. No existing code modified.
+**If rejected or failed**: Run `git checkout HEAD -- src/core/boundary-detection.ts` to restore the pre-proposal state of the file. No other files are touched by this proposal, so no further rollback steps are needed. The sibling RED test suite (`#c5e27b7d`) remains valid against the restored file — its tests target the interfaces and functions present before this change.
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log

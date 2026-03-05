@@ -500,7 +500,7 @@ export function proposalHandlers(
               if (!proposalResult.success) return { allowed: true }
 
               const proposal = proposalResult.data as Record<string, unknown>
-              const filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
+              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
               const gateId = proposal['gateId'] as string | undefined
               const isSolitary = !gateId || gateId === 'solitary'
 
@@ -510,6 +510,14 @@ export function proposalHandlers(
                 const content = await readFile(filePath)
                 const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
                 role = roleMatch?.[1]?.trim()
+                // Fall back to parsing markdown when DB has no files_affected recorded.
+                if (filesAffected.length === 0) {
+                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+                  if (sectionMatch?.[1]) {
+                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+                  }
+                }
               }
 
               return validateTestFirstPattern({
@@ -808,7 +816,7 @@ export function proposalHandlers(
               if (!proposalResult.success) return { allowed: true }
 
               const proposal = proposalResult.data as Record<string, unknown>
-              const filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
+              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
               const gateId = proposal['gateId'] as string | undefined
               const isSolitary = !gateId || gateId === 'solitary'
 
@@ -818,6 +826,14 @@ export function proposalHandlers(
                 const content = await readFile(filePath)
                 const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
                 role = roleMatch?.[1]?.trim()
+                // Fall back to parsing markdown when DB has no files_affected recorded.
+                if (filesAffected.length === 0) {
+                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+                  if (sectionMatch?.[1]) {
+                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+                  }
+                }
               }
 
               return validateTestFirstPattern({
@@ -922,7 +938,7 @@ export function proposalHandlers(
               if (!proposalResult.success) return { allowed: true }
 
               const proposal = proposalResult.data as Record<string, unknown>
-              const filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
+              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
               const gateId = proposal['gateId'] as string | undefined
               const isSolitary = !gateId || gateId === 'solitary'
 
@@ -932,6 +948,14 @@ export function proposalHandlers(
                 const content = await readFile(filePath)
                 const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
                 role = roleMatch?.[1]?.trim()
+                // Fall back to parsing markdown when DB has no files_affected recorded.
+                if (filesAffected.length === 0) {
+                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+                  if (sectionMatch?.[1]) {
+                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+                  }
+                }
               }
 
               return validateTestFirstPattern({

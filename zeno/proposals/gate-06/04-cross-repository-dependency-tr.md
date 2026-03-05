@@ -1,24 +1,17 @@
 # Proposal: Cross-Repository Dependency Tracking
 
-**Hash**: #657cbc37  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #9c5150bf8e008175  
-**Status**: pending  
+**Hash**: #657cbc37
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #9c5150bf8e008175
+**Status**: pending
 **Created**: 2026-03-01
+**Role**: implementation
 
 ---
 
 ## Summary
 
 Wires the repository dependency storage layer into the schema-registry function dispatch, replacing the current `invokeCommand` stubs with direct database calls for `repos_deps`. Implements the `repos_deps` registry operation so it queries `repo_dependencies` and returns the graph structure matching `RepositoryDependencyGraphSchema`, including circular dependency warnings.
-
----
-
-## Proposal Type
-
-**GREEN**
-
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
 
 ---
 
@@ -29,6 +22,12 @@ Wires the repository dependency storage layer into the schema-registry function 
 - **Coverage Threshold**: 90%
 - **Lines to Cover**: ~80 (registry wiring, graph query orchestration, circular detection integration)
 - **Target Coverage**: 80 × 0.90 = 72 lines must be tested
+
+---
+
+## Single-Phase Requirement
+
+All tasks in this proposal are GREEN phase only. No new test files may be added; test coverage is defined exclusively by the sibling RED test-suite proposal (`#c5e27b7d`).
 
 ---
 
@@ -49,10 +48,14 @@ Gate 06 requires cross-repository dependency tracking queries accessible via the
 
 ## Tasks
 
+| # | Title | Phase | File(s) | Action |
+| - | ----- | ----- | ------- | ------ |
+| 1 | Replace repos_deps registry stub with direct storage calls | GREEN | `src/integration/schema-registry.ts` | modify |
+
 ### Task 1: Replace repos_deps registry stub with direct storage calls
 
-**Phase**: GREEN  
-**File(s)**: `src/integration/schema-registry.ts`  
+**Phase**: GREEN
+**File(s)**: `src/integration/schema-registry.ts`
 **Action**: modify
 
 Replace the `repos_deps` handler in `registerRepositoryOps` to call `getRepoDependencyGraph(projectRoot)` and `detectCircularDependencies(projectRoot)` directly from the `repository-dependencies` storage module instead of delegating to `invokeCommand`. Map the storage return into the `RepositoryDependencyGraphSchema` shape with `repositories`, `edges`, and `circularDependencies` fields.
@@ -84,14 +87,14 @@ Import `getRepoDependencyGraph`, `detectCircularDependencies` from `../../storag
 
 ## Rollback
 
-**If rejected or failed**: Revert `registerRepositoryOps` repos_deps handler to previous `invokeCommand` stub.
+Revert `src/integration/schema-registry.ts` — restore the `repos_deps` handler inside `registerRepositoryOps` to the previous `invokeCommand`-delegating stub. No database schema changes are introduced by this proposal; the rollback is a single function-body revert with no migration required.
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log

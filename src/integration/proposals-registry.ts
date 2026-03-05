@@ -696,6 +696,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         testFirstPattern: true,
         gateLevelTestFirst: undefined as boolean | undefined,
         redTestCoverage: undefined as boolean | undefined,
+        requirementsCoverage: undefined as boolean | undefined,
       }
 
       // Load proposal from database
@@ -706,6 +707,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         description?: string | null
         dependencies?: string | null
         gate_id?: string | null
+        requirement_id?: string | null
         quality_metrics?: string | null
         files_affected?: string | null
         solitary?: number | null
@@ -892,17 +894,26 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       try {
         const proposalFilePath = await findProposalByHash(validated.hash)
         let role: string | undefined
+        let tfFilesAffected = filesAffected
         if (proposalFilePath) {
           const content = await readFile(proposalFilePath)
           const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
           role = roleMatch?.[1]?.trim()
+          // Fall back to parsing markdown when DB has no files_affected recorded.
+          if (tfFilesAffected.length === 0) {
+            const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+            if (sectionMatch?.[1]) {
+              const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+              tfFilesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+            }
+          }
         }
 
         const tfResult = validateTestFirstPattern({
           proposalHash: validated.hash,
           role,
           isGateTied: !isSolitary,
-          filesAffected,
+          filesAffected: tfFilesAffected,
         })
         if (!tfResult.allowed) checks.testFirstPattern = false
         if (tfResult.errors) errors.push(...tfResult.errors)
@@ -987,6 +998,82 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      // ── 10) Requirement linkage (optional — warnings only, never blocks) ─────
+      // Gate-tied: warn if the gate has requirements but this proposal doesn't link to any.
+      // Solitary:  if a requirement hash/id is referenced, warn if it cannot be resolved.
+      // This check is purely advisory and never contributes to validation errors.
+      try {
+        // Resolve requirement reference: DB column first, then markdown header/frontmatter.
+        const dbReqId = proposal.requirement_id ?? undefined
+        let referencedReqHash: string | undefined
+        if (!dbReqId) {
+          const proposalFilePath = await findProposalByHash(validated.hash)
+          if (proposalFilePath) {
+            const content = await readFile(proposalFilePath)
+            // **Requirement**: #abc1234  or frontmatter  requirement_id: abc1234
+            const headerMatch = /\*\*Requirement\*\*:\s*#([a-f0-9]{4,16})/i.exec(content)
+            const fmMatch = /^requirement_id:\s*['"]?#?([a-f0-9]{4,16})['"]?\s*$/im.exec(content)
+            referencedReqHash = headerMatch?.[1] ?? fmMatch?.[1]
+          }
+        }
+
+        // Helper: resolve a requirement id or hash fragment to a DB row.
+        const resolveReq = (idOrHash: string): { hash: string; gate_id: string | null } | undefined =>
+          db
+            .prepare(
+              'SELECT hash, gate_id FROM requirements WHERE id = ? OR hash = ? OR hash LIKE ?'
+            )
+            .get(idOrHash, idOrHash, `${idOrHash}%`) as
+          | { hash: string; gate_id: string | null }
+          | undefined
+
+        if (!isSolitary && gateId) {
+          // Gate-tied proposal: if the gate already has requirements, the proposal
+          // should reference one for traceability (advisory warning, not an error).
+          const gateHasReqs = db
+            .prepare('SELECT 1 FROM requirements WHERE gate_id = ? LIMIT 1')
+            .get(gateId) as { 1: number } | undefined
+          if (gateHasReqs) {
+            const linkedReq = dbReqId
+              ? resolveReq(dbReqId)
+              : referencedReqHash
+                ? resolveReq(referencedReqHash)
+                : undefined
+            if (!linkedReq) {
+              checks.requirementsCoverage = false
+              warnings.push(
+                `Gate ${gateId} has requirements in the database but this proposal does not link to any. ` +
+                  `Add **Requirement**: #<hash> to the proposal header or set requirement_id in the ` +
+                  `frontmatter for traceability (optional — does not block validation).`
+              )
+            } else {
+              checks.requirementsCoverage = true
+            }
+          }
+          // Gate has no requirements yet (not started) — skip check entirely.
+        } else {
+          // Solitary proposal: requirements are always optional.
+          // If one is referenced, validate it exists in the DB.
+          const refIdOrHash = dbReqId ?? referencedReqHash
+          if (refIdOrHash) {
+            const req = resolveReq(refIdOrHash)
+            if (!req) {
+              checks.requirementsCoverage = false
+              warnings.push(
+                `Proposal references requirement "${refIdOrHash}" which was not found in the database. ` +
+                  `Verify the hash is correct, or remove the reference if it does not apply ` +
+                  `(optional — does not block validation).`
+              )
+            } else {
+              checks.requirementsCoverage = true
+            }
+          }
+          // No requirement reference on solitary proposal is perfectly fine — no warning.
+        }
+      } catch {
+        // non-fatal — requirement linkage check is best-effort
+      }
+
       const passedQuantitative = errors.length === 0
       const previousStatus = proposal.status ?? 'pending'
 
@@ -1018,6 +1105,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
               artifactStructure: checks.artifactStructure,
               quality: checks.quality,
               testFirstPattern: checks.testFirstPattern,
+              ...(checks.requirementsCoverage !== undefined
+                ? { requirementsCoverage: checks.requirementsCoverage }
+                : {}),
             }
           : {
               phases: checks.phases,
@@ -1030,6 +1120,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
               gateLevelTestFirst: checks.gateLevelTestFirst,
               ...(checks.redTestCoverage !== undefined
                 ? { redTestCoverage: checks.redTestCoverage }
+                : {}),
+              ...(checks.requirementsCoverage !== undefined
+                ? { requirementsCoverage: checks.requirementsCoverage }
                 : {}),
             },
       }
