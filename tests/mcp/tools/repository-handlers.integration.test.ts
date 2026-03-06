@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { repositoryHandlers } from '../../../src/mcp/tools/repository-tools.js'
 import {
   ReposListOutputSchema,
+  ReposDetectOutputSchema,
+  RepositoryDependencyGraphSchema,
+  ReposAdjustOutputSchema,
   ReposAddOutputSchema,
   ReposRemoveOutputSchema,
 } from '../../../src/mcp/schemas/repository-schemas.js'
@@ -52,6 +55,9 @@ describe('Repository Handlers (integration)', () => {
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
     expect(res.content[0]?.text).toBeDefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    const ok = ReposDetectOutputSchema.safeParse(parsed)
+    expect(ok.success).toBe(true)
   })
 
   it('repos_deps returns structured dependency graph', async () => {
@@ -62,6 +68,9 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    const ok = RepositoryDependencyGraphSchema.safeParse(parsed)
+    expect(ok.success).toBe(true)
   })
 
   it('repos_adjust returns parsed payload on success', async () => {
@@ -70,6 +79,9 @@ describe('Repository Handlers (integration)', () => {
     const handlers = repositoryHandlers(fakeRegistry)
     const res = await handlers.repos_action({ action: 'adjust', payload: { adjustments: [] } })
     expect(res.content[0]?.text).toBeDefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    const ok = ReposAdjustOutputSchema.safeParse(parsed)
+    expect(ok.success).toBe(true)
   })
 
   it('repos_add returns structured output matching ReposAddOutputSchema', async () => {
