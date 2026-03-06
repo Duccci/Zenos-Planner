@@ -120,6 +120,15 @@ describe('MCP commands action coverage', () => {
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('test_fn'))
     })
 
+    it('should fallback to count=10 when --count is not a valid number', async () => {
+      mockDiagnostics.getRecentErrors.mockReturnValue([])
+
+      await program.parseAsync(['node', 'test', 'mcp', 'errors', '-c', 'abc'])
+
+      // parseInt('abc', 10) = NaN, || 10 activates → no errors printed
+      expect(consoleSpy).toHaveBeenCalledWith('No recent errors')
+    })
+
     it('should handle errors subcommand failure', async () => {
       mockDiagnostics.getRecentErrors.mockImplementation(() => {
         throw new Error('errors failed')
@@ -151,6 +160,13 @@ describe('MCP commands action coverage', () => {
 
     it('should handle zeno not installed', async () => {
       mockIsZenoInstalled.mockReturnValue({ valid: false, reason: 'node_modules missing' })
+
+      await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
+      expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it('should use Unknown reason when zeno not installed without reason', async () => {
+      mockIsZenoInstalled.mockReturnValue({ valid: false })
 
       await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
       expect(exitSpy).toHaveBeenCalledWith(1)

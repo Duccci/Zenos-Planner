@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 describe('MCP Repository tools (integration)', () => {
   it('repos_list returns structured result or structured error', async () => {
@@ -27,4 +27,13 @@ describe('MCP Repository tools (integration)', () => {
     const text = result.content?.[0]?.text ? String(result.content?.[0]?.text) : ''
     expect(text.toLowerCase()).toContain('error')
   })
+
+  it('createToolHandler catch branch uses Unknown error when thrown value is not an Error', async () => {
+    const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
+    const mockRegistry = { invoke: vi.fn().mockRejectedValue('string-throw') }
+    const handler = createToolHandler(mockRegistry as never, 'test_fn')
+    const result = await handler({})
+    expect(result.isError).toBe(true)
+  })
 })
+

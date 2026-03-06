@@ -16,6 +16,8 @@ import { invokeCommand } from './command-invoker.js'
 import { parseCommitsForHashes } from '../utils/git.js'
 import { getRepoDependencyGraph, detectCircularDependencies } from '../storage/repository-dependencies.js'
 import { listRepositories } from '../storage/repository-storage.js'
+import { detectRepositoryBoundaries } from '../core/boundary-detection.js'
+import { shortHash } from '../utils/hash.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
@@ -114,30 +116,27 @@ async function buildDiagramContext(): Promise<DiagramContext> {
 }
 
 export function registerRepositoryOps(registry: FunctionRegistry): void {
-  registry.register('repos_list', async () => {
-    const result = await invokeCommand('repos_list')
-    if (!result.success) {
-      throw new Error(result.error ?? 'repos_list failed')
-    }
-    try {
-      const parsed = JSON.parse(result.output) as unknown
-      if (parsed && typeof parsed === 'object' && 'repositories' in parsed) {
-        return parsed
-      }
-      const repos = Array.isArray(parsed) ? parsed : []
-      return {
-        repositories: repos,
-      }
-    } catch {
-      return {
-        repositories: [],
-      }
+  registry.register('repos_list', (params) => {
+    const { type } = params as { type?: string }
+    const projectRoot = process.cwd()
+    const repos = listRepositories(type, projectRoot)
+    return {
+      repositories: repos.map(r => ({
+        id: r.hash,
+        name: r.name,
+        type: r.type,
+        path: r.path,
+        fileCount: 0,
+        lineCount: 0,
+      })),
     }
   }, {
     description: 'List all detected repositories in the project',
-    parameters: [],
+    parameters: [
+      { name: 'type', type: 'string', description: 'Optional type filter', required: false },
+    ],
     returnType: 'ReposListOutput',
-    schema: z.object({})
+    schema: z.object({ type: z.string().optional() })
   })
 
   registry.register('repos_deps', (params) => {
@@ -193,21 +192,17 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
   })
 
   registry.register('repos_detect', async () => {
-    const result = await invokeCommand('repos_detect')
-    if (!result.success) {
-      throw new Error(result.error ?? 'repos_detect failed')
-    }
-    try {
-      const parsed = JSON.parse(result.output) as unknown
-      if (parsed && typeof parsed === 'object' && 'detected' in parsed) {
-        return parsed
-      }
-    } catch {
-      // fall through to default
-    }
+    const projectRoot = process.cwd()
+    const result = await detectRepositoryBoundaries(projectRoot, { persist: false })
+    const validTypes = new Set(['main', 'service', 'library', 'tool', 'app'])
     return {
-      detected: [],
-      summary: 'Detection completed',
+      detected: result.recommendations.map(rec => ({
+        repoId: shortHash(`${rec.name}${rec.path}`),
+        name: rec.name,
+        type: (validTypes.has(rec.type) ? rec.type : 'service') as 'main' | 'service' | 'library' | 'tool' | 'app',
+        path: rec.path,
+      })),
+      summary: `Detected ${String(result.recommendations.length)} boundary recommendation(s)`,
     }
   }, {
     description: 'Re-run repository boundary detection',
@@ -216,30 +211,25 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
     schema: z.object({}).strict()
   })
 
-  registry.register('repos_adjust', async (params) => {
-    const validated = z.object({
-      repoId: z.string(),
-      boundary: z.string(),
-    }).parse(params)
-    const result = await invokeCommand('repos_adjust', validated)
-    if (!result.success) {
-      throw new Error(result.error ?? 'repos_adjust failed')
-    }
+  registry.register('repos_adjust', async () => {
+    const projectRoot = process.cwd()
+    const result = await detectRepositoryBoundaries(projectRoot, { persist: true })
     return {
-      repoId: validated.repoId,
-      boundary: validated.boundary,
-      status: 'adjusted',
+      adjustmentsApplied: result.recommendations.length,
+      affectedRepositories: result.recommendations.map(r => r.name),
+      summary: `Boundary detection re-run${result.persisted ? ' and applied' : ''}; ${String(result.recommendations.length)} recommendation(s) processed`,
     }
   }, {
     description: 'Manually adjust repository boundaries',
-    parameters: [
-      { name: 'repoId', type: 'string', description: 'Repository ID', required: true },
-      { name: 'boundary', type: 'string', description: 'New boundary path', required: true },
-    ],
+    parameters: [],
     returnType: 'ReposAdjustOutput',
     schema: z.object({
-      repoId: z.string(),
-      boundary: z.string(),
+      adjustments: z.array(z.object({
+        repositoryId: z.string(),
+        type: z.enum(['add', 'remove', 'reclassify']),
+        newType: z.enum(['main', 'service', 'library', 'tool', 'app']).optional(),
+        reason: z.string().optional(),
+      })).optional(),
     })
   })
 }

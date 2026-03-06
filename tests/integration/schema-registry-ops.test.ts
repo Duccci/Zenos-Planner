@@ -19,6 +19,8 @@ const mockParseCommitsForHashes = vi.fn()
 const mockGetRepoDependencyGraph = vi.fn()
 const mockDetectCircularDependencies = vi.fn()
 const mockListRepositories = vi.fn()
+const mockDetectRepositoryBoundaries = vi.fn()
+const mockShortHash = vi.fn()
 
 vi.mock('../../src/integration/command-invoker.js', () => ({
   invokeCommand: (...args: unknown[]) => mockInvokeCommand(...args),
@@ -35,6 +37,14 @@ vi.mock('../../src/storage/repository-dependencies.js', () => ({
 
 vi.mock('../../src/storage/repository-storage.js', () => ({
   listRepositories: (...args: unknown[]) => mockListRepositories(...args),
+}))
+
+vi.mock('../../src/core/boundary-detection.js', () => ({
+  detectRepositoryBoundaries: (...args: unknown[]) => mockDetectRepositoryBoundaries(...args),
+}))
+
+vi.mock('../../src/utils/hash.js', () => ({
+  shortHash: (...args: unknown[]) => mockShortHash(...args),
 }))
 
 // Prevent arch_generate from writing to the real zeno/architecture/ directory
@@ -57,6 +67,8 @@ describe('schema-registry operations', () => {
     mockGetRepoDependencyGraph.mockReturnValue({ repositories: [], edges: [] })
     mockDetectCircularDependencies.mockReturnValue([])
     mockListRepositories.mockReturnValue([])
+    mockDetectRepositoryBoundaries.mockResolvedValue({ recommendations: [], persisted: false })
+    mockShortHash.mockReturnValue('abcd1234')
     registry = new FunctionRegistry()
     registerRepositoryOps(registry)
     registerArchitectureOps(registry)
@@ -67,19 +79,34 @@ describe('schema-registry operations', () => {
   // Repository operations
   // -------------------------------------------------------------------------
   describe('repos_list', () => {
-    it('returns result on success', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true, data: { repos: [] } })
+    it('returns repositories from storage directly', async () => {
+      mockListRepositories.mockReturnValue([
+        { hash: 'a1b2c3d4', name: 'core', type: 'library', path: 'packages/core' },
+      ])
 
       const result = (await registry.invoke('repos_list', {})) as {
         success: boolean
-        data: unknown
+        data: { repositories: { id: string; name: string }[] }
       }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith('repos_list')
+      expect(result.data.repositories).toEqual([
+        { id: 'a1b2c3d4', name: 'core', type: 'library', path: 'packages/core', fileCount: 0, lineCount: 0 },
+      ])
+      expect(mockListRepositories).toHaveBeenCalled()
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_list')
     })
 
-    it('throws on invokeCommand failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Repo detection failed' })
+    it('returns empty repositories when storage is empty', async () => {
+      const result = (await registry.invoke('repos_list', {})) as {
+        success: boolean
+        data: { repositories: unknown[] }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.repositories).toEqual([])
+    })
+
+    it('returns success:false when storage throws', async () => {
+      mockListRepositories.mockImplementation(() => { throw new Error('DB error') })
 
       const result = (await registry.invoke('repos_list', {})) as { success: boolean }
       expect(result.success).toBe(false)
@@ -164,18 +191,41 @@ describe('schema-registry operations', () => {
   })
 
   describe('repos_detect', () => {
-    it('succeeds without returning a value', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true })
+    it('returns detected boundaries from boundary-detection directly', async () => {
+      mockDetectRepositoryBoundaries.mockResolvedValue({
+        recommendations: [{ name: 'svc-a', type: 'service', path: 'src/svc-a', rationale: 'High coupling' }],
+        persisted: false,
+      })
+      mockShortHash.mockReturnValue('det11111')
 
       const result = (await registry.invoke('repos_detect', {})) as {
         success: boolean
-        data: unknown
+        data: { detected: { repoId: string; name: string; type: string }[]; summary: string }
       }
       expect(result.success).toBe(true)
+      expect(result.data.detected).toHaveLength(1)
+      expect(result.data.detected[0]).toMatchObject({ name: 'svc-a', type: 'service', path: 'src/svc-a' })
+      expect(result.data.summary).toContain('1')
+      expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), { persist: false })
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_detect')
     })
 
-    it('throws on invokeCommand failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Detect failed' })
+    it('coerces unknown boundary type to service', async () => {
+      mockDetectRepositoryBoundaries.mockResolvedValue({
+        recommendations: [{ name: 'unknown-svc', type: 'unknown', path: 'src/x' }],
+        persisted: false,
+      })
+
+      const result = (await registry.invoke('repos_detect', {})) as {
+        success: boolean
+        data: { detected: { type: string }[] }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.detected[0]?.type).toBe('service')
+    })
+
+    it('returns success:false when detectRepositoryBoundaries throws', async () => {
+      mockDetectRepositoryBoundaries.mockRejectedValue(new Error('Analysis failed'))
 
       const result = (await registry.invoke('repos_detect', {})) as { success: boolean }
       expect(result.success).toBe(false)
@@ -183,41 +233,37 @@ describe('schema-registry operations', () => {
   })
 
   describe('repos_adjust', () => {
-    it('accepts valid repoId and boundary', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: true })
+    it('calls detectRepositoryBoundaries with persist:true', async () => {
+      mockDetectRepositoryBoundaries.mockResolvedValue({
+        recommendations: [{ name: 'svc-b', type: 'service', path: 'src/svc-b' }],
+        persisted: true,
+      })
 
-      const result = (await registry.invoke('repos_adjust', {
-        repoId: 'repo-1',
-        boundary: 'src/services',
-      })) as { success: boolean }
+      const result = (await registry.invoke('repos_adjust', {})) as {
+        success: boolean
+        data: { adjustmentsApplied: number; affectedRepositories: string[] }
+      }
       expect(result.success).toBe(true)
-      expect(mockInvokeCommand).toHaveBeenCalledWith(
-        'repos_adjust',
-        expect.objectContaining({ repoId: 'repo-1', boundary: 'src/services' })
-      )
+      expect(result.data.adjustmentsApplied).toBe(1)
+      expect(result.data.affectedRepositories).toEqual(['svc-b'])
+      expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), { persist: true })
+      expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_adjust', expect.anything())
     })
 
-    it('throws on invokeCommand failure', async () => {
-      mockInvokeCommand.mockResolvedValue({ success: false, error: 'Adjust failed' })
-
-      const result = (await registry.invoke('repos_adjust', {
-        repoId: 'repo-1',
-        boundary: 'src/services',
-      })) as { success: boolean }
-      expect(result.success).toBe(false)
-    })
-
-    it('fails schema validation for missing repoId', async () => {
-      const result = (await registry.invoke('repos_adjust', { boundary: 'src/' })) as {
+    it('returns adjustmentsApplied:0 when no recommendations', async () => {
+      const result = (await registry.invoke('repos_adjust', {})) as {
         success: boolean
+        data: { adjustmentsApplied: number; affectedRepositories: string[] }
       }
-      expect(result.success).toBe(false)
+      expect(result.success).toBe(true)
+      expect(result.data.adjustmentsApplied).toBe(0)
+      expect(result.data.affectedRepositories).toEqual([])
     })
 
-    it('fails schema validation for missing boundary', async () => {
-      const result = (await registry.invoke('repos_adjust', { repoId: 'repo-1' })) as {
-        success: boolean
-      }
+    it('returns success:false when detectRepositoryBoundaries throws', async () => {
+      mockDetectRepositoryBoundaries.mockRejectedValue(new Error('Persist failed'))
+
+      const result = (await registry.invoke('repos_adjust', {})) as { success: boolean }
       expect(result.success).toBe(false)
     })
   })

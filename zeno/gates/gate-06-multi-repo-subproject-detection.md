@@ -142,9 +142,9 @@ Individual tasks are created during proposal generation, not gate generation. Ea
 | ------------------------------------ | --------- | ------- | ----------------------------------------------------------- |
 | RED Test Suite                       | #c5e27b7d | pending | Write all failing tests first; no dependencies              |
 | Repository Declaration & Storage     | #1f01eca0 | pending | SQLite CRUD — requires RED                                  |
-| LLM-Driven Boundary Recommendation   | #0c081a5a | pending | CodeAnalyzer → architect-reviewer — requires RED + Storage  |
+| LLM-Driven Boundary Recommendation   | #0c081a5a | in_progress | CodeAnalyzer → architect-reviewer — requires RED + Storage  |
 | Cross-Repository Dependency Tracking | #657cbc37 | in_progress | Dep graph + circular detection — requires RED + Storage        |
-| Repository Management Commands       | #7a175468 | pending | `zeno repos` CLI — requires RED + Storage                   |
+| Repository Management Commands       | #7a175468 | in_progress | `zeno repos` CLI — requires RED + Storage                   |
 | Integration with Proposals           | #7fa5df86 | pending | Conflict detector + MCP dispatch — requires RED + Storage   |
 | Testing & Quality                    | #cd07d597 | pending | Integration tests + lint — requires RED + Storage           |
 | GREEN Test Verification              | #8881e3ed | pending | Final coverage pass — requires all above                    |

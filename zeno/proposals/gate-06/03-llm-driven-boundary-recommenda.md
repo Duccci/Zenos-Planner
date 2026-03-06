@@ -40,6 +40,7 @@ Gate 06 requires a hybrid `detect` workflow: `CodeAnalyzer` produces structured 
 ## Tasks
 
 ### Task 1: Extend `serializeForBoundaryDetection` with per-directory metrics
+
 > Added directoryFileCounts, directoryLOC, dependencyEdges to BoundaryDetectionSerializable; removed index signature. Populated from AnalysisResult.modules iteration. 7/7 tests pass.
 
 **Phase**: GREEN
@@ -59,6 +60,7 @@ Extend the existing `serializeForBoundaryDetection(result: AnalysisResult): Boun
 ---
 
 ### Task 2: Wire subagent invocation into `detectRepositoryBoundaries`
+
 > BoundaryAnalyzer interface exported; ArchitectReviewerBoundaryAnalyzer implements it with structured prompt contract. detectRepositoryBoundaries refactored with optional analyzer param; persisted unconditionally false. Error paths propagate naturally.
 
 **Phase**: GREEN
@@ -112,16 +114,14 @@ Add a `BoundaryAnalyzer` interface (`analyze(input: BoundaryDetectionSerializabl
 
 **Tasks Completed**: 13/13
 **Files Modified/Created**: 0
+
 ### Quality Metrics
+
 - Coverage: 0%
 - Security Issues: 0
 - Lint Errors: 0
 - Type Errors: 0
-### Quality Metrics
-- Coverage: 0%
-- Security Issues: 0
-- Lint Errors: 0
-- Type Errors: 0
+
 ### Changes Delivered
 
 - `BoundaryDetectionSerializable` index signature replaced with three explicit typed properties: `directoryFileCounts`, `directoryLOC`, `dependencyEdges`. Populated by iterating `AnalysisResult.modules` — per-directory aggregation uses `relativePath` string splitting; dependency edges map each import's `source` field.
