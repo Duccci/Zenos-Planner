@@ -136,12 +136,40 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 9,
     title: 'Request Approval',
     description:
-      'Submit the proposal for human review. If all automated checks pass, wait for the human to approve.',
+      'Submit the proposal for human review. Present the validation results and wait for explicit human sign-off before proceeding.',
     actions: ['proposal_action:validate { hash } — present results to user'],
     errorHandling:
       'If human rejects: rework per feedback, then restart from step 5 (or step 1 if scope changes).',
     guidance:
-      'Do not self-approve. Gate-tied proposals: approval triggers worktree merge. Solitary proposals: approval finalises the proposal status.',
+      'Do not self-approve. Do NOT commit or push until step 10 (Approve Proposal) has completed successfully.',
+  },
+  {
+    order: 10,
+    title: 'Approve Proposal',
+    description:
+      'Once human sign-off is received, call proposal_action:approve to mark the proposal as completed. This MUST happen before any git commit. Approval is the gate that transitions the proposal from in_progress → completed and writes the status into the proposal markdown file.',
+    prerequisites: ['Human sign-off received (step 9)'],
+    actions: ['proposal_action:approve { hash } — marks proposal completed and updates proposal file'],
+    errorHandling:
+      'If approve is rejected (quality checks still failing): fix the issues and re-run step 8 (quality checks) before retrying approve.',
+    guidance:
+      'Gate-tied proposals: approval triggers worktree merge. Solitary proposals: approval finalises the proposal status. Either way, the proposal must be in "completed" status before the commit in step 11.',
+  },
+  {
+    order: 11,
+    title: 'Commit Changes',
+    description:
+      'After the proposal is marked completed (step 10), commit all implementation changes. Always verify proposal status is "completed" before staging files.',
+    prerequisites: ['Proposal status === "completed" (step 10)'],
+    actions: [
+      'config_get() to retrieve git.commitFormat',
+      'git add <files listed in Files Affected>',
+      'Commit: chore(proposal): implement <title> (#<hash>)',
+    ],
+    errorHandling:
+      'If proposal is not yet "completed", do not commit — call proposal_action:approve first. Never commit before proposal status is "completed".',
+    guidance:
+      'Use chore(proposal): scope for implementation commits. Include the proposal hash in the commit message for traceability. Gate-level archival commits (feat(gate-XX):) are separate and happen later at gates_action:complete.',
   },
 ]
 

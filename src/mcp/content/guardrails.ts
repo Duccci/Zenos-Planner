@@ -208,6 +208,14 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
     reason: 'Crash-recovery principle: per-task checkbox updates persist completed work without requiring an MCP tool call per task. "Immediately after" is a behavioral requirement enforced by workflow convention, not a runtime constraint.',
     agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/error-coordinator'],
   },
+  {
+    id: 'apply-027',
+    topic: 'apply-phase',
+    rule: 'Call proposal_action:approve to mark the proposal as "completed" BEFORE making any git commit. Never commit implementation work while the proposal is still in "in_progress" status.',
+    mustHaveValidator: false,
+    reason: 'Ordering invariant: the proposal status must be persisted to "completed" in both the DB and the markdown file before the implementation commit lands in git history. This ensures git log and Zeno state are always consistent — a commit found in history implies the proposal is already completed.',
+    agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/error-coordinator'],
+  },
 ]
 
 // ─── Proposal Generation Guardrails ───────────────────────────────────────────
