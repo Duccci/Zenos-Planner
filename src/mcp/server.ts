@@ -9,12 +9,25 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
+import { initializeDatabase } from '../storage/database.js'
 import { logger } from '../utils/logger.js'
 
 /**
  * Create and configure the MCP server
  */
 export async function createMcpServer(workspacePath?: string): Promise<McpServer> {
+  // Run DB migrations (including the proposal status CHECK constraint patch)
+  // before registering tools so that syncProposalsFromDisk never encounters
+  // the stale constraint that is missing 'validated'.
+  try {
+    await initializeDatabase(workspacePath ?? process.cwd(), { syncGates: true, syncProposals: true })
+    logger.info('Database initialised and migrations applied')
+  } catch (err) {
+    // Non-fatal: the project root may not have a .zeno dir yet (first-run or
+    // plain workspace). Individual tool calls will create the DB on demand.
+    logger.warn('Database pre-initialisation skipped (project may not be initialised yet)', err)
+  }
+
   const server = new McpServer(
     {
       name: 'zeno-planner',
