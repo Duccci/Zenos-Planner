@@ -4,7 +4,7 @@
 **Gate**: gate-06 - Multi-Repo & Subproject Detection
 **Requirement**: #4bc74e36854c4221
 **Role**: implementation
-**Status**: pending
+**Status**: completed
 **Created**: 2026-03-01
 
 ---
@@ -57,11 +57,11 @@ Extend `validateSchema()` to verify the `repo_dependencies` table exists alongsi
 
 **Acceptance**:
 
-- [ ] `validateSchema()` checks for `repo_dependencies` table existence
-- [ ] Error thrown with descriptive message if table missing
-- [ ] Existing `repositories` table check preserved
-- [ ] All RED tests pass
-- [ ] Guardrails verified (no new tests)
+- [x] `validateSchema()` checks for `repo_dependencies` table existence
+- [x] Error thrown with descriptive message if table missing
+- [x] Existing `repositories` table check preserved
+- [x] All RED tests pass
+- [x] Guardrails verified (no new tests)
 
 ---
 

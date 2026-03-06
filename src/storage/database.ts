@@ -188,7 +188,7 @@ export interface SchemaValidationResult {
  * - gates: Stored in project-overview.json (version-controlled, single source of truth)
  * - proposal_dependencies: Derived from proposal references (no separate source of truth)
  */
-const REQUIRED_TABLES = ['requirements', 'repositories', 'proposals', 'metrics_snapshots']
+const REQUIRED_TABLES = ['requirements', 'repositories', 'repo_dependencies', 'proposals', 'metrics_snapshots']
 
 /**
  * Validate that all required tables exist in the database.
