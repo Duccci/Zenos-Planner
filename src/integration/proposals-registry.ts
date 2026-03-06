@@ -680,6 +680,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { validateTestFirstPattern, validateGateLevelTestFirst, validateRedTestCoverage } =
         await import('../mcp/validators/test-first-validator.js')
       const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
+      const { validateRequirementRelevance } =
+        await import('../mcp/validators/requirement-relevance-validator.js')
       const { readFile } = await import('../utils/file.js')
       const { findProposalByHash } = await import('../utils/artifact-locator.js')
 
@@ -699,6 +701,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         gateLevelTestFirst: undefined as boolean | undefined,
         redTestCoverage: undefined as boolean | undefined,
         requirementsCoverage: undefined as boolean | undefined,
+        requirementRelevance: undefined as boolean | undefined,
       }
 
       // Load proposal from database
@@ -1080,6 +1083,75 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         // non-fatal — requirement linkage check is best-effort
       }
 
+      // ── 11) Requirement relevance: gate alignment + agent review ────────────
+      // Runs whenever a requirement is resolved (covers both gate-tied and
+      // solitary proposals that reference a requirement).  Gate alignment is a
+      // blocking error; the semantic-relevance agentReview item is advisory.
+      try {
+        const dbReqIdForRelevance = proposal.requirement_id ?? undefined
+        let reqHashForRelevance: string | undefined
+        if (!dbReqIdForRelevance) {
+          const proposalFilePath = await findProposalByHash(validated.hash)
+          if (proposalFilePath) {
+            const content = await readFile(proposalFilePath)
+            const headerMatch = /\*\*Requirement\*\*:\s*#([a-f0-9]{4,16})/i.exec(content)
+            const fmMatch = /^requirement_id:\s*['"']?#?([a-f0-9]{4,16})['"']?\s*$/im.exec(content)
+            reqHashForRelevance = headerMatch?.[1] ?? fmMatch?.[1]
+          }
+        }
+        const refForRelevance = dbReqIdForRelevance ?? reqHashForRelevance
+        if (refForRelevance) {
+          interface ReqRow {
+            hash: string
+            id: string
+            gate_id: string | null
+            description: string
+          }
+          const reqRow = db
+            .prepare(
+              'SELECT hash, id, gate_id, description FROM requirements ' +
+              'WHERE id = ? OR hash = ? OR hash LIKE ?'
+            )
+            .get(refForRelevance, refForRelevance, `${refForRelevance}%`) as ReqRow | undefined
+          if (reqRow) {
+            // Optionally extract task descriptions from the proposal file for richer agentReview
+            let proposalSummaryForRelevance: string | undefined
+            let proposalTasksForRelevance: string[] | undefined
+            try {
+              const proposalFilePath = await findProposalByHash(validated.hash)
+              if (proposalFilePath) {
+                const content = await readFile(proposalFilePath)
+                const summaryMatch = /## Summary\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
+                proposalSummaryForRelevance = summaryMatch?.[1]?.trim()
+                const tasksMatch = /## Tasks\s*\n([\s\S]*?)(?=\n##|\n---|\n$)/.exec(content)
+                if (tasksMatch?.[1]) {
+                  proposalTasksForRelevance = tasksMatch[1]
+                    .split(/###\s+Task\s+\d+:?/)
+                    .map((t) => t.split('\n')[0]?.trim() ?? '')
+                    .filter((t) => t.length > 2)
+                }
+              }
+            } catch { /* non-fatal */ }
+
+            const relevanceResult = validateRequirementRelevance({
+              proposalHash: validated.hash,
+              proposalGateId: gateId,
+              isSolitary,
+              requirement: reqRow,
+              proposalSummary: proposalSummaryForRelevance,
+              proposalTaskDescriptions: proposalTasksForRelevance,
+            })
+            checks.requirementRelevance = relevanceResult.allowed
+            if (!relevanceResult.allowed) {
+              if (relevanceResult.errors) errors.push(...relevanceResult.errors)
+            }
+            if (relevanceResult.agentReview?.length) agentReview.push(...relevanceResult.agentReview)
+          }
+        }
+      } catch {
+        // non-fatal — relevance check is best-effort
+      }
+
       const passedQuantitative = errors.length === 0
       const previousStatus = proposal.status ?? 'pending'
 
@@ -1120,6 +1192,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
               ...(checks.requirementsCoverage !== undefined
                 ? { requirementsCoverage: checks.requirementsCoverage }
                 : {}),
+              ...(checks.requirementRelevance !== undefined
+                ? { requirementRelevance: checks.requirementRelevance }
+                : {}),
             }
           : {
               phases: checks.phases,
@@ -1135,6 +1210,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
                 : {}),
               ...(checks.requirementsCoverage !== undefined
                 ? { requirementsCoverage: checks.requirementsCoverage }
+                : {}),
+              ...(checks.requirementRelevance !== undefined
+                ? { requirementRelevance: checks.requirementRelevance }
                 : {}),
             },
         ...(agentReview.length > 0 ? { agentReview } : {}),
