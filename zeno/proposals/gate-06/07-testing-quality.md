@@ -3,6 +3,7 @@
 **Hash**: #cd07d597
 **Gate**: gate-06 - Multi-Repo & Subproject Detection
 **Requirement**: #4bc74e36854c4221
+**Role**: implementation
 **Status**: pending
 **Created**: 2026-03-01
 
@@ -14,21 +15,15 @@ Wires integration tests that validate the full stack: MCP handler → function r
 
 ---
 
-## Proposal Type
+## Single-Phase Requirement
 
-**GREEN**
-
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
+All tasks in this proposal are GREEN phase only. No new test files may be added; test coverage is defined exclusively by the sibling RED test-suite proposal (`#c5e27b7d`).
 
 ---
 
-## Coverage & Estimates
+## Open Questions
 
-### Target Coverage
-
-- **Coverage Threshold**: 90%
-- **Lines to Cover**: ~60 (integration glue, schema validation wiring)
-- **Target Coverage**: 60 × 0.90 = 54 lines must be tested
+- [x] No open questions — implementation scope is well-defined by RED test suite (`#c5e27b7d`).
 
 ---
 
@@ -52,26 +47,7 @@ Gate 06 requires integration testing that validates the full request path from M
 
 ## Tasks
 
-### Task 1: Enhance integration test to use real database operations
-
-**Phase**: GREEN
-**File(s)**: `tests/mcp/tools/repository-handlers.integration.test.ts`
-**Action**: modify
-
-Replace the mocked `FunctionRegistry` in the existing integration test with a real registry backed by a temporary SQLite database. Register the actual `registerRepositoryOps` functions. Each test should exercise the full path: invoke registry function → storage module → SQLite → return. Use `beforeEach`/`afterEach` to create and destroy a temporary database per test. Validate return values against the Zod output schemas.
-
-**Acceptance**:
-
-- [ ] Integration tests use real SQLite database (temporary, per-test lifecycle)
-- [ ] All 4 repository operations tested end-to-end (list, deps, detect, adjust)
-- [ ] Return values validated against Zod output schemas
-- [ ] No mocked storage layer — real database operations
-- [ ] All RED tests pass
-- [ ] Guardrails verified (no new tests)
-
----
-
-### Task 2: Validate database schema conformance
+### Task 1: Validate database schema conformance
 
 **Phase**: GREEN
 **File(s)**: `src/storage/database.ts`
@@ -93,20 +69,19 @@ Extend `validateSchema()` to verify the `repo_dependencies` table exists alongsi
 
 | File | Phase | Action | Description |
 | ---- | ----- | ------ | ----------- |
-| `tests/mcp/tools/repository-handlers.integration.test.ts` | GREEN | modify | Replace mocked registry with real DB integration |
 | `src/storage/database.ts` | GREEN | modify | Add repo_dependencies table to schema validation |
 
 ---
 
 ## Implementation Notes
 
-Use `tmp` directory for temporary databases (pattern: `path.join(os.tmpdir(), 'zeno-test-' + randomId)`). Import `getDatabase` with temporary project root to get isolated database. Apply the canonical schema programmatically before each test suite. The existing test structure has 5 tests that can be enhanced in-place.
+Extend `validateSchema()` in `src/storage/database.ts` to assert the `repo_dependencies` table exists alongside the current `repositories` table check. Throw a descriptive error if the table is absent so callers fail fast before executing dependency queries.
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: Revert integration test to mocked registry pattern and remove `repo_dependencies` check from `validateSchema()`.
+**If rejected or failed**: Revert `validateSchema()` changes in `src/storage/database.ts` and remove `repo_dependencies` check.
 
 ---
 
