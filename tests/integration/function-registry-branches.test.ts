@@ -324,6 +324,26 @@ describe('FunctionRegistry - branch coverage', () => {
       expect(result.error.context?.['errorType']).toBe('TypeError')
     }
   })
+
+  it('invoke preserves numeric error code from thrown object', async () => {
+    registry.register(
+      'test_fn_numeric_code',
+      () => {
+        throw Object.assign(new Error('numeric code error'), { code: 42 })
+      },
+      {
+        description: 'throws numeric code',
+        parameters: [],
+        returnType: 'void',
+        schema: z.object({}),
+      }
+    )
+    const result = await registry.invoke('test_fn_numeric_code')
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.code).toBe('42')
+    }
+  })
 })
 
 // ──────────────────────────────────────────────────────── function-implementations singleton

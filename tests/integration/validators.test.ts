@@ -176,6 +176,19 @@ describe('Scope Validator', () => {
     expect(result.allowed).toBe(false)
     expect(result.errors?.[0]).toContain('Directory reference not allowed')
   })
+
+  it('should not warn about out-of-scope test file when filesAffected already references tests', () => {
+    // filesAffected includes a test file → normalizedAffected.some(f => f.includes('test')) = true
+    // → line-67 false branch: no warning pushed for the additional out-of-scope test file
+    const result = validateScope({
+      filesAffected: ['tests/auth/middleware.test.ts', 'src/auth/middleware.ts'],
+      filesModified: ['src/auth/middleware.ts', 'tests/new-feature.test.ts'],
+      allowTestFiles: true,
+    })
+    expect(result.allowed).toBe(true)
+    const testFileWarnings = (result.warnings ?? []).filter((w) => w.includes('new-feature'))
+    expect(testFileWarnings).toHaveLength(0)
+  })
 })
 
 describe('Quality Validator', () => {

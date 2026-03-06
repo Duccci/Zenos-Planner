@@ -1,9 +1,10 @@
 # Proposal: Integration with Proposals
 
-**Hash**: #7fa5df86  
-**Gate**: gate-06 - Multi-Repo & Subproject Detection  
-**Requirement**: #9c5150bf8e008175  
-**Status**: pending  
+**Hash**: #7fa5df86
+**Gate**: gate-06 - Multi-Repo & Subproject Detection
+**Requirement**: #9c5150bf8e008175
+**Role**: implementation
+**Status**: pending
 **Created**: 2026-03-01
 
 ---
@@ -52,8 +53,8 @@ Gate 06 requires that multi-repo features integrate with the existing proposal w
 
 ### Task 1: Create conflict detector module
 
-**Phase**: GREEN  
-**File(s)**: `src/core/conflict-detector.ts`  
+**Phase**: GREEN
+**File(s)**: `src/core/conflict-detector.ts`
 **Action**: create
 
 Create a functional module exporting `detectFileConflicts(projectRoot: string, proposalHashes: string[]): ConflictReport`. The function reads proposals' Files Affected tables (from proposal markdown), groups by file path, and reports overlaps where two or more proposals touch the same file. Returns `ConflictReport` interface with `conflicts` array containing `filePath`, `proposalHashes`, and `severity` (warning if same phase, error if different phases). Follow the functional pattern from `metrics-storage.ts` (no classes).
@@ -72,11 +73,11 @@ Create a functional module exporting `detectFileConflicts(projectRoot: string, p
 
 ### Task 2: Wire MCP repos_action handler to function registry
 
-**Phase**: GREEN  
-**File(s)**: `src/mcp/tools/repository-tools.ts`  
+**Phase**: GREEN
+**File(s)**: `src/mcp/tools/repository-tools.ts`
 **Action**: modify
 
-Replace the placeholder handler in `createRepositoryToolHandler` to dispatch actions (`list`, `deps`, `detect`, `adjust`) through the `FunctionRegistry.invoke()` pattern, matching the existing `createEntityActionHandler` used by other tool handlers. Validate input via the existing `RepositoryActionInputSchema` and return structured content matching respective output schemas.
+Replace the stub handler in `createRepositoryToolHandler` to dispatch actions (`list`, `deps`, `detect`, `adjust`) through the `FunctionRegistry.invoke()` pattern, matching the existing `createEntityActionHandler` used by other tool handlers. Validate input via the existing `RepositoryActionInputSchema` and return structured content matching respective output schemas.
 
 **Acceptance**:
 
@@ -106,14 +107,14 @@ The conflict detector reads proposal markdown files from `zeno/proposals/gate-XX
 
 ## Rollback
 
-**If rejected or failed**: Delete `src/core/conflict-detector.ts` and revert `repository-tools.ts` to placeholder handler.
+**If rejected or failed**: Delete `src/core/conflict-detector.ts` and revert `repository-tools.ts` to its prior stub handler.
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: zeno  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: zeno
 **Reviewers**: zeno
 
 ### Change Log

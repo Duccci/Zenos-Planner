@@ -20,12 +20,15 @@ import { parseProposalFrontmatter } from './frontmatter.js'
 
 /**
  * Map any Zeno workflow status to the values accepted by the DB CHECK constraint:
- *   ('pending', 'approved', 'rejected', 'in_progress', 'completed')
+ *   ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')
  *
- * 'validated' appears in proposal `.md` files after automated checks pass but
- * before human approval — it does not map to an approved DB status, so we keep
- * it as 'pending' in the DB.  The DB row's lifecycle fields carry the true
- * state once the human acts.
+ * 'cancelled' and 'backlog' are UI-only states that do not have a DB column
+ * equivalent; they are coerced to the nearest canonical value.
+ *
+ * Note: existing databases with the pre-gate-05 constraint
+ * ('pending', 'approved', 'rejected', 'in_progress', 'completed') are
+ * automatically patched by patchProposalStatusConstraint() in migrations.ts
+ * before any sync runs.
  */
 const PROPOSAL_STATUS_MAP: Record<string, string> = {
   pending:     'pending',

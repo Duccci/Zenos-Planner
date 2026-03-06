@@ -147,6 +147,13 @@ export const ProposalValidateOutputSchema = z.object({
     })
     .optional(),
   summary: z.string().optional(),
+  /**
+   * Agent-directed review items that the calling LLM MUST evaluate with its
+   * own judgment before considering the validation complete.
+   * Includes the qualitative scope-creep gate comparison when a gate PRD is
+   * available, plus intent alignment and completeness checks.
+   */
+  agentReview: z.array(z.string()).optional(),
 })
 export type ProposalValidateOutput = z.infer<typeof ProposalValidateOutputSchema>
 

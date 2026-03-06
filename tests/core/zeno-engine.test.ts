@@ -56,4 +56,27 @@ describe('decomposeWork', () => {
 
     expect(gates.length).toBeGreaterThan(1);
   });
+
+  it('should reduce confidence for very high complexity work (complexity > 80)', () => {
+    // maxGateComplexity is set above the work complexity so no splitting occurs —
+    // calculateDecompositionConfidence is called directly with complexity=90 > 80
+    const work: WorkDescription = {
+      description: 'Very complex task',
+      complexity: 90,
+      requirements: ['req1'],
+    };
+
+    const context: DecompositionContext = {
+      maxGateComplexity: 100,
+      projectRequirements: ['req1'],
+      existingAnalysis: {
+        metrics: { linesOfCode: 2000, cyclomaticComplexity: 8, coupling: 0.4 },
+        dependencies: ['dep1'],
+      },
+    };
+
+    const gates = decomposeWork(work, context);
+    expect(gates).toHaveLength(1);
+    expect(gates[0].estimatedComplexity).toBe(90);
+  });
 });

@@ -95,6 +95,15 @@ export interface ArtifactValidationContext {
    * proposal's tasks/files produces a blocking error.
    */
   outOfScopeItems?: string[]
+  /**
+   * For proposals: file-system path to the associated gate PRD.
+   *
+   * When provided, the qualitative scope-creep validator emits an agent-directed
+   * review prompt that instructs the calling LLM to open the gate document and
+   * compare the proposal's tasks and files against the gate's Objectives, Scope
+   * Boundaries, and Requirements.
+   */
+  gatePrdPath?: string
   /** For test-first pattern validation: all proposals in the same gate */
   gateProposals?: { hash: string; role?: string; createdAt: string }[]
   /** For dependency validation: all nodes in the system */
@@ -255,6 +264,8 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // Check 5: Qualitative scope creep detection
   // Heuristically detects implementation drift from declared objectives.
   // Blocking when an explicit out-of-scope violation is found; advisory otherwise.
+  // Agent-directed gate comparison items are collected here for Phase 3.
+  const scopeCreepAgentReview: string[] = []
   {
     const proposalTitle = extractField(content, 'Proposal:', 1) ?? extractField(content, '# ', 1) ?? 'Unknown'
     const objectives = context.gateObjectives ?? extractField(content, '## Summary', 10) ?? ''
@@ -270,11 +281,15 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
       ...(context.outOfScopeItems && context.outOfScopeItems.length > 0
         ? { outOfScopeItems: context.outOfScopeItems }
         : {}),
+      ...(context.gatePrdPath ? { gatePrdPath: context.gatePrdPath } : {}),
     }
 
     const creepResult = evaluateScopeCreep(creepContext)
     errors.push(...(creepResult.errors ?? []))
     warnings.push(...(creepResult.warnings ?? []))
+    if (creepResult.agentReview?.length) {
+      scopeCreepAgentReview.push(...creepResult.agentReview)
+    }
   }
 
   // Check 6: Dependency validation (if dependencies exist and nodes available)
@@ -311,7 +326,12 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // Generate review items the calling agent must evaluate with its own judgment.
   // These complement the heuristics above — they target intent alignment,
   // completeness, and logical accuracy that parsers cannot assess.
-  const agentReview = generateProposalAgentChecks(content, context)
+  // Scope-creep items (gate PRD comparison) collected during Check 5 are
+  // prepended so the LLM sees the gate comparison first.
+  const agentReview = [
+    ...scopeCreepAgentReview,
+    ...generateProposalAgentChecks(content, context),
+  ]
 
   // =========================================================================
   // RETURN RESULT
@@ -539,48 +559,109 @@ function generateProposalAgentChecks(content: string, context: ArtifactValidatio
     .replace(/^Proposal:\s*/i, '').trim()
   const checks: string[] = []
 
-  // 1. Intent alignment: Summary vs Tasks
+  // When a gate PRD path is available, the scope-creep validator already emits
+  // a comprehensive 6-point review (objectives, boundaries, additive scope,
+  // API drift, requirement binding, traceability).  Avoid duplicating those
+  // dimensions here — only emit checks that cover what it does NOT.
+  const hasGateScopeReview = !!context.gatePrdPath
+
+  // Preamble — establishes the evaluator's role and output contract.
+  // Emitted as the first entry so the LLM reads it before any individual check.
   checks.push(
-    `Intent alignment: Read the Summary and every task description in "${title}". ` +
-      `Do the tasks collectively implement exactly what the Summary states, ` +
-      `or do they address a different problem or a subset/superset of it? ` +
-      `Flag any task that cannot be directly traced to a stated objective.`
+    `PROPOSAL REVIEW — "${title}"\n` +
+      `Read this proposal in full before performing any check below.\n` +
+      `Your judgment is required — these checks cannot be performed by a parser.\n` +
+      `There is no single correct answer to most of these questions; use your best judgment.\n\n` +
+      `For every issue you find, report it in this format:\n` +
+      `  [BLOCKING|ADVISORY] Check N — "<task, section, or file>" — <reason>\n\n` +
+      `BLOCKING issues must be resolved before this proposal can be approved.\n` +
+      `ADVISORY issues are quality concerns that should be addressed but do not block approval.\n` +
+      `If you find no issues across all checks, confirm:\n` +
+      `  "All checks passed — no issues found in \\"${title}\\"."`
+  )
+
+  // 1. Intent alignment: Summary vs Tasks
+  // Compares tasks to the *proposal's own* declared goals for internal coherence.
+  // (The scope-creep validator separately compares tasks to *gate* objectives.)
+  checks.push(
+    `Check 1 — INTENT ALIGNMENT (BLOCKING if tasks contradict Summary)\n` +
+      `Read the Summary section of "${title}" to understand what this proposal claims to deliver.\n` +
+      `Then read every task in the Tasks section.\n` +
+      `- Do the tasks collectively implement the goals stated in the Summary, ` +
+      `or do they solve a different problem, or solve only a subset/superset of it?\n` +
+      `- Flag any task that cannot be traced to a goal explicitly stated in this proposal's Summary.\n` +
+      `- Flag any goal in the Summary that has no corresponding task.\n` +
+      `A mismatch means the proposal will not deliver what it promises — BLOCKING.`
   )
 
   // 2. Implementation completeness
   checks.push(
-    `Implementation completeness: Could a developer implement "${title}" ` +
-      `using only the information in this proposal (task descriptions, acceptance criteria, ` +
-      `implementation notes) without needing follow-up clarification? ` +
-      `Identify any task that is too vague to act on as written.`
+    `Check 2 — IMPLEMENTATION COMPLETENESS (BLOCKING if a task cannot be acted on)\n` +
+      `Read each task description, its acceptance criteria, and any implementation notes in "${title}".\n` +
+      `Evaluate whether a developer could implement each task using only the information present:\n` +
+      `a) Are the acceptance criteria written as testable, falsifiable assertions ` +
+      `(e.g., "function returns X given Y") rather than vague goals (e.g., "works correctly")?\n` +
+      `b) Do the implementation notes specify enough detail — relevant file paths, ` +
+      `function signatures, parameter types, return shapes — that a developer ` +
+      `would not need to guess or ask follow-up questions?\n` +
+      `c) Do any tasks reference concepts, modules, or types that are not introduced or ` +
+      `defined anywhere in this proposal or its referenced requirements? ` +
+      `(Undefined references indicate missing context.)\n` +
+      `Flag each gap with the specific task and what is missing. Missing acceptance criteria ` +
+      `testability or undefined references are BLOCKING; vague-but-actionable notes are ADVISORY.`
   )
 
   // 3. Files Affected coverage — supplement the heuristic scope check
-  checks.push(
-    `Files Affected coverage: Based on the task descriptions, are there files ` +
-      `that would realistically need to change that are NOT listed in the Files Affected section? ` +
-      `Consider test files, type definitions, index re-exports, and configuration ` +
-      `that the described changes would touch.`
-  )
-
-  // 4. Dependency accuracy
-  const hasDeps = /##\s+Dependencies/i.test(content)
-  if (hasDeps) {
+  if (!hasGateScopeReview) {
     checks.push(
-      `Dependency accuracy: Review the Dependencies section of "${title}". ` +
-        `Are all proposals that must be applied before this one declared? ` +
-        `Are there downstream proposals in the same gate that must now list this one as a dependency? ` +
-        `Flag any missing or incorrect dependency declarations.`
+      `Check 3 — FILES AFFECTED COVERAGE (ADVISORY)\n` +
+        `For each task in "${title}", reason about which files would realistically need to change ` +
+        `to implement it: source files, test files, type definitions, index re-exports, ` +
+        `configuration, and schema files.\n` +
+        `Compare your enumeration against the Files Affected section.\n` +
+        `Flag any file that is missing from the list, citing the task that would require it.\n` +
+        `Also flag any file in the list that no task appears to justify — orphaned entries ` +
+        `may indicate leftover copy/paste or unintended scope.`
     )
   }
 
-  // 5. Gate objectives coverage (when gate objectives are provided)
-  if (context.gateObjectives?.trim()) {
+  // 4. Dependency accuracy — covers both present and absent Dependencies sections
+  const hasDeps = /##\s+Dependencies/i.test(content)
+  if (hasDeps) {
     checks.push(
-      `Gate objective coverage: Cross-reference the gate objectives against all tasks in "${title}". ` +
-        `Does this proposal advance or complete one or more gate objectives, ` +
-        `or does it work on something tangential? ` +
-        `Confirm which gate objective(s) each task maps to.`
+      `Check 4 — DEPENDENCY ACCURACY (BLOCKING if a required predecessor is missing)\n` +
+        `Read the Dependencies section of "${title}".\n` +
+        `Based on the tasks and files this proposal touches:\n` +
+        `a) Are there sibling proposals in the same gate that MUST be applied before this one ` +
+        `(e.g., because they create types, schemas, or modules this proposal imports) ` +
+        `that are NOT listed as dependencies?\n` +
+        `b) Does applying this proposal likely create outputs (types, functions, schemas) ` +
+        `that sibling proposals depend on, making THEM dependent on THIS one — ` +
+        `and if so, are those sibling proposals correctly declaring that dependency?\n` +
+        `Flag any missing predecessor dependency as BLOCKING. ` +
+        `Flag any likely missing downstream dependency as ADVISORY.`
+    )
+  } else {
+    checks.push(
+      `Check 4 — UNDECLARED DEPENDENCIES (BLOCKING if predecessors exist)\n` +
+        `"${title}" declares no dependencies.\n` +
+        `Based on the tasks and files it touches, reason about whether any proposals ` +
+        `in the same gate must be applied before this one — for example, proposals that ` +
+        `create types, storage modules, schemas, or utility functions this proposal imports.\n` +
+        `If any predecessor is identifiable, flag it as BLOCKING and name it specifically.\n` +
+        `If no dependencies are genuinely needed, confirm: "No dependencies required — correct as written."`
+    )
+  }
+
+  // 5. Gate objectives coverage (only when scope-creep review is absent)
+  if (!hasGateScopeReview && context.gateObjectives?.trim()) {
+    checks.push(
+      `Check 5 — GATE OBJECTIVE COVERAGE (ADVISORY)\n` +
+        `The gate objectives for this proposal's gate are:\n${context.gateObjectives.trim()}\n\n` +
+        `For each task in "${title}", identify which gate objective it advances.\n` +
+        `Flag any task that does not advance any gate objective — it may be tangential work.\n` +
+        `Flag any gate objective that no task in this proposal addresses, ` +
+        `if this proposal is expected to cover it. (ADVISORY — may be addressed by a sibling proposal.)`
     )
   }
 

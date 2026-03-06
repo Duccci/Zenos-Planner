@@ -9,6 +9,7 @@
 | **MCP** | Model Context Protocol — server interface exposing Zeno tools (`reg_action`, `gates_action`, `proposal_action`, etc.) to AI agents |
 | **Multi-Repo** | Project configuration spanning multiple independent repositories; boundaries detected via hybrid `CodeAnalyzer` + `architect-reviewer` analysis |
 | **PRD** | Product Requirements Document — used at both project level (`PROJECT_PRD.md`) and gate level (`gates/gate-XX-name.md`) |
+| **prop N-M** | Shorthand reference for the Mth proposal of gate N; e.g. `prop 6-2` means proposal 2 within gate 6; resolves to the corresponding entry in `proposals/gate-06/` |
 | **Proposal** | Implementation plan for a set of requirements within a gate; stored in `proposals/gate-XX/<name>.md`; status: `pending` → `validated` → `in_progress` → `completed` or `rejected` |
 | **Quality Gate** | Automated check that must pass before proposal approval: ≥90% coverage, 0 CVEs, <0.01% lint errors, 0 TS errors, all tests passing |
 | **Registry** | SQLite database at `.zeno/registry.db` storing all requirements, gates, proposals, and hashes; accessed via MCP tools only |

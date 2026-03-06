@@ -57,9 +57,11 @@ export function gitTraceHandlers(
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
+        const errorPayload = { error: { message } }
         return {
-          content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
+          content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
           isError: true,
+          structuredContent: errorPayload,
         }
       }
     },

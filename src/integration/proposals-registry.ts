@@ -685,6 +685,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       const errors: string[] = []
       const warnings: string[] = []
+      const agentReview: string[] = []
 
       // Per-check pass tracking
       const checks = {
@@ -837,11 +838,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           // Falls back to proposal summary when gate file is unavailable.
           let gateObjectives: string | undefined
           let outOfScopeItems: string[] | undefined
+          let gatePrdPath: string | undefined
           if (gateId) {
             try {
               const { findGateByGateId } = await import('../utils/artifact-locator.js')
               const gatePath = await findGateByGateId(gateId)
               if (gatePath) {
+                gatePrdPath = gatePath
                 const gateContent = await readFile(gatePath)
                 const objectivesMatch = /##\s+Objectives\b([\s\S]*?)(?=\n##\s|\s*$)/.exec(gateContent)
                 gateObjectives = objectivesMatch?.[1]?.trim()
@@ -868,10 +871,12 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
             role,
             ...(gateObjectives ? { gateObjectives } : {}),
             ...(outOfScopeItems && outOfScopeItems.length > 0 ? { outOfScopeItems } : {}),
+            ...(gatePrdPath ? { gatePrdPath } : {}),
           })
           if (!artifactResult.allowed) checks.artifactStructure = false
           if (artifactResult.errors) errors.push(...artifactResult.errors)
           if (artifactResult.warnings) warnings.push(...artifactResult.warnings)
+          if (artifactResult.agentReview?.length) agentReview.push(...artifactResult.agentReview)
         }
       } catch {
         // non-fatal if file not yet written
@@ -1132,6 +1137,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
                 ? { requirementsCoverage: checks.requirementsCoverage }
                 : {}),
             },
+        ...(agentReview.length > 0 ? { agentReview } : {}),
       }
     },
     {

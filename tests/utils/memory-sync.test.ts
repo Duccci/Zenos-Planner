@@ -172,4 +172,22 @@ describe('syncMemoryFromProjectOverview', () => {
     expect(written).toContain('_None_') // no upcoming
     expect(written).toContain('_None yet_') // no completed
   })
+
+  it('builds section with current gate having no status (defaults to "pending")', async () => {
+    mockFileExists.mockReturnValue(true)
+    mockReadProjectOverview.mockResolvedValue(
+      makeOverview({
+        totalGatesPlanned: 1,
+        currentGateInfo: { name: 'Statusless Gate' }, // no status property
+        upcomingGates: [],
+      })
+    )
+    mockReadFile.mockResolvedValue('# Memory')
+
+    await syncMemoryFromProjectOverview('/project')
+
+    const [, written] = mockWriteFile.mock.calls[0] as [string, string]
+    expect(written).toContain('Statusless Gate')
+    expect(written).toContain('pending') // status ?? 'pending' fallback
+  })
 })

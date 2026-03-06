@@ -56,6 +56,17 @@ export interface ScopeCreepValidationContext {
    * When provided, exact-phrase matches produce blocking errors.
    */
   outOfScopeItems?: string[]
+
+  /**
+   * File-system path to the associated gate PRD.
+   *
+   * When provided, the validator emits an agent-directed review prompt that
+   * instructs the calling LLM to open the gate document and compare the
+   * artifact's tasks and files against the gate's Objectives, Scope
+   * Boundaries, and Requirements — catching intent-level scope creep that
+   * heuristics alone cannot detect.
+   */
+  gatePrdPath?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +137,7 @@ function normalize(text: string): string {
  *   - `allowed: true` (silent) when no signals are detected.
  */
 export function evaluateScopeCreep(context: ScopeCreepValidationContext): ValidationResult {
-  const { objectives, implementationContent, title, outOfScopeItems } = context
+  const { objectives, implementationContent, title, outOfScopeItems, gatePrdPath } = context
 
   // Skip if we have nothing meaningful to compare
   if (!objectives.trim() || !implementationContent.trim()) {
@@ -186,10 +197,68 @@ export function evaluateScopeCreep(context: ScopeCreepValidationContext): Valida
     }
   }
 
+  // ── 3) LLM-directed gate comparison (when gate PRD path is available) ─────
+  // Heuristics can only catch keyword signals; the LLM must evaluate whether
+  // each task is genuinely authorized by the gate's full declared scope.
+  const agentReview: string[] = []
+  if (gatePrdPath) {
+    agentReview.push(
+      `SCOPE CREEP REVIEW — "${title}"\n` +
+        `Open and thoroughly read "${gatePrdPath}".\n` +
+        `Then open and thoroughly read this proposal.\n` +
+        `Perform every check below. For each issue found, state the ` +
+        `specific text from the gate and the specific text from the proposal that conflict, ` +
+        `then classify it as BLOCKING or ADVISORY.\n\n` +
+
+        `1. OBJECTIVES ALIGNMENT\n` +
+        `   For every task in this proposal, identify which gate Objectives checkbox it advances.\n` +
+        `   Flag any task that cannot be traced to at least one objective — that task is out of scope.\n\n` +
+
+        `2. SCOPE BOUNDARIES\n` +
+        `   Read the gate's Scope Boundaries section completely.\n` +
+        `   a) Does any task or file touch an area listed under Out of Scope? Cite the boundary text.\n` +
+        `   b) Does any task introduce work not explicitly listed under In Scope? (BLOCKING)\n\n` +
+
+        `3. ADDITIVE SCOPE — invented fields, behaviors, or abstractions\n` +
+        `   Compare every data structure, field name, function signature, and parameter in this ` +
+        `   proposal's task descriptions and implementation notes against what the gate PRD, ` +
+        `   its architecture section, and its requirements actually specify.\n` +
+        `   Flag any field, parameter, return shape, enum value, or behavior that appears in the ` +
+        `   proposal but is absent from the gate document. These are additive scope — undocumented ` +
+        `   work that inflates the implementation surface. (BLOCKING)\n\n` +
+
+        `4. API CONTRACT DRIFT vs SIBLING PROPOSALS\n` +
+        `   If sibling proposals in the same gate directory exist (especially test-suite / RED-test ` +
+        `   proposals), open them and compare:\n` +
+        `   a) Do the function/method names exported by this proposal match what the test proposals import?\n` +
+        `   b) Do the function signatures (parameter names, types, order) match what the tests call?\n` +
+        `   c) Do the return types / object shapes match what the tests assert against?\n` +
+        `   Every mismatch means implementing this proposal as written will fail the RED tests. ` +
+        `   Cite the exact import/call in the test file and the conflicting definition in this proposal. (BLOCKING)\n\n` +
+
+        `5. REQUIREMENT BINDING\n` +
+        `   Check the Requirement hash(es) this proposal claims to address.\n` +
+        `   a) Does the bound requirement actually describe the work in this proposal's tasks?\n` +
+        `   b) Is there a more appropriate requirement in the gate that should be bound instead?\n` +
+        `   c) Are there tasks in this proposal that have no corresponding requirement at all?\n` +
+        `   Flag any incorrect or missing binding. (ADVISORY)\n\n` +
+
+        `6. REQUIREMENTS TRACEABILITY\n` +
+        `   Is every file in the Files Affected section justifiable by at least one gate Requirement?\n` +
+        `   Flag orphaned files that do not trace to any requirement. (ADVISORY)\n\n` +
+
+        `Report format — for each issue found:\n` +
+        `  [BLOCKING|ADVISORY] Check N — "<task or file>" — <reason with cited gate/proposal text>\n\n` +
+        `If no issues are found, confirm: "All tasks and files are within gate scope and consistent ` +
+        `with sibling proposals."`
+    )
+  }
+
   return {
     allowed: errors.length === 0,
     errors: errors.length > 0 ? errors : undefined,
     warnings: warnings.length > 0 ? warnings : undefined,
+    ...(agentReview.length > 0 ? { agentReview } : {}),
   }
 }
 

@@ -72,4 +72,13 @@ describe('archive-registry coverage', () => {
       },
     })
   })
+
+  it('should handle batch action without payload (payload ?? {} fallback)', async () => {
+    const result = (await registry.invoke('archive_action', {
+      action: 'batch',
+      // no payload — triggers validated.payload ?? {} fallback on the batch branch
+    })) as { success: boolean }
+    // Zod parse of {} fails because artifacts is required → success:false
+    expect(result.success).toBe(false)
+  })
 })

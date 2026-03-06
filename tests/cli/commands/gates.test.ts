@@ -296,6 +296,15 @@ describe('Gates Commands', () => {
       expect(result.valid).toBe(false)
       expect(result.error).toContain('Cannot transition')
     })
+
+    it('returns valid=false with "none" when current status has no defined transitions in map', () => {
+      type MinStatus = 'a' | 'b'
+      const partialMap: Partial<Record<MinStatus, MinStatus[]>> = { a: ['b'] }
+      // 'b' has no entry in partialMap → transitionMap['b'] is undefined → ?? [] fires
+      const result = validateTransition(partialMap, 'b', 'a')
+      expect(result.valid).toBe(false)
+      expect(result.error).toContain('none')
+    })
   })
 
   describe('gates list (archive)', () => {
