@@ -35,8 +35,15 @@ export interface ProposalGateSibling {
   hash: string
   /** Role extracted from proposal file, undefined if not set */
   role: string | undefined
-  /** ISO timestamp; used to determine ordering within the gate */
+  /** ISO timestamp; used to determine ordering within the gate when filePath is absent */
   createdAt: string
+  /**
+   * Absolute path to the proposal file on disk.
+   * When present, basename ordering is used in place of createdAt so that
+   * a proposal's lastUpdated timestamp (which changes on status transitions)
+   * cannot alter its position in the gate sequence.
+   */
+  filePath?: string
 }
 
 export interface TestFirstValidationContext {
@@ -179,10 +186,16 @@ function validateGateStructure(
     return { errors, warnings }
   }
 
-  // Sort by created_at ascending so index 0 === earliest, last index === latest
-  const sorted = [...gateProposals].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  )
+  // Sort by filename (basename) when a filePath is available — this gives a stable
+  // ordering based on the numeric prefix (01-, 08-…) that is unaffected by status
+  // transitions that update lastUpdated. Fall back to createdAt when no path exists.
+  const getBasename = (fp: string): string => fp.split(/[/\\]/).pop() ?? fp
+  const sorted = [...gateProposals].sort((a, b) => {
+    if (a.filePath && b.filePath) {
+      return getBasename(a.filePath).localeCompare(getBasename(b.filePath))
+    }
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
 
   // Guarded by length >= 2 check above, but TypeScript needs explicit narrowing
   const first: ProposalGateSibling | undefined = sorted[0]

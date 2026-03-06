@@ -873,15 +873,17 @@ export function proposalHandlers(
               const gateProposals: ProposalGateSibling[] = await Promise.all(
                 rows.map(async (p) => {
                   let role: string | undefined
+                  let resolvedPath: string | undefined
                   try {
                     const filePath = await findProposalByHash(p.hash)
                     if (filePath) {
+                      resolvedPath = filePath
                       const content = await readFile(filePath)
                       const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
                       role = roleMatch?.[1]?.trim()
                     }
                   } catch { /* role stays undefined */ }
-                  return { hash: p.hash, role, createdAt: p.lastUpdated ?? new Date().toISOString() }
+                  return { hash: p.hash, role, createdAt: p.lastUpdated ?? new Date().toISOString(), filePath: resolvedPath }
                 })
               )
 
