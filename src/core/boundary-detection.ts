@@ -21,7 +21,7 @@ export interface BoundaryDetectionSerializable {
   coupling: Record<string, unknown>
   directoryFileCounts: Record<string, number>
   directoryLOC: Record<string, number>
-  dependencyEdges: Array<{ source: string; target: string }>
+  dependencyEdges: { source: string; target: string }[]
 }
 
 /**
@@ -38,20 +38,20 @@ export interface BoundaryAnalyzer {
  * Returns an empty list until a real LLM invocation layer is wired by a downstream proposal.
  */
 export class ArchitectReviewerBoundaryAnalyzer implements BoundaryAnalyzer {
-  async analyze(_input: BoundaryDetectionSerializable): Promise<BoundaryRecommendation[]> {
+  analyze(_input: BoundaryDetectionSerializable): Promise<BoundaryRecommendation[]> {
     // Structured prompt contract (stable field names used so the architect-reviewer
     // subagent can deterministically parse the input):
     //
-    //   Root path: {input.rootPath}  Files: {input.fileCount}  LOC: {input.totalLOC}
-    //   Coupling metrics:       JSON.stringify(input.coupling)
-    //   Per-directory file counts: JSON.stringify(input.directoryFileCounts)
-    //   Per-directory LOC:      JSON.stringify(input.directoryLOC)
-    //   Dependency edges:       JSON.stringify(input.dependencyEdges)
+    //   Root path: {_input.rootPath}  Files: {_input.fileCount}  LOC: {_input.totalLOC}
+    //   Coupling metrics:          JSON.stringify(_input.coupling)
+    //   Per-directory file counts: JSON.stringify(_input.directoryFileCounts)
+    //   Per-directory LOC:         JSON.stringify(_input.directoryLOC)
+    //   Dependency edges:          JSON.stringify(_input.dependencyEdges)
     //   → parseBoundaryRecommendations(response) → BoundaryRecommendation[]
     //
     // Real subagent invocation is deferred to a downstream integration proposal.
     // Replace this return when the invocation layer is available.
-    return []
+    return Promise.resolve([])
   }
 }
 
@@ -75,7 +75,7 @@ export function serializeForBoundaryDetection(
 
   const directoryFileCounts: Record<string, number> = {}
   const directoryLOC: Record<string, number> = {}
-  const dependencyEdges: Array<{ source: string; target: string }> = []
+  const dependencyEdges: { source: string; target: string }[] = []
 
   for (const [, module] of result.modules) {
     const dir = getDirectory(module.relativePath)
