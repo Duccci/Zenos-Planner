@@ -1,7 +1,7 @@
 {
   "projectName": "Zeno's Planner",
   "projectVersion": "0.3.0",
-  "currentGate": "gate-06",
+  "currentGate": null,
   "totalGatesPlanned": 14,
   "endState": "Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human 'vibe coding' by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.",
   "startState": null,
@@ -40,21 +40,23 @@
       "hash": "g05archdiag",
       "completedAt": "2026-02-21",
       "status": "completed"
+    },
+    {
+      "sequence": 6,
+      "name": "Gate 06: Multi-Repo & Subproject Detection",
+      "hash": "g06multirepo",
+      "completedAt": "2026-03-06",
+      "status": "completed"
     }
   ],
   "currentGateInfo": {
-    "sequence": 6,
-    "name": "Gate 06: Multi-Repo & Subproject Detection",
-    "hash": "g06multirepo",
-    "status": "in_progress",
+    "sequence": 7,
+    "name": "Gate 07: Proposal Generation & Management",
+    "hash": "#gate07",
+    "status": "pending",
     "estimatedComplexity": "high"
   },
   "upcomingGates": [
-    {
-      "sequence": 7,
-      "name": "Gate 07: Proposal Generation & Management",
-      "estimatedComplexity": "high"
-    },
     {
       "sequence": 8,
       "name": "Gate 08: Automated Validation & Quality Gates",

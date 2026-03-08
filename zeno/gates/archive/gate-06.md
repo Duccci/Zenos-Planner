@@ -405,7 +405,6 @@ Gate 07 (Proposal Generation) will build on the repository and dependency founda
 - Next Gate: `zeno/gates/gate-07-proposal-generation.md`
 - Architecture: `zeno/architecture/`
 
-
 ## Consolidated Proposals Summary
 
 *This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
@@ -463,6 +462,7 @@ Gate 06 requires persistent repository storage in SQLite. The `repositories` tab
 *No artifacts tracked.*
 
 **Quality Metrics**:
+
 - Total Coverage: 90.00%
 - Total Files Modified: 0
 - Total Tasks Completed: 41
