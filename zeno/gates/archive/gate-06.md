@@ -404,3 +404,65 @@ Gate 07 (Proposal Generation) will build on the repository and dependency founda
 - Previous Gate: `zeno/gates/gate-05-architecture-diagrams.md`
 - Next Gate: `zeno/gates/gate-07-proposal-generation.md`
 - Architecture: `zeno/architecture/`
+
+
+## Consolidated Proposals Summary
+
+*This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
+
+### Requirements Fulfilled
+
+| Requirement | Proposal |
+|-------------|----------|
+| #4bc74e36854c4221 | #8881e3ed |
+| #66db8316e02beb71 | #0c081a5a |
+| #9c5150bf8e008175 | #7fa5df86 |
+| #cb19655eee60ab38 | #7a175468 |
+
+### Lessons Learned
+
+- Follow existing test patterns from `tests/storage/` and `tests/mcp/tools/`. Use `beforeEach`/`afterEach` with in-memory SQLite for storage tests; always set `PRAGMA foreign_keys = ON` in the `beforeEach` setup. Mock `FunctionRegistry` for MCP handler tests. Use `createAnalysisResult()` from `tests/fixtures/analysis.ts` (created in Task 3 file list) for boundary detection tests. All tests must import from the planned module paths (which do not exist yet) so they fail at compile time, confirming RED phase.
+- Follow the `metrics-storage.ts` pattern: no classes, export pure functions, accept optional `projectRoot`. Use `getDatabase(projectRoot)` for DB access. Repository hashes are generated via `generateHash` from `src/utils/hash.ts`. Path validation should use `path.resolve()` and check for `..` segments after normalization.
+- `BoundaryAnalyzer` defines a single `analyze(input: BoundaryDetectionSerializable): Promise<BoundaryRecommendation[]>` method. The production implementation (`ArchitectReviewerBoundaryAnalyzer`) constructs a structured prompt referencing the stable field names of `BoundaryDetectionSerializable` (e.g. `coupling`, `directoryLOC`, `dependencyEdges`) so the architect-reviewer subagent can deterministically parse the input. Tests inject a mock `BoundaryAnalyzer` that returns fixture data. The existing `parseBoundaryRecommendations(llmResponse: string)` helper can be used by the default implementation to parse the subagent's freeform response into `BoundaryRecommendation[]`.
+- Import `getRepoDependencyGraph`, `detectCircularDependencies` from `../../storage/repository-dependencies.js`. The existing `registerRepositoryOps` function structure handles input validation via Zod schemas already; only the handler body needs replacement.
+- Import `listRepositories`, `saveRepository`, `deleteRepository` from `../../storage/repository-storage.js`. Import `getRepoDependencyGraph`, `detectCircularDependencies` from `../../storage/repository-dependencies.js`. Import `detectRepositoryBoundaries` from `../../core/boundary-detection.js`. The Commander subcommand structure already exists with `.action()` handlers — only the handler bodies change. Follow the pattern established by other CLI commands (e.g., `gates.ts`).
+- The conflict detector reads proposal markdown files from `zeno/proposals/gate-XX/` and parses the Files Affected table. Use the existing `proposal-parser.ts` for markdown parsing if a suitable function exists, otherwise parse the table with a simple regex. The MCP handler should follow `createGatesToolHandler` as the reference pattern for dispatching actions.
+- Extend `validateSchema()` in `src/storage/database.ts` to assert the `repo_dependencies` table exists alongside the current `repositories` table check. Throw a descriptive error if the table is absent so callers fail fast before executing dependency queries.
+- Run coverage with `npx vitest run --coverage` and inspect the HTML report. Focus on branches (if/else paths) not just line coverage. The 90% threshold applies per-module, not just aggregate. Edge cases to prioritize: empty `repositories` table, single-node dependency graph, self-referencing dependency (circular with length 1), proposals with no Files Affected table.
+
+### Next Dependencies
+
+*Proposals that are unblocked by this gate (identified from proposal dependency tables):*
+
+*No downstream dependencies identified.*
+
+### High-Level Delta
+
+**Summary**:
+Defines the complete RED test suite for all Gate 06 deliverables: repository CRUD storage, cross-repository dependency tracking with circular detection, hybrid LLM-driven boundary detection workflow, repository management CLI/MCP commands, and file-level conflict detection for concurrent proposals. All tests are written to fail before implementation, establishing acceptance criteria for the GREEN phase proposals. Adds the `repo_dependencies` table to the canonical `schema.sql`, implements the `repository-storage.ts` CRUD module following the `metrics-storage.ts` functional pattern, and defines the `Repository` and `RepositoryRow` interfaces. Enables hashable repository entities to be declared, queried, updated, and deleted in SQLite with path validation and metadata serialization.
+
+## Context
+
+### Why This Change
+
+Gate 06 requires persistent repository storage in SQLite. The `repositories` table already exists in the canonical `schema.sql` but lacks a CRUD service layer. The `repo_dependencies` table does not exist and requires a new `CREATE TABLE IF NOT EXISTS` block added directly to `schema.sql` (numbered migration files are no longer used). This proposal provides the storage foundation all other gate-06 proposals depend on.
+
+### Prerequisites
+
+- Zeno's planner project initialized with existing SQLite database and migration system
+- RED test suite (#c5e27b7d) completed with acceptance tests for CRUD operations
+- Existing `metrics-storage.ts` module available as pattern reference
+- TypeScript compiler and database utilities configured
+
+### Dependencies
+
+| Hash | Type | Description |
+| Implements the hybrid boundary detection service that serializes Gate 02's `CodeAnalyzer` output into a stable JSON schema and orchestrates invocation of the `architect-reviewer` subagent for repository boundary recommendations. Returns advisory-only recommendations without auto-persisting boundaries — human confirmation via `repos adjust` is required. Wires the repository dependency storage layer into the schema-registry function dispatch, replacing the current `invokeCommand` stubs with direct database calls for `repos_deps`. Implements the `repos_deps` registry operation so it queries `repo_dependencies` and returns the graph structure matching `RepositoryDependencyGraphSchema`, including circular dependency warnings. Implements the six CLI subcommands (`list`, `deps`, `detect`, `adjust`, `add`, `remove`) in `src/cli/commands/repos.ts`, replacing the current stubs with calls to storage and core modules. Also replaces the remaining `invokeCommand` stubs in `registerRepositoryOps` for `repos_list`, `repos_detect`, and `repos_adjust` with direct storage/core calls. Creates a conflict detector module (`src/core/conflict-detector.ts`) that detects file-level overlaps between concurrent proposals targeting the same repository. Integrates the MCP `repos_action` handler in `src/mcp/tools/repository-tools.ts` to dispatch all four actions (list, deps, detect, adjust) through the function registry, making multi-repo features available via MCP. Wires integration tests that validate the full stack: MCP handler → function registry → storage module → SQLite, for all four repository actions. Validates schema conformance end-to-end and ensures the existing `repository-handlers.integration.test.ts` covers real database operations instead of only mocked registry calls. Final gate proposal that validates all RED-phase tests pass after GREEN implementations, verifies coverage meets the 90% threshold across all new gate-06 modules, and fills any remaining edge-case gaps. This is the quality gate before gate completion.
+
+**Artifacts Created**:
+*No artifacts tracked.*
+
+**Quality Metrics**:
+- Total Coverage: 90.00%
+- Total Files Modified: 0
+- Total Tasks Completed: 41

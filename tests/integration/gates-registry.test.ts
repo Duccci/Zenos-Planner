@@ -36,7 +36,24 @@ vi.mock('../../src/integration/command-invoker.js', () => ({
 
 vi.mock('../../src/core/completions.js', () => ({
   startGate: vi.fn().mockResolvedValue(undefined),
-  completeGate: vi.fn().mockResolvedValue(undefined),
+  completeGate: vi.fn().mockResolvedValue({
+    projectRoot: '/project',
+    gateId: 'gate-01',
+    gateName: 'Setup',
+    previousVersion: '1.0.0',
+    newVersion: '1.1.0',
+    bump: 'minor' as const,
+    gitInstructions: {
+      commitMessage: 'feat(gate-01): complete Setup\n\nVersion: 1.1.0\n',
+      tagName: 'v1.1.0-gate-01',
+      tagMessage: 'Gate gate-01: Setup (version 1.1.0)',
+      commands: [
+        'git add -A',
+        'git commit -m "feat(gate-01): complete Setup\\n\\nVersion: 1.1.0\\n"',
+        'git tag -a v1.1.0-gate-01 -m "Gate gate-01: Setup (version 1.1.0)"',
+      ],
+    },
+  }),
   regenerateGates: vi.fn().mockResolvedValue(undefined),
 }))
 

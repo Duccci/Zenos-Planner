@@ -269,6 +269,27 @@ describe('Gate Schemas', () => {
       }
       expect(() => gate.GatesCompleteOutputSchema.parse(output)).not.toThrow()
     })
+
+    it('should validate gates_complete output with gitInstructions', () => {
+      const output = {
+        gateId: 'gate-01',
+        previousStatus: 'in_progress',
+        newStatus: 'completed',
+        completedAt: new Date().toISOString(),
+        summary: { proposalsCompleted: 3, requirementsTested: 10 },
+        gitInstructions: {
+          commitMessage: 'feat(gate-01): complete Setup\n\nVersion: 1.1.0\n',
+          tagName: 'v1.1.0-gate-01',
+          tagMessage: 'Gate gate-01: Setup (version 1.1.0)',
+          commands: [
+            'git add -A',
+            'git commit -m "feat(gate-01): complete Setup\\n\\nVersion: 1.1.0\\n"',
+            'git tag -a v1.1.0-gate-01 -m "Gate gate-01: Setup (version 1.1.0)"',
+          ],
+        },
+      }
+      expect(() => gate.GatesCompleteOutputSchema.parse(output)).not.toThrow()
+    })
   })
 
   describe('gates_validate', () => {

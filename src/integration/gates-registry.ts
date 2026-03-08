@@ -265,7 +265,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }
 
       const { completeGate } = await import('../core/completions.js')
-      await completeGate(validated.gateId)
+      const result = await completeGate(validated.gateId)
 
       const normalizedId = normalizeGateId(validated.gateId)
       return {
@@ -277,6 +277,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           proposalsCompleted: 0,
           requirementsTested: 0,
         },
+        gitInstructions: result.gitInstructions,
       }
     },
     {

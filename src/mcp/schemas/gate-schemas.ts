@@ -113,6 +113,13 @@ export const GatesCompleteInputSchema = z.object({
 })
 export type GatesCompleteInput = z.infer<typeof GatesCompleteInputSchema>
 
+export const GatesCompleteGitInstructionsSchema = z.object({
+  commitMessage: z.string(),
+  tagName: z.string().optional(),
+  tagMessage: z.string().optional(),
+  commands: z.array(z.string()),
+})
+
 export const GatesCompleteOutputSchema = z.object({
   gateId: GateIdSchema,
   previousStatus: GateStatusEnum,
@@ -128,6 +135,7 @@ export const GatesCompleteOutputSchema = z.object({
       securityIssues: z.number().int().min(0),
     }).optional(),
   }),
+  gitInstructions: GatesCompleteGitInstructionsSchema.optional(),
 })
 export type GatesCompleteOutput = z.infer<typeof GatesCompleteOutputSchema>
 

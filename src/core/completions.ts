@@ -16,7 +16,6 @@ import { findProjectRoot, loadConfig, saveConfig } from '../utils/config.js'
 import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
-import { syncWithGit } from '../utils/git.js'
 import {
   consolidateGateProposals,
   generateConsolidationMarkdown,
@@ -51,13 +50,11 @@ function requireProjectRoot(): string {
 }
 
 function getGitSettings(config: Awaited<ReturnType<typeof loadConfig>>): {
-  autoCommit: boolean
   autoTag: boolean
   autoPush: boolean
   remote: string
 } {
   return {
-    autoCommit: config.git?.autoCommit ?? true,
     autoTag: config.git?.autoTag ?? true,
     autoPush: config.git?.autoPush ?? false,
     remote: config.git?.remote ?? 'origin',
@@ -307,6 +304,13 @@ export async function approveProposal(
   }
 }
 
+export interface CompleteGateGitInstructions {
+  commitMessage: string
+  tagName?: string
+  tagMessage?: string
+  commands: string[]
+}
+
 export interface CompleteGateOptions {
   push?: boolean
 }
@@ -321,6 +325,7 @@ export async function completeGate(
   previousVersion: string
   newVersion: string
   bump: 'minor' | 'major'
+  gitInstructions: CompleteGateGitInstructions
 }> {
   const projectRoot = requireProjectRoot()
   await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
@@ -532,22 +537,24 @@ export async function completeGate(
   }
 
   const git = getGitSettings(config)
-  if (git.autoCommit) {
-    const tagName = git.autoTag ? `v${newVersion}-${gateId}` : undefined
-    const tagMessage = git.autoTag
-      ? stripAnsi(`Gate ${gateId}: ${gate.name} (version ${newVersion})`)
-      : undefined
+  const commitMessage = stripAnsi(
+    `feat(${gateId}): complete ${gate.name}\n\nVersion: ${newVersion}\n`
+  )
+  const tagName = git.autoTag ? `v${newVersion}-${gateId}` : undefined
+  const tagMessage = git.autoTag
+    ? stripAnsi(`Gate ${gateId}: ${gate.name} (version ${newVersion})`)
+    : undefined
 
-    await syncWithGit({
-      commitMessage: stripAnsi(
-        `feat(${gateId}): complete ${gate.name}\n\nVersion: ${newVersion}\n`
-      ),
-      tagName,
-      tagMessage,
-      autoPush: options.push ?? git.autoPush,
-      remote: git.remote,
-      dir: projectRoot,
-    })
+  // Build the ordered shell commands the agent should run to commit and tag
+  const commands: string[] = [`git add -A`, `git commit -m ${JSON.stringify(commitMessage)}`]
+  if (tagName) {
+    commands.push(`git tag -a ${tagName} -m ${JSON.stringify(tagMessage ?? tagName)}`)
+  }
+  if (git.autoPush || options.push) {
+    commands.push(`git push ${git.remote} HEAD`)
+    if (tagName) {
+      commands.push(`git push ${git.remote} ${tagName}`)
+    }
   }
 
   return {
@@ -557,6 +564,7 @@ export async function completeGate(
     previousVersion,
     newVersion,
     bump,
+    gitInstructions: { commitMessage, tagName, tagMessage, commands },
   }
 }
 

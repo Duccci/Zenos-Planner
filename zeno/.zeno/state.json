@@ -11,7 +11,7 @@
       "branch": "main"
     }
   },
-  "currentGate": "gate-06",
+  "currentGate": null,
   "gates": [
     {
       "id": "gate-01",
@@ -142,6 +142,16 @@
         "#g02p07llm",
         "#g02p09writeanalysis"
       ]
+    },
+    {
+      "id": "gate-06",
+      "sequence": 0,
+      "name": "Gate 06: Multi-Repo & Subproject Detection",
+      "hash": "#unknown",
+      "status": "completed",
+      "type": "feature",
+      "createdAt": "2026-03-06T08:40:55.912Z",
+      "completedAt": "2026-03-06T08:40:55.912Z"
     }
   ],
   "upcomingGates": [
@@ -182,6 +192,6 @@
       "zod": "^3.22.0"
     }
   },
-  "lastUpdated": "2026-03-01T04:41:13.371Z",
-  "status": "gate_in_progress"
+  "lastUpdated": "2026-03-06T08:40:55.912Z",
+  "status": "gate_completed"
 }
