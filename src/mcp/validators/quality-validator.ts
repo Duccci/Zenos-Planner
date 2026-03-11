@@ -160,3 +160,30 @@ export async function validateQuality(
     warnings: warnings.length > 0 ? warnings : undefined,
   }
 }
+
+/**
+ * Extracts quality metrics from an entity's show data, falling back to
+ * DEFAULT_QUALITY_STUB_METRICS when actual measurements are unavailable.
+ *
+ * Shared by gate and proposal tools to avoid duplicating the extraction pattern
+ * at every call-site where showData may or may not contain qualityMetrics.
+ *
+ * @param showData - The data object returned by the entity's show action
+ */
+export function extractQualityMetrics(showData: Record<string, unknown>): QualityMetrics {
+  const existing = (showData['qualityMetrics'] ?? {}) as Record<string, unknown>
+  return {
+    coverage:
+      typeof existing['testCoverage'] === 'number'
+        ? existing['testCoverage']
+        : DEFAULT_QUALITY_STUB_METRICS.coverage,
+    lintErrors:
+      typeof existing['lintErrors'] === 'number'
+        ? existing['lintErrors']
+        : DEFAULT_QUALITY_STUB_METRICS.lintErrors,
+    securityIssues:
+      typeof existing['securityIssues'] === 'number'
+        ? existing['securityIssues']
+        : DEFAULT_QUALITY_STUB_METRICS.securityIssues,
+  }
+}

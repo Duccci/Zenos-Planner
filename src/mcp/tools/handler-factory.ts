@@ -415,3 +415,25 @@ export function withGuidance(
     },
   }
 }
+
+/**
+ * Builds warning messages from a qualitative review object.
+ * Collects all flaggedItems first, then appends a message for each boolean
+ * field that is explicitly false.
+ *
+ * @param review        - The qualitative review (gate or proposal)
+ * @param fieldMessages - Map of review field key → warning message when false
+ */
+export function buildQualitativeReviewWarnings<TReview extends { flaggedItems: string[] }>(
+  review: TReview,
+  fieldMessages: Partial<Record<keyof TReview & string, string>>
+): string[] {
+  const warnings: string[] = [...review.flaggedItems]
+  for (const entry of Object.entries(fieldMessages) as [string, string | undefined][]) {
+    const [field, message] = entry
+    if (message !== undefined && (review[field as keyof TReview] as unknown) === false) {
+      warnings.push(message)
+    }
+  }
+  return warnings
+}

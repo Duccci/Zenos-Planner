@@ -20,18 +20,18 @@ import {
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationContext } from '../validators/quality-validator.js'
 import { type ZenoConfig } from '../../utils/config.js'
-import { createStateTransitionValidator } from './entity-action-handler.js'
-import { validatePreReviewGeneratePhase, type PreReview } from '../validators/pre-review-validator.js'
+import { type PreReview } from '../validators/pre-review-validator.js'
 import {
   validateScope,
   validateTestFileScope,
-  validateMarkdownOnly,
   type ScopeValidationContext,
 } from '../validators/scope-validator.js'
 import { validateProposalPhases } from '../validators/proposal-phases-validator.js'
-import { validateTestFirstPattern, validateGateLevelTestFirst, type ProposalGateSibling } from '../validators/test-first-validator.js'
-import { validateDependencies, type DependencyValidationContext, type DependencyNode } from '../validators/dependency-validator.js'
+import { validateTestFirstPattern, validateGateLevelTestFirst } from '../validators/test-first-validator.js'
+import { validateDependencies, type DependencyNode } from '../validators/dependency-validator.js'
 import { validateArtifactFile } from '../validators/artifact-validator.js'
+import { buildQualitativeReviewWarnings } from './handler-factory.js'
+import { createGenerateValidators, resolveGateTestFirstSiblings, createProposalTransitionValidator } from './shared-validators.js'
 import {
   APPLY_PHASE_GUARDRAILS,
   APPLY_PHASE_WORKFLOW,
@@ -42,7 +42,6 @@ import {
   toNarrativeRules,
   toCompactWorkflow,
 } from '../content/index.js'
-import { type ProposalStatus, PROPOSAL_TRANSITIONS } from '../../core/transitions.js'
 
 /**
  * Unified proposal action tool definition.
@@ -87,6 +86,88 @@ import { ProposalCreateOutputSchema } from '../schemas/proposal-create-schemas.j
 import { ProposalActionOutputSchema } from '../schemas/proposal-action-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 import { withGuidance } from './handler-factory.js'
+import type { ValidationResult } from '../validators/types.js'
+
+/**
+ * Resolves a proposal's role and filesAffected from disk and validates the
+ * test-first pattern (role-file consistency check).
+ *
+ * Extracted to avoid repeating the find → readFile → roleMatch → fallback
+ * block across start, validate, and approve validators.
+ */
+async function resolveAndValidateTestFirst(
+  r: FunctionRegistry,
+  hash: string
+): Promise<ValidationResult> {
+  try {
+    const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+    const { readFile } = await import('../../utils/file.js')
+    const proposalResult = await r.invoke('proposal_show', { hash })
+    if (!proposalResult.success) return { allowed: true }
+
+    const proposal = proposalResult.data as Record<string, unknown>
+    let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map(
+      (f) => f.path
+    )
+    const gateId = proposal['gateId'] as string | undefined
+    const isSolitary = !gateId || gateId === 'solitary'
+
+    const filePath = await findProposalByHash(hash)
+    let role: string | undefined
+    if (filePath) {
+      const content = await readFile(filePath)
+      const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+      role = roleMatch?.[1]?.trim()
+      // Fall back to parsing markdown when DB has no files_affected recorded.
+      if (filesAffected.length === 0) {
+        const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+        if (sectionMatch?.[1]) {
+          const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+          filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+        }
+      }
+    }
+
+    return validateTestFirstPattern({
+      proposalHash: hash,
+      role,
+      isGateTied: !isSolitary,
+      filesAffected,
+    })
+  } catch {
+    return { allowed: true }
+  }
+}
+
+/**
+ * Builds the proposal dependency allNodes map for a given gate, then runs
+ * validateDependencies for the given hash and deps.
+ *
+ * Extracted from the generate and validate dependency validators which
+ * were identical except for how they sourced gateId and hash.
+ */
+async function validateProposalDependencies(
+  r: FunctionRegistry,
+  hash: string,
+  gateId: string,
+  deps: string[]
+): Promise<ValidationResult> {
+  const allNodes = new Map<string, DependencyNode>()
+  if (gateId) {
+    const listResult = await r.invoke('proposal_list', { gateId })
+    if (listResult.success) {
+      const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
+        hash: string; dependencies?: string[]
+      }[]
+      for (const row of rows) {
+        allNodes.set(row.hash, { hash: row.hash, dependencies: row.dependencies ?? [], gateId })
+      }
+    }
+  }
+  const node: DependencyNode = { hash, dependencies: deps, gateId }
+  allNodes.set(hash, node)
+  return validateDependencies({ node, allNodes })
+}
 
 /**
  * Unified proposal action handler.
@@ -320,14 +401,14 @@ export function proposalHandlers(
             }
 
             // Build review warnings from false booleans and flagged items
-            const reviewWarnings: string[] = []
-            if (qr.flaggedItems.length > 0) reviewWarnings.push(...qr.flaggedItems)
-            if (!qr.taskDescriptionsSpecific) reviewWarnings.push('taskDescriptionsSpecific=false: some tasks use vague language without naming concrete files or functions')
-            if (!qr.acceptanceCriteriaMeasurable) reviewWarnings.push('acceptanceCriteriaMeasurable=false: some acceptance criteria lack measurable success conditions')
-            if (!qr.filesAffectedVerified) reviewWarnings.push('filesAffectedVerified=false: filesAffected paths may not match project naming conventions')
-            if (!qr.noUnresolvedMarkers) reviewWarnings.push('noUnresolvedMarkers=false: unresolved TODO/TBD/unclear markers found in proposal content')
-            if (!qr.scopeFocused) reviewWarnings.push('scopeFocused=false: proposal may bundle unrelated concerns that should be separate proposals')
-            if (!qr.rollbackSpecific) reviewWarnings.push('rollbackSpecific=false: rollback section lacks specific reversible steps')
+            const reviewWarnings = buildQualitativeReviewWarnings(qr, {
+              taskDescriptionsSpecific: 'taskDescriptionsSpecific=false: some tasks use vague language without naming concrete files or functions',
+              acceptanceCriteriaMeasurable: 'acceptanceCriteriaMeasurable=false: some acceptance criteria lack measurable success conditions',
+              filesAffectedVerified: 'filesAffectedVerified=false: filesAffected paths may not match project naming conventions',
+              noUnresolvedMarkers: 'noUnresolvedMarkers=false: unresolved TODO/TBD/unclear markers found in proposal content',
+              scopeFocused: 'scopeFocused=false: proposal may bundle unrelated concerns that should be separate proposals',
+              rollbackSpecific: 'rollbackSpecific=false: rollback section lacks specific reversible steps',
+            })
 
             // Strip qualitativeReview before delegating (unknown field to CLI handler)
             const { qualitativeReview: _qr, ...cliPayload } = p
@@ -395,19 +476,7 @@ export function proposalHandlers(
         start: (payload, r) => [
           // 1) Enforce state transition: only validated proposals can be started (pending must validate first)
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
-          createStateTransitionValidator<ProposalStatus>({
-            getCurrentStatus: async () => {
-              const hash = (payload as { hash?: string }).hash ?? ''
-              const result = await r.invoke('proposal_show', { hash })
-              if (!result.success) return null
-              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
-              return status ?? null
-            },
-            targetStatus: 'in_progress',
-            validFromStatuses: ['validated'],
-            allTransitions: PROPOSAL_TRANSITIONS,
-            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
-          }),
+          createProposalTransitionValidator(payload, r, 'in_progress', ['validated']),
           // 2) Apply-phase constraints (no git ops, files in scope)
           async () => {
             const allErrors: string[] = []
@@ -532,61 +601,11 @@ export function proposalHandlers(
             return validateTestFileScope(filesAffected, isSolitary)
           },
           // 5) Test-first gate pattern: role-file consistency check
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-              const { readFile } = await import('../../utils/file.js')
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
-              const gateId = proposal['gateId'] as string | undefined
-              const isSolitary = !gateId || gateId === 'solitary'
-
-              const filePath = await findProposalByHash(hash)
-              let role: string | undefined
-              if (filePath) {
-                const content = await readFile(filePath)
-                const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                role = roleMatch?.[1]?.trim()
-                // Fall back to parsing markdown when DB has no files_affected recorded.
-                if (filesAffected.length === 0) {
-                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
-                  if (sectionMatch?.[1]) {
-                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
-                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
-                  }
-                }
-              }
-
-              return validateTestFirstPattern({
-                proposalHash: hash,
-                role,
-                isGateTied: !isSolitary,
-                filesAffected,
-                // Gate-level structure is validated at gates_action: complete; skip siblings here
-              })
-            } catch {
-              return { allowed: true }
-            }
-          },
+          async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
         ],
         generate: (_payload, _r) => [
-          // PreReview enforcement: G5-G8 structured preconditions for proposal generation
-          // eslint-disable-next-line @typescript-eslint/require-await
-          async () =>
-            validatePreReviewGeneratePhase(
-              (_payload as { preReview?: PreReview }).preReview,
-              'proposal_action'
-            ),
-          // G12: generate actions must only produce markdown files
-          // eslint-disable-next-line @typescript-eslint/require-await
-          async () => {
-            const filesAffected = (_payload as { filesAffected?: string[] }).filesAffected ?? []
-            return validateMarkdownOnly(filesAffected)
-          },
+          // G5-G8 preReview + G12 markdown-only: shared with gates, delegated to factory
+          ...createGenerateValidators('proposal_action')(_payload, _r),
           // Scope-creep check: reject multi-phase proposals at generation time
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
@@ -616,30 +635,8 @@ export function proposalHandlers(
             if (payloadDeps.length === 0) return { allowed: true }
             try {
               const gateId = (_payload as { gateId?: string }).gateId ?? ''
-              const allNodes = new Map<string, DependencyNode>()
-
-              if (gateId) {
-                const listResult = await _r.invoke('proposal_list', { gateId })
-                if (listResult.success) {
-                  const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
-                    hash: string; dependencies?: string[]
-                  }[]
-                  for (const row of rows) {
-                    allNodes.set(row.hash, {
-                      hash: row.hash,
-                      dependencies: row.dependencies ?? [],
-                      gateId,
-                    })
-                  }
-                }
-              }
-
-              const proposalHash = (_payload as { hash?: string }).hash ?? 'new'
-              const newNode: DependencyNode = { hash: proposalHash, dependencies: payloadDeps, gateId }
-              allNodes.set(proposalHash, newNode)
-
-              const depContext: DependencyValidationContext = { node: newNode, allNodes }
-              return validateDependencies(depContext)
+              const hash = (_payload as { hash?: string }).hash ?? 'new'
+              return await validateProposalDependencies(_r, hash, gateId, payloadDeps)
             } catch {
               return { allowed: true }
             }
@@ -768,28 +765,7 @@ export function proposalHandlers(
               if (payloadDeps.length === 0) return { allowed: true }
 
               const gateId = typeof proposal['gateId'] === 'string' ? proposal['gateId'] : ''
-              const allNodes = new Map<string, DependencyNode>()
-
-              if (gateId) {
-                const listResult = await r.invoke('proposal_list', { gateId })
-                if (listResult.success) {
-                  const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
-                    hash: string; dependencies?: string[]
-                  }[]
-                  for (const row of rows) {
-                    allNodes.set(row.hash, {
-                      hash: row.hash,
-                      dependencies: row.dependencies ?? [],
-                      gateId,
-                    })
-                  }
-                }
-              }
-
-              const currentNode: DependencyNode = { hash, dependencies: payloadDeps, gateId }
-              allNodes.set(hash, currentNode)
-
-              return validateDependencies({ node: currentNode, allNodes })
+              return await validateProposalDependencies(r, hash, gateId, payloadDeps)
             } catch {
               return { allowed: true }
             }
@@ -848,45 +824,7 @@ export function proposalHandlers(
           // Test-first gate pattern: role-file consistency at validation time.
           // Mirrors the approve/start validators so agents get early feedback before
           // the proposal reaches the approval stage.
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-              const { readFile } = await import('../../utils/file.js')
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
-              const gateId = proposal['gateId'] as string | undefined
-              const isSolitary = !gateId || gateId === 'solitary'
-
-              const filePath = await findProposalByHash(hash)
-              let role: string | undefined
-              if (filePath) {
-                const content = await readFile(filePath)
-                const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                role = roleMatch?.[1]?.trim()
-                // Fall back to parsing markdown when DB has no files_affected recorded.
-                if (filesAffected.length === 0) {
-                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
-                  if (sectionMatch?.[1]) {
-                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
-                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
-                  }
-                }
-              }
-
-              return validateTestFirstPattern({
-                proposalHash: hash,
-                role,
-                isGateTied: !isSolitary,
-                filesAffected,
-              })
-            } catch {
-              return { allowed: true }
-            }
-          },
+          async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
           // Gate-level test-first structure: exactly 1 test-suite (first) and 1 cleanup (last)
           // among all sibling proposals in the gate. Surfaces the holistic gate structure
           // issue early, mirrors the gates_action:complete and gates_action:validate checks.
@@ -900,34 +838,8 @@ export function proposalHandlers(
               const gateId = proposal['gateId'] as string | undefined
               if (!gateId || gateId === 'solitary') return { allowed: true } // skipped for solitary
 
-              const listResult = await r.invoke('proposal_list', { gateId })
-              if (!listResult.success) return { allowed: true }
-
-              const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
-                hash: string; lastUpdated?: string
-              }[]
-              if (rows.length === 0) return { allowed: true }
-
-              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-              const { readFile } = await import('../../utils/file.js')
-
-              const gateProposals: ProposalGateSibling[] = await Promise.all(
-                rows.map(async (p) => {
-                  let role: string | undefined
-                  let resolvedPath: string | undefined
-                  try {
-                    const filePath = await findProposalByHash(p.hash)
-                    if (filePath) {
-                      resolvedPath = filePath
-                      const content = await readFile(filePath)
-                      const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                      role = roleMatch?.[1]?.trim()
-                    }
-                  } catch { /* role stays undefined */ }
-                  return { hash: p.hash, role, createdAt: p.lastUpdated ?? new Date().toISOString(), filePath: resolvedPath }
-                })
-              )
-
+              const gateProposals = await resolveGateTestFirstSiblings(r, gateId)
+              if (gateProposals.length === 0) return { allowed: true }
               return validateGateLevelTestFirst(gateProposals)
             } catch {
               return { allowed: true }
@@ -937,19 +849,7 @@ export function proposalHandlers(
         approve: (payload, r) => [
           // 1) Enforce state transition: only in_progress proposals can be approved
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
-          createStateTransitionValidator<ProposalStatus>({
-            getCurrentStatus: async () => {
-              const hash = (payload as { hash?: string }).hash ?? ''
-              const result = await r.invoke('proposal_show', { hash })
-              if (!result.success) return null
-              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
-              return status ?? null
-            },
-            targetStatus: 'completed',
-            validFromStatuses: ['in_progress'],
-            allTransitions: PROPOSAL_TRANSITIONS,
-            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
-          }),
+          createProposalTransitionValidator(payload, r, 'completed', ['in_progress']),
           // 2) Quality thresholds
           async () => {
             const allErrors: string[] = []
@@ -972,62 +872,12 @@ export function proposalHandlers(
             }
           },
           // 3) Test-first gate pattern: role-file consistency at approval time
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-              const { readFile } = await import('../../utils/file.js')
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map((f) => f.path)
-              const gateId = proposal['gateId'] as string | undefined
-              const isSolitary = !gateId || gateId === 'solitary'
-
-              const filePath = await findProposalByHash(hash)
-              let role: string | undefined
-              if (filePath) {
-                const content = await readFile(filePath)
-                const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                role = roleMatch?.[1]?.trim()
-                // Fall back to parsing markdown when DB has no files_affected recorded.
-                if (filesAffected.length === 0) {
-                  const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
-                  if (sectionMatch?.[1]) {
-                    const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
-                    filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
-                  }
-                }
-              }
-
-              return validateTestFirstPattern({
-                proposalHash: hash,
-                role,
-                isGateTied: !isSolitary,
-                filesAffected,
-              })
-            } catch {
-              return { allowed: true }
-            }
-          },
+          async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
         ],
         reject: (payload, r) => [
           // Enforce state transition: only in_progress proposals can be rejected
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
-          createStateTransitionValidator<ProposalStatus>({
-            getCurrentStatus: async () => {
-              const hash = (payload as { hash?: string }).hash ?? ''
-              const result = await r.invoke('proposal_show', { hash })
-              if (!result.success) return null
-              const status = (result.data as { status?: string }).status as ProposalStatus | undefined
-              return status ?? null
-            },
-            targetStatus: 'rejected',
-            validFromStatuses: ['in_progress'],
-            allTransitions: PROPOSAL_TRANSITIONS,
-            entityLabel: `proposal:${(payload as { hash?: string }).hash ?? '<unknown>'}`,
-          }),
+          createProposalTransitionValidator(payload, r, 'rejected', ['in_progress']),
         ],
       },
     },

@@ -2,12 +2,10 @@
 import { validateDependencies,
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
-import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationContext } from '../validators/quality-validator.js'
-import { createStateTransitionValidator } from './entity-action-handler.js'
-import { validatePreReviewGeneratePhase, type PreReview } from '../validators/pre-review-validator.js'
-import { validateMarkdownOnly } from '../validators/scope-validator.js'
-import { validateGateLevelTestFirst, type ProposalGateSibling } from '../validators/test-first-validator.js'
-import { validateArtifactFile } from '../validators/artifact-validator.js'
+import { validateQuality, extractQualityMetrics } from '../validators/quality-validator.js'
+import { buildQualitativeReviewWarnings } from './handler-factory.js'
+import { validateGateLevelTestFirst } from '../validators/test-first-validator.js'
+import { createGenerateValidators, resolveGateTestFirstSiblings, createGateTransitionValidator } from './shared-validators.js'
 import {
   GATE_GENERATION_GUARDRAILS,
   GATE_GENERATION_WORKFLOW,
@@ -15,7 +13,7 @@ import {
   toNarrativeRules,
   toCompactWorkflow,
 } from '../content/index.js'
-import { type GateStatus, GATE_TRANSITIONS } from '../../core/transitions.js'
+import { validateArtifactFile } from '../validators/artifact-validator.js'
 
 /**
  * Unified gate action tool definition.
@@ -134,14 +132,14 @@ export function gateHandlers(
             }
 
             // Build review warnings from false booleans and flagged items
-            const reviewWarnings: string[] = []
-            if (qr.flaggedItems.length > 0) reviewWarnings.push(...qr.flaggedItems)
-            if (!qr.objectivesConfirmed) reviewWarnings.push('objectivesConfirmed=false: gate objectives are unclear or stale')
-            if (!qr.requirementsMapped) reviewWarnings.push('requirementsMapped=false: some requirements lack testable deliverables')
-            if (!qr.proposalCountAppropriate) reviewWarnings.push('proposalCountAppropriate=false: proposal structure needs adjustment')
-            if (!qr.testFirstOrderingVerified) reviewWarnings.push('testFirstOrderingVerified=false: test-first ordering may be violated')
-            if (!qr.dependenciesConfirmed) reviewWarnings.push('dependenciesConfirmed=false: gate dependencies need review')
-            if (!qr.scopeAchievable) reviewWarnings.push('scopeAchievable=false: gate scope may span more than one milestone')
+            const reviewWarnings = buildQualitativeReviewWarnings(qr, {
+              objectivesConfirmed: 'objectivesConfirmed=false: gate objectives are unclear or stale',
+              requirementsMapped: 'requirementsMapped=false: some requirements lack testable deliverables',
+              proposalCountAppropriate: 'proposalCountAppropriate=false: proposal structure needs adjustment',
+              testFirstOrderingVerified: 'testFirstOrderingVerified=false: test-first ordering may be violated',
+              dependenciesConfirmed: 'dependenciesConfirmed=false: gate dependencies need review',
+              scopeAchievable: 'scopeAchievable=false: gate scope may span more than one milestone',
+            })
 
             // Strip qualitativeReview before delegating to CLI handler (unknown field)
             const { qualitativeReview: _qr, ...cliPayload } = p
@@ -263,12 +261,7 @@ export function gateHandlers(
           // 4) Quality thresholds
           const showResult = await r.invoke('gates_show', { gateId })
           const showData = showResult.success ? (showResult.data as Record<string, unknown>) : {}
-          const existingMetrics = (showData['qualityMetrics'] ?? {}) as Record<string, unknown>
-          const qualityMetrics = {
-            coverage: typeof existingMetrics['testCoverage'] === 'number' ? existingMetrics['testCoverage'] : DEFAULT_QUALITY_STUB_METRICS.coverage,
-            lintErrors: typeof existingMetrics['lintErrors'] === 'number' ? existingMetrics['lintErrors'] : DEFAULT_QUALITY_STUB_METRICS.lintErrors,
-            securityIssues: typeof existingMetrics['securityIssues'] === 'number' ? existingMetrics['securityIssues'] : DEFAULT_QUALITY_STUB_METRICS.securityIssues,
-          }
+          const qualityMetrics = extractQualityMetrics(showData)
           const qualityResult = await validateQuality({ metrics: qualityMetrics })
           if (!qualityResult.allowed) {
             qualityPassed = false
@@ -306,37 +299,14 @@ export function gateHandlers(
 
           // 6) Gate-level test-first structure
           try {
-            const listResult = await r.invoke('proposal_list', { gateId })
-            if (listResult.success) {
-              const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
-                hash: string; lastUpdated?: string
-              }[]
-              if (rows.length > 0) {
-                const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-                const { readFile } = await import('../../utils/file.js')
-                const gateProposals: ProposalGateSibling[] = await Promise.all(
-                  rows.map(async (p) => {
-                    let role: string | undefined
-                    let resolvedPath: string | undefined
-                    try {
-                      const filePath = await findProposalByHash(p.hash)
-                      if (filePath) {
-                        resolvedPath = filePath
-                        const content = await readFile(filePath)
-                        const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                        role = roleMatch?.[1]?.trim()
-                      }
-                    } catch { /* role stays undefined */ }
-                    return { hash: p.hash, role, createdAt: p.lastUpdated ?? new Date().toISOString(), filePath: resolvedPath }
-                  })
-                )
-                const testFirstResult = validateGateLevelTestFirst(gateProposals)
-                if (!testFirstResult.allowed) {
-                  testFirstPassed = false
-                  allErrors.push(...(testFirstResult.errors ?? []))
-                }
-                allWarnings.push(...(testFirstResult.warnings ?? []))
+            const gateProposals = await resolveGateTestFirstSiblings(r, gateId)
+            if (gateProposals.length > 0) {
+              const testFirstResult = validateGateLevelTestFirst(gateProposals)
+              if (!testFirstResult.allowed) {
+                testFirstPassed = false
+                allErrors.push(...(testFirstResult.errors ?? []))
               }
+              allWarnings.push(...(testFirstResult.warnings ?? []))
             }
           } catch {
             // test-first check is best-effort
@@ -453,37 +423,11 @@ export function gateHandlers(
         },
       },
       validators: {
-        generate: (_payload, _r) => [
-          // PreReview enforcement: G5-G8 structured preconditions for gate generation
-          // eslint-disable-next-line @typescript-eslint/require-await
-          async () =>
-            validatePreReviewGeneratePhase(
-              (_payload as { preReview?: PreReview }).preReview,
-              'gates_action'
-            ),
-          // G12: gate generation must only produce markdown files
-          // eslint-disable-next-line @typescript-eslint/require-await
-          async () => {
-            const filesAffected = (_payload as { filesAffected?: string[] }).filesAffected ?? []
-            return validateMarkdownOnly(filesAffected)
-          },
-        ],
+        generate: createGenerateValidators('gates_action'),
         start: (_payload, r) => [
           // Enforce state transition: only validated or rejected gates can be started
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
-          createStateTransitionValidator<GateStatus>({
-            getCurrentStatus: async () => {
-              const gateId = (_payload as { gateId?: string }).gateId ?? ''
-              const result = await r.invoke('gates_show', { gateId })
-              if (!result.success) return null
-              const status = (result.data as { status?: string }).status as GateStatus | undefined
-              return status ?? null
-            },
-            targetStatus: 'in_progress',
-            validFromStatuses: ['validated', 'rejected'],
-            allTransitions: GATE_TRANSITIONS,
-            entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
-          }),
+          createGateTransitionValidator(_payload, r, 'in_progress', ['validated', 'rejected']),
           // Gate PRD structure check: required sections and valid status field
           async () => {
             const gateId = (_payload as { gateId?: string }).gateId ?? ''
@@ -569,19 +513,7 @@ export function gateHandlers(
         complete: (_payload, r) => [
           // Enforce state transition: only in_progress gates can be completed
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
-          createStateTransitionValidator<GateStatus>({
-            getCurrentStatus: async () => {
-              const gateId = (_payload as { gateId?: string }).gateId ?? ''
-              const result = await r.invoke('gates_show', { gateId })
-              if (!result.success) return null
-              const status = (result.data as { status?: string }).status as GateStatus | undefined
-              return status ?? null
-            },
-            targetStatus: 'completed',
-            validFromStatuses: ['in_progress'],
-            allTransitions: GATE_TRANSITIONS,
-            entityLabel: `gate:${(_payload as { gateId?: string }).gateId ?? '<unknown>'}`,
-          }),
+          createGateTransitionValidator(_payload, r, 'completed', ['in_progress']),
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []
@@ -592,18 +524,8 @@ export function gateHandlers(
             const gateId = (_payload as { gateId?: string }).gateId ?? ''
             const showResult = await r.invoke('gates_show', { gateId })
             const showData = showResult.success ? (showResult.data as Record<string, unknown>) : {}
-            const existingMetrics = (showData['qualityMetrics'] ?? {}) as Record<string, unknown>
-            const qualityMetrics = {
-              coverage: typeof existingMetrics['testCoverage'] === 'number' ? existingMetrics['testCoverage'] : DEFAULT_QUALITY_STUB_METRICS.coverage,
-              lintErrors: typeof existingMetrics['lintErrors'] === 'number' ? existingMetrics['lintErrors'] : DEFAULT_QUALITY_STUB_METRICS.lintErrors,
-              securityIssues: typeof existingMetrics['securityIssues'] === 'number' ? existingMetrics['securityIssues'] : DEFAULT_QUALITY_STUB_METRICS.securityIssues,
-            }
-
-            const qualityContext: QualityValidationContext = {
-              metrics: qualityMetrics,
-            }
-
-            const qualityResult = await validateQuality(qualityContext)
+            const qualityMetrics = extractQualityMetrics(showData)
+            const qualityResult = await validateQuality({ metrics: qualityMetrics })
             allErrors.push(...(qualityResult.errors ?? []))
             allWarnings.push(...(qualityResult.warnings ?? []))
 
@@ -618,42 +540,8 @@ export function gateHandlers(
           async () => {
             const gateId = (_payload as { gateId?: string }).gateId ?? ''
             try {
-              const listResult = await r.invoke('proposal_list', { gateId })
-              if (!listResult.success) return { allowed: true }
-
-              const rows = ((listResult.data as { proposals?: unknown[] }).proposals ?? []) as {
-                hash: string
-                lastUpdated?: string
-              }[]
-              if (rows.length === 0) return { allowed: true }
-
-              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
-              const { readFile } = await import('../../utils/file.js')
-
-              const gateProposals: ProposalGateSibling[] = await Promise.all(
-                rows.map(async (p) => {
-                  let role: string | undefined
-                  let resolvedPath: string | undefined
-                  try {
-                    const filePath = await findProposalByHash(p.hash)
-                    if (filePath) {
-                      resolvedPath = filePath
-                      const content = await readFile(filePath)
-                      const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-                      role = roleMatch?.[1]?.trim()
-                    }
-                  } catch {
-                    // role stays undefined — validator treats as unset
-                  }
-                  return {
-                    hash: p.hash,
-                    role,
-                    createdAt: p.lastUpdated ?? new Date().toISOString(),
-                    filePath: resolvedPath,
-                  }
-                })
-              )
-
+              const gateProposals = await resolveGateTestFirstSiblings(r, gateId)
+              if (gateProposals.length === 0) return { allowed: true }
               return validateGateLevelTestFirst(gateProposals)
             } catch {
               return { allowed: true }
