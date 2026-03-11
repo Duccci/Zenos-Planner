@@ -20,25 +20,35 @@
 
 The proposal generation and management infrastructure was largely bootstrapped before this gate started so that Zeno was usable during earlier gate work. The remaining deliverable is focused: integrate the **task-distributor** agent (via Copilot ACP or Claude CLI) to classify the dependency graph built by `calculateProposalDependencies()` into parallel execution sets, annotate each proposal with its `parallelSetIndex`, and surface those sets in `proposal list` and `proposal_action` MCP responses.
 
-During proposal generation the **task-distributor** agent (`agents/categories/09-meta-orchestration/task-distributor.md`) is invoked to analyse the full proposal set, classify dependencies, and produce an optimal execution plan that maximises parallel throughput. Tasks that share no file-level or logical dependencies are grouped into parallel execution sets; the dependency graph is annotated with these sets so downstream gates and agents can consume the plan directly without re-analysis.
+A secondary deliverable is formalising the proposal type taxonomy. Three orthogonal classification dimensions already exist in the codebase without a single consolidated definition: location type (`gate-tied | solitary`), test-driven phase (`RED | GREEN`), and the semantic content roles — drawing from two overlapping sets already in use (`test-suite | implementation | test-cleanup | solitary` in `test-first-validator.ts`; `feature | refactoring | testing | documentation` in the original spec). This gate reconciles both into a single unified set (`testing | feature | cleanup | documentation | solitary`) stored as an **array** (`roles: ProposalRole[]`), so a single proposal can carry multiple roles (e.g., `['solitary', 'testing', 'feature']`).
 
 ## Objectives
 
-- [ ] Create proposal template system (markdown structure, sections, formatting)
-- [ ] Implement proposal generator from gate requirements with requirement decomposition
-- [ ] Support multiple proposal types (feature, refactoring, testing, documentation)
-- [ ] Record design decisions during proposal/gate as RFC 2119 requirement updates in SQLite
-- [ ] Implement proposal storage in `zeno/proposals/gate-XX/` with proposal-to-requirement mapping
-- [ ] Implement proposal dependency analysis, parallel detection, and circular dependency detection
-- [ ] Invoke `task-distributor` agent post-generation to classify proposals into parallel execution sets and annotate the dependency graph
-- [ ] Expose parallel execution sets in proposal list output and MCP response
-- [ ] Implement `zeno proposal list`, `zeno proposal show`, `zeno proposal start` commands
+### Already Delivered (Pre-Gate)
+
+- [x] Proposal template system (`src/generation/proposal-template.ts` — `loadProposalTemplate`, `renderProposalTemplate`)
+- [x] Proposal scaffold generator reading gate PRD via `generateProposals()` (`src/core/proposal-generation.ts`)
+- [x] RED / GREEN / implementation phase decomposition (`src/core/proposal-writer.ts`)
+- [x] Objective and requirement extraction from gate PRD markdown (`src/core/proposal-parser.ts`)
+- [x] Dependency structure calculation: RED → impl → GREEN (`calculateProposalDependencies()`)
+- [x] Proposal storage on disk and DB sync (`src/storage/proposal-sync.ts`)
+- [x] `proposal list`, `proposal show`, `proposal start`, `proposal generate`, `proposal validate`, `proposal approve`, `proposal reject`, `proposal cancel`, `proposal defer` — CLI and MCP fully operational
+- [x] Requirements dual-source sync: `requirements.json` (version-controlled manifest) ↔ SQLite DB (`src/storage/requirements-sync.ts`)
+
+### Remaining Work
+
+- [ ] Add `ai: { cli: 'copilot' | 'claude', model?: string, invocationMode: 'acp' | 'cli' }` to `ZenoConfigSchema` and `getDefaultConfig`; defaults: `cli = 'copilot'`, `invocationMode = 'acp'`; guard: `cli = 'copilot'` with `invocationMode = 'cli'` warns and coerces to `acp` (Copilot opens TUI in direct mode; `cli` mode is Claude-only)
+- [ ] Invoke `task-distributor` agent after dependency graph is built: via `acp` mode (`copilot --acp --stdio` or `agent acp`, both JSON-RPC over stdio) or `cli` mode (`claude -p "<json>" --output-format json`); parse returned parallel execution plan
+- [ ] Annotate each proposal with `parallelSetIndex` and persist via `syncProposalsFromDisk`
+- [ ] Expose `parallelSets: string[][]` in `proposal list` output and `proposal_action` MCP response
+- [ ] Add `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value allowed) to `ProposalData`, `ProposalMetadata`, and proposal template; consolidate all three classification dimensions into a single source of truth in `src/core/types.ts`
+- [ ] Test coverage for requirements dual-source sync edge cases (project-level requirements with no gate PRD source, solitary proposals, round-trip JSON ↔ DB fidelity)
 
 ## Context
 
 ### What Was Completed Before This Gate
 
-Gate 01-06 established:
+Gates 01–06 established core infrastructure, including:
 
 - Core infrastructure, CLI framework, SQLite database
 - Gate generation with iterative decomposition
@@ -47,62 +57,45 @@ Gate 01-06 established:
 - Architecture diagram generation
 - Multi-repository declaration and dependency tracking
 
+Additionally, the following Gate 7 work was completed early so that Zeno was usable during gate development (see **Already Delivered** in Objectives):
+
+- Full proposal template, generation scaffold, RED/GREEN decomposition, dependency calculation, disk storage, and all proposal CLI/MCP commands
+
 ### What This Gate Enables
 
-- **Gate 8 (Automated Validation)**: Validation rules applied to generated proposals
-- **Gate 9 (Human Approval)**: Proposals presented to humans for approval/rejection
-- **Gate 10 (Git Integration)**: Proposals drive git commits and branch creation
+- **Gate 8 (Automated Validation)**: Validation rules applied to generated proposals; `parallelSetIndex` drives validation ordering
+- **Gate 9 (Human Approval)**: Proposals presented to humans for approval/rejection; parallel sets guide review batching
+- **Gate 10 (Git Integration)**: Proposals drive git commits and branch creation; parallel sets drive branch scheduling
 
 ### Scope Boundaries
 
 **In Scope**:
 
-- Proposal template system with markdown structure
-- Proposal generation from gate requirements
-- Specification changes recorded as RFC 2119-compliant requirement updates in SQLite
-- Proposal storage in `zeno/proposals/gate-XX/`
-- Proposal-to-requirement mapping
-- Proposal dependency analysis and sequencing
-- `task-distributor` agent invocation to produce parallel execution sets from the dependency graph
-- `zeno proposal list`, `zeno proposal show`, `zeno proposal start` commands
-- Proposal status tracking (pending, in_progress, completed, rejected)
-- Comprehensive test coverage (90% minimum)
+- `ai` config section (`cli: 'copilot' | 'claude'`, `model?`, `invocationMode: 'acp' | 'cli'`) added to `ZenoConfigSchema`; `invocationMode` defaults to `acp`; Copilot enforced to `acp` (opens TUI in direct mode); Claude uses `cli` mode with `-p --output-format json`
+- `parallelSetIndex` annotation on each proposal; exposed in `proposal list` CLI output and `proposal_action` MCP response
+- `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value) added to `ProposalData`, `ProposalMetadata`, and the proposal template
+- Consolidated type taxonomy documentation in `src/core/types.ts` covering all three dimensions: location type, phase, and roles
+- Requirements dual-source sync test coverage (edge cases: project-level requirements, solitary proposals, round-trip fidelity)
 
 **Out of Scope**:
 
 - Spec format parsing (OpenAPI, GraphQL, Protobuf) — specs are requirements in the database
 - Proposal versioning beyond Git history
 - Proposal-to-code file mapping
-- Proposal approval workflow (handled in Gate 9)
-- Proposal implementation (agent responsibility)
+- Proposal approval workflow — already stubbed; full workflow is Gate 9
 - Web UI for proposal management
+- Building a new `ProposalDependencyGraph` class — `calculateProposalDependencies()` in `proposal-writer.ts` combined with the existing `dependency-graph.ts` is sufficient
 
 ## Requirements
-
-<!-- Requirements-First Workflow:
-  1. Project-level requirements: PRIMARILY defined during `zeno init` at project inception (BEFORE gates).
-     These are high-level, cross-cutting requirements derived from the end state.
-  2. Gate generation (`/zeno-gate`): Attributes existing project-level requirements to gates.
-     Requirements are PRIMARILY mapped and attributed here, not created.
-     During rebaseline/rescope: Requirements may be updated or added as part of rescoping.
-  3. Gate start (`zeno gates start`): Generates gate-specific requirements that decompose
-     project requirements and gate objectives into actionable items.
-  4. Proposal generation (`/zeno-proposal`): Breaks requirements down into individual tasks.
-
-  Workflow: Requirements (init - PRIMARY) → Gates (attribute, may update/add during rescope) → Gate Requirements (decompose) → Tasks (proposals)
--->
 
 ### Project Requirements (Attributed to This Gate)
 
 Project-level requirements were defined during `zeno init` at project inception. This section lists those that are attributed to this gate. Query all project requirements via `zeno req list --project`.
 
-| Hash    | Name                       | Type       | Priority | How This Gate Addresses It                                |
-| ------- | -------------------------- | ---------- | -------- | --------------------------------------------------------- |
-| #[hash] | Clear Implementation Tasks | functional | must     | Each proposal specifies what needs to be implemented      |
-| #[hash] | Requirement Traceability   | functional | must     | Each proposal traceable to originating requirement(s)     |
-| #[hash] | Dependency Understanding   | functional | must     | Proposal dependencies visible for proper sequencing       |
-| #[hash] | RFC 2119 Specifications    | functional | should   | Design decisions recorded using RFC 2119 keywords         |
-| #[hash] | Proposal Immutability      | functional | should   | Completed proposals retain hash refs in gate archives     |
+| Hash | Name | Type | Priority | How This Gate Addresses It |
+| ---- | ---- | ---- | -------- | -------------------------- |
+
+_No project-level requirements have been attributed to this gate yet. Requirements will be populated when the gate is started._
 
 ### Gate-Specific Requirements
 
@@ -130,42 +123,31 @@ After gate start, view detailed proposal information via: `zeno proposal show <h
 
 ### Proposal Status
 
-| Proposal        | Hash    | Status  | Notes            |
-| --------------- | ------- | ------- | ---------------- |
-| [proposal-name] | #[hash] | pending | [Optional notes] |
+| Proposal | Hash | Status | Notes |
+| -------- | ---- | ------ | ----- |
+
+_No proposals have been generated yet. Proposals are created when the gate is started._
 
 ### Proposal Dependency Graph
 
-<!-- Generated by /zeno-proposal when proposals are created. Shows requires relationships between proposals. -->
-
-```mermaid
-graph LR
-    hash1["01 Proposal Name"]
-    hash2["02 Proposal Name"] --> hash1
-```
+_Dependency graph will be populated after proposals are generated._
 
 ### High-Level Delta (Gate Completion Summary)
 
-[To be populated on gate completion.]
+_To be populated on gate completion._
 
 **Key Deliverables**:
 
-- Proposal template system
-- Proposal generation from requirements
-- Proposal dependency analysis
+- `parallelSetIndex` annotation on proposals; exposed in `proposal list` and `proposal_action` MCP response
+- `ProposalRole[]` type taxonomy consolidated in `src/core/types.ts`
+- `ai` config section in `ZenoConfigSchema` (CLI selection, model, invocation mode)
+- Requirements dual-source sync test coverage (edge cases)
 
 **Quality Metrics**: Coverage [X]%, Security [Y] issues, Lint <[Z]%
 
 ---
 
 ## Architecture Diagrams
-
-<!-- LLM Instructions: Populate this section with applicable architecture diagrams for this gate.
-     Core diagrams (system-overview, data-flow, gate-lifecycle, gate-roadmap, context) are always included.
-     For conditional diagrams, use the diagram catalogue to select additional diagrams based on this gate's scope.
-     Set order numbers sequentially starting from 1 (core diagrams should come first with orders 1-5,
-     then conditional diagrams with orders 6+).
--->
 
 | Name                              | Type               | Order | Status    |
 | --------------------------------- | ------------------ | ----- | --------- |
@@ -181,96 +163,122 @@ graph LR
 
 ### 1. Markdown-Based Proposal Storage
 
-- **Choice**: Store proposals as markdown files within gate proposal directories and keep completion metadata in place
+- **Choice**: Store proposals as markdown files within gate proposal directories; completion metadata and status remain in place; DB is a queryable projection rebuilt from `proposal-sync.ts`
 - **Alternatives Considered**: Proposals in SQLite, YAML format
 - **Rationale**: Markdown is human-readable, version-controllable, integrates with Git
-- **Impact**: Proposal files stored in `zeno/proposals/gate-XX/`, indexed by hash
+- **Impact**: Storage at `zeno/proposals/gate-XX/` (gate-tied) and `zeno/proposals/solitary/`; sync handled by `src/storage/proposal-sync.ts` (replaces the specced `proposal-storage.ts` name)
 - **Trade-offs**: Gained readability and git integration; metadata split between markdown files and SQLite
 
-### 2. Specifications as Requirements (RFC 2119)
+### 2. Proposal Type Taxonomy (Three Dimensions)
 
-- **Choice**: Record spec changes as requirement updates in SQLite using RFC 2119 keyword conventions
-- **Alternatives Considered**: Separate spec-driven change notice format (OpenAPI, GraphQL, Protobuf parsing)
-- **Rationale**: Specs are requirements. Treating them as structured database entries with RFC 2119 language avoids building parsers for multiple spec formats. Keeps Zeno lightweight. The LLM writes the requirements with proper RFC keywords; Zeno stores and tracks them.
-- **Impact**: No separate spec format parsing needed; all specification data lives in requirements database
-- **Trade-offs**: Gained simplicity; lost format-specific spec awareness (acceptable — LLMs handle format interpretation)
+- **Choice**: Formalise three orthogonal classification dimensions in `src/core/types.ts`:
+  - **Location type**: `gate-tied | solitary` — where the proposal lives on disk
+  - **Phase**: `RED | GREEN` — test-driven phase markers; `undefined` for pure implementation proposals
+  - **Roles** (new — array): unified set reconciling two overlapping taxonomies already in the codebase:
+    - `testing` — proposal writes or refines test files (maps to `test-suite` in `test-first-validator.ts`)
+    - `feature` — proposal implements new functionality (maps to `implementation` / original `feature`)
+    - `cleanup` — proposal cleans up tests after implementation (maps to `test-cleanup`)
+    - `documentation` — proposal adds or updates documentation only
+    - `solitary` — proposal is self-contained with no gate dependency; must include test files
+    - A proposal may carry **multiple roles** (e.g., `['solitary', 'testing', 'feature']`); represented as `ProposalRole[]`
+- **Alternatives Considered**: Single-value role enum; keeping both taxonomies separately; collapsing phase into role
+- **Rationale**: Both taxonomies were independently created and are now in use in different parts of the codebase. A merged array-based field subsumes both without breaking either, allows a proposal to express that it simultaneously sets up tests (`testing`) and adds a feature (`feature`), and unblocks downstream tools (Gate 8 validation, Gate 9 approval templates) that branch on proposal intent. `refactoring` from the original spec is dropped — it is covered by `feature` + `cleanup` in combination.
+- **Impact**: `ProposalData`, `ProposalMetadata`, and the proposal template gain a `roles: ProposalRole[]` field; `proposal list` output shows roles; existing proposals default to `['feature']`; `test-first-validator.ts` updated to validate against `ProposalRole` constants instead of ad-hoc strings
+- **Trade-offs**: Minor schema widening (array vs scalar); no breaking changes to existing CLI/MCP surfaces
 
-### 3. Proposal Dependency Tracking
+### 3. Proposal Dependency Structure (Reuse Over Duplication)
 
-- **Choice**: Build dependency graph from proposal-requirement mappings and explicit cross-proposal dependencies
-- **Alternatives Considered**: Flat proposal lists, implicit ordering by creation time
-- **Rationale**: Enables parallelization detection and proper sequencing
-- **Impact**: Dependency graph drives proposal execution order and parallel work identification
-- **Trade-offs**: Gained sequencing intelligence; added graph analysis complexity
+- **Choice**: Reuse `calculateProposalDependencies()` in `src/core/proposal-writer.ts` and the existing `DependencyGraph` utilities in `src/generation/dependency-graph.ts`; do not create a separate `ProposalDependencyGraph` class
+- **Alternatives Considered**: New `ProposalDependencyGraph` class as originally specced
+- **Rationale**: `calculateProposalDependencies()` already encodes the RED → impl → GREEN structure and returns typed dependency edges. `dependency-graph.ts` provides cycle detection and Mermaid rendering. Building a third abstraction would duplicate this without adding capability.
+- **Impact**: `TaskDistributorIntegration` receives the output of `calculateProposalDependencies()` as its input graph; no new graph-building code required
+- **Trade-offs**: Gained simplicity; any future proposal graph extensions land in `proposal-writer.ts`
 
-### 5. task-distributor Agent for Parallel Execution Planning
+### 4. task-distributor Agent via ACP / Non-Interactive CLI
 
-- **Choice**: Invoke the `task-distributor` agent (`agents/categories/09-meta-orchestration/task-distributor.md`) immediately after the dependency graph is built to classify proposals into parallel execution sets
-- **Alternatives Considered**: Static topological sort only, manual parallelization annotation by the LLM caller
-- **Rationale**: `task-distributor` applies load-balancing and priority-scheduling algorithms specialised for distributed work allocation. Using it as a dedicated step decouples parallelization logic from proposal generation and reuses a vetted agent rather than duplicating its heuristics inside `ProposalGenerator`.
-- **Impact**: Each generated proposal set carries a `parallelSets: string[][]` field (ordered arrays of proposal hashes). Consumers (Gate 08 validation, Gate 09 approval, Gate 10 git integration) read the sets directly without re-computing ordering.
-- **Trade-offs**: Gained principled parallelization with load-balance variance <10% target; requires an agent call per gate generation (acceptable — runs once, results persisted)
+- **Choice**: Invoke `task-distributor` agent (`agents/categories/09-meta-orchestration/task-distributor.md`) during `generateProposals()`, after the dependency graph is calculated. Two invocation modes are supported, selected by `config.ai.invocationMode`:
+  - **`acp`** (**default**): connect to the Copilot CLI's ACP server over stdio using the Agent Communication Protocol (NDJSON JSON-RPC 2.0); send the payload as a prompt and stream the response.
+    - **Copilot**: `copilot [--model <model>] --acp --stdio` — session flow: `initialize` → `newSession` → `prompt`; handle `agent_message_chunk` notifications. The only viable Copilot mode — `copilot --agent --prompt` opens an interactive TUI that blocks indefinitely. See [Copilot ACP reference](https://docs.github.com/en/copilot/reference/acp-server).
+  - **`cli`**: spawn the Claude CLI with piped stdio, the non-interactive `-p` print flag, and JSON output (`claude [--model <model>] -p "<json>" --output-format json`). Only valid when `ai.cli = 'claude'`. Copilot **must not** use `cli` mode — it lacks a non-interactive print flag and opens a TUI.
+- **Alternatives Considered**: Static topological sort only; `execSync` one-liner (blocks on Copilot TUI); calling via MCP tool; deferring entirely to Gate 9
+- **Rationale**: Copilot exposes ACP over stdio (`copilot --acp --stdio`), making JSON-RPC the natural programmatic interface. `copilot --agent --prompt` opens an interactive TUI — unsuitable for subprocess use. Claude provides `-p` with `--output-format json` as a documented non-interactive scripting path.
+- **CLI configuration** — all fields live under `config.ai` in `zeno/.zeno/config.json`:
 
-### 4. Gate-Centric Historical Archival
+  | Key | Values | Default | Description |
+  |---|---|---|---|
+  | `ai.cli` | `copilot \| claude` | `copilot` | Which CLI to use; Copilot requires `acp` mode; Claude uses `cli` mode |
+  | `ai.model` | any string | _(CLI default)_ | `--model` value; omitted if unset |
+  | `ai.invocationMode` | `acp \| cli` | `acp` | `acp`: JSON-RPC over stdio (Copilot via `copilot --acp --stdio`); `cli`: `claude -p --output-format json` (Claude only) |
 
-- **Choice**: Gate artifacts are the sole long-term archive target; proposals are completed in place and summarized in gate archives
-- **Alternatives Considered**: Separate proposal archives, dual archival hierarchies
-- **Rationale**: Proposals are execution-scoped working artifacts, while gates are milestone records. Gate-centric archival removes duplicate storage and preserves milestone-level traceability.
-- **Impact**: Proposal completion updates requirement progress; gate completion finalizes tested state and archival integration
-- **Trade-offs**: Gained single archival surface; reduced lifecycle complexity
+  Settable via:
+  - `zeno config set ai.cli copilot`
+  - `zeno config set ai.model "Claude Sonnet 4.6"`
+  - `zeno config set ai.invocationMode acp`
+
+- **Generated command / connection** (implemented in `src/generation/task-distributor-integration.ts`):
+
+  | `invocationMode` | `ai.cli` | Command / connection |
+  |---|---|---|
+  | `acp` (**default**) | `copilot` | `copilot [--model "Claude Sonnet 4.6"] --acp --stdio` → JSON-RPC over stdin/stdout |
+  | `cli` | `claude` | `claude [--model "claude-sonnet-4-6"] -p "<json>" --output-format json` (non-interactive print mode) |
+  | `cli` | `copilot` | ⚠ **Unsupported** — coerces to `acp`; `copilot --agent --prompt` opens a TUI |
+
+  The `--model` flag is omitted when `config.ai.model` is not set. The JSON payload carries `{ proposals: [{hash, roles, phase}], edges: [{from, to, type}] }`.
+
+- **Impact**: `generateProposals()` output gains `parallelSets` field; `proposal list` and `proposal_action:list` response surfaces it; `ZenoConfigSchema` gains an `ai` section (`cli`, `model?`, `invocationMode`); `invocationMode` defaults to `acp`
+- **Trade-offs**: ACP mode requires a long-lived stdio process per invocation (`@agentclientprotocol/sdk` already in `package.json`); `cli` mode is unavailable for Copilot (coerced to `acp`); fallback to topological sort on any failure preserves progress
+
+### 5. Requirements Dual-Source Sync
+
+- **Choice**: `requirements.json` is the version-controlled source of truth; SQLite is a queryable projection. Two sources feed it: (a) `requirements.json` manifest via `syncRequirementsFromDisk()`, and (b) gate PRD markdown via `extractRequirements()` in `proposal-parser.ts` (used only during `generateProposals()` to seed the proposal scaffold, not to write requirements to the DB)
+- **Alternatives Considered**: DB as sole source; PRD extraction writing back to DB as RFC 2119 requirement records
+- **Rationale**: Gate PRD extraction is a read-only heuristic used to populate proposal scaffolds, not a requirement authoring step. Requirements are authored by the LLM via `reg_action:create` and persisted to both DB and `requirements.json`. Keeping these paths separate prevents accidental overwriting of curated requirements with heuristic extractions.
+- **Impact**: No new requirement-write pathway is added in this gate; the existing sync behaviour is sufficient. Test coverage for edge cases (project-level requirements with no gate PRD, solitary-proposal requirements after archival) is the deliverable.
+- **Trade-offs**: Gained clarity; RFC 2119 keyword validation is not a Gate 7 deliverable — that belongs in Gate 8 validation rules
 
 ## Architecture Updates
 
 ### Components Modified or Created
 
-- **ProposalTemplate** (`src/generation/proposal-template.ts`)
-  - Purpose: Generates proposal markdown from template structure
-  - Changes: New component
-  - Interfaces: `generateProposal(requirement, gateContext): string`
+- **ZenoConfigSchema** (`src/utils/config.ts`)
+  - Purpose: Store AI CLI selection, optional model override, and invocation mode
+  - Changes: Add `ai: { cli: 'copilot' | 'claude', model?: string, invocationMode: 'acp' | 'cli' }`; defaults `cli: 'copilot'`, `invocationMode: 'acp'`; `getDefaultConfig` includes `ai: { cli: 'copilot', invocationMode: 'acp' }`; validation guard coerces `cli = 'copilot'` + `invocationMode = 'cli'` to `acp` with warning (Copilot opens TUI in direct mode)
+  - Interfaces: No breaking change — new optional nested section with Zod defaults
 
-- **ProposalGenerator** (`src/generation/proposal-generator.ts`)
-  - Purpose: Decomposes gate requirements into proposal documents
-  - Changes: New component
-  - Interfaces: `generateFromRequirements(gateId): Proposal[]`
+- **ProposalData / ProposalMetadata** (`src/generation/proposal-template.ts`, `src/core/proposal-writer.ts`)
+  - Purpose: Add `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value)
+  - Changes: Extend existing interfaces; default `['feature']` for existing proposals
+  - Interfaces: No breaking change — `roles` is optional with default
 
-- **ProposalStorage** (`src/storage/proposal-storage.ts`)
-  - Purpose: Read/write proposals as markdown files with metadata
-  - Changes: New component
-  - Interfaces: `save(proposal)`, `load(hash)`, `list(gateId)`
-
-- **ProposalDependencyGraph** (`src/generation/proposal-dependency-graph.ts`)
-  - Purpose: Analyze proposal dependencies and detect parallelizable work
-  - Changes: New component
-  - Interfaces: `buildGraph(proposals)`, `getExecutionOrder()`, `getParallelSets()`
+- **ProposalTypeDefinitions** (`src/core/types.ts`)
+  - Purpose: Single source of truth for all three proposal classification dimensions
+  - Changes: Export `ProposalLocationType`, `ProposalPhase`, and `ProposalRole = 'testing' | 'feature' | 'cleanup' | 'documentation' | 'solitary'` type aliases; consolidate from their current scattered definitions (inline literals in `proposal-writer.ts`; ad-hoc strings in `proposals-registry.ts` and `test-first-validator.ts`)
 
 - **TaskDistributorIntegration** (`src/generation/task-distributor-integration.ts`)
-  - Purpose: Bridge between `ProposalDependencyGraph` output and the `task-distributor` agent; formats the dependency graph as agent input, invokes the agent, parses the returned parallel execution plan, and annotates proposals with `parallelSetIndex`
-  - Changes: New component
-  - Interfaces: `distributeProposals(graph: ProposalDependencyGraph): Promise<ParallelExecutionPlan>`, `annotateProposals(proposals, plan): AnnotatedProposal[]`
+  - Purpose: Bridge between `calculateProposalDependencies()` output and the `task-distributor` agent; formats the dependency edge list as structured agent input, invokes via Copilot ACP (`copilot --acp --stdio`) or Claude CLI (`claude -p`), parses `parallelSets[][]`, annotates proposal metadata with `parallelSetIndex`
+  - Changes: New module
+  - Interfaces: `distributeProposals(deps, proposals): Promise<ParallelExecutionPlan>`, `annotateProposals(proposals, plan): AnnotatedProposal[]`
   - Agent Reference: `agents/categories/09-meta-orchestration/task-distributor.md`
+
+- **generateProposals** (`src/core/proposal-generation.ts`)
+  - Purpose: Wire in `TaskDistributorIntegration` after `calculateProposalDependencies()` returns
+  - Changes: Add `parallelSets` to `ProposalGenerateOutput`; call `distributeProposals()` and annotate proposals before returning
+
+- **proposal_action list handler** (`src/mcp/tools/proposal-tools.ts`, `src/integration/proposals-registry.ts`)
+  - Purpose: Surface `parallelSets` and `parallelSetIndex` in list responses
+  - Changes: Add fields to list output schema and handler
 
 ### Diagram Updates
 
-- System Overview: `zeno/architecture/system-overview.md` - Add proposal generation module
-- Data Flow: `zeno/architecture/data-flow.md` - Add requirement → proposal decomposition flow
-
-### Integration Points
-
-- **Function Registry**: Proposal operations registered for unified CLI + MCP access
-- **Requirements Database**: Proposals read requirements and write RFC 2119 updates
-- **Gate System**: Gate start triggers proposal generation; gate complete integrates proposal summaries
+- System Overview: `zeno/architecture/system-overview.md` — update proposal module to reflect parallelisation layer
+- Data Flow: `zeno/architecture/data-flow.md` — add task-distributor agent call in proposal generation flow
 
 ## Gate-Specific Quality Considerations
 
 ### Security Considerations
 
 - Proposal file paths must be sanitized to prevent directory traversal
-- RFC 2119 requirement updates must be validated before database insertion
-
-### Performance Requirements
-
-- Proposal generation should complete within 5 seconds for a gate with up to 20 requirements
-- Dependency graph analysis should handle up to 50 proposals without noticeable delay
+- `TaskDistributorIntegration` must not pass unsanitized proposal content as agent input; pass only hash references and dependency edge types
 
 ## Dependencies
 
@@ -291,37 +299,39 @@ No new external dependencies required.
 ## Implementation Steps
 
 1. **Define Acceptance Tests**
-   - Write tests that define proposal generation, storage, and dependency analysis contracts
-   - Tests establish the contract before implementation begins
+   - Write tests for `TaskDistributorIntegration`: mock the configured CLI call (copilot ACP / claude cli), assert `parallelSets` shape, assert `parallelSetIndex` annotation
+   - Write tests for `ai` config section: default `cli = 'copilot'`, `invocationMode = 'acp'`; `cli = 'claude'` with `invocationMode = 'cli'` round-trips correctly; `cli = 'copilot'` with `invocationMode = 'cli'` warns and coerces to `acp`
+   - Write tests for `TaskDistributorIntegration` ACP mode: mock `copilot --acp --stdio` stdio transport, assert JSON-RPC prompt request shape, assert `parallelSets` extracted from response
+   - Write tests for `TaskDistributorIntegration` CLI mode: mock `claude -p` subprocess stdout, assert `parallelSets` extracted; assert Copilot + cli mode coerces to ACP with a warning
+   - Write tests for requirements dual-source sync edge cases (project-level, solitary post-archival, round-trip fidelity)
+   - Write tests for `roles` field: default value (`['feature']`), template rendering, list output
 
-2. **Design Proposal Template Structure**
-   - Define markdown sections, formatting, and metadata fields
-   - Create template rendering from requirement data
+2. **Consolidate Proposal Type Taxonomy**
+   - Export `ProposalLocationType`, `ProposalPhase`, `ProposalRole` from `src/core/types.ts`
+   - Add `roles: ProposalRole[]` (default `['feature']`) to `ProposalData` in `proposal-template.ts` and `ProposalMetadata` in `proposal-writer.ts`
+   - Update proposal template to render roles in the frontmatter metadata block
 
-3. **Implement Proposal Generator**
-   - Build requirement decomposition algorithm
-   - Generate proposals from gate requirements with proper traceability
+3. **Implement TaskDistributorIntegration**
+   - Format dependency edges from `calculateProposalDependencies()` output as structured JSON: `{ proposals: [{hash, roles, phase}], edges: [{from, to, type}] }`
+   - Read `config.ai.invocationMode`, `config.ai.cli`, and `config.ai.model`
+   - If `cli = 'copilot'` and `invocationMode = 'cli'`: warn and coerce to `acp` (copilot opens a TUI)
+   - If `invocationMode = 'acp'`: spawn `copilot [--model <model>] --acp --stdio`, send prompt over stdin as JSON, read NDJSON response stream, extract `parallelSets`
+   - If `invocationMode = 'cli'` (`claude` only): spawn `claude [--model <model>] -p "<json>"` with piped stdio; parse stdout
+   - Parse response: extract `parallelSets: string[][]`
+   - Annotate each proposal with `parallelSetIndex: number` (0-indexed set membership)
+   - Persist updated metadata via `syncProposalsFromDisk`
 
-4. **Build Storage and Dependency System**
-   - Implement proposal storage (markdown + metadata)
-   - Build proposal dependency graph analyzer
-   - Implement RFC 2119 requirement recording for spec changes
+4. **Wire into generateProposals**
+   - Call `distributeProposals()` after `calculateProposalDependencies()` returns
+   - Add `parallelSets` to `ProposalGenerateOutput`
 
-5. **Integrate task-distributor for Parallelization**
-   - Implement `TaskDistributorIntegration` to invoke `task-distributor` agent after graph build
-   - Format dependency graph as structured agent input (task list with dependency edges, priorities)
-   - Parse agent response: extract `parallelSets[][]` — ordered parallel execution buckets
-   - Annotate proposals with `parallelSetIndex` and persist via `ProposalStorage`
-   - Surface parallel sets in `zeno proposal list` output and MCP `proposal_action` response
+5. **Expose in CLI and MCP**
+   - `zeno proposal list` output: add `parallelSet` column
+   - `proposal_action:list` MCP response: add `parallelSets` and `parallelSetIndex` to the output schema
 
-6. **Implement CLI Commands**
-   - `zeno proposal list` with filtering (--gate, --status)
-   - `zeno proposal show <hash>`
-   - `zeno proposal start <hash>`
-
-7. **Test Cleanup**
-   - Refine tests, add edge cases, ensure coverage ≥90%
-   - Validates all gate deliverables meet quality thresholds
+6. **Requirements Sync Test Coverage**
+   - Cover `writeRequirementsManifest` and `syncRequirementsFromDisk` round-trip with project-level (no gateId), gate-level, and solitary-proposal requirements
+   - Verify `INSERT OR IGNORE` semantics: existing DB rows not overwritten by stale manifest
 
 ## Known Issues & Limitations
 
@@ -329,31 +339,28 @@ No new external dependencies required.
 
 - No spec format parsing (OpenAPI, GraphQL, Protobuf) — specs are requirements in the database
 - No proposal versioning beyond Git history
+- `task-distributor` invocation via Copilot CLI is a temporary mechanism; a stable typed sub-agent call protocol is deferred to a later gate
 
 ### Technical Debt
 
-- Proposal template structure may need refinement after real-world usage — plan to iterate in later gates
-
-### Future Improvements
-
-- Proposal-to-code file mapping — deferred to post-MVP
-- Web UI for proposal management — deferred to post-MVP
+- `src/storage/proposal-sync.ts` performs disk → DB sync but lacks coverage for solitary post-archival and project-level requirements; covered in this gate
+- Proposal type classification is scattered across `proposal-template.ts`, `proposal-writer.ts`, `archive-schemas.ts`, and `artifact-locator.ts`; consolidated in this gate via `src/core/types.ts`
 
 ## Risks & Mitigation
 
 ### Technical Risks
 
-1. **Requirement Decomposition Quality**
+1. **Copilot CLI MCP Sub-Agent Response Parsing**
    - **Impact**: High
    - **Probability**: Medium
-   - **Mitigation**: Template-driven decomposition with clear section structure; LLM generates content within template constraints
-   - **Contingency**: Manual proposal creation as fallback
+   - **Mitigation**: `TaskDistributorIntegration` validates response shape with Zod before consuming; falls back to topological sort from `calculateProposalDependencies()` if the agent response is malformed
+   - **Contingency**: Store raw agent response alongside parsed sets for debugging
 
 2. **Circular Dependency Detection**
    - **Impact**: Medium
    - **Probability**: Low
-   - **Mitigation**: Graph-based cycle detection algorithm in dependency analyzer
-   - **Contingency**: Flag cycles for human review rather than blocking
+   - **Mitigation**: `validateDependencyGraph()` in `src/generation/dependency-graph.ts` already detects cycles; called before agent invocation
+   - **Contingency**: Flag cycles for human review rather than blocking generation
 
 ### Process Risks
 
@@ -372,41 +379,39 @@ No new external dependencies required.
 - [ ] Architecture diagrams updated
 - [ ] Gate-specific quality considerations addressed
 - [ ] Stakeholder approval obtained
-- [ ] Proposal templates generate valid markdown with proper sections
-- [ ] Proposals created from requirements capture all essential implementation details
-- [ ] Proposal-to-requirement mapping covers all gate requirements
-- [ ] Proposal dependency graph correctly identifies parallel and sequential work
-- [ ] `task-distributor` agent invoked post-graph-build; parallel execution sets produced and stored
-- [ ] Proposals annotated with `parallelSetIndex`; sets visible in `zeno proposal list` and MCP responses
-- [ ] Design decisions recorded as RFC 2119 requirement updates in SQLite
-- [ ] Proposal status transitions (pending → in_progress) work correctly
-- [ ] Gate completion integrates completed proposal summaries into gate archival artifacts
+- [ ] `ProposalLocationType`, `ProposalPhase`, `ProposalRole` exported from `src/core/types.ts`
+- [ ] `roles` field present in `ProposalData`, `ProposalMetadata`, and rendered in proposal template
+- [ ] `ai` config section present in `ZenoConfigSchema` with `cli` enum (`copilot | claude`, default `copilot`; `cursor` excluded), optional `model`, and `invocationMode` enum (`acp | cli`, default `acp`); `cli = 'copilot'` + `invocationMode = 'cli'` coerces to `acp` with warning
+- [ ] `TaskDistributorIntegration` `acp` mode: spawns `copilot [--model] --acp --stdio`, sends prompt over stdin, parses NDJSON response; `cli` mode (`claude` only): spawns `claude -p` with piped stdio; `parallelSets[][]` returned and stored in both paths
+- [ ] Each proposal annotated with `parallelSetIndex`; visible in `zeno proposal list` output and `proposal_action:list` MCP response
+- [ ] `generateProposals()` output includes `parallelSets` field
+- [ ] Fallback to topological sort when agent response is malformed; test coverage for fallback path
+- [ ] Requirements sync round-trip tests pass (project-level, gate-level, solitary post-archival)
 - [ ] All tests passing with TypeScript strict mode
-- [ ] Test coverage ≥90% for proposal module
+- [ ] Test coverage ≥90% for all new and modified modules
 - [ ] Zero lint errors, zero type errors
 
 ## Notes
 
 ### Implementation Notes
 
-- Proposal hash generation should use the same hashing mechanism as gates and requirements for consistency
-- RFC 2119 keyword validation: MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL
+- `TaskDistributorIntegration` should be a thin, stateless module; all state is in the proposal markdown files and the DB via `proposal-sync.ts`
+- Existing proposals written before this gate lands should be backfilled with `roles: ['feature']` by the sync layer — add a migration note in `proposal-sync.ts`
 
 ### Proposal Summary
 
-[Populated during proposal archival. Contains 1-2 sentence summaries of completed proposals as they are cleaned up, preserving a record of work completed in this gate.]
+_Populated during proposal archival. Contains 1-2 sentence summaries of completed proposals, preserving a record of work completed in this gate._
 
-| Proposal Hash | Summary                                           |
-| ------------- | ------------------------------------------------- |
-| #[hash]       | [1-2 sentence summary of proposal work completed] |
+| Proposal Hash | Summary |
+| ------------- | ------- |
 
 ### Next Gate Preview
 
-Gate 08 (Automated Validation & Quality Gates) will implement automated validation that enforces quality gates before human approval, including a validation orchestrator, agent-driven quality assessment, and shared conflict detection.
+Gate 08 (Automated Validation & Quality Gates) will implement automated validation that enforces quality gates before human approval, including a validation orchestrator, agent-driven quality assessment, and shared conflict detection. The `parallelSetIndex` produced by this gate drives validation batching order in Gate 08.
 
 ---
 
-**Document Version**: 1.2.0
+**Document Version**: 2.0.0
 **Last Updated**: 2026-02-28
 **Versioning**: SemVer; bump on any change (minimum: PATCH).
 **Owner**: Zeno

@@ -380,6 +380,47 @@ graph LR
 - **Impact**: Requires workflow config infrastructure to be implemented first
 - **Trade-offs**: Gained separation of concerns, consistency across gates; requires MVP prerequisite
 
+### 8. CrewAI Exposed via ACP Server (Unified Invocation Path)
+
+- **Choice**: Wrap the CrewAI Python service behind an ACP-compliant server so it is invokable over the same JSON-RPC 2.0 / stdio transport already used by Gate 7's `TaskDistributorIntegration` (`copilot --acp --stdio`, `agent acp`)
+- **Alternatives Considered**: Direct subprocess bridge only (JSON stdin/stdout, no ACP framing); REST service (HTTP overhead, requires port management); custom IPC protocol
+- **Rationale**: Gate 7 already establishes an `ai.invocationMode: 'acp'` dispatch path in `TaskDistributorIntegration`. Adding `ai.cli: 'crewai'` as a fourth backend requires no changes to the dispatch logic — the same `initialize` → `session/new` → `session/prompt` flow is used regardless of what runs on the other end of the stdio pipe. This eliminates a bespoke subprocess bridge and gains a standard lifecycle (session management, structured message parts, run status events) for free.
+
+  The ACP session flow for the CrewAI server mirrors the Copilot path:
+
+  ```
+  TypeScript (TaskDistributorIntegration)          Python (crew_acp_server.py)
+  ── initialize ──────────────────────────────────►
+  ◄── initialize result ──────────────────────────
+  ── session/new ─────────────────────────────────►
+  ◄── session created ────────────────────────────
+  ── session/prompt  { payload: {proposals, edges} } ──►
+  ◄── session/update (streaming chunks) ──────────
+  ◄── session/completed { parallelSets[][] } ─────
+  ```
+
+  The Python side is a thin ACP shim (`crew_acp_server.py`) that deserializes the prompt payload, delegates to `CrewFactory`, and streams results back as ACP `session/update` notifications.
+
+- **Config surface** — extends the existing `ai` config section in `ZenoConfigSchema`:
+
+  | Key | Values | Default | Notes |
+  |---|---|---|---|
+  | `ai.cli` | `copilot \| cursor \| claude \| crewai` | `copilot` | `crewai` requires `acp` mode |
+  | `ai.invocationMode` | `acp \| cli` | `acp` | `crewai` enforced to `acp`; no non-interactive print flag |
+  | `ai.crewai.pythonBin` | path string | `python` | Python interpreter to use when spawning the ACP server |
+  | `ai.crewai.serverScript` | path string | `agents/crew_acp_server.py` | Path to the ACP shim script |
+
+  Settable via:
+  - `zeno config set ai.cli crewai`
+  - `zeno config set ai.crewai.pythonBin /usr/bin/python3`
+
+- **Language boundary**: TypeScript spawns `python agents/crew_acp_server.py` as a child process; all communication crosses the language boundary as NDJSON over stdio — the same pattern as the existing Claude `cli` mode but with ACP framing instead of a one-shot print flag.
+
+- **Why this matters for Gate 7 compatibility**: Gate 7's `task-distributor` agent (dependency graph → `parallelSets`) and Gate 13's full orchestration crew are different in scope but use the same transport. A project that starts with Copilot ACP for `task-distributor` can later switch to `crewai` for richer multi-step planning without any changes to `TaskDistributorIntegration` — only `config.ai.cli` changes.
+
+- **Impact**: `ZenoConfigSchema` gains `ai.crewai` sub-object; `TaskDistributorIntegration` adds `crewai` to its CLI dispatch table; `crew_acp_server.py` is added to `agents/`; the Python subprocess bridge described in Decision 4 is unified under this ACP shim rather than maintained as a parallel communication path
+- **Trade-offs**: Gained protocol consistency with Gate 7, standard lifecycle events, no bespoke IPC; added a thin Python shim file; ACP framing adds ~5ms overhead per session (negligible vs. LLM latency)
+
 ## Architecture Updates
 
 ### Components Modified or Created
@@ -393,13 +434,14 @@ graph LR
   - Claude system prompts for proposal spec generation
 
 - **CrewAI Python Service Layer**
-  - `CrewFactory` (`agents/crew_service.py`) - Builds CrewAI crews from proposal specs
+  - `crew_acp_server.py` (`agents/crew_acp_server.py`) - ACP shim: exposes CrewAI over JSON-RPC 2.0 / stdio so `TaskDistributorIntegration` can invoke it via the same `acp` dispatch path used by Copilot and Cursor; handles `initialize` → `session/new` → `session/prompt` lifecycle and streams `session/update` notifications back
+  - `CrewFactory` (`agents/crew_service.py`) - Builds CrewAI crews from proposal specs (called by ACP shim)
   - `AgentManifestLoader` - Loads agents from agents/agent-manifest.json
   - `AgentRoleMapper` - Maps gate type → agent roles needed
   - `TaskHierarchyBuilder` - Creates CrewAI tasks with blocking relationships
 
 - **TypeScript Orchestration Layer**
-  - `CrewServiceBridge` (`src/orchestration/crew-service-bridge.ts`) - Spawns and communicates with Python service
+  - `CrewServiceBridge` (`src/orchestration/crew-service-bridge.ts`) - Spawns and communicates with Python ACP server; unified with `TaskDistributorIntegration` dispatch path via `ai.cli: 'crewai'` config
   - `MergeOrderingEngine` (`src/orchestration/merge-ordering-engine.ts`) - Determines merge sequence from dependencies
   - `ConflictDetector` (`src/orchestration/conflict-detector.ts`) - Identifies file-level conflicts from spec
 
@@ -445,7 +487,8 @@ graph LR
 
 ### External Dependencies (New or Updated)
 
-- **crewai** (Python, latest) - Hierarchical agent orchestration
+- **crewai** (Python, latest) - Hierarchical agent orchestration; exposed via `crew_acp_server.py` ACP shim over stdio
+- **@agentclientprotocol/sdk** (existing, from Gate 7) - ACP client transport reused by `TaskDistributorIntegration` to drive the CrewAI ACP server
 - **ollama** (local install) - Local model execution
 - **@anthropic-ai/sdk** (existing) - Claude API for planning phase
 

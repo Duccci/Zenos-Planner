@@ -538,7 +538,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 
 ### Active MVP Gates (07-14)
 
-### Gate 07: Gate 07: Proposal Generation & Management
+### Gate 07: Proposal Generation & Management
 
 [ ] Implementation in progress...
 
