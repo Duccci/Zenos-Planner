@@ -18,7 +18,7 @@
 
 ## Overview
 
-Implements proposal generation and management system that decomposes gate-specific requirements into actionable implementation proposals. Proposals are standardized markdown documents generated from requirement decomposition. Design decisions and specification changes made during a proposal are recorded as requirement updates in the SQLite database following RFC 2119 keyword conventions (MUST, SHOULD, MAY, etc.). Proposals serve as the handoff between planning (gates/requirements) and execution (implementation, git commits).
+The proposal generation and management infrastructure was largely bootstrapped before this gate started so that Zeno was usable during earlier gate work. The remaining deliverable is focused: integrate the **task-distributor** agent (via Copilot ACP or Claude CLI) to classify the dependency graph built by `calculateProposalDependencies()` into parallel execution sets, annotate each proposal with its `parallelSetIndex`, and surface those sets in `proposal list` and `proposal_action` MCP responses.
 
 During proposal generation the **task-distributor** agent (`agents/categories/09-meta-orchestration/task-distributor.md`) is invoked to analyse the full proposal set, classify dependencies, and produce an optimal execution plan that maximises parallel throughput. Tasks that share no file-level or logical dependencies are grouped into parallel execution sets; the dependency graph is annotated with these sets so downstream gates and agents can consume the plan directly without re-analysis.
 
