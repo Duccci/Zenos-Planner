@@ -358,6 +358,236 @@ describe('artifact-validator', () => {
       expect(result.allowed).toBe(true)
       expect(result.warnings).toContain('scope warning')
     })
+
+    // ---------------------------------------------------------
+    // validateOpenQuestions (Check 7): Open Questions section
+    // ---------------------------------------------------------
+
+    it('passes when Open Questions section is present but has empty body', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL + '\n## Open Questions\n\n',
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors?.some((e) => e.includes('Open Questions'))).toBeFalsy()
+    })
+
+    it('passes when Open Questions section body is N/A', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL + '\n## Open Questions\n\nN/A\n',
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors?.some((e) => e.includes('Open Questions'))).toBeFalsy()
+    })
+
+    it('passes when Open Questions section has only resolved checkboxes', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL + '\n## Open Questions\n\n- [x] Should we use Redis? Answered yes.\n',
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
+      })
+
+      expect(result.allowed).toBe(true)
+    })
+
+    it('returns error when Open Questions section has an unresolved question', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL + '\n## Open Questions\n\n- [ ] Should we use Redis?\n',
+        templateSections: PROPOSAL_TEMPLATE_SECTIONS,
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.errors!.some((e) => e.includes('unresolved question'))).toBe(true)
+      expect(result.errors!.some((e) => e.includes('Should we use Redis?'))).toBe(true)
+    })
+
+    // ---------------------------------------------------------
+    // extractFilesAffected: backtick-format and list-format
+    // ---------------------------------------------------------
+
+    it('extracts files from backtick-format Files Affected section', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const contentWithBackticks = `# Proposal: Backtick Test
+
+**Hash**: #backtick001
+**Date**: 2026-01-01
+**Status**: pending
+
+## Summary
+
+Backtick-format files.
+
+---
+
+## Context
+
+### Why This Change
+
+Testing.
+
+---
+
+## Tasks
+
+### Task 1: Implement
+
+**Acceptance**:
+- [ ] Done
+
+---
+
+## Files Affected
+
+\`src/feature.ts\`
+\`src/utils.ts\`
+
+---
+
+## Rollback
+
+No rollback needed.
+`
+
+      // mockValidateScope receives filesAffected; inspect via spy
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: contentWithBackticks,
+      })
+
+      // validateScope is called with extracted files — spy confirms backtick paths were parsed
+      expect(mockValidateScope).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filesAffected: expect.arrayContaining(['src/feature.ts', 'src/utils.ts']),
+        })
+      )
+      expect(result.allowed).toBe(true)
+    })
+
+    it('extracts files from list-format Files Affected section', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const contentWithList = `# Proposal: List Test
+
+**Hash**: #listfmt01
+**Date**: 2026-01-01
+**Status**: pending
+
+## Summary
+
+List-format files.
+
+---
+
+## Context
+
+### Why This Change
+
+Testing.
+
+---
+
+## Tasks
+
+### Task 1: Implement
+
+**Acceptance**:
+- [ ] Done
+
+---
+
+## Files Affected
+
+- src/routes/auth.ts
+- src/middleware/validate.ts
+
+---
+
+## Rollback
+
+No rollback needed.
+`
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: contentWithList,
+      })
+
+      expect(mockValidateScope).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filesAffected: expect.arrayContaining(['src/routes/auth.ts']),
+        })
+      )
+      expect(result.allowed).toBe(true)
+    })
+
+    // ---------------------------------------------------------
+    // generateProposalAgentChecks: gating branches
+    // ---------------------------------------------------------
+
+    it('includes dependency accuracy check when content has ## Dependencies section', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const contentWithDeps = VALID_PROPOSAL + '\n## Dependencies\n\n#abc12345def01234\n'
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: contentWithDeps,
+      })
+
+      // hasDeps=true branch: Check 4 should be DEPENDENCY ACCURACY (not UNDECLARED)
+      expect(result.agentReview?.some((r) => r.includes('DEPENDENCY ACCURACY'))).toBe(true)
+      expect(result.agentReview?.some((r) => r.includes('UNDECLARED DEPENDENCIES'))).toBeFalsy()
+    })
+
+    it('includes gate objective coverage check when gateObjectives provided without gatePrdPath', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL,
+        gateObjectives: 'Deploy auth service\nAdd rate limiting',
+      })
+
+      // !hasGateScopeReview && gateObjectives branch
+      expect(result.agentReview?.some((r) => r.includes('GATE OBJECTIVE COVERAGE'))).toBe(true)
+    })
+
+    it('skips Files Affected check when gatePrdPath is provided (hasGateScopeReview=true)', async () => {
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL,
+        gatePrdPath: '/zeno/gates/gate-01-auth.md',
+      })
+
+      // hasGateScopeReview=true: Check 3 (FILES AFFECTED COVERAGE) is suppressed
+      expect(result.agentReview?.some((r) => r.includes('FILES AFFECTED COVERAGE'))).toBeFalsy()
+    })
   })
 
   // -------------------------------------------------------------------------

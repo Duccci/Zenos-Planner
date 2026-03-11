@@ -553,4 +553,245 @@ describe('calculateComplexityMetrics', () => {
     const result = calculateComplexity(ast, 'test.ts');
     expect(result.modules.get('test.ts')!.functions[0].complexity).toBeGreaterThan(2);
   });
+
+  it('handles ClassMethod with StringLiteral key', () => {
+    const classMethod = {
+      type: 'ClassMethod',
+      kind: 'method',
+      key: { type: 'StringLiteral', value: 'myStringMethod' },
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: { start: { line: 1 }, end: { line: 2 } },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [classMethod] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].name).toBe('myStringMethod');
+  });
+
+  it('handles ClassMethod with non-standard key that has name property', () => {
+    const classMethod = {
+      type: 'ClassMethod',
+      kind: 'method',
+      key: { type: 'PrivateName', name: 'privateMethod' },
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: { start: { line: 1 }, end: { line: 2 } },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [classMethod] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].name).toBe('privateMethod');
+  });
+
+  it('handles ClassMethod with computed key that has no name', () => {
+    const classMethod = {
+      type: 'ClassMethod',
+      kind: 'method',
+      key: { type: 'MemberExpression', object: { type: 'Identifier', name: 'obj' }, property: { type: 'Identifier', name: 'prop' } },
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: { start: { line: 1 }, end: { line: 2 } },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [classMethod] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].name).toBe('<method>');
+  });
+
+  it('counts logical expression in do-while test condition', () => {
+    const logicalExpr = createMockLogicalExpression(
+      { type: 'Identifier', name: 'a' },
+      '&&',
+      { type: 'Identifier', name: 'b' }
+    );
+    const doWhile = {
+      type: 'DoWhileStatement',
+      test: logicalExpr,
+      body: { type: 'BlockStatement', body: [] },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: {
+        type: 'Program',
+        body: [createMockFunctionDeclaration('test', [doWhile])],
+      },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    // 1 base + 1 do-while + 1 logical in condition
+    expect(result.modules.get('test.ts')!.functions[0].complexity).toBe(3);
+  });
+
+  it('counts logical expression in ternary test condition', () => {
+    const logicalExpr = createMockLogicalExpression(
+      { type: 'Identifier', name: 'a' },
+      '&&',
+      { type: 'Identifier', name: 'b' }
+    );
+    const ternary = {
+      type: 'ConditionalExpression',
+      test: logicalExpr,
+      consequent: { type: 'Identifier', name: 'x' },
+      alternate: { type: 'Identifier', name: 'y' },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: {
+        type: 'Program',
+        body: [createMockFunctionDeclaration('test', [ternary])],
+      },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    // 1 base + 1 ternary + 1 logical in condition
+    expect(result.modules.get('test.ts')!.functions[0].complexity).toBe(3);
+  });
+
+  it('counts logical expression in for-statement test condition', () => {
+    const logicalExpr = createMockLogicalExpression(
+      { type: 'Identifier', name: 'i' },
+      '&&',
+      { type: 'Identifier', name: 'j' }
+    );
+    const forStmt = {
+      type: 'ForStatement',
+      init: null,
+      test: logicalExpr,
+      update: null,
+      body: { type: 'BlockStatement', body: [] },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: {
+        type: 'Program',
+        body: [createMockFunctionDeclaration('test', [forStmt])],
+      },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    // 1 base + 1 for + 1 logical in condition
+    expect(result.modules.get('test.ts')!.functions[0].complexity).toBe(3);
+  });
+
+  it('counts logical expression in switch discriminant', () => {
+    const logicalExpr = createMockLogicalExpression(
+      { type: 'Identifier', name: 'a' },
+      '||',
+      { type: 'Identifier', name: 'b' }
+    );
+    const switchStmt = {
+      type: 'SwitchStatement',
+      discriminant: logicalExpr,
+      cases: [],
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: {
+        type: 'Program',
+        body: [createMockFunctionDeclaration('test', [switchStmt])],
+      },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    // 1 base + 1 logical in switch discriminant
+    expect(result.modules.get('test.ts')!.functions[0].complexity).toBe(2);
+  });
+
+  it('handles FunctionExpression with missing location information', () => {
+    const funcExpr = {
+      type: 'FunctionExpression',
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: null,
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [funcExpr] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].startLine).toBe(0);
+    expect(result.modules.get('test.ts')!.functions[0].endLine).toBe(0);
+  });
+
+  it('handles ArrowFunctionExpression with missing location information', () => {
+    const arrowFunc = {
+      type: 'ArrowFunctionExpression',
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: null,
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [arrowFunc] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].startLine).toBe(0);
+    expect(result.modules.get('test.ts')!.functions[0].endLine).toBe(0);
+  });
+
+  it('handles ClassMethod with missing location information', () => {
+    const classMethod = {
+      type: 'ClassMethod',
+      kind: 'method',
+      key: { type: 'Identifier', name: 'myMethod' },
+      params: [],
+      body: { type: 'BlockStatement', body: [] },
+      loc: null,
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: { type: 'Program', body: [classMethod] },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    expect(result.modules.get('test.ts')!.functions[0].startLine).toBe(0);
+    expect(result.modules.get('test.ts')!.functions[0].endLine).toBe(0);
+  });
+
+  it('counts logical expression in while-statement test condition', () => {
+    const logicalExpr = createMockLogicalExpression(
+      { type: 'Identifier', name: 'a' },
+      '&&',
+      { type: 'Identifier', name: 'b' }
+    );
+    const whileStmt = {
+      type: 'WhileStatement',
+      test: logicalExpr,
+      body: { type: 'BlockStatement', body: [] },
+    };
+
+    const ast: BabelFile = {
+      type: 'File',
+      program: {
+        type: 'Program',
+        body: [createMockFunctionDeclaration('test', [whileStmt])],
+      },
+    } as any;
+
+    const result = calculateComplexity(ast, 'test.ts');
+    // 1 base + 1 while + 1 logical in condition
+    expect(result.modules.get('test.ts')!.functions[0].complexity).toBe(3);
+  });
 });

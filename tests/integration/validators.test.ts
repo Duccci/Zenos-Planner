@@ -352,4 +352,25 @@ describe('Apply Phase Validator', () => {
     expect(result.errors).toBeDefined()
     expect(result.errors?.length).toBeGreaterThanOrEqual(2) // Multiple errors
   })
+
+  it('should fail on lint errors when totalLines absent and filesModified empty (denominator=1)', () => {
+    // Covers denominator fallback: totalLines ?? (filesModified.length || 1)
+    // With totalLines=undefined and filesModified=[], denominator = 0 || 1 = 1
+    // lintErrorRate = 1/1 = 100% > 1% threshold
+    const result = validateApplyPhase({
+      proposalHash: '#abc123',
+      filesAffected: [],
+      filesModified: [],
+      gitOperations: [],
+      qualityMetrics: {
+        lintErrors: 1,
+        // totalLines deliberately omitted → triggers denominator fallback
+      },
+      config: mockConfig,
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.errors).toBeDefined()
+    expect(result.errors![0]).toContain('Lint error rate')
+  })
 })

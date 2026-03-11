@@ -177,6 +177,43 @@ describe('Write-Time Analyzer', () => {
       expect(result.errors).toHaveLength(0)
     })
 
+    it('covers candidateRel === relPath branch: false then true across two modules', async () => {
+      // codeFile with no path component so relPath has no slashes
+      mockRawFn.mockResolvedValueOnce('newfile.ts\n')
+
+      const noMatchModule = {
+        filePath: '/mock/project/other.ts',
+        relativePath: 'other/stuff.ts', // candidateRel = 'otherstuff.ts' ≠ 'newfile.ts' → false branch
+        extension: '.ts',
+        ast: {} as never,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 10,
+      }
+
+      const relMatchModule = {
+        filePath: '/mock/project/completely/different.ts', // doesn't end with /newfile.ts
+        relativePath: 'newfile.ts', // no slashes → candidateRel = 'newfile.ts' = relPath → true branch
+        extension: '.ts',
+        ast: {} as never,
+        dependencies: { imports: [], exports: [], reexports: [] },
+        linesOfCode: 20,
+      }
+
+      // Map iteration order is insertion order; noMatchModule runs first (false branch),
+      // then relMatchModule runs (true branch → match, break)
+      mockAnalyzer.analyzeCodebase.mockResolvedValue({
+        modules: new Map([
+          ['opaque-no-match', noMatchModule],
+          ['opaque-rel-match', relMatchModule],
+        ]),
+        fileCount: 2,
+        totalLOC: 30,
+      })
+
+      const result: GateAnalysisResult = await analyzeGateChanges('gate-01')
+      expect(result.errors).toHaveLength(0)
+    })
+
     it('uses getMetrics() on the analyzer when available (line 155 branch)', async () => {
       mockRawFn.mockResolvedValueOnce('src/core/new-file.ts\n')
 

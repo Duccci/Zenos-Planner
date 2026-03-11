@@ -107,6 +107,28 @@ describe('proposal-writer decomposeToProposals coverage', () => {
     expect(implProposal!.filename.length).toBeLessThan(45)
   })
 
+  it('should use heuristic coverage sizes for crud/integration/utility objective keywords (lines 25/32/39 arm=0)', async () => {
+    // Each objective keyword triggers a different branch in estimateCoverageLines:
+    // 'crud validation' → 150 lines (line=25 arm=0 TRUE)
+    // 'integration workflow' → 200 lines (line=32 arm=0 TRUE)
+    // 'utility helper format' → 50 lines (line=39 arm=0 TRUE)
+    const proposals = await decomposeToProposals(
+      'gate-07',
+      ['CRUD validation parser', 'Integration workflow system', 'utility helper format'],
+      [],
+      '{{GATE_ID}}',
+      '/output/proposals'
+    )
+
+    // 1 RED + 3 implementation + 1 GREEN = 5 proposals
+    expect(proposals).toHaveLength(5)
+    // Verify coverage targets reflect the heuristic sizes (90% of 150, 200, 50 respectively)
+    const implProposals = proposals.filter((p) => !p.phase)
+    expect(implProposals[0]!.coverageTarget).toBe(135) // 90% of 150
+    expect(implProposals[1]!.coverageTarget).toBe(180) // 90% of 200
+    expect(implProposals[2]!.coverageTarget).toBe(45)  // 90% of 50
+  })
+
   describe('generateTasksFromObjective', () => {
     // Note: generateTasksFromObjective is for backward compatibility
     // New task generation is handled by phase-specific generators

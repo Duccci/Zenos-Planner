@@ -115,4 +115,48 @@ describe('gates-discovery', () => {
     expect(result[2]!.sequence).toBe(3)
     await cleanup()
   })
+
+  it('skips .md files that start with "archive" prefix (line 25 arm=0)', async () => {
+    await setup()
+
+    // 'archive-old.md' ends with .md (passes first check) but starts with 'archive' → skipped
+    await writeFile(
+      join(TEST_DIR, 'zeno', 'gates', 'archive-old.md'),
+      '# Old Archived Gate',
+      'utf-8'
+    )
+    // Valid gate file to ensure discoverGates runs the loop
+    await writeFile(
+      join(TEST_DIR, 'zeno', 'gates', 'gate-02-active.md'),
+      '# Gate 02: Active\n\nDesc',
+      'utf-8'
+    )
+
+    const result = await discoverGates(TEST_DIR)
+
+    expect(result).toHaveLength(1)
+    expect(result[0]!.id).toBe('gate-02')
+    await cleanup()
+  })
+
+  it('uses title-part fallback name and no description when content has no heading or second paragraph (lines 39/42 arm=1)', async () => {
+    await setup()
+
+    // Content with no '# heading' → name falls back to titlePart.replace(/-/g, ' ')
+    // No blank-line-separated paragraph     → desc is undefined
+    await writeFile(
+      join(TEST_DIR, 'zeno', 'gates', 'gate-04-my-feature.md'),
+      'No heading here. Just plain text.',
+      'utf-8'
+    )
+
+    const result = await discoverGates(TEST_DIR)
+
+    expect(result).toHaveLength(1)
+    // titlePart = 'my-feature', hyphens replaced by spaces (line 39 arm=1)
+    expect(result[0]!.name).toBe('my feature')
+    // No second paragraph so description is undefined (line 42 arm=1)
+    expect(result[0]!.description).toBeUndefined()
+    await cleanup()
+  })
 })

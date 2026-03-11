@@ -948,3 +948,114 @@ All existing tests continue to pass unchanged.
     expect(scaffoldWarnings).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// extractScaffoldFingerprints — inline placeholder false-positive regression
+// ---------------------------------------------------------------------------
+
+describe('extractScaffoldFingerprints – inline bracket placeholder lines', () => {
+  it('does not fingerprint a line whose invariant prefix is followed by an inline placeholder', () => {
+    // Template line: diagram path + inline [placeholder] — the prefix is invariant
+    // and MUST remain in real artifacts after the placeholder is filled.
+    const templateSection = `
+## Architecture Updates
+
+- System Overview: \`zeno/architecture/system-overview.md\` - [describe specific changes]
+- Data Flow: \`zeno/architecture/data-flow.md\` - [describe specific changes]
+`.trimStart()
+
+    const specs = parseSectionSpecs(templateSection)
+    const archSpec = specs.find((s) => s.heading === '## Architecture Updates')
+    expect(archSpec).toBeDefined()
+
+    // Neither path prefix should appear as a scaffold fingerprint
+    const fps = archSpec!.scaffoldFingerprints
+    expect(fps.some((fp) => fp.startsWith('System Overview:'))).toBe(false)
+    expect(fps.some((fp) => fp.startsWith('Data Flow:'))).toBe(false)
+  })
+
+  it('does not warn when the invariant path prefix of a diagram line is present after placeholder is filled', () => {
+    const template = `
+## Architecture Updates
+
+- System Overview: \`zeno/architecture/system-overview.md\` - [describe specific changes]
+- Data Flow: \`zeno/architecture/data-flow.md\` - [describe specific changes]
+`.trimStart()
+
+    const specs = parseSectionSpecs(template)
+
+    const artifact = `
+## Architecture Updates
+
+- System Overview: \`zeno/architecture/system-overview.md\` - Add approval workflow module
+- Data Flow: \`zeno/architecture/data-flow.md\` - Add approval/rejection feedback flow
+`.trimStart()
+
+    const result = validateSectionImplementation(artifact, specs)
+    const allMessages = [...(result.errors ?? []), ...(result.warnings ?? [])]
+    expect(allMessages.some((m) => /scaffold/i.test(m))).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// extractScaffoldFingerprints — HTML comment lines are not scaffold
+// ---------------------------------------------------------------------------
+
+describe('extractScaffoldFingerprints – HTML comment process-invariant lines', () => {
+  it('does not fingerprint process-invariant sub-bullets wrapped in HTML comments', () => {
+    // Template wraps "keep verbatim" process rules in HTML comments so they never
+    // become scaffold fingerprints even when gate PRDs copy them verbatim.
+    const templateSection = `
+## Implementation Steps
+
+1. **Define Acceptance Tests**
+   - Write tests that define the gate's acceptance criteria
+   <!-- Tests establish the contract before implementation begins -->
+
+4. **Test Cleanup**
+   <!-- Refine tests, add edge cases, ensure coverage \u226590% -->
+   <!-- Validates all gate deliverables meet quality thresholds -->
+`.trimStart()
+
+    const specs = parseSectionSpecs(templateSection)
+    const implSpec = specs.find((s) => s.heading === '## Implementation Steps')
+    expect(implSpec).toBeDefined()
+
+    const fps = implSpec!.scaffoldFingerprints
+    expect(fps.some((fp) => fp.startsWith('Tests establish the contract'))).toBe(false)
+    expect(fps.some((fp) => fp.startsWith('Refine tests, add edge cases'))).toBe(false)
+    expect(fps.some((fp) => fp.startsWith('Validates all gate deliverables'))).toBe(false)
+  })
+
+  it('does not warn when gate PRD keeps process-invariant sub-bullets verbatim', () => {
+    const template = `
+## Implementation Steps
+
+1. **Define Acceptance Tests**
+   - Write tests that define the gate's acceptance criteria
+   <!-- Tests establish the contract before implementation begins -->
+
+4. **Test Cleanup**
+   <!-- Refine tests, add edge cases, ensure coverage \u226590% -->
+   <!-- Validates all gate deliverables meet quality thresholds -->
+`.trimStart()
+
+    const specs = parseSectionSpecs(template)
+
+    const artifact = `
+## Implementation Steps
+
+1. **Define Acceptance Tests**
+   - Write tests for approval/rejection commands, status tracking, and audit trail
+   - Tests establish the contract before implementation begins
+
+4. **Test Cleanup**
+   - Refine tests, add edge cases, ensure coverage \u226590%
+   - Validates all gate deliverables meet quality thresholds
+`.trimStart()
+
+    const result = validateSectionImplementation(artifact, specs)
+    const allMessages = [...(result.errors ?? []), ...(result.warnings ?? [])]
+    expect(allMessages.some((m) => /scaffold/i.test(m))).toBe(false)
+  })
+})

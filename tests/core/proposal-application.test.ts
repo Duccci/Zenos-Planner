@@ -192,4 +192,60 @@ describe('proposal-application coverage', () => {
 
     expect(result.message).toContain('in progress')
   })
+
+  it('uses "Unknown error" fallback when caught error is not an Error instance (line 96 arm=1)', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    mockFindProposalByHash.mockResolvedValue('/some/path.md')
+    // Reject with a plain string (not an Error) → error instanceof Error = false → 'Unknown error'
+    mockReadFile.mockRejectedValue('plain string error')
+
+    await expect(
+      updateProposalProgress({ hash: 'abc', taskIndex: 0, completed: true })
+    ).rejects.toThrow('Unknown error')
+  })
+
+  it('returns gateStatusUpdated=false when gate file cannot be found (line 126 arm=0)', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    const proposalContent =
+      '# Proposal\n\n**Hash**: #abc123\n**Gate**: gate-01 - Some Gate\n\n- [x] Task 1'
+
+    mockFindProposalByHash.mockResolvedValue('/project/zeno/proposals/gate-01/test.md')
+    mockReadFile.mockResolvedValueOnce(proposalContent)
+    mockUpdateTaskStatus.mockReturnValue(proposalContent)
+    mockCalculateCompletionSummary.mockReturnValue({ tasksCompleted: 1, tasksTotal: 1, filesModified: 0 })
+    mockUpdateCompletionSummary.mockReturnValue(proposalContent + '\n\n## Summary')
+    mockWriteFile.mockResolvedValue(undefined)
+    // findGateByGateId returns null → if (!gatePath) return false (line 126 arm=0)
+    mockFindGateByGateId.mockResolvedValue(null)
+
+    const result = await updateProposalProgress({ hash: 'abc123', taskIndex: 0, completed: true })
+
+    expect(result.gateStatusUpdated).toBe(false)
+  })
+
+  it('returns gateStatusUpdated=false when gate content has no matching hash row (line 136 arm=0)', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    const proposalContent =
+      '# Proposal\n\n**Hash**: #abc123\n**Gate**: gate-01 - Some Gate\n\n- [x] Task 1'
+    // Gate file without a Proposal Status table row containing the hash
+    const gateContentNoRow = '# Gate 01\n\nNo proposal status table here.'
+
+    mockFindProposalByHash.mockResolvedValue('/project/zeno/proposals/gate-01/test.md')
+    mockReadFile
+      .mockResolvedValueOnce(proposalContent)   // read proposal
+      .mockResolvedValueOnce(gateContentNoRow)  // read gate (no matching row)
+    mockUpdateTaskStatus.mockReturnValue(proposalContent)
+    mockCalculateCompletionSummary.mockReturnValue({ tasksCompleted: 1, tasksTotal: 1, filesModified: 0 })
+    mockUpdateCompletionSummary.mockReturnValue(proposalContent + '\n\n## Summary')
+    mockWriteFile.mockResolvedValue(undefined)
+    mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-some-gate.md')
+
+    const result = await updateProposalProgress({ hash: 'abc123', taskIndex: 0, completed: true })
+
+    // rowPattern doesn't match gateContent → return false (line 136 arm=0)
+    expect(result.gateStatusUpdated).toBe(false)
+  })
 })

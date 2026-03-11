@@ -14,6 +14,7 @@ import {
   getTags,
   pushCurrentBranch,
   syncWithGit,
+  applyHashMatchingHeuristics,
 } from '../../src/utils/git.js'
 
 // Use OS temp directory to ensure isolation from parent git repo
@@ -374,5 +375,85 @@ describe('git utilities', () => {
 
       spy.mockRestore()
     })
+  })
+})
+
+describe('applyHashMatchingHeuristics', () => {
+  it('returns direct match at confidence 1.0 when hash appears verbatim in message', () => {
+    const result = applyHashMatchingHeuristics(
+      'feat: implement #g01p02 feature',
+      '#g01p02',
+      'conventional'
+    )
+    expect(result.matchedHashes).toContain('#g01p02')
+    expect(result.confidenceScore).toBe(1.0)
+    expect(result.notes).toBe('Direct hash match in commit message')
+  })
+
+  it('returns clean-hash match at confidence 0.7 when hash appears without # prefix', () => {
+    const result = applyHashMatchingHeuristics(
+      'fix g01p02 issue in module',
+      '#g01p02',
+      'conventional'
+    )
+    expect(result.matchedHashes).toContain('#g01p02')
+    expect(result.confidenceScore).toBe(0.7)
+    expect(result.notes).toBe('Hash match without # prefix')
+  })
+
+  it('returns fuzzy match at confidence 0.6 when message contains hash with last char dropped', () => {
+    // cleanHash = 'g01p02', slice(0,-1) = 'g01p0'
+    const result = applyHashMatchingHeuristics(
+      'fix g01p0 something',
+      '#g01p02',
+      'conventional'
+    )
+    expect(result.matchedHashes).toContain('#g01p02')
+    expect(result.confidenceScore).toBe(0.6)
+    expect(result.notes).toBe('Fuzzy hash match')
+  })
+
+  it('returns fuzzy match at confidence 0.6 when message contains hash with first char dropped', () => {
+    // cleanHash = 'g01p02', slice(1) = '01p02'
+    const result = applyHashMatchingHeuristics(
+      'fix 01p02 something',
+      '#g01p02',
+      'conventional'
+    )
+    expect(result.matchedHashes).toContain('#g01p02')
+    expect(result.confidenceScore).toBe(0.6)
+    expect(result.notes).toBe('Fuzzy hash match')
+  })
+
+  it('skips fuzzy match when clean-hash already matched (matchedHashes non-empty)', () => {
+    // clean hash 'g01p02' matches → matchedHashes has item → fuzzy block is skipped
+    const result = applyHashMatchingHeuristics(
+      'fix g01p02 something',
+      '#g01p02',
+      'conventional'
+    )
+    // Should be clean-hash level, not demoted to fuzzy
+    expect(result.confidenceScore).toBe(0.7)
+  })
+
+  it('returns no match with undefined notes when message is unrelated', () => {
+    const result = applyHashMatchingHeuristics(
+      'chore: update readme',
+      '#g99z99',
+      'conventional'
+    )
+    expect(result.matchedHashes).toHaveLength(0)
+    expect(result.confidenceScore).toBe(0)
+    expect(result.notes).toBeUndefined()
+  })
+
+  it('handles commitFormat with no patterns gracefully', () => {
+    const result = applyHashMatchingHeuristics(
+      'some message without the hash',
+      '#g01p02',
+      'no-pattern-format'
+    )
+    expect(result.matchedHashes).toHaveLength(0)
+    expect(result.confidenceScore).toBe(0)
   })
 })

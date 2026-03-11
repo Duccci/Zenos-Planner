@@ -306,4 +306,35 @@ describe('Handler Factory', () => {
     expect(extractMockResult('string')).toBeNull()
     expect(extractMockResult({ mockResult: undefined })).toBeNull()
   })
+
+  it('createSchemaValidatingHandler returns early with validated data when mockResult matches schema', async () => {
+    // Covers the early-return path: rawMock != null && parsed != null && validated.success == true
+    const registry = { invoke: vi.fn() }
+    const schema = z.object({ ok: z.boolean() })
+    const args = { mockResult: JSON.stringify({ ok: true }) }
+
+    const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
+    const res = await handler(args)
+
+    expect(res.structuredContent).toEqual({ ok: true })
+    // registry.invoke should NOT have been called — early return via mockResult
+    expect(registry.invoke).not.toHaveBeenCalled()
+  })
+
+  it('createBasicHandler returns error envelope when registry returns success: false', async () => {
+    // Covers the else block in createBasicHandler (lines 202-211 approx)
+    const registry = {
+      invoke: vi.fn().mockResolvedValue({
+        success: false,
+        error: { code: 'GATE_NOT_FOUND', message: 'Gate not found', context: {}, timestamp: '2026-01-01T00:00:00Z' },
+      }),
+    }
+    const handler = createBasicHandler(registry as any, 'fn')
+    const res = await handler({})
+
+    expect(res.isError).toBe(true)
+    const text = (res.content[0] as any).text as string
+    expect(text).toContain('GATE_NOT_FOUND')
+    expect(text).toContain('Gate not found')
+  })
 })

@@ -224,6 +224,27 @@ describe('Dependency Graph Utilities', () => {
         getRequirementSubgraph(fullGraph, 'nonexistent')
       }).toThrow()
     })
+
+    it('testGetRequirementSubgraphFiltersCyclesToOnlyThoseWithinSubgraph', () => {
+      const requirements = [
+        createRequirement('hash001', 'req-001', 'Root'),
+        createRequirement('hash002', 'req-002', 'Child', 'functional', 'must', 'hash001'),
+        createRequirement('hash003', 'req-003', 'Sibling root'),
+      ]
+
+      const fullGraph = buildDependencyGraph(requirements)
+      // Manually inject cycles to test the filter branch
+      // Cycle entirely within the subgraph rooted at hash001 → should be kept
+      fullGraph.cycles.push(['hash001', 'hash002'])
+      // Cycle that partially overlaps (hash003 is outside the hash001 subgraph) → should be filtered out
+      fullGraph.cycles.push(['hash001', 'hash003'])
+
+      const subgraph = getRequirementSubgraph(fullGraph, 'hash001')
+
+      expect(subgraph.cycles).toHaveLength(1)
+      expect(subgraph.cycles[0]).toContain('hash001')
+      expect(subgraph.cycles[0]).toContain('hash002')
+    })
   })
 
   describe('graphToAsciiTree', () => {

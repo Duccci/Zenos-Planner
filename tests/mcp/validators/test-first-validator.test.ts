@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tests for test-first-validator
  *
  * Validates the Test-First Gate Pattern enforcement:
@@ -809,7 +809,7 @@ describe('validateRedTestCoverage', () => {
       ],
     }
     const result = validateRedTestCoverage(ctx)
-    // tests/core/extra.test.ts is a test file — ignored; src/core/foo.ts is covered
+    // tests/core/extra.test.ts is a test file ΓÇö ignored; src/core/foo.ts is covered
     expect(result.allowed).toBe(true)
   })
 

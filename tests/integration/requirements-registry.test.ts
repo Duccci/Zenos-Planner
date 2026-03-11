@@ -473,6 +473,94 @@ describe('Requirements Registry wiring', () => {
       expect(result.requirement.acceptance).toBeUndefined()
       expect(result.requirement.parentRequirement).toBeUndefined()
     })
+
+    it('inherit — links requirement to gate and returns success', () => {
+      mockGetRequirementByHash.mockReturnValueOnce({
+        id: 42,
+        hash: '#req001',
+        description: 'A requirement to inherit',
+        gateId: 'gate-01',
+      })
+
+      const result = registry.get('reg_action')?.implementation({
+        action: 'inherit',
+        payload: { hash: '#req001', gateId: 'gate-02' },
+      }) as { success: boolean; requirementHash: string; linkedToGateId: string }
+
+      expect(result.success).toBe(true)
+      expect(result.requirementHash).toBe('#req001')
+      expect(result.linkedToGateId).toBe('gate-02')
+      expect(mockLinkRequirementToGate).toHaveBeenCalledWith(42, 'gate-02')
+    })
+
+    it('inherit — returns error when requirement not found', () => {
+      mockGetRequirementByHash.mockReturnValueOnce(null)
+
+      const result = registry.get('reg_action')?.implementation({
+        action: 'inherit',
+        payload: { hash: '#missing', gateId: 'gate-02' },
+      }) as { success: boolean; error: string }
+
+      expect(result.success).toBe(false)
+      expect(result.error).toMatch(/#missing/)
+    })
+
+    it('trace — returns full traceability info when requirement found', () => {
+      mockGetRequirementByHash.mockReturnValueOnce({
+        hash: '#req001',
+        description: 'Traceable requirement',
+        level: 'gate',
+        type: 'functional',
+        priority: 'must',
+        gateId: 'gate-01',
+        sourceGateId: 'gate-00',
+      })
+      mockGetRequirementAncestors.mockReturnValueOnce([
+        { hash: '#parent', description: 'Parent req', gateId: 'gate-00', level: 'project' },
+      ])
+      mockGetRequirementChildren.mockReturnValueOnce([])
+      mockGetRequirementReferencingGates.mockReturnValueOnce(['gate-01', 'gate-02'])
+
+      const result = registry.get('reg_action')?.implementation({
+        action: 'trace',
+        payload: { hash: '#req001' },
+      }) as { found: boolean; hash: string; ancestors: unknown[]; referencingGates: string[] }
+
+      expect(result.found).toBe(true)
+      expect(result.hash).toBe('#req001')
+      expect(result.ancestors).toHaveLength(1)
+      expect(result.referencingGates).toContain('gate-01')
+    })
+
+    it('trace — returns found: false when requirement not found', () => {
+      mockGetRequirementByHash.mockReturnValueOnce(null)
+
+      const result = registry.get('reg_action')?.implementation({
+        action: 'trace',
+        payload: { hash: '#missing' },
+      }) as { found: boolean; hash: string }
+
+      expect(result.found).toBe(false)
+      expect(result.hash).toBe('#missing')
+    })
+
+    it('list — includes linked requirements when gateId is set', () => {
+      // Make getGateLinkedRequirements return a linked req that is NOT in allRequirements
+      mockGetGateLinkedRequirements.mockReturnValueOnce([
+        { hash: 'linked-req-1', description: 'Linked from another gate' },
+      ])
+      // getProjectLevelRequirements returns empty for project-level query
+      mockGetProjectLevelRequirements.mockReturnValueOnce([])
+
+      const result = registry.get('reg_action')?.implementation({
+        action: 'list',
+        payload: { gateId: 'gate-02' },
+      }) as { requirements: { hash: string; title: string }[]; linkedCount: number }
+
+      // linked req should be included in results
+      expect(result.requirements.some((r) => r.hash === 'linked-req-1')).toBe(true)
+      expect(result.linkedCount).toBeGreaterThanOrEqual(1)
+    })
   })
 
   describe('DB maintenance actions', () => {
@@ -526,6 +614,34 @@ describe('Requirements Registry wiring', () => {
         expect(result.total).toBe(0)
         expect(result.orphaned).toBe(0)
         expect(result.onDisk).toBe(0)
+      })
+
+      it('accumulates count for duplicate status values in byStatus', () => {
+        // Two rows with the same status — second iteration hits the truthy branch of byStatus[row.status] ?? 0
+        mockDbAll.mockReturnValue([
+          { hash: 'p1', status: 'pending', gate_id: null },
+          { hash: 'p2', status: 'pending', gate_id: null },
+        ])
+
+        const result = registry.get('reg_action')?.implementation({
+          action: 'db_status',
+        }) as { byStatus: Record<string, number> }
+
+        expect(result.byStatus['pending']).toBe(2)
+      })
+
+      it('skips archive subdirectory when scanning disk hashes', () => {
+        // Disk has only an 'archive' subdirectory — collectDiskHashes must skip it
+        mockReaddirSyncFs.mockReturnValue(['archive'])
+        mockStatSyncFs.mockReturnValue({ isDirectory: () => true })
+        mockDbAll.mockReturnValue([])
+
+        const result = registry.get('reg_action')?.implementation({
+          action: 'db_status',
+        }) as { onDisk: number; orphaned: number }
+
+        expect(result.onDisk).toBe(0)
+        expect(result.orphaned).toBe(0)
       })
     })
 
@@ -885,6 +1001,92 @@ describe('Requirements Registry wiring', () => {
         // storeRequirement called for project req only (inherited already in DB)
         expect(mockStoreRequirement).toHaveBeenCalledTimes(1)
       })
+
+      it('stores inherited requirement with sourceGateId when not in DB (covers ?? false branch)', () => {
+        // Both graph calls return empty so fallback triggers and nothing re-seeds
+        mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
+
+        // Inherited req is NOT in DB — storeRequirement path executes with defined sourceGateId
+        mockGetRequirementByHash.mockReturnValue(null)
+        mockStoreRequirement.mockReturnValue({
+          id: 'stored-inh-1',
+          hash: 'ac3ffa69e28bfed4',
+          description: 'Create SQLite database',
+          gateId: 'gate-01',
+        })
+
+        mockReaddirSyncFs.mockImplementation((dir: string) => {
+          if (dir.includes('gates')) return ['gate-06.md']
+          return []
+        })
+        mockReadFileSyncFs.mockImplementation((filePath: string) => {
+          if (filePath.includes('gate-06')) {
+            return `# Gate 06\n\n## Requirements\n\n### Inherited/Transferred Requirements\n\n|Hash|Title|Source Gate|Relationship|\n|-|-|-|-|\n|#ac3ffa69e28bfed4|Create SQLite database|gate-01|depends-on|\n\n---\n`
+          }
+          return ''
+        })
+
+        registry.get('reg_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-06' },
+        })
+
+        // storeRequirement called with defined sourceGateId for both owned-by and source_gate_id args
+        expect(mockStoreRequirement).toHaveBeenCalledWith(
+          'Create SQLite database',
+          expect.any(String),
+          expect.any(String),
+          'default-project',
+          'gate-01',
+          undefined,
+          undefined,
+          'gate',
+          'gate-01',
+        )
+      })
+
+      it('stores inherited requirement with undefined sourceGateId when column absent (covers ?? true branch)', () => {
+        mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
+
+        // Inherited req not in DB
+        mockGetRequirementByHash.mockReturnValue(null)
+        mockStoreRequirement.mockReturnValue({
+          id: 'stored-inh-2',
+          hash: 'bb4ecdb42908c10f',
+          description: 'Inherited no source',
+          gateId: null,
+        })
+
+        mockReaddirSyncFs.mockImplementation((dir: string) => {
+          if (dir.includes('gates')) return ['gate-08.md']
+          return []
+        })
+        mockReadFileSyncFs.mockImplementation((filePath: string) => {
+          if (filePath.includes('gate-08')) {
+            // No "Source Gate" column — sourceGateCol will be -1 → sourceGateId = undefined
+            return `# Gate 08\n\n## Requirements\n\n### Inherited/Transferred Requirements\n\n|Hash|Title|\n|-|-|\n|#bb4ecdb42908c10f|Inherited no source|\n\n---\n`
+          }
+          return ''
+        })
+
+        registry.get('reg_action')?.implementation({
+          action: 'list',
+          payload: { gateId: 'gate-08' },
+        })
+
+        // storeRequirement called with undefined for both sourceGateId positions
+        expect(mockStoreRequirement).toHaveBeenCalledWith(
+          'Inherited no source',
+          expect.any(String),
+          expect.any(String),
+          'default-project',
+          undefined,
+          undefined,
+          undefined,
+          'gate',
+          undefined,
+        )
+      })
     })
   })
 })
@@ -1041,6 +1243,25 @@ Some overview text.
       source: 'project',
       sourceGateId: undefined,
     })
+  })
+
+  it('treats table header with Hash but no Name/Title column as not a valid table', () => {
+    // nameCol === -1 → inTable stays false → no data rows parsed
+    const content = `# Gate
+
+## Requirements
+
+### Project Requirements
+
+|Hash|Description|Type|Priority|
+|-|-|-|-|
+|#abcdef0123456789|Some requirement|functional|must|
+
+## Architecture
+`
+    const result = parseGateRequirementsFromMarkdown(content)
+    // 'Description' doesn't match /(name|title)/i → nameCol = -1 → inTable = false
+    expect(result).toHaveLength(0)
   })
 
   it('defaults to functional/must for invalid type/priority values', () => {

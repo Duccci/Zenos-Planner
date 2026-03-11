@@ -9,6 +9,9 @@ const mockSaveProjectOverview = vi.fn()
 const mockGetGatesFromOverview = vi.fn()
 const mockExistsSync = vi.fn()
 const mockReaddirSync = vi.fn()
+const mockFindGateByGateId = vi.fn().mockResolvedValue(null)
+const mockReadFileFsPromises = vi.fn().mockResolvedValue('')
+const mockSyncProposalsFromDisk = vi.fn()
 
 vi.mock('../../src/storage/database.js', () => ({
   getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
@@ -32,6 +35,26 @@ vi.mock('node:fs', () => ({
 
 vi.mock('../../src/integration/command-invoker.js', () => ({
   invokeCommand: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+vi.mock('../../src/utils/artifact-locator.js', () => ({
+  findGateByGateId: (...args: unknown[]) => mockFindGateByGateId(...args),
+}))
+
+vi.mock('node:fs/promises', () => ({
+  readFile: (...args: unknown[]) => mockReadFileFsPromises(...args),
+}))
+
+vi.mock('../../src/storage/proposal-sync.js', () => ({
+  syncProposalsFromDisk: (...args: unknown[]) => mockSyncProposalsFromDisk(...args),
+}))
+
+vi.mock('../../src/generation/requirement-storage.js', () => ({
+  RequirementStorage: class {
+    buildRequirementGraph() {
+      return { nodes: new Map() }
+    }
+  },
 }))
 
 vi.mock('../../src/core/completions.js', () => ({
@@ -73,6 +96,10 @@ describe('gates-registry coverage', () => {
     mockGetGatesFromOverview.mockReturnValue([])
     mockExistsSync.mockReturnValue(false)
     mockReaddirSync.mockReturnValue([])
+    // Default: no gate file found, empty file content
+    mockFindGateByGateId.mockResolvedValue(null)
+    mockReadFileFsPromises.mockResolvedValue('')
+    mockSyncProposalsFromDisk.mockReturnValue(undefined)
 
     registerGatesOps(registry)
   })
@@ -274,6 +301,49 @@ describe('gates-registry coverage', () => {
       expect(result.success).toBe(true)
       expect(result.data.lastUpdated).toBeTruthy()
       expect(typeof result.data.lastUpdated).toBe('string')
+    })
+
+    it('parses pending and completed objectives from gate PRD file', async () => {
+      const gateSummary = { id: 'gate-01', name: 'Setup', hash: 'h1', status: 'completed', sequence: 1 }
+      mockReadProjectOverview.mockResolvedValue({})
+      mockGetGatesFromOverview.mockReturnValue([gateSummary])
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-setup.md')
+      mockReadFileFsPromises.mockResolvedValue(
+        '# Gate 01: Setup\n\n## Overview\n\nInitial project setup\n\n## Objectives\n\n- [ ] Configure tooling\n- [x] Create repository\n\n## Requirements\n'
+      )
+
+      const result = (await registry.invoke('gates_show', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { description: string; objectives: Array<{ title: string; completed: boolean }> }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.description).toBe('Initial project setup')
+      expect(result.data.objectives.some((o) => o.completed === false && o.title === 'Configure tooling')).toBe(true)
+      expect(result.data.objectives.some((o) => o.completed === true && o.title === 'Create repository')).toBe(true)
+    })
+
+    it('normalizes invalid proposal status to pending', async () => {
+      const gateSummary = { id: 'gate-01', name: 'Setup', hash: 'h1', status: 'completed', sequence: 1 }
+      mockReadProjectOverview.mockResolvedValue({})
+      mockGetGatesFromOverview.mockReturnValue([gateSummary])
+      mockPrepare.mockReturnValue({
+        get: vi.fn().mockReturnValue(null),
+        all: vi.fn().mockReturnValue([
+          { hash: 'p1', title: 'Valid Proposal', status: 'in_progress' },
+          { hash: 'p2', title: 'Bad Status', status: 'unknown_status_xyz' },
+          { hash: '', title: 'No Hash', status: 'pending' }, // filtered out
+        ]),
+      })
+
+      const result = (await registry.invoke('gates_show', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { proposals: Array<{ hash: string; status: string }> }
+      }
+      expect(result.success).toBe(true)
+      const p2 = result.data.proposals.find((p) => p.hash === 'p2')
+      expect(p2?.status).toBe('pending')
+      const p1 = result.data.proposals.find((p) => p.hash === 'p1')
+      expect(p1?.status).toBe('in_progress')
     })
   })
 

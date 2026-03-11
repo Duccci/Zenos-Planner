@@ -272,6 +272,15 @@ describe('Proposal Action Dispatcher', () => {
         assumptionsDocumented: [],
         blockersIdentified: [],
       },
+      qualitativeReview: {
+        taskDescriptionsSpecific: true,
+        acceptanceCriteriaMeasurable: true,
+        filesAffectedVerified: true,
+        noUnresolvedMarkers: true,
+        scopeFocused: true,
+        rollbackSpecific: true,
+        flaggedItems: [],
+      },
     })
 
     expect(result.content).toBeDefined()
@@ -443,6 +452,15 @@ describe('Gates Action Dispatcher', () => {
     const result = await handlers.gates_action({
       action: 'start',
       gateId: 'gate-03',
+      qualitativeReview: {
+        objectivesConfirmed: true,
+        requirementsMapped: true,
+        proposalCountAppropriate: true,
+        testFirstOrderingVerified: true,
+        dependenciesConfirmed: true,
+        scopeAchievable: true,
+        flaggedItems: [],
+      },
     })
 
     expect(result.content).toBeDefined()

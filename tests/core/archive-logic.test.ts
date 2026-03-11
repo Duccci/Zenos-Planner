@@ -234,6 +234,25 @@ describe('archiveBatch', () => {
     expect(commitCall?.commitMessage).toContain('Notes: batch notes');
   });
 
+  it('handles proposal failure with non-Error exception (lines 381/382/387 arm=1)', async () => {
+    // Failing artifact is a PROPOSAL (not gate) with a non-Error thrown:
+    // - artifactId = artifact.proposalHash (arm=1 for line 381)
+    // - errorMsg = String(error) (arm=1 for line 382: error instanceof Error = false)
+    // - artifactType = 'proposal' (arm=1 for line 387)
+    vi.mocked(validateProposalReady).mockRejectedValue('plain string error — not an Error')
+
+    const artifacts = [{ type: 'proposal' as const, proposalHash: 'p-fail-hash' }]
+    const result = await archiveBatch(artifacts)
+
+    expect(result.success).toBe(false)
+    expect(result.results[0]).toMatchObject({
+      success: false,
+      artifactType: 'proposal',
+      artifactId: 'p-fail-hash',
+      error: 'plain string error — not an Error',
+    })
+  });
+
   it('handles mixed gate and proposal artifacts', async () => {
     // Ensure readdir is mocked to return empty array (no duplicates)
     vi.mocked(readdir).mockResolvedValue([]);
@@ -467,4 +486,20 @@ No double newline here`;
     expect(result.success).toBe(true);
     expect(writeFile).toHaveBeenCalled();
   });
+
+  it('inserts changelog entry when arch file has existing changelog with blank-line separator', async () => {
+    // Covers lines 108-111: else branch where ## Changelog exists AND the regex (## Changelog)\n\n matches
+    const archContentWithChangelog =
+      '# System Overview\n**Last Updated**: 2026-02-23\n\n## Changelog\n\n- Previous entry\n'
+    vi.mocked(readFile)
+      .mockResolvedValueOnce('# Gate 01') // first call: gate PRD
+      .mockResolvedValueOnce(archContentWithChangelog) // second call: arch file
+    vi.mocked(existsSync).mockReturnValue(true)
+
+    const result = await archiveGate('gate-01')
+
+    expect(result.success).toBe(true)
+    // writeFile is called at least once (arch file update with inserted changelog entry)
+    expect(writeFile).toHaveBeenCalled()
+  })
 });

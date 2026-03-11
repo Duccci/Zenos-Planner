@@ -114,6 +114,15 @@ describe('Action Tool Config Integration', () => {
           assumptionsDocumented: [],
           blockersIdentified: [],
         },
+        qualitativeReview: {
+          taskDescriptionsSpecific: true,
+          acceptanceCriteriaMeasurable: true,
+          filesAffectedVerified: true,
+          noUnresolvedMarkers: true,
+          scopeFocused: true,
+          rollbackSpecific: true,
+          flaggedItems: [],
+        },
       })
 
       const parsed = JSON.parse((result.content[0] as any).text)
@@ -295,6 +304,15 @@ describe('Action Tool Config Integration', () => {
           assumptionsDocumented: [],
           blockersIdentified: [],
         },
+        qualitativeReview: {
+          taskDescriptionsSpecific: true,
+          acceptanceCriteriaMeasurable: true,
+          filesAffectedVerified: true,
+          noUnresolvedMarkers: true,
+          scopeFocused: true,
+          rollbackSpecific: true,
+          flaggedItems: [],
+        },
       })
 
       // Should still work but with warnings
@@ -355,6 +373,15 @@ describe('Action Tool Config Integration', () => {
           filesVerified: true,
           assumptionsDocumented: [],
           blockersIdentified: [],
+        },
+        qualitativeReview: {
+          taskDescriptionsSpecific: true,
+          acceptanceCriteriaMeasurable: true,
+          filesAffectedVerified: true,
+          noUnresolvedMarkers: true,
+          scopeFocused: true,
+          rollbackSpecific: true,
+          flaggedItems: [],
         },
       })
 

@@ -231,7 +231,37 @@ describe('Gate Schemas', () => {
   describe('gates_start', () => {
     it('should validate gates_start input', () => {
       const input = {
-        gateId: 'gate-02'
+        gateId: 'gate-02',
+        qualitativeReview: {
+          objectivesConfirmed: true,
+          requirementsMapped: true,
+          proposalCountAppropriate: true,
+          testFirstOrderingVerified: true,
+          dependenciesConfirmed: true,
+          scopeAchievable: true,
+          flaggedItems: [],
+        },
+      }
+      expect(() => gate.GatesStartInputSchema.parse(input)).not.toThrow()
+    })
+
+    it('should require qualitativeReview in gates_start input', () => {
+      const input = { gateId: 'gate-02' }
+      expect(() => gate.GatesStartInputSchema.parse(input)).toThrow()
+    })
+
+    it('should validate gates_start input with flagged items', () => {
+      const input = {
+        gateId: 'gate-02',
+        qualitativeReview: {
+          objectivesConfirmed: true,
+          requirementsMapped: false,
+          proposalCountAppropriate: true,
+          testFirstOrderingVerified: true,
+          dependenciesConfirmed: true,
+          scopeAchievable: true,
+          flaggedItems: ['Requirement R-04 lacks acceptance criteria'],
+        },
       }
       expect(() => gate.GatesStartInputSchema.parse(input)).not.toThrow()
     })
@@ -242,6 +272,17 @@ describe('Gate Schemas', () => {
         previousStatus: 'pending',
         newStatus: 'in_progress',
         startedAt: new Date().toISOString()
+      }
+      expect(() => gate.GatesStartOutputSchema.parse(output)).not.toThrow()
+    })
+
+    it('should validate gates_start output with reviewWarnings', () => {
+      const output = {
+        gateId: 'gate-02',
+        previousStatus: 'pending',
+        newStatus: 'in_progress',
+        startedAt: new Date().toISOString(),
+        reviewWarnings: ['requirementsMapped=false: some requirements lack testable deliverables'],
       }
       expect(() => gate.GatesStartOutputSchema.parse(output)).not.toThrow()
     })
@@ -300,7 +341,7 @@ describe('Gate Schemas', () => {
         nextRequiredStep: {
           blocking: true,
           action: 'qualitative-review',
-          description: 'Structural checks passed. Qualitative review is MANDATORY before calling gates_action:start.',
+          description: 'Structural checks passed. Evaluate the checklist and call gates_action:start { gateId, qualitativeReview: { objectivesConfirmed, requirementsMapped, proposalCountAppropriate, testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems } }.',
           checklist: ['Gate objectives are still current.'],
         },
       }
@@ -487,6 +528,51 @@ describe('Proposal Schemas', () => {
         ]
       }
       expect(() => proposal.ProposalValidateOutputSchema.parse(output)).not.toThrow()
+    })
+  })
+
+  describe('proposal_start', () => {
+    const validQualitativeReview = {
+      taskDescriptionsSpecific: true,
+      acceptanceCriteriaMeasurable: true,
+      filesAffectedVerified: true,
+      noUnresolvedMarkers: true,
+      scopeFocused: true,
+      rollbackSpecific: true,
+      flaggedItems: [],
+    }
+
+    it('should accept valid start input with qualitativeReview', () => {
+      const input = { hash: 'g03p01ab', qualitativeReview: validQualitativeReview }
+      expect(() => proposal.ProposalStartInputSchema.parse(input)).not.toThrow()
+    })
+
+    it('should reject start input missing qualitativeReview', () => {
+      const input = { hash: 'g03p01ab' }
+      expect(() => proposal.ProposalStartInputSchema.parse(input)).toThrow()
+    })
+
+    it('should accept qualitativeReview with false booleans and flagged items', () => {
+      const input = {
+        hash: 'g03p01ab',
+        qualitativeReview: {
+          ...validQualitativeReview,
+          noUnresolvedMarkers: false,
+          flaggedItems: ['TODO markers found in task 3'],
+        },
+      }
+      expect(() => proposal.ProposalStartInputSchema.parse(input)).not.toThrow()
+    })
+
+    it('should validate start output with reviewWarnings', () => {
+      const output = {
+        hash: 'g03p01ab',
+        previousStatus: 'validated',
+        newStatus: 'in_progress',
+        startedAt: new Date().toISOString(),
+        reviewWarnings: ['noUnresolvedMarkers is false'],
+      }
+      expect(() => proposal.ProposalStartOutputSchema.parse(output)).not.toThrow()
     })
   })
 
@@ -695,7 +781,18 @@ describe('Schema Integration', () => {
     expect(() => gate.GatesShowInputSchema.parse(showInput)).not.toThrow()
 
     // Start gate
-    const startInput = { gateId: 'gate-02' }
+    const startInput = {
+      gateId: 'gate-02',
+      qualitativeReview: {
+        objectivesConfirmed: true,
+        requirementsMapped: true,
+        proposalCountAppropriate: true,
+        testFirstOrderingVerified: true,
+        dependenciesConfirmed: true,
+        scopeAchievable: true,
+        flaggedItems: [],
+      },
+    }
     expect(() => gate.GatesStartInputSchema.parse(startInput)).not.toThrow()
   })
 

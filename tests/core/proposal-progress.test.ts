@@ -183,4 +183,22 @@ describe('extractAllCompletedTaskFiles', () => {
     const files = extractAllCompletedTaskFiles(content)
     expect(files).toEqual([])
   })
+
+  it('caps task section end at a ## non-task heading so files outside are excluded', () => {
+    // The ## boundary branch (lines ~168-171) is only hit when a ## heading follows a task section
+    const content = [
+      '# Proposal',
+      '',
+      '### Task 1: Do work',
+      '**File(s)**: `src/a.ts`',
+      '- [x] Done',
+      '',
+      '## Implementation Notes',
+      'Extra content not part of task',
+    ].join('\n')
+
+    const files = extractAllCompletedTaskFiles(content)
+    // Task 1 is fully completed and its file should be included
+    expect(files).toContain('src/a.ts')
+  })
 })

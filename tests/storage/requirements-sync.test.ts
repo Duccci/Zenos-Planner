@@ -9,7 +9,7 @@
  * 5. syncRequirementsFromDisk is a no-op when the manifest file does not exist
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mkdir, rm, readFile as fsReadFile, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -325,5 +325,88 @@ describe('requirements-sync', () => {
     const solRow = rows.find((r) => r.id === 'solitary-req-001')
     expect(solRow?.description).toBe('Solitary proposal req')
     expect(solRow?.gate_id).toBeNull()
+  })
+
+  // ---------------------------------------------------------------------------
+  // Edge case branches
+  // ---------------------------------------------------------------------------
+
+  it('uses fallback level "gate" and source "generated" when DB rows have null values (lines 108/115 arm=1)', async () => {
+    await mkdir(join(TEST_DIR, 'zeno', '.zeno'), { recursive: true })
+
+    // Fake DB returning a row with null level and source to trigger ?? fallbacks
+    const fakeDb = {
+      prepare: () => ({
+        all: () => [{
+          id: 'r-null-fields',
+          project_id: 'proj',
+          gate_id: null,
+          parent_id: null,
+          project_requirement_id: null,
+          level: null,       // r.level ?? 'gate' arm=1
+          source_gate_id: null,
+          type: 'functional',
+          priority: 'must',
+          description: 'Null fields req',
+          acceptance_criteria: null,
+          hash: 'nullhash',
+          source: null,      // r.source ?? 'generated' arm=1
+          created_at: new Date().toISOString(),
+        }],
+      }),
+    } as any
+
+    writeRequirementsManifest(fakeDb, TEST_DIR)
+
+    const manifest = await readManifest()
+    expect(manifest.requirements[0]!.level).toBe('gate')
+    expect(manifest.requirements[0]!.source).toBe('generated')
+  })
+
+  it('logs console.warn with Error message when writeRequirementsManifest throws an Error (line 124 arm=0)', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // DB mock that throws an Error during prepare().all()
+    const fakeDb = {
+      prepare: () => ({ all: () => { throw new Error('db prepare failed') } }),
+    } as any
+
+    writeRequirementsManifest(fakeDb, '/totally-invalid-root-for-coverage')
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('db prepare failed'))
+    consoleSpy.mockRestore()
+  })
+
+  it('logs console.warn with String() when writeRequirementsManifest throws a non-Error (line 124 arm=1)', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // DB mock that throws a plain string rather than an Error
+    const fakeDb = {
+      prepare: () => ({ all: () => { throw 'plain string error' } }),
+    } as any
+
+    writeRequirementsManifest(fakeDb, '/totally-invalid-root-for-coverage')
+
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('plain string error'))
+    consoleSpy.mockRestore()
+  })
+
+  it('returns early without inserting when manifest has empty requirements array (line 161 arm=0)', async () => {
+    const emptyManifest: RequirementsManifest = {
+      version: 1,
+      updatedAt: new Date().toISOString(),
+      requirements: [],  // length === 0 → if() TRUE → return
+    }
+
+    await mkdir(join(TEST_DIR, 'zeno', '.zeno'), { recursive: true })
+    await writeFile(manifestPath(), JSON.stringify(emptyManifest), 'utf-8')
+
+    await initializeDatabase(TEST_DIR)
+    const db = getDatabase(TEST_DIR)
+
+    syncRequirementsFromDisk(db, TEST_DIR)
+
+    const count = (
+      db.prepare('SELECT COUNT(*) as c FROM requirements').get() as { c: number }
+    ).c
+    expect(count).toBe(0)
   })
 })

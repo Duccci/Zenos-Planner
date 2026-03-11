@@ -37,6 +37,13 @@ const mockRejectProposal = vi.fn()
 const mockStartProposal = vi.fn()
 const mockRun = vi.fn()
 const mockWriteFile = vi.fn()
+const mockReadFileSync = vi.fn()
+const mockWriteFileSync = vi.fn()
+
+vi.mock('node:fs', () => ({
+  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
+  writeFileSync: (...args: unknown[]) => mockWriteFileSync(...args),
+}))
 
 vi.mock('../../src/storage/database.js', () => ({
   getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
@@ -129,6 +136,8 @@ describe('proposals-registry operations', () => {
     mockGet.mockReturnValue(undefined)
     mockRun.mockReturnValue({})
     mockWriteFile.mockResolvedValue(undefined)
+    mockReadFileSync.mockReturnValue('')
+    mockWriteFileSync.mockReturnValue(undefined)
     mockInvokeCommand.mockResolvedValue({ success: true })
     mockApproveProposal.mockResolvedValue({})
     mockRejectProposal.mockResolvedValue({})
@@ -627,6 +636,33 @@ describe('proposals-registry operations', () => {
       // Should not propagate ENOENT - it's expected and handled silently
       expect(result.success).toBe(true)
     })
+
+    it('propagates error when status UPDATE throws during advance to validated', async () => {
+      mockGet.mockReturnValue({
+        hash: 'abc12345',
+        title: 'Valid Proposal',
+        dependencies: null,
+        gate_id: 'gate-01',
+        quality_metrics: null,
+        files_affected: null,
+        created_at: '2026-01-01T00:00:00Z',
+        // no status → defaults to 'pending', satisfies advance-to-validated condition
+      })
+      mockFindProposalByHash.mockResolvedValue(null)
+      // Make only the UPDATE validate-status run throw; other prepare().run() calls succeed
+      mockPrepare.mockImplementation((sql: string) => {
+        if (typeof sql === 'string' && sql.includes("UPDATE proposals SET status = 'validated'")) {
+          return { run: vi.fn(() => { throw new Error('DB write failed') }), get: mockGet, all: mockAll }
+        }
+        return { run: mockRun, get: mockGet, all: mockAll }
+      })
+
+      const result = (await registry.invoke('proposal_validate', { hash: 'abc12345' })) as {
+        success: boolean
+      }
+      // Error rethrown from the catch block (line 1169 in proposals-registry.ts)
+      expect(result.success).toBe(false)
+    })
   })
 
   // -------------------------------------------------------------------------
@@ -743,6 +779,34 @@ describe('proposals-registry operations', () => {
       expect(data.hash).toBe('abc12345')
       expect(data.newStatus).toBe('completed')
       expect(data.approvedAt).toBeDefined()
+    })
+
+    it('approve with writeback: true patches Status field in the proposal file', async () => {
+      mockGet.mockReturnValue({
+        hash: 'abc12345',
+        dependencies: null,
+        gate_id: 'gate-01',
+        quality_metrics: null,
+        files_affected: null,
+      })
+      mockValidateApplyPhase.mockReturnValue({ allowed: true, warnings: [] })
+      mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
+      mockApproveProposal.mockResolvedValue({})
+      mockFindProposalByHash.mockResolvedValue('/tmp/proposals/gate-01/my-proposal.md')
+      mockReadFileSync.mockReturnValue('**Status**: in_progress\n## Summary\nTest content')
+
+      const result = (await registry.invoke('proposal_approve', { hash: 'abc12345', writeback: true })) as {
+        success: boolean
+        data: unknown
+      }
+      expect(result.success).toBe(true)
+      const data = result.data as { wroteBack: boolean }
+      expect(data.wroteBack).toBe(true)
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        '/tmp/proposals/gate-01/my-proposal.md',
+        '**Status**: completed\n## Summary\nTest content',
+        'utf-8'
+      )
     })
   })
 

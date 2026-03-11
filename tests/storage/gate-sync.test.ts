@@ -174,4 +174,71 @@ describe('gate-sync', () => {
     const result = syncGatesFromDisk(db, TEST_DIR)
     expect(result.synced).toBe(2)
   })
+
+  it('uses fallback name/status/type/sequence from body when optional fields absent', async () => {
+    // Minimal body: only hash field — no H1, no Status, no Type, no Sequence
+    // This triggers all the ?.(1].trim() ?? fallback branches in parseGateBodyFields
+    const minimalBody = '**Hash**: #minbody1\n\nSome description.\n'
+    await writeFile(join(GATES_DIR, 'gate-03-minimal.md'), minimalBody)
+    const db = getDatabase(TEST_DIR)
+    const result = syncGatesFromDisk(db, TEST_DIR)
+    expect(result.synced).toBe(1)
+    const row = db.prepare('SELECT id, name, status, type, sequence FROM gates WHERE id = ?').get('gate-03') as {
+      id: string; name: string; status: string; type: string; sequence: number
+    } | undefined
+    // name falls back to fileBase (gate-03-minimal)
+    expect(row?.name).toBe('gate-03-minimal')
+    // status falls back to 'pending'
+    expect(row?.status).toBe('pending')
+    // type falls back to 'feature'
+    expect(row?.type).toBe('feature')
+    // sequence falls back to 0
+    expect(row?.sequence).toBe(0)
+  })
+
+  it('uses default project_id when frontmatter omits project_id', async () => {
+    const fmWithoutProjectId = `---
+zeno:
+  id: gate-04
+  name: No Project Gate
+  sequence: 4
+  type: feature
+  status: pending
+  hash: gate04xxhash
+---
+
+# Gate 4: No Project Gate
+`
+    await writeFile(join(GATES_DIR, 'gate-04-no-project.md'), fmWithoutProjectId)
+    const db = getDatabase(TEST_DIR)
+    syncGatesFromDisk(db, TEST_DIR)
+    const row = db.prepare('SELECT id FROM gates WHERE id = ?').get('gate-04') as { id: string } | undefined
+    // Row was inserted with default project_id
+    expect(row?.id).toBe('gate-04')
+  })
+
+  it('stores depends_on as JSON when frontmatter has non-empty depends_on array', async () => {
+    const fmWithDepsOn = `---
+zeno:
+  id: gate-05
+  name: Gate With Deps
+  sequence: 5
+  type: feature
+  status: pending
+  hash: gate05xxhash
+  project_id: default-project
+  depends_on:
+    - gate-04
+---
+
+# Gate 5: Gate With Deps
+`
+    await writeFile(join(GATES_DIR, 'gate-05-with-deps.md'), fmWithDepsOn)
+    const db = getDatabase(TEST_DIR)
+    syncGatesFromDisk(db, TEST_DIR)
+    const row = db.prepare('SELECT depends_on FROM gates WHERE id = ?').get('gate-05') as
+      { depends_on: string | null } | undefined
+    // depends_on serialized as JSON string
+    expect(row?.depends_on).toBe('["gate-04"]')
+  })
 })

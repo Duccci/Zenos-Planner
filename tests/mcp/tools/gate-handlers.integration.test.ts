@@ -52,10 +52,24 @@ describe('Gate Handlers Integration', () => {
   })
 
   it('parses and validates gates_start output on success', async () => {
-    const mockData = { gateId: 'gate-01', previousStatus: 'pending' as const, newStatus: 'in_progress' as const, startedAt: new Date().toISOString() }
-    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
+    const showData = { id: 'gate-01', status: 'validated' }
+    const startData = { gateId: 'gate-01', previousStatus: 'validated' as const, newStatus: 'in_progress' as const, startedAt: new Date().toISOString() }
+    const fakeRegistry: any = {
+      invoke: vi.fn()
+        .mockResolvedValueOnce({ success: true, data: showData })   // gates_show
+        .mockResolvedValueOnce({ success: true, data: startData }), // gates_start
+    }
     const handlers = gateHandlers(fakeRegistry)
-    const res = await handlers.gates_action({ action: 'start', payload: { gateId: 'gate-01' } })
+    const qualitativeReview = {
+      objectivesConfirmed: true,
+      requirementsMapped: true,
+      proposalCountAppropriate: true,
+      testFirstOrderingVerified: true,
+      dependenciesConfirmed: true,
+      scopeAchievable: true,
+      flaggedItems: [],
+    }
+    const res = await handlers.gates_action({ action: 'start', payload: { gateId: 'gate-01', qualitativeReview } })
     expect(res.content[0]?.text).toBeDefined()
   })
 
@@ -157,7 +171,7 @@ describe('Gate Handlers Integration', () => {
     expect(result?.passed).toBe(true)
     // Passed path strips all-true checks noise; nextRequiredStep carries the qualitative review mandate
     expect(result?.nextRequiredStep).toBeDefined()
-    expect(result?.nextRequiredStep?.action).toBe('qualitative-review')
+    expect(result?.nextRequiredStep?.action).toBe('submit-qualitative-review')
     expect(result?.nextRequiredStep?.checklist).toBeDefined()
   })
 
@@ -303,5 +317,46 @@ describe('Gate Handlers Integration', () => {
     const res = await handlers.gates_action({ action: 'complete', gateId: 'gate-06' })
     expect(res).toBeDefined()
     // Check ran: result is either success or validation error (test-first may fail without suite role)
+  })
+
+  // ─── create validator dependency branches (lines 527, 534) ────────────────
+
+  it('create validator processes gates with array dependencies (branch 527 true side, 534 true side)', async () => {
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'config_get') return { success: true, data: {} }
+        if (name === 'gates_list') return {
+          success: true,
+          data: [
+            { id: 'gate-01', dependencies: ['gate-00'] },
+            { id: 'gate-02', dependencies: [] },
+          ],
+        }
+        if (name === 'gate_create') return { success: true, data: { gateId: 'gate-05', name: 'New Gate' } }
+        return { success: true, data: {} }
+      }),
+    }
+    const handlers = gateHandlers(fakeRegistry)
+    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New Gate', dependencies: ['gate-01'] })
+    expect(res).toBeDefined()
+  })
+
+  it('create validator handles gate with non-array dependencies and payload without dependencies (branch 527 false side, 534 false side)', async () => {
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'config_get') return { success: true, data: {} }
+        if (name === 'gates_list') return {
+          success: true,
+          // gate has dependencies as a non-array value (fallback to [])
+          data: [{ id: 'gate-01', dependencies: null }],
+        }
+        if (name === 'gate_create') return { success: true, data: { gateId: 'gate-05', name: 'New Gate' } }
+        return { success: true, data: {} }
+      }),
+    }
+    const handlers = gateHandlers(fakeRegistry)
+    // payload has no dependencies field (rawDeps is undefined → not an array → payloadDeps=[])
+    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New Gate' })
+    expect(res).toBeDefined()
   })
 })

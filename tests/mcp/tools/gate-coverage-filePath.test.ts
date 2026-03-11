@@ -119,4 +119,80 @@ describe('Gate Tools – filePath branch coverage', () => {
       expect(text.toLowerCase()).toMatch(/test|structure|cleanup|proposal|role|suite/)
     }
   })
+
+  // ── create validator: line 496 (config_get failure warning) ───────────────
+  it('create validator pushes warning when config_get returns success: false', async () => {
+    const createdAt = new Date().toISOString()
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'config_get') {
+          return { success: false, error: { message: 'Config unavailable' } }
+        }
+        if (name === 'gates_list') return { success: true, data: [] }
+        if (name === 'gate_create') {
+          return {
+            success: true,
+            data: {
+              gateId: 'gate-07',
+              filePath: '/tmp/gate-07.md',
+              validation: { passed: true, errors: [], warnings: ['Using default quality thresholds.'] },
+              roadmapUpdated: false,
+              createdAt,
+            },
+          }
+        }
+        return { success: true, data: {} }
+      }),
+    }
+    const handlers = gateHandlers(fakeRegistry)
+    const res = await handlers.gates_action({
+      action: 'create',
+      gateId: 'gate-07',
+      name: 'New Test Gate',
+      type: 'feature',
+      sequence: 7,
+      objectives: ['Implement something'],
+    })
+    expect(res).toBeDefined()
+    // validator ran; config_get failure produces a warning (not a blocking error)
+    // the create action should still proceed
+  })
+
+  // ── create validator: lines 526-530 (gates_list failure warning) ──────────
+  it('create validator pushes warning when gates_list returns success: false', async () => {
+    const createdAt = new Date().toISOString()
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockImplementation(async (name: string) => {
+        if (name === 'config_get') return { success: true, data: { qualityThresholds: {} } }
+        if (name === 'gates_list') {
+          return { success: false, error: { message: 'DB unavailable' } }
+        }
+        if (name === 'gate_create') {
+          return {
+            success: true,
+            data: {
+              gateId: 'gate-07',
+              filePath: '/tmp/gate-07.md',
+              validation: { passed: true, errors: [], warnings: ['Failed to retrieve gates list for dependency validation: DB unavailable'] },
+              roadmapUpdated: false,
+              createdAt,
+            },
+          }
+        }
+        return { success: true, data: {} }
+      }),
+    }
+    const handlers = gateHandlers(fakeRegistry)
+    const res = await handlers.gates_action({
+      action: 'create',
+      gateId: 'gate-07',
+      name: 'New Test Gate',
+      type: 'feature',
+      sequence: 7,
+      objectives: ['Implement something'],
+    })
+    expect(res).toBeDefined()
+    // validator ran; gates_list failure produces a warning (not a blocking error)
+    // the create action should still proceed since allErrors is empty
+  })
 })

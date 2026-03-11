@@ -163,4 +163,27 @@ describe('DiagramSelector', () => {
     const all = selector.selectAll(['sequence'], 'gate-01', descriptors)
     expect(all.length).toBe(6) // 5 core + 1 conditional
   })
+
+  it('selectConditionalDiagrams returns deployment generator', () => {
+    const generators = selector.selectConditionalDiagrams(['deployment'], 'gate-01')
+    expect(generators).toHaveLength(1)
+    expect(generators[0].getType()).toBe('deployment')
+  })
+
+  it('selectConditionalDiagrams returns network generator', () => {
+    const generators = selector.selectConditionalDiagrams(['network'], 'gate-01')
+    expect(generators).toHaveLength(1)
+    expect(generators[0].getType()).toBe('network')
+  })
+
+  it('selectConditionalDiagrams returns all conditional types', () => {
+    const generators = selector.selectConditionalDiagrams(
+      ['sequence', 'component', 'package', 'deployment', 'network'],
+      'gate-01'
+    )
+    expect(generators).toHaveLength(5)
+    const types = generators.map((g) => g.getType())
+    expect(types).toContain('deployment')
+    expect(types).toContain('network')
+  })
 })

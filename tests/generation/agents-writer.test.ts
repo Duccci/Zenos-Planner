@@ -73,4 +73,29 @@ describe('Agents Writer', () => {
     expect(writtenContent).toContain(ZENO_BLOCK_START)
     expect(writtenContent).toContain(INNER)
   })
+
+  it('uses fallback project name "Project" when inner content has no **Project** field', async () => {
+    ;(readFile as any).mockRejectedValue(new Error('File not found'))
+    const innerWithoutProject = '## Zeno Planner: MCP Tool Dispatch\n**Last Updated**: 2024-01-01'
+    const basePath = '/project'
+
+    await writeAgentsMD(innerWithoutProject, basePath)
+
+    const [, writtenContent] = mockWriteFile.mock.calls[0] as [string, string]
+    // Shell header should use fallback name "Project"
+    expect(writtenContent).toContain('Project')
+    expect(writtenContent).toContain(ZENO_BLOCK_START)
+  })
+
+  it('appends block with double newline separator when existing content does not end with newline', async () => {
+    ;(readFile as any).mockResolvedValue('# Existing AGENTS\n\nNo trailing newline')
+    const basePath = '/project'
+
+    await writeAgentsMD(INNER, basePath)
+
+    const [, writtenContent] = mockWriteFile.mock.calls[0] as [string, string]
+    // separator is '\n\n' when existing does not end with '\n'
+    expect(writtenContent).toContain('No trailing newline\n\n')
+    expect(writtenContent).toContain(ZENO_BLOCK_START)
+  })
 })
