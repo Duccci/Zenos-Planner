@@ -82,6 +82,8 @@ export async function validateGateReady(gateId: string): Promise<{ filePath: str
       })
     }
   } catch (err) {
+    // Re-throw ZenoError as-is to preserve errors/warnings context
+    if (err instanceof ZenoError) throw err
     // If validation service cannot be executed, surface as archive validation failure
     const msg = err instanceof Error ? err.message : String(err)
     throw new ZenoError(`Gate ${gateId} validation error: ${msg}`, 'ARCHIVE_VALIDATION_FAILED', {
@@ -160,6 +162,8 @@ export async function validateProposalReady(
       })
     }
   } catch (err) {
+    // Re-throw ZenoError as-is to preserve errors/warnings context
+    if (err instanceof ZenoError) throw err
     const msg = err instanceof Error ? err.message : String(err)
     throw new ZenoError(`Proposal ${hash} validation error: ${msg}`, 'ARCHIVE_VALIDATION_FAILED', {
       hash,

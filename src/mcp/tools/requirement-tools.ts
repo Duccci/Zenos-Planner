@@ -1,11 +1,7 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `REQUIRED TOOL: Use reg_action whenever you need to work with requirements—this is the ONLY way to query the requirements database.
-
-Actions: list (retrieve all requirements, optionally filter by gate), show (get requirement details by hash), deps (view requirement dependency graph), transfer (move requirement to different gate), search (full-text keyword search), inherit (link existing requirement to a gate for cross-gate reuse), trace (full traceability chain for a requirement), db_sync (reconcile proposals DB with disk), db_status (report proposal DB health), purge_orphans (delete DB rows with no matching .md file), reset_gate (wipe and re-sync proposals for one gate from disk).
-
-Call this tool whenever: you need to see requirements, check a specific requirement's details, understand requirement relationships, or move requirements between gates.`,
+    description: `Requirements DB: list, show, deps, transfer, search, inherit, trace, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
     inputSchema: {
       type: 'object',
       properties: {

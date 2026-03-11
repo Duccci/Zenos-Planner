@@ -19,6 +19,7 @@ import {
   GatesCancelOutputSchema,
   GatesDeferOutputSchema,
   GatesValidateOutputSchema,
+  GateQualitativeReviewSchema,
 } from './gate-schemas.js'
 import { GateCreateOutputSchema } from './gate-create-schemas.js'
 import { GateGenerateOutputSchema } from './workflow-schemas.js'
@@ -48,7 +49,7 @@ export const GatesActionInputSchema = z.object({
         'create=new gate (needs: gateId, name, type, sequence, objectives). ' +
         'generate=generate from requirements (optional: mode, anchorGateId; required: preReview with phase=generate). ' +
         'validate=dry-run quality/structural checks without completing (needs: gateId). ' +
-        'start=begin gate work, validated→in_progress (needs: gateId). ' +
+        'start=begin gate work, validated→in_progress (needs: gateId; required: qualitativeReview with all six booleans + flaggedItems). ' +
         'complete=finish gate (needs: gateId). ' +
         'regenerate=rebuild future gates after rescope (optional: fromGateId, mode). ' +
         'cancel=mark gate as cancelled/dropped (needs: gateId, confirmed: true; optional: notes as reason). ' +
@@ -114,6 +115,19 @@ export const GatesActionInputSchema = z.object({
   completionNotes: z.string().optional().describe('Completion summary notes (complete)'),
   approvalDate: z.string().optional().describe('ISO timestamp of approval (complete)'),
   fromGateId: z.string().optional().describe('Regenerate from this gate forward (regenerate)'),
+
+  // --- qualitativeReview field (start) ---
+  /**
+   * Agent-submitted qualitative review evidence. Required for the `start` action.
+   * The handler returns a structured error if absent when action === 'start' (and gate
+   * is not already in_progress). Evaluate every item in the validate checklist first,
+   * then submit findings here before calling start.
+   */
+  qualitativeReview: GateQualitativeReviewSchema.optional().describe(
+    "Required for 'start' action. Evaluate the qualitative checklist from gates_action:validate, " +
+      'then submit: { objectivesConfirmed, requirementsMapped, proposalCountAppropriate, ' +
+      'testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems }.'
+  ),
 
   // --- preReview field (generate) ---
   /**

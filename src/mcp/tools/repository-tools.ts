@@ -17,11 +17,7 @@ import { createEntityActionHandler } from './entity-action-handler.js'
 export const repositoryToolDefinitions = [
   {
     name: 'repos_action',
-    description: `Unified repository management and analysis.
-
-Actions: list (see detected repositories and boundaries), detect (re-run boundary detection), deps (view dependency graph), adjust (manually adjust boundaries).
-
-Call this tool when: you need to understand repository structure, detect boundaries, view dependencies, or adjust boundaries.`,
+    description: `Repository management: list, detect, deps, adjust, add, remove. Use for multi-repo structure, boundaries, and dependency analysis.`,
     inputSchema: RepositoryActionInputSchema,
   },
 ]

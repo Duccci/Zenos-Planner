@@ -19,6 +19,7 @@ import {
   ProposalStartOutputSchema,
   ProposalCancelOutputSchema,
   ProposalDeferOutputSchema,
+  ProposalQualitativeReviewSchema,
 } from './proposal-schemas.js'
 import { ProposalCreateOutputSchema } from './proposal-create-schemas.js'
 import {
@@ -74,7 +75,7 @@ export const ProposalActionInputSchema = z.object({
         'validate=run quality checks (needs: hash). ' +
         'approve=merge proposal (needs: hash; optional: writeback=true to patch status into .md file). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
-        'start=create worktree for implementation (needs: hash, preReview with phase=apply). ' +
+        'start=create worktree for implementation (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems). ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
         'cancel=mark proposal as cancelled/dropped (needs: hash; optional: rejectionReason as reason). ' +
         'defer=move proposal to backlog for later implementation (needs: hash; optional: notes as reason).'
@@ -142,6 +143,18 @@ export const ProposalActionInputSchema = z.object({
 
   // --- start fields ---
   startedBy: z.string().optional().describe('Implementer identifier (start)'),
+
+  // --- qualitativeReview field (start) ---
+  /**
+   * Agent-submitted qualitative review evidence. Required for the `start` action alongside preReview.
+   * Evaluate every item in the validate checklist with your own judgment first,
+   * then submit findings here. The handler returns a structured error if absent.
+   */
+  qualitativeReview: ProposalQualitativeReviewSchema.optional().describe(
+    "Required for 'start' action. Evaluate the qualitative checklist from proposal_action:validate, " +
+      'then submit: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, ' +
+      'noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems }.'
+  ),
 
   // --- progress fields ---
   taskIndex: z

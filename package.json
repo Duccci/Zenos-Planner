@@ -53,6 +53,7 @@
     "prepare": "husky install"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.15.0",
     "@babel/parser": "^7.26.3",
     "@babel/traverse": "^7.26.5",
     "@inquirer/prompts": "^8.0.0",

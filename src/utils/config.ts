@@ -105,6 +105,29 @@ export const ZenoConfigSchema = z
           }),
       })
       .optional(),
+
+    /** AI CLI settings for agent invocation (task-distributor and similar sub-agent calls) */
+    ai: z
+      .object({
+        /**
+         * Which CLI tool to use when invoking agents as MCP sub-agents.
+         * - 'copilot': GitHub Copilot CLI (default) — must use invocationMode 'acp'
+         * - 'claude': Anthropic Claude CLI — uses non-interactive -p flag in 'cli' mode
+         */
+        cli: z.enum(['copilot', 'claude']).default('copilot'),
+
+        /**
+         * How to invoke the CLI.
+         * - 'cli': one-shot subprocess via execSync with --prompt / --message flag (default)
+         * - 'acp': Agent Client Protocol over stdio (spawn + NDJSON); only supported for 'copilot'
+         *   Command: copilot [--model <model>] --acp --stdio
+         */
+        invocationMode: z.enum(['cli', 'acp']).default('cli'),
+
+        /** Model override for the selected CLI tool. Uses the CLI's default model when unset. */
+        model: z.string().optional(),
+      })
+      .default({ cli: 'copilot', invocationMode: 'cli' }),
   })
   .loose()
 
@@ -275,6 +298,10 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
         nestingDepthMultiplier: 2,
         svgCollapseThresholdBytes: 50000,
       },
+    },
+    ai: {
+      cli: 'copilot',
+      invocationMode: 'acp',
     },
   }
 }

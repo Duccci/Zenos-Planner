@@ -22,12 +22,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 export const projectToolDefinitions = [
   {
     name: 'project_action',
-    description: `Project management tool for initialization and status.
-
-Actions: init (create new project), status (show project overview).
-
-Use project_action: init to initialize a new Zeno project with project name and end state.
-Use project_action: status to get current project status, active gates, and MCP server health.`,
+    description: `Project management: init (new project), status (overview). Use for project initialization and status checks.`,
     inputSchema: ProjectActionInputSchema,
   },
 ]

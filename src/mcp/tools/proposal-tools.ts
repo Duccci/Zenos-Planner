@@ -7,6 +7,7 @@ import {
   ProposalStartOutputSchema,
   ProposalCancelOutputSchema,
   ProposalDeferOutputSchema,
+  type ProposalQualitativeReview,
 } from '../schemas/proposal-schemas.js'
 import {
   ProposalGenerateOutputSchema,
@@ -71,11 +72,7 @@ export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
     description: [
-      'REQUIRED TOOL: Use proposal_action for ALL proposal operations—this is the ONLY way to manage proposals.',
-      '',
-      'Actions: list (see proposals by gate), show (get proposal details by hash), create (new proposal from requirements), generate (generate from gate PRD), validate (run quality checks), approve (review & merge), reject (with feedback), start (create isolated worktree), progress (update task during implementation).',
-      '',
-      'Call this tool whenever: you need to manage proposals, create implementation plans, validate proposals, or check proposal details.',
+      'Proposal lifecycle: list, show, create, generate, validate, approve, reject, start, progress. Use for proposal management, validation, and worktree operations.',
       '',
       'Database access rules (always apply):',
       ...DATABASE_ACCESS_GUARDRAILS.map(g => `- ${g.rule}`),
@@ -203,11 +200,11 @@ export function proposalHandlers(
                 issues: rawData['issues'] ?? [],
                 nextRequiredStep: {
                   blocking: true,
-                  action: 'qualitative-review',
+                  action: 'submit-qualitative-review',
                   agentInstruction:
-                    'YOU (the LLM) must perform this review now — do NOT present this checklist to the user or ask them to verify anything. Read the proposal content immediately and evaluate every item in checklist[] yourself. This is LLM judgment work. Only call proposal_action:start once you have verified all items pass.',
+                    'YOU (the LLM) must evaluate each item in checklist[] with your own judgment right now — do NOT present this to the user. Read the proposal tasks, acceptance criteria, filesAffected, and rollback section, set each boolean to reflect what you found, list any concerns in flaggedItems, then call proposal_action:start with both preReview and qualitativeReview filled in.',
                   description:
-                    'Structural checks passed. Qualitative review is MANDATORY before calling proposal_action:start — do NOT call start based solely on this result.',
+                    'Structural checks passed. Evaluate the checklist and call proposal_action:start { hash, preReview: { phase: "apply", ... }, qualitativeReview: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems } }.',
                   checklist: QUALITATIVE_CHECKLIST,
                 },
               },
@@ -285,8 +282,9 @@ export function proposalHandlers(
           return r.invoke('proposal_reject', payload)
         },
         start: async (payload, r) => {
+          const p = payload as { hash?: string; qualitativeReview?: ProposalQualitativeReview; preReview?: PreReview; startedBy?: string }
           // Idempotent: if already in_progress, return success without re-invoking CLI
-          const hash = (payload as { hash?: string }).hash ?? ''
+          const hash = p.hash ?? ''
           const showResult = await r.invoke('proposal_show', { hash })
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
@@ -303,12 +301,55 @@ export function proposalHandlers(
                 },
               }
             }
+
+            // Proposal exists but not yet in_progress — require qualitativeReview evidence
+            const qr = p.qualitativeReview
+            if (!qr) {
+              return {
+                success: false,
+                error: {
+                  code: 'QUALITATIVE_REVIEW_REQUIRED',
+                  message:
+                    'qualitativeReview is required before calling proposal_action:start. ' +
+                    'Run proposal_action:validate first, evaluate every item in the checklist with ' +
+                    'your own judgment, then re-call start with: preReview (phase=apply) AND ' +
+                    'qualitativeReview: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, ' +
+                    'filesAffectedVerified, noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems }.',
+                },
+              }
+            }
+
+            // Build review warnings from false booleans and flagged items
+            const reviewWarnings: string[] = []
+            if (qr.flaggedItems.length > 0) reviewWarnings.push(...qr.flaggedItems)
+            if (!qr.taskDescriptionsSpecific) reviewWarnings.push('taskDescriptionsSpecific=false: some tasks use vague language without naming concrete files or functions')
+            if (!qr.acceptanceCriteriaMeasurable) reviewWarnings.push('acceptanceCriteriaMeasurable=false: some acceptance criteria lack measurable success conditions')
+            if (!qr.filesAffectedVerified) reviewWarnings.push('filesAffectedVerified=false: filesAffected paths may not match project naming conventions')
+            if (!qr.noUnresolvedMarkers) reviewWarnings.push('noUnresolvedMarkers=false: unresolved TODO/TBD/unclear markers found in proposal content')
+            if (!qr.scopeFocused) reviewWarnings.push('scopeFocused=false: proposal may bundle unrelated concerns that should be separate proposals')
+            if (!qr.rollbackSpecific) reviewWarnings.push('rollbackSpecific=false: rollback section lacks specific reversible steps')
+
+            // Strip qualitativeReview before delegating (unknown field to CLI handler)
+            const { qualitativeReview: _qr, ...cliPayload } = p
+            const rawResult = await r.invoke('proposal_start', cliPayload)
+            const resultWithWarnings =
+              rawResult.success && reviewWarnings.length > 0
+                ? { ...rawResult, data: { ...(rawResult.data as object), reviewWarnings } }
+                : rawResult
+            return withGuidance(
+              resultWithWarnings,
+              toNarrativeRules(APPLY_PHASE_GUARDRAILS),
+              toCompactWorkflow(APPLY_PHASE_WORKFLOW),
+              cliPayload.preReview
+            )
           }
+
+          // proposal_show failed (proposal not found or other error) — delegate to start which will surface the error
           return withGuidance(
-            await r.invoke('proposal_start', payload),
+            await r.invoke('proposal_start', { hash, startedBy: p.startedBy }),
             toNarrativeRules(APPLY_PHASE_GUARDRAILS),
             toCompactWorkflow(APPLY_PHASE_WORKFLOW),
-            (payload as { preReview?: unknown }).preReview
+            p.preReview
           )
         },
         progress: async (payload, r) => {

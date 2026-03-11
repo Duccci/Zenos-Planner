@@ -20,11 +20,7 @@ const discovery = createDiscoveryService(process.cwd())
 export const architectureToolDefinitions = [
   {
     name: 'diagram_action',
-    description: `REQUIRED TOOL: Use diagram_action for ALL architecture diagram and template operations.
-
-Actions: catalogue (list all available diagram types with metadata), select (record which conditional diagrams to generate for a gate), generate (generate diagrams for a gate or a single type), show (retrieve and display a specific diagram), render (render raw DOT syntax to SVG using local Graphviz CLI), list (list available project templates), get (retrieve a template by name — requires name; optional includeContext).
-
-Call this tool whenever: you need to view available diagram types, generate architecture diagrams, read diagram content, render DOT source to SVG, or work with project templates.`,
+    description: `Architecture & templates: catalogue, select, generate, show, render, list_template, get_template. Use for diagram generation, viewing, rendering (DOT→SVG), and template management.`,
     inputSchema: DiagramActionInputSchema,
   },
 ]

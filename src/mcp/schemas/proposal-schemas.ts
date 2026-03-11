@@ -115,6 +115,7 @@ const NextRequiredStepSchema = z.object({
   blocking: z.boolean(),
   action: z.string(),
   description: z.string(),
+  agentInstruction: z.string().optional(),
   checklist: z.array(z.string()).optional(),
 })
 
@@ -204,8 +205,32 @@ export type ProposalRejectOutput = z.infer<typeof ProposalRejectOutputSchema>
 // PROPOSAL_START - Start proposal implementation
 // ============================================================================
 
+/**
+ * Agent-submitted evidence that the qualitative proposal review has been performed.
+ * Required on proposal_action:start alongside preReview — blocks the transition
+ * until the LLM has evaluated and documented its findings for each content check.
+ */
+export const ProposalQualitativeReviewSchema = z.object({
+  /** Task descriptions name a concrete file, function, or code construct */
+  taskDescriptionsSpecific: z.boolean(),
+  /** Every acceptance criterion is testable and measurable */
+  acceptanceCriteriaMeasurable: z.boolean(),
+  /** filesAffected paths verified against actual codebase naming conventions */
+  filesAffectedVerified: z.boolean(),
+  /** No unresolved markers: TODO, TBD, unclear, "?", or assumptions stated as fact */
+  noUnresolvedMarkers: z.boolean(),
+  /** Proposal focuses on one cohesive concern, not bundled unrelated changes */
+  scopeFocused: z.boolean(),
+  /** Rollback section describes specific, reversible steps (not just "revert the changes") */
+  rollbackSpecific: z.boolean(),
+  /** Items flagged during review; empty array if nothing was flagged */
+  flaggedItems: z.array(z.string()),
+})
+export type ProposalQualitativeReview = z.infer<typeof ProposalQualitativeReviewSchema>
+
 export const ProposalStartInputSchema = z.object({
   hash: ProposalHashSchema,
+  qualitativeReview: ProposalQualitativeReviewSchema,
   startedBy: z.string().optional(),
 })
 export type ProposalStartInput = z.infer<typeof ProposalStartInputSchema>
@@ -217,6 +242,8 @@ export const ProposalStartOutputSchema = z.object({
   startedAt: TimestampSchema,
   /** Pre-review audit trail: echoes back agent-reported pre-review values for user verification */
   preReviewSummary: PreReviewSummarySchema.optional(),
+  /** Warnings surfaced from qualitativeReview findings (false booleans + flaggedItems) */
+  reviewWarnings: z.array(z.string()).optional(),
 })
 export type ProposalStartOutput = z.infer<typeof ProposalStartOutputSchema>
 

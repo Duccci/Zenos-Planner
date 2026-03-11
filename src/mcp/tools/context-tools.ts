@@ -26,21 +26,7 @@ import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 export const contextToolDefinitions = [
   {
     name: 'context_action',
-    description: `Get compact working context for any Zeno entity from the registry database.
-
-Actions: gate (needs: gateId or hash), proposal (needs: hash), requirement (needs: hash), repository (needs: hash or name).
-
-Use context_action:gate to get gate objectives, linked proposals, and requirements in a single call.
-Use context_action:proposal to get proposal details, parent gate, requirements, and dependencies.
-Use context_action:requirement to resolve a requirement hash to its full details.
-Use context_action:repository to resolve a repository hash or name to its full details.
-
-This replaces both loading full PRD or architecture documents during execution and the former show_entity tool.
-Pass hash alone (without specifying action) to auto-resolve any entity type by hash.
-
-operationMode: Declare the current phase.
-- 'execution' (default): DB-only context. Use during proposal implementation. Do NOT load PRD or STRUCTURE.md.
-- 'planning': Adds _planningContext with paths to zeno/overview/PROJECT_PRD.md and zeno/overview/STRUCTURE.md. Use only during gate generation or proposal generation workflows.`,
+    description: `Resolve Zeno entities by hash or ID. Actions: gate (ID/hash), proposal (hash), requirement (hash), repository (hash/name). operationMode: 'execution' (DB-only), 'planning' (includes PRD paths).`,
     inputSchema: ContextActionInputSchema,
   },
 ]

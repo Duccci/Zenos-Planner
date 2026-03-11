@@ -88,8 +88,32 @@ export type GateDetail = z.infer<typeof GateDetailSchema>
 // GATES_START - Start a gate (transition from validated to in_progress)
 // ============================================================================
 
+/**
+ * Agent-submitted evidence that the qualitative gate review has been performed.
+ * Required on gates_action:start — blocks the transition until the LLM has
+ * evaluated and documented its findings for each check.
+ */
+export const GateQualitativeReviewSchema = z.object({
+  /** Gate objectives are still current, achievable, and unambiguous */
+  objectivesConfirmed: z.boolean(),
+  /** Every requirement maps to a concrete, testable deliverable */
+  requirementsMapped: z.boolean(),
+  /** Proposal count is appropriate for gate scope (not monolithic, not micro-fragmented) */
+  proposalCountAppropriate: z.boolean(),
+  /** RED proposals precede GREEN proposals (test-first ordering is correct) */
+  testFirstOrderingVerified: z.boolean(),
+  /** Gate dependency declarations reflect the real execution order */
+  dependenciesConfirmed: z.boolean(),
+  /** Gate objectives are achievable within a single gate (no splitting needed) */
+  scopeAchievable: z.boolean(),
+  /** Items flagged during review; empty array if nothing was flagged */
+  flaggedItems: z.array(z.string()),
+})
+export type GateQualitativeReview = z.infer<typeof GateQualitativeReviewSchema>
+
 export const GatesStartInputSchema = z.object({
   gateId: GateIdSchema,
+  qualitativeReview: GateQualitativeReviewSchema,
   notes: z.string().optional(),
 })
 export type GatesStartInput = z.infer<typeof GatesStartInputSchema>
@@ -99,6 +123,8 @@ export const GatesStartOutputSchema = z.object({
   previousStatus: GateStatusEnum,
   newStatus: z.literal('in_progress'),
   startedAt: TimestampSchema,
+  /** Warnings surfaced from qualitativeReview findings (false booleans + flaggedItems) */
+  reviewWarnings: z.array(z.string()).optional(),
 })
 export type GatesStartOutput = z.infer<typeof GatesStartOutputSchema>
 
@@ -147,6 +173,7 @@ const GateNextRequiredStepSchema = z.object({
   blocking: z.boolean(),
   action: z.string(),
   description: z.string(),
+  agentInstruction: z.string().optional(),
   checklist: z.array(z.string()).optional(),
 })
 

@@ -21,7 +21,7 @@ import {
   generateConsolidationMarkdown,
 } from '../utils/gate-consolidation.js'
 import { readFile, writeFile, ensureDir } from '../utils/file.js'
-import { readdir, unlink } from 'node:fs/promises'
+import { readdir, unlink, rmdir } from 'node:fs/promises'
 import path from 'path'
 import { logger } from '../utils/logger.js'
 import { stripAnsi } from '../utils/ansi-strip.js'
@@ -460,16 +460,20 @@ export async function completeGate(
     // clear is a no-op but kept so the column is reset consistently on archive.
     db.prepare('UPDATE gates SET proposal_hashes = NULL WHERE id = ?').run(gate.id)
 
-    // Remove the gate directory if empty
+    // Delete proposal files and remove the gate proposals directory
     const gateDir = path.join(proposalsDir, gateId)
     try {
-      const remaining = await readdir(gateDir)
-      if (remaining.length === 0) {
-        // Remove empty dir (using run_in_terminal since fs.rmdirSync might not work)
-        // But for now, leave it
+      const files = await readdir(gateDir)
+      for (const file of files) {
+        try {
+          await unlink(path.join(gateDir, file))
+        } catch (unlinkErr) {
+          logger.warn(`Failed to delete proposal file ${file}: ${String(unlinkErr)}`)
+        }
       }
+      await rmdir(gateDir)
     } catch {
-      // Dir doesn't exist or can't read
+      // Dir doesn't exist or already removed — nothing to do
     }
   } catch (error) {
     logger.warn(`Failed to consolidate proposals for ${gateId}: ${String(error)}`)

@@ -218,7 +218,7 @@ describe('Dependency Graph Utilities', () => {
       const requirements = [createRequirement('hash001', 'req-001', 'Only requirement')]
 
       const fullGraph = buildDependencyGraph(requirements)
-      
+
       // getRequirementSubgraph throws error for nonexistent hash
       expect(() => {
         getRequirementSubgraph(fullGraph, 'nonexistent')

@@ -26,11 +26,7 @@ import { type GateStatus, GATE_TRANSITIONS } from '../../core/transitions.js'
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    description: `REQUIRED TOOL: Use gates_action for ALL gate operations—this is the ONLY way to manage gates.
-
-Actions: list (see all gates, filter by status), show (get gate details by gateId), create (create new gate), generate (generate gates from requirements), validate (dry-run quality/structural checks, needs gateId), start (transition to in_progress), complete (finish gate), regenerate (update roadmap after rescope).
-
-Call this tool whenever: you need to see gates, check gate status/details, validate a gate before completing, start/complete a gate, or manage the roadmap.`,
+    description: `Gate lifecycle: list, show, create, generate, validate, start, complete, regenerate, cancel, defer. Use for all gate operations.`,
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -46,6 +42,7 @@ import {
   GatesCancelOutputSchema,
   GatesDeferOutputSchema,
   GatesValidateOutputSchema,
+  type GateQualitativeReview,
 } from '../schemas/gate-schemas.js'
 import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
 import { GateGenerateOutputSchema } from '../schemas/workflow-schemas.js'
@@ -100,8 +97,9 @@ export function gateHandlers(
             (payload as { preReview?: unknown }).preReview
           ),
         start: async (payload, r) => {
+          const p = payload as { gateId?: string; qualitativeReview?: GateQualitativeReview; notes?: string }
+          const gateId = p.gateId ?? ''
           // Idempotent: if gate is already in_progress, return success without re-invoking CLI
-          const gateId = (payload as { gateId?: string }).gateId ?? ''
           const showResult = await r.invoke('gates_show', { gateId })
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
@@ -117,8 +115,48 @@ export function gateHandlers(
                 },
               }
             }
+
+            // Gate exists but is not yet in_progress — require qualitativeReview evidence
+            const qr = p.qualitativeReview
+            if (!qr) {
+              return {
+                success: false,
+                error: {
+                  code: 'QUALITATIVE_REVIEW_REQUIRED',
+                  message:
+                    'qualitativeReview is required before calling gates_action:start. ' +
+                    'Run gates_action:validate first, evaluate every item in the checklist with ' +
+                    'your own judgment, then re-call start with: qualitativeReview: { ' +
+                    'objectivesConfirmed, requirementsMapped, proposalCountAppropriate, ' +
+                    'testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems }.',
+                },
+              }
+            }
+
+            // Build review warnings from false booleans and flagged items
+            const reviewWarnings: string[] = []
+            if (qr.flaggedItems.length > 0) reviewWarnings.push(...qr.flaggedItems)
+            if (!qr.objectivesConfirmed) reviewWarnings.push('objectivesConfirmed=false: gate objectives are unclear or stale')
+            if (!qr.requirementsMapped) reviewWarnings.push('requirementsMapped=false: some requirements lack testable deliverables')
+            if (!qr.proposalCountAppropriate) reviewWarnings.push('proposalCountAppropriate=false: proposal structure needs adjustment')
+            if (!qr.testFirstOrderingVerified) reviewWarnings.push('testFirstOrderingVerified=false: test-first ordering may be violated')
+            if (!qr.dependenciesConfirmed) reviewWarnings.push('dependenciesConfirmed=false: gate dependencies need review')
+            if (!qr.scopeAchievable) reviewWarnings.push('scopeAchievable=false: gate scope may span more than one milestone')
+
+            // Strip qualitativeReview before delegating to CLI handler (unknown field)
+            const { qualitativeReview: _qr, ...cliPayload } = p
+            const result = await r.invoke('gates_start', cliPayload)
+            if (result.success && reviewWarnings.length > 0) {
+              return {
+                ...result,
+                data: { ...(result.data as object), reviewWarnings },
+              }
+            }
+            return result
           }
-          return r.invoke('gates_start', payload)
+
+          // gates_show failed (gate not found or other error) — delegate to start which will surface the error
+          return r.invoke('gates_start', { gateId, notes: p.notes })
         },
         complete: async (payload, r) => {
           // Idempotent: if gate is already completed, return success without re-invoking CLI
@@ -335,11 +373,11 @@ export function gateHandlers(
                 warnings: allWarnings.length > 0 ? allWarnings : undefined,
                 nextRequiredStep: {
                   blocking: true,
-                  action: 'qualitative-review',
+                  action: 'submit-qualitative-review',
                   agentInstruction:
-                    'YOU (the LLM) must perform this review now — do NOT present this checklist to the user or ask them to verify anything. Read the gate PRD and proposals immediately and evaluate every item in checklist[] yourself. This is LLM judgment work. Only call gates_action:start once you have verified all items pass.',
+                    'YOU (the LLM) must evaluate each item in checklist[] with your own judgment right now — do NOT present this to the user. Read the gate PRD and proposals, set each boolean to reflect what you found, list any concerns in flaggedItems, then call gates_action:start with qualitativeReview filled in.',
                   description:
-                    'Structural checks passed. Qualitative review is MANDATORY before calling gates_action:start — do NOT call start based solely on this result.',
+                    'Structural checks passed. Evaluate the checklist and call gates_action:start { gateId, qualitativeReview: { objectivesConfirmed, requirementsMapped, proposalCountAppropriate, testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems } }.',
                   checklist: GATE_QUALITATIVE_CHECKLIST,
                 },
               },

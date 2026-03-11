@@ -57,10 +57,19 @@ const STALE_MARKER_RE = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING\s+SOON)\b/gi
 /** HTML comment blocks — includes content that could bleed into artifacts */
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g
 
+/** Strips fenced code blocks and inline code spans from a string so that
+ *  bracket patterns inside code (e.g. `['feature']`, `[--model <model>]`)
+ *  are not misidentified as unreplaced template placeholders. */
+function stripCode(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, '')     // fenced code blocks
+    .replace(/`[^`\n]+`/g, '')           // inline code spans
+}
+
 /** Markers that identify a line as pure markdown structure (not content).
  *  Matches: headings, horizontal rules, table separator rows, all table rows
  *  (any line starting with `|`), and blank lines. */
-const MARKDOWN_STRUCTURE_RE = /^(?:#{1,6}\s|[-*]{3,}$|\||\s*$)/
+const MARKDOWN_STRUCTURE_RE = /^(?:#{1,6}\s|[-*]{3,}$|\||\s*$|\d+\.\s)/
 
 // ---------------------------------------------------------------------------
 // Types
@@ -212,8 +221,12 @@ export function extractScaffoldFingerprints(commentStrippedBody: string): string
     const words = content.split(/\s+/).filter((w) => w.length > 1)
     if (words.length < 4) continue
 
-    // Skip if the entire content is a single bracket placeholder
-    if (/^\[[^\]]{4,120}\]$/.test(content)) continue
+    // Skip lines containing any bracket placeholder — whole-line or inline.
+    // Inline-placeholder lines (e.g. "System Overview: `path` - [describe changes]")
+    // have an invariant prefix that is EXPECTED to remain in real artifacts; the
+    // fingerprint (first 45 chars) would always match even after the placeholder
+    // is replaced, producing a false positive.
+    if (/\[[^\]]{4,120}\]/.test(content)) continue
 
     // Skip document-metadata bold fields that are expected to appear verbatim
     // in every artifact (e.g. **Versioning**: SemVer; bump on any change …).
@@ -402,8 +415,11 @@ function scoreSection(body: string, spec: SectionSpec): SectionScore {
   }
 
   // ── placeholder check ────────────────────────────────────────────────────
-  const remainingBracket = cleanBody.match(BRACKET_PLACEHOLDER_RE) ?? []
-  const remainingDblBrace = cleanBody.match(DOUBLE_BRACE_RE) ?? []
+  // Strip code spans/blocks first so bracket patterns inside code (e.g.
+  // `['feature']`, `[--model <model>]`) are not flagged as placeholders.
+  const bodyWithoutCode = stripCode(cleanBody)
+  const remainingBracket = bodyWithoutCode.match(BRACKET_PLACEHOLDER_RE) ?? []
+  const remainingDblBrace = bodyWithoutCode.match(DOUBLE_BRACE_RE) ?? []
   const remainingPlaceholders = remainingBracket.length + remainingDblBrace.length
 
   if (remainingPlaceholders > 0) {

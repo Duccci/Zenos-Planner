@@ -8,13 +8,7 @@ import { GitTraceInputSchema, GitTraceOutputSchema } from '../schemas/git-trace-
 export const gitTraceToolDefinitions = [
   {
     name: 'git_trace',
-    description: `Trace commits in git history associated with a Zeno artifact (gate, proposal, requirement).
-
-Input: artifactHash (required) - the artifact hash to trace. Optional: dateRange, branch, limit, dir.
-
-Output: commits array with matching records, total commit count, and search parameters used.
-
-Call this tool when: you need to find which commits created or modified a specific artifact.`,
+    description: `Trace git commits for artifacts. Inputs: artifactHash (required), optional dateRange, branch, limit, dir. Use to link commits to gates, proposals, or requirements.`,
     inputSchema: GitTraceInputSchema,
   },
 ]

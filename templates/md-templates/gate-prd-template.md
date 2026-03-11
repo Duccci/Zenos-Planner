@@ -266,7 +266,7 @@ graph LR
 
 1. **Define Acceptance Tests**
    - Write tests that define the gate's acceptance criteria
-   - Tests establish the contract before implementation begins
+   <!-- Tests establish the contract before implementation begins -->
 
 2. **[Step Name]**
    - [What needs to be done]
@@ -279,8 +279,8 @@ graph LR
    - [What it enables for subsequent steps]
 
 4. **Test Cleanup**
-   - Refine tests, add edge cases, ensure coverage ≥90%
-   - Validates all gate deliverables meet quality thresholds
+   <!-- Refine tests, add edge cases, ensure coverage ≥90% -->
+   <!-- Validates all gate deliverables meet quality thresholds -->
 
 ## Known Issues & Limitations
 

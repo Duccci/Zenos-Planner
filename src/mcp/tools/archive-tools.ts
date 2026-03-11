@@ -18,11 +18,7 @@ import {
 export const archiveToolDefinitions = [
   {
     name: 'archive_action',
-    description: `REQUIRED TOOL: Use archive_action to finalize completed gate and proposal work.
-
-Actions: gate (archive completed gate), batch (archive multiple completed gates/proposals).
-
-Call this tool when: a gate or proposal is complete and needs archival, or you need to archive multiple completed artifacts.`,
+    description: `Archive completed work: gate, batch. Use to finalize and archive completed gates or proposals.`,
     inputSchema: {
       type: 'object',
       properties: {

@@ -59,6 +59,7 @@ export async function findProposalByHash(
   hash: string,
   projectRoot = process.cwd()
 ): Promise<string | null> {
+  if (!hash) return null
   const proposalsDir = join(projectRoot, 'zeno', 'proposals')
   if (!existsSync(proposalsDir)) return null
 
