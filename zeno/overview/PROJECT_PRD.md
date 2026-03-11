@@ -558,7 +558,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 
 [ ] Implementation in progress...
 
-### Gate 12: Gate 12: Dashboard & Visualization
+### Gate 12: Gate 12: Status & Reporting
 
 [ ] Implementation in progress...
 

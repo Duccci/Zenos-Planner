@@ -18,19 +18,16 @@
 
 ## Overview
 
-Implements Git integration layer enabling approved proposals to be automatically committed with proper workflow coordination. This gate delivers git worktree management for isolated parallel development, pre-commit hooks for quality validation, structured commit message generation, gate release tagging, and rollback mechanisms for rejected proposals. Git worktrees enable multiple agents to work simultaneously on independent proposals without branch switching delays, while pre-commit hooks ensure quality checks run before code is committed. This gate transforms Zeno from a planning tool into an executable system where proposals automatically flow to git as atomic, properly-attributed commits.
+Implements Git integration layer enabling approved proposals to be automatically committed with proper workflow coordination. This gate delivers git worktree management for isolated parallel development, structured commit message generation, and gate release tagging. Git worktrees enable multiple agents to work simultaneously on independent proposals without branch switching delays. This gate transforms Zeno from a planning tool into an executable system where proposals automatically flow to git as atomic, properly-attributed commits.
 
 ## Objectives
 
 - [ ] Implement git worktree management (create, remove, list, prune, merge) via MCP tools
 - [ ] Update proposal workflow to use worktrees (create on start, merge on approve)
 - [ ] Implement worktree conflict detection and expiration policy
-- [ ] Implement pre-commit hook installer and quality validation integration
 - [ ] Implement structured commit message generation with proposal hash references
 - [ ] Implement gate release tagging on gate completion
-- [ ] Implement rollback mechanism for rejected proposals with audit trail
 - [ ] Build git status integration with Zeno state
-- [ ] Implement subproject git syncing (`zeno repos sync`)
 
 ## Context
 
@@ -59,18 +56,18 @@ Gate 01-09 established:
 - Worktree expiration policy and auto-cleanup
 - Conflict detection between concurrent proposals
 - Proposal status integration with worktree (create on start, cleanup on approve)
-- Pre-commit hooks for quality validation
 - Structured commit message generation
 - Gate release tagging
-- Rollback mechanism for rejected proposals
 - `zeno worktree` commands (list, prune, remove)
 - Git status integration with Zeno state
-- Subproject git syncing (`zeno repos sync`)
 - File-level conflict detection between concurrent proposals across repos
 - Comprehensive test coverage (90% minimum)
 
 **Out of Scope**:
 
+- Pre-commit hook installation (user's project manages git hooks; Husky/lint-staged is the appropriate tool)
+- Rollback mechanism (git worktree remove and branch deletion handle cleanup natively; no Zeno layer needed)
+- Subproject git syncing (`zeno repos sync`) — deferred post-MVP
 - Git branch strategy beyond worktree-based approach
 - Rebase vs. merge strategy (configurable, not enforced)
 - Squash commit automation (manual user choice)
@@ -99,9 +96,7 @@ Gate 01-09 established:
 | --- | --- | --- | --- | --- |
 | #[hash] | Isolated Parallel Development | functional | must | Worktrees enable agents to work on independent proposals |
 | #[hash] | Atomic Commits | functional | must | Approved proposals committed as single attributed commits |
-| #[hash] | Quality Before Commit | functional | must | Pre-commit hooks ensure quality gates met before commit |
 | #[hash] | Audit Trail | functional | must | Structured commit messages trace changes to proposals |
-| #[hash] | Rollback Safety | functional | should | Rejected proposals can be safely reverted |
 
 ### Gate-Specific Requirements
 
@@ -143,9 +138,8 @@ graph LR
 
 **Key Deliverables**:
 
-- Git worktree management
-- Pre-commit hooks
-- Structured commit messages and gate tagging
+- Git worktree management (create, merge, prune)
+- Structured commit messages and gate release tagging
 
 **Quality Metrics**: Coverage [X]%, Security [Y] issues, Lint <[Z]%
 

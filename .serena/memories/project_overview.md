@@ -109,7 +109,7 @@ src/
 - Gate 09: Human Approval & Rejection Workflow
 - Gate 10: Git Integration & Commit Automation
 - Gate 11: Rescope & Replan Engine
-- Gate 12: Dashboard & Visualization
+- Gate 12: Status & Reporting
 - Gate 13: Subagent Orchestration & Parallel Execution
 - Gate 14: Documentation & Polish
 

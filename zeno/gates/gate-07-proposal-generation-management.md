@@ -18,7 +18,7 @@
 
 ## Overview
 
-The proposal generation and management infrastructure was largely bootstrapped before this gate started so that Zeno was usable during earlier gate work. The remaining deliverable is focused: integrate the **task-distributor** agent (via Copilot ACP or Claude CLI) to classify the dependency graph built by `calculateProposalDependencies()` into parallel execution sets, annotate each proposal with its `parallelSetIndex`, and surface those sets in `proposal list` and `proposal_action` MCP responses.
+The proposal generation and management infrastructure was largely bootstrapped before this gate started so that Zeno was usable during earlier gate work. The remaining deliverable is focused: compute parallel execution sets from the dependency graph already built by `calculateProposalDependencies()` using a standard topological sort, annotate each proposal with its `parallelSetIndex`, and surface those sets in `proposal list` and `proposal_action` MCP responses.
 
 A secondary deliverable is formalising the proposal type taxonomy. Three orthogonal classification dimensions already exist in the codebase without a single consolidated definition: location type (`gate-tied | solitary`), test-driven phase (`RED | GREEN`), and the semantic content roles — drawing from two overlapping sets already in use (`test-suite | implementation | test-cleanup | solitary` in `test-first-validator.ts`; `feature | refactoring | testing | documentation` in the original spec). This gate reconciles both into a single unified set (`testing | feature | cleanup | documentation | solitary`) stored as an **array** (`roles: ProposalRole[]`), so a single proposal can carry multiple roles (e.g., `['solitary', 'testing', 'feature']`).
 
@@ -37,9 +37,8 @@ A secondary deliverable is formalising the proposal type taxonomy. Three orthogo
 
 ### Remaining Work
 
-- [ ] Add `ai: { cli: 'copilot' | 'claude', model?: string, invocationMode: 'acp' | 'cli' }` to `ZenoConfigSchema` and `getDefaultConfig`; defaults: `cli = 'copilot'`, `invocationMode = 'acp'`; guard: `cli = 'copilot'` with `invocationMode = 'cli'` warns and coerces to `acp` (Copilot opens TUI in direct mode; `cli` mode is Claude-only)
-- [ ] Invoke `task-distributor` agent after dependency graph is built: via `acp` mode (`copilot --acp --stdio` or `agent acp`, both JSON-RPC over stdio) or `cli` mode (`claude -p "<json>" --output-format json`); parse returned parallel execution plan
-- [ ] Annotate each proposal with `parallelSetIndex` and persist via `syncProposalsFromDisk`
+- [ ] Extend `calculateProposalDependencies()` output with a topological sort pass: group proposals into parallel execution sets (`parallelSets: string[][]`) where each set contains proposals with no mutual dependencies
+- [ ] Annotate each proposal with `parallelSetIndex` (0-indexed set membership) and persist via `syncProposalsFromDisk`
 - [ ] Expose `parallelSets: string[][]` in `proposal list` output and `proposal_action` MCP response
 - [ ] Add `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value allowed) to `ProposalData`, `ProposalMetadata`, and proposal template; consolidate all three classification dimensions into a single source of truth in `src/core/types.ts`
 - [ ] Test coverage for requirements dual-source sync edge cases (project-level requirements with no gate PRD source, solitary proposals, round-trip JSON ↔ DB fidelity)
@@ -71,8 +70,7 @@ Additionally, the following Gate 7 work was completed early so that Zeno was usa
 
 **In Scope**:
 
-- `ai` config section (`cli: 'copilot' | 'claude'`, `model?`, `invocationMode: 'acp' | 'cli'`) added to `ZenoConfigSchema`; `invocationMode` defaults to `acp`; Copilot enforced to `acp` (opens TUI in direct mode); Claude uses `cli` mode with `-p --output-format json`
-- `parallelSetIndex` annotation on each proposal; exposed in `proposal list` CLI output and `proposal_action` MCP response
+- `parallelSetIndex` annotation on each proposal (computed via topological sort on `calculateProposalDependencies()` output; no external agent invocation); exposed in `proposal list` CLI output and `proposal_action` MCP response
 - `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value) added to `ProposalData`, `ProposalMetadata`, and the proposal template
 - Consolidated type taxonomy documentation in `src/core/types.ts` covering all three dimensions: location type, phase, and roles
 - Requirements dual-source sync test coverage (edge cases: project-level requirements, solitary proposals, round-trip fidelity)
@@ -140,7 +138,6 @@ _To be populated on gate completion._
 
 - `parallelSetIndex` annotation on proposals; exposed in `proposal list` and `proposal_action` MCP response
 - `ProposalRole[]` type taxonomy consolidated in `src/core/types.ts`
-- `ai` config section in `ZenoConfigSchema` (CLI selection, model, invocation mode)
 - Requirements dual-source sync test coverage (edge cases)
 
 **Quality Metrics**: Coverage [X]%, Security [Y] issues, Lint <[Z]%
@@ -194,39 +191,13 @@ _To be populated on gate completion._
 - **Impact**: `TaskDistributorIntegration` receives the output of `calculateProposalDependencies()` as its input graph; no new graph-building code required
 - **Trade-offs**: Gained simplicity; any future proposal graph extensions land in `proposal-writer.ts`
 
-### 4. task-distributor Agent via ACP / Non-Interactive CLI
+### 4. Topological Sort for Parallel Set Computation
 
-- **Choice**: Invoke `task-distributor` agent (`agents/categories/09-meta-orchestration/task-distributor.md`) during `generateProposals()`, after the dependency graph is calculated. Two invocation modes are supported, selected by `config.ai.invocationMode`:
-  - **`acp`** (**default**): connect to the Copilot CLI's ACP server over stdio using the Agent Communication Protocol (NDJSON JSON-RPC 2.0); send the payload as a prompt and stream the response.
-    - **Copilot**: `copilot [--model <model>] --acp --stdio` — session flow: `initialize` → `newSession` → `prompt`; handle `agent_message_chunk` notifications. The only viable Copilot mode — `copilot --agent --prompt` opens an interactive TUI that blocks indefinitely. See [Copilot ACP reference](https://docs.github.com/en/copilot/reference/acp-server).
-  - **`cli`**: spawn the Claude CLI with piped stdio, the non-interactive `-p` print flag, and JSON output (`claude [--model <model>] -p "<json>" --output-format json`). Only valid when `ai.cli = 'claude'`. Copilot **must not** use `cli` mode — it lacks a non-interactive print flag and opens a TUI.
-- **Alternatives Considered**: Static topological sort only; `execSync` one-liner (blocks on Copilot TUI); calling via MCP tool; deferring entirely to Gate 9
-- **Rationale**: Copilot exposes ACP over stdio (`copilot --acp --stdio`), making JSON-RPC the natural programmatic interface. `copilot --agent --prompt` opens an interactive TUI — unsuitable for subprocess use. Claude provides `-p` with `--output-format json` as a documented non-interactive scripting path.
-- **CLI configuration** — all fields live under `config.ai` in `zeno/.zeno/config.json`:
-
-  | Key | Values | Default | Description |
-  |---|---|---|---|
-  | `ai.cli` | `copilot \| claude` | `copilot` | Which CLI to use; Copilot requires `acp` mode; Claude uses `cli` mode |
-  | `ai.model` | any string | _(CLI default)_ | `--model` value; omitted if unset |
-  | `ai.invocationMode` | `acp \| cli` | `acp` | `acp`: JSON-RPC over stdio (Copilot via `copilot --acp --stdio`); `cli`: `claude -p --output-format json` (Claude only) |
-
-  Settable via:
-  - `zeno config set ai.cli copilot`
-  - `zeno config set ai.model "Claude Sonnet 4.6"`
-  - `zeno config set ai.invocationMode acp`
-
-- **Generated command / connection** (implemented in `src/generation/task-distributor-integration.ts`):
-
-  | `invocationMode` | `ai.cli` | Command / connection |
-  |---|---|---|
-  | `acp` (**default**) | `copilot` | `copilot [--model "Claude Sonnet 4.6"] --acp --stdio` → JSON-RPC over stdin/stdout |
-  | `cli` | `claude` | `claude [--model "claude-sonnet-4-6"] -p "<json>" --output-format json` (non-interactive print mode) |
-  | `cli` | `copilot` | ⚠ **Unsupported** — coerces to `acp`; `copilot --agent --prompt` opens a TUI |
-
-  The `--model` flag is omitted when `config.ai.model` is not set. The JSON payload carries `{ proposals: [{hash, roles, phase}], edges: [{from, to, type}] }`.
-
-- **Impact**: `generateProposals()` output gains `parallelSets` field; `proposal list` and `proposal_action:list` response surfaces it; `ZenoConfigSchema` gains an `ai` section (`cli`, `model?`, `invocationMode`); `invocationMode` defaults to `acp`
-- **Trade-offs**: ACP mode requires a long-lived stdio process per invocation (`@agentclientprotocol/sdk` already in `package.json`); `cli` mode is unavailable for Copilot (coerced to `acp`); fallback to topological sort on any failure preserves progress
+- **Choice**: Compute `parallelSets: string[][]` directly from `calculateProposalDependencies()` output using a standard Kahn's algorithm topological sort. Proposals with no mutual dependencies within the same topological level form a parallel set.
+- **Alternatives Considered**: Invoke `task-distributor` agent via Copilot ACP or Claude CLI to classify the graph; static set assignment
+- **Rationale**: Topological sort is an O(V+E) deterministic algorithm that already has all the inputs it needs from `calculateProposalDependencies()`. The dependency graph structure (`RED → impl → GREEN`) already encodes the correct execution ordering. Introducing a subprocess agent invocation would add external runtime dependencies (Copilot CLI or Claude CLI installed and accessible), two distinct invocation protocol paths (ACP JSON-RPC over stdio vs. `claude -p`), a new `ai` config section, and failure modes — all for a computation a local algorithm handles correctly every time.
+- **Impact**: `calculateProposalDependencies()` (or a thin wrapper in `proposal-generation.ts`) runs the topological sort and produces `parallelSets`; `ProposalGenerateOutput` gains a `parallelSets` field; proposals annotated with `parallelSetIndex` before disk sync
+- **Trade-offs**: Gained simplicity, determinism, zero external dependencies; lost nothing — the agent call added no capability over the algorithm
 
 ### 5. Requirements Dual-Source Sync
 
@@ -240,11 +211,6 @@ _To be populated on gate completion._
 
 ### Components Modified or Created
 
-- **ZenoConfigSchema** (`src/utils/config.ts`)
-  - Purpose: Store AI CLI selection, optional model override, and invocation mode
-  - Changes: Add `ai: { cli: 'copilot' | 'claude', model?: string, invocationMode: 'acp' | 'cli' }`; defaults `cli: 'copilot'`, `invocationMode: 'acp'`; `getDefaultConfig` includes `ai: { cli: 'copilot', invocationMode: 'acp' }`; validation guard coerces `cli = 'copilot'` + `invocationMode = 'cli'` to `acp` with warning (Copilot opens TUI in direct mode)
-  - Interfaces: No breaking change — new optional nested section with Zod defaults
-
 - **ProposalData / ProposalMetadata** (`src/generation/proposal-template.ts`, `src/core/proposal-writer.ts`)
   - Purpose: Add `roles: ProposalRole[]` field (values: `testing | feature | cleanup | documentation | solitary`; multi-value)
   - Changes: Extend existing interfaces; default `['feature']` for existing proposals
@@ -254,15 +220,9 @@ _To be populated on gate completion._
   - Purpose: Single source of truth for all three proposal classification dimensions
   - Changes: Export `ProposalLocationType`, `ProposalPhase`, and `ProposalRole = 'testing' | 'feature' | 'cleanup' | 'documentation' | 'solitary'` type aliases; consolidate from their current scattered definitions (inline literals in `proposal-writer.ts`; ad-hoc strings in `proposals-registry.ts` and `test-first-validator.ts`)
 
-- **TaskDistributorIntegration** (`src/generation/task-distributor-integration.ts`)
-  - Purpose: Bridge between `calculateProposalDependencies()` output and the `task-distributor` agent; formats the dependency edge list as structured agent input, invokes via Copilot ACP (`copilot --acp --stdio`) or Claude CLI (`claude -p`), parses `parallelSets[][]`, annotates proposal metadata with `parallelSetIndex`
-  - Changes: New module
-  - Interfaces: `distributeProposals(deps, proposals): Promise<ParallelExecutionPlan>`, `annotateProposals(proposals, plan): AnnotatedProposal[]`
-  - Agent Reference: `agents/categories/09-meta-orchestration/task-distributor.md`
-
 - **generateProposals** (`src/core/proposal-generation.ts`)
-  - Purpose: Wire in `TaskDistributorIntegration` after `calculateProposalDependencies()` returns
-  - Changes: Add `parallelSets` to `ProposalGenerateOutput`; call `distributeProposals()` and annotate proposals before returning
+  - Purpose: Compute parallel execution sets after `calculateProposalDependencies()` returns
+  - Changes: Add topological sort pass (Kahn’s algorithm) over the dependency edge list; produce `parallelSets: string[][]`; annotate each proposal with `parallelSetIndex` before returning; add `parallelSets` to `ProposalGenerateOutput`
 
 - **proposal_action list handler** (`src/mcp/tools/proposal-tools.ts`, `src/integration/proposals-registry.ts`)
   - Purpose: Surface `parallelSets` and `parallelSetIndex` in list responses
@@ -270,15 +230,15 @@ _To be populated on gate completion._
 
 ### Diagram Updates
 
-- System Overview: `zeno/architecture/system-overview.md` — update proposal module to reflect parallelisation layer
-- Data Flow: `zeno/architecture/data-flow.md` — add task-distributor agent call in proposal generation flow
+- System Overview: `zeno/architecture/system-overview.md` — update proposal module to reflect parallel set annotation
+- Data Flow: `zeno/architecture/data-flow.md` — add topological sort step in proposal generation flow
 
 ## Gate-Specific Quality Considerations
 
 ### Security Considerations
 
 - Proposal file paths must be sanitized to prevent directory traversal
-- `TaskDistributorIntegration` must not pass unsanitized proposal content as agent input; pass only hash references and dependency edge types
+- No external subprocess invocations in this gate; parallel set computation is pure in-process logic
 
 ## Dependencies
 
@@ -299,10 +259,8 @@ No new external dependencies required.
 ## Implementation Steps
 
 1. **Define Acceptance Tests**
-   - Write tests for `TaskDistributorIntegration`: mock the configured CLI call (copilot ACP / claude cli), assert `parallelSets` shape, assert `parallelSetIndex` annotation
-   - Write tests for `ai` config section: default `cli = 'copilot'`, `invocationMode = 'acp'`; `cli = 'claude'` with `invocationMode = 'cli'` round-trips correctly; `cli = 'copilot'` with `invocationMode = 'cli'` warns and coerces to `acp`
-   - Write tests for `TaskDistributorIntegration` ACP mode: mock `copilot --acp --stdio` stdio transport, assert JSON-RPC prompt request shape, assert `parallelSets` extracted from response
-   - Write tests for `TaskDistributorIntegration` CLI mode: mock `claude -p` subprocess stdout, assert `parallelSets` extracted; assert Copilot + cli mode coerces to ACP with a warning
+   - Write tests for parallel set computation: given a set of dependency edges from `calculateProposalDependencies()`, assert `parallelSets` shape (correct groupings, no mutual deps within a set)
+   - Write tests for `parallelSetIndex` annotation: assert each proposal is stamped with the correct 0-indexed set membership and persisted via `syncProposalsFromDisk`
    - Write tests for requirements dual-source sync edge cases (project-level, solitary post-archival, round-trip fidelity)
    - Write tests for `roles` field: default value (`['feature']`), template rendering, list output
 
@@ -311,25 +269,16 @@ No new external dependencies required.
    - Add `roles: ProposalRole[]` (default `['feature']`) to `ProposalData` in `proposal-template.ts` and `ProposalMetadata` in `proposal-writer.ts`
    - Update proposal template to render roles in the frontmatter metadata block
 
-3. **Implement TaskDistributorIntegration**
-   - Format dependency edges from `calculateProposalDependencies()` output as structured JSON: `{ proposals: [{hash, roles, phase}], edges: [{from, to, type}] }`
-   - Read `config.ai.invocationMode`, `config.ai.cli`, and `config.ai.model`
-   - If `cli = 'copilot'` and `invocationMode = 'cli'`: warn and coerce to `acp` (copilot opens a TUI)
-   - If `invocationMode = 'acp'`: spawn `copilot [--model <model>] --acp --stdio`, send prompt over stdin as JSON, read NDJSON response stream, extract `parallelSets`
-   - If `invocationMode = 'cli'` (`claude` only): spawn `claude [--model <model>] -p "<json>"` with piped stdio; parse stdout
-   - Parse response: extract `parallelSets: string[][]`
-   - Annotate each proposal with `parallelSetIndex: number` (0-indexed set membership)
+3. **Implement Parallel Set Computation**
+   - In `src/core/proposal-generation.ts`, add a topological sort (Kahn’s algorithm) over the dependency edge list returned by `calculateProposalDependencies()`
+   - Group proposals by topological level into `parallelSets: string[][]`; annotate each proposal with `parallelSetIndex`
    - Persist updated metadata via `syncProposalsFromDisk`
 
-4. **Wire into generateProposals**
-   - Call `distributeProposals()` after `calculateProposalDependencies()` returns
-   - Add `parallelSets` to `ProposalGenerateOutput`
-
-5. **Expose in CLI and MCP**
+4. **Expose in CLI and MCP**
    - `zeno proposal list` output: add `parallelSet` column
    - `proposal_action:list` MCP response: add `parallelSets` and `parallelSetIndex` to the output schema
 
-6. **Requirements Sync Test Coverage**
+5. **Requirements Sync Test Coverage**
    - Cover `writeRequirementsManifest` and `syncRequirementsFromDisk` round-trip with project-level (no gateId), gate-level, and solitary-proposal requirements
    - Verify `INSERT OR IGNORE` semantics: existing DB rows not overwritten by stale manifest
 
@@ -339,7 +288,6 @@ No new external dependencies required.
 
 - No spec format parsing (OpenAPI, GraphQL, Protobuf) — specs are requirements in the database
 - No proposal versioning beyond Git history
-- `task-distributor` invocation via Copilot CLI is a temporary mechanism; a stable typed sub-agent call protocol is deferred to a later gate
 
 ### Technical Debt
 
@@ -350,16 +298,10 @@ No new external dependencies required.
 
 ### Technical Risks
 
-1. **Copilot CLI MCP Sub-Agent Response Parsing**
-   - **Impact**: High
-   - **Probability**: Medium
-   - **Mitigation**: `TaskDistributorIntegration` validates response shape with Zod before consuming; falls back to topological sort from `calculateProposalDependencies()` if the agent response is malformed
-   - **Contingency**: Store raw agent response alongside parsed sets for debugging
-
-2. **Circular Dependency Detection**
+1. **Circular Dependency Detection**
    - **Impact**: Medium
    - **Probability**: Low
-   - **Mitigation**: `validateDependencyGraph()` in `src/generation/dependency-graph.ts` already detects cycles; called before agent invocation
+   - **Mitigation**: `validateDependencyGraph()` in `src/generation/dependency-graph.ts` already detects cycles; called before the topological sort pass
    - **Contingency**: Flag cycles for human review rather than blocking generation
 
 ### Process Risks

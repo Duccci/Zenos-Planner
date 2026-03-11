@@ -11,7 +11,7 @@ graph LR
     G9["Gate 09: Human Approval & Rejection Workflow<br/><small>pending</small>"]
     G10["Gate 10: Git Integration & Commit Automation<br/><small>pending</small>"]
     G11["Gate 11: Rescope & Replan Engine<br/><small>pending</small>"]
-    G12["Gate 12: Dashboard & Visualization<br/><small>pending</small>"]
+    G12["Gate 12: Status & Reporting<br/><small>pending</small>"]
     G13["Gate 13: Subagent Orchestration & Parallel Execution<br/><small>pending</small>"]
     G14["Gate 14: Documentation & Polish<br/><small>pending</small>"]
     G1 --> G2
