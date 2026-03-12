@@ -51,8 +51,9 @@ const BRACKET_PLACEHOLDER_RE = /\[[^\]]{4,120}\](?!\s*\()/g
 /** Double-brace template variables: {{OBJECTIVE}}, {{DATE}} */
 const DOUBLE_BRACE_RE = /\{\{[A-Za-z_][A-Za-z0-9_]*\}\}/g
 
-/** Stale development markers */
-const STALE_MARKER_RE = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING\s+SOON)\b/gi
+/** Stale development markers — case-sensitive so lowercase technical terms
+ *  (e.g. "placeholder", "todo") are not misidentified as unresolved markers. */
+const STALE_MARKER_RE = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING\s+SOON)\b/g
 
 /** HTML comment blocks — includes content that could bleed into artifacts */
 const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g

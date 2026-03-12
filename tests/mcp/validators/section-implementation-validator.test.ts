@@ -322,6 +322,34 @@ This proposal implements the new TBD module. We'll address FIXME issues in futur
       const summaryScore = result.sectionScores.find((s) => s.section === '## Summary')
       expect(summaryScore?.score).toBeLessThan(100)
     })
+
+    it('does not flag lowercase technical uses of "placeholder" as stale markers', () => {
+      const doc = `
+## Summary
+
+Extend the existing describe block. Verify that renderProposalTemplate correctly
+replaces a template placeholder with content, and omits the placeholder when
+data is absent. Use bracket placeholders like [description] only in the template.
+
+## Tasks
+
+- [ ] Test that the placeholder is replaced with real content
+- [ ] Test that SQL placeholders (?) are generated correctly
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ----------- |
+| tests/foo.test.ts | modify | Add placeholder tests |
+
+## Dependencies
+
+*No dependencies.*
+`.trimStart()
+      const result = validateSectionImplementation(doc, SPECS)
+      const allMessages = [...(result.warnings ?? []), ...(result.errors ?? [])]
+      expect(allMessages.some((m) => /stale/i.test(m))).toBe(false)
+    })
   })
 
   describe('document with empty sections', () => {

@@ -413,7 +413,7 @@ function validateGateArtifact(context: ArtifactValidationContext): ValidationRes
   // Check 4: No stale markers in Objectives or Context sections.
   // Stale markers (TBD, TODO, FIXME, PLACEHOLDER) in these sections indicate
   // the gate is not ready to drive proposal decomposition.
-  const stalePattern = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING SOON)\b/gi
+  const stalePattern = /\b(TBD|TODO|FIXME|PLACEHOLDER|COMING SOON)\b/g
   const contextMatch = /##\s+Context\b([\s\S]*?)(?=\n##\s|\s*$)/.exec(content)
   const contextBody = contextMatch?.[1] ?? ''
   const staleInObjectives = objectivesBody.match(stalePattern)
