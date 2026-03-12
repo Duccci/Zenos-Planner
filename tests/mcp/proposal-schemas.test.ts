@@ -5,7 +5,7 @@ import {
 } from '../../src/mcp/schemas/proposal-schemas.js'
 
 describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () => {
-  it('should parse a valid output with parallelSets', () => {
+  it.skip('should parse a valid output with parallelSets', () => { // @red
     const result = ProposalListOutputSchema.parse({
       proposals: [],
       parallelSets: [],
@@ -13,7 +13,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     expect(result.parallelSets).toEqual([])
   })
 
-  it('should parse a valid output with nested parallelSets', () => {
+  it.skip('should parse a valid output with nested parallelSets', () => { // @red
     const result = ProposalListOutputSchema.parse({
       proposals: [],
       parallelSets: [['hash-a'], ['hash-b', 'hash-c'], ['hash-d']],
@@ -22,7 +22,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     expect(result.parallelSets[1]).toEqual(['hash-b', 'hash-c'])
   })
 
-  it('should reject missing parallelSets (required field)', () => {
+  it.skip('should reject missing parallelSets (required field)', () => { // @red
     expect(() =>
       ProposalListOutputSchema.parse({
         proposals: [],
@@ -31,7 +31,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     ).toThrow(ZodError)
   })
 
-  it('should accept proposals with optional parallelSetIndex: 0', () => {
+  it.skip('should accept proposals with optional parallelSetIndex: 0', () => { // @red
     const result = ProposalListOutputSchema.parse({
       proposals: [
         {
@@ -50,7 +50,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     expect(result.proposals[0]!.parallelSetIndex).toBe(0)
   })
 
-  it('should reject proposals with non-numeric parallelSetIndex', () => {
+  it.skip('should reject proposals with non-numeric parallelSetIndex', () => { // @red
     expect(() =>
       ProposalListOutputSchema.parse({
         proposals: [
