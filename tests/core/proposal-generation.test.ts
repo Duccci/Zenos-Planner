@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 /**
  * Consolidated proposal generation tests covering:
  * - Basic generation from gate PRD
- * - Validation loop edge cases (fs.access, validateArtifactFile)
+ * - Scaffold generation (no artifact validation at generation time)
  * - Error handling and non-fatal failures
  */
 
@@ -202,17 +202,19 @@ describe('proposal-generation', () => {
       expect(mockValidateArtifactFile).not.toHaveBeenCalled()
     })
 
-    it('validates file when fs.access resolves (file exists)', async () => {
+    it('does not validate artifact content during scaffold generation', async () => {
+      // Scaffolds are intentionally incomplete; validation belongs in proposal_action:validate
       mockFsAccess.mockResolvedValue(undefined)
 
       const { generateProposals } = await import('../../src/core/proposal-generation.js')
       const result = await generateProposals({ gateId: 'gate-01' })
 
       expect(result.success).toBe(true)
-      expect(mockValidateArtifactFile).toHaveBeenCalled()
+      expect(mockValidateArtifactFile).not.toHaveBeenCalled()
     })
 
-    it('throws when validateArtifactFile returns allowed:false', async () => {
+    it('succeeds even when validator would return allowed:false (validation deferred)', async () => {
+      // Validation is not run during generation; deferred to proposal_action:validate
       mockFsAccess.mockResolvedValue(undefined)
       mockValidateArtifactFile.mockResolvedValue({
         allowed: false,
@@ -220,10 +222,10 @@ describe('proposal-generation', () => {
       })
 
       const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
 
-      await expect(generateProposals({ gateId: 'gate-01' })).rejects.toThrow(
-        'Proposal generation failed'
-      )
+      expect(result.success).toBe(true)
+      expect(mockValidateArtifactFile).not.toHaveBeenCalled()
     })
 
     it('logs warnings when validateArtifactFile returns allowed:true with warnings', async () => {
@@ -239,15 +241,16 @@ describe('proposal-generation', () => {
       expect(result.success).toBe(true)
     })
 
-    it('handles outer catch block when validateArtifactFile throws', async () => {
+    it('succeeds even when validator would throw (validation deferred)', async () => {
+      // Validation is not run during generation; deferred to proposal_action:validate
       mockFsAccess.mockResolvedValue(undefined)
       mockValidateArtifactFile.mockRejectedValue(new Error('validator crashed'))
 
       const { generateProposals } = await import('../../src/core/proposal-generation.js')
+      const result = await generateProposals({ gateId: 'gate-01' })
 
-      await expect(generateProposals({ gateId: 'gate-01' })).rejects.toThrow(
-        'Proposal generation failed'
-      )
+      expect(result.success).toBe(true)
+      expect(mockValidateArtifactFile).not.toHaveBeenCalled()
     })
 
     it('succeeds even when syncProposalsFromDisk throws (non-fatal)', async () => {
@@ -262,7 +265,7 @@ describe('proposal-generation', () => {
       expect(result.success).toBe(true)
     })
 
-    it('succeeds with multiple proposals when all files pass validation', async () => {
+    it('succeeds with multiple proposals without validating artifact content', async () => {
       const proposals = [
         {
           ...PROPOSAL_STUB,
@@ -279,14 +282,13 @@ describe('proposal-generation', () => {
       ]
       mockDecomposeToProposals.mockResolvedValue(proposals)
       mockFsAccess.mockResolvedValue(undefined)
-      mockValidateArtifactFile.mockResolvedValue({ allowed: true })
 
       const { generateProposals } = await import('../../src/core/proposal-generation.js')
       const result = await generateProposals({ gateId: 'gate-01' })
 
       expect(result.success).toBe(true)
       expect(result.proposalsGenerated).toBe(2)
-      expect(mockValidateArtifactFile).toHaveBeenCalledTimes(2)
+      expect(mockValidateArtifactFile).not.toHaveBeenCalled()
     })
   })
 

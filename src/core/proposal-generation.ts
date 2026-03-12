@@ -86,48 +86,10 @@ export async function generateProposals(
     // Calculate dependencies
     const dependencies = calculateProposalDependencies(proposals)
 
-    // Validate each generated proposal artifact (skip if file doesn't exist, e.g., in test mocks)
-    const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
-    const fs = await import('node:fs/promises')
-    const validationErrors: string[] = []
-
-    for (const proposal of proposals) {
-      try {
-        const proposalPath = path.join(projectRoot, proposal.path)
-
-        // Check if file actually exists (skip validation for mocked/synthetic proposals)
-        try {
-          await fs.access(proposalPath)
-        } catch {
-          // File doesn't exist, skip validation (likely test mock)
-          logger.debug('Proposal file not found, skipping validation', { proposalPath })
-          continue
-        }
-
-        const validationResult = await validateArtifactFile(proposalPath, 'proposal', {
-          gateId,
-          hash: proposal.hash,
-        })
-
-        if (!validationResult.allowed) {
-          validationErrors.push(
-            `Proposal ${proposal.hash} failed validation:\n${validationResult.errors?.join('\n') ?? ''}`
-          )
-        } else if (validationResult.warnings) {
-          logger.warn(`Proposal ${proposal.hash} has warnings`, validationResult.warnings)
-        }
-      } catch (err) {
-        validationErrors.push(`Failed to validate proposal ${proposal.hash}: ${String(err)}`)
-      }
-    }
-
-    // If any validation errors, fail the entire generation
-    if (validationErrors.length > 0) {
-      throw new ZenoError(
-        `Proposal validation failed:\n${validationErrors.join('\n')}`,
-        'PROPOSAL_VALIDATION_FAILED'
-      )
-    }
+    // NOTE: Artifact validation is intentionally NOT run here. Generated scaffold
+    // files contain unfilled bracket placeholders and LLM instruction comments by
+    // design — an AI is expected to replace those before validation. Run
+    // `proposal_action:validate { hash }` after the proposals are filled in.
 
     // Sync newly written proposal files into the DB so that subsequent
     // proposal_show / proposal_list calls see them immediately.
