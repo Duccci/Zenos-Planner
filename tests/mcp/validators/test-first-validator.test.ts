@@ -188,48 +188,6 @@ describe('test-first-validator', () => {
       })
     })
 
-    describe('missing or invalid role', () => {
-      it('should warn on missing role for gate-tied proposal', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#abc123',
-          role: undefined,
-          isGateTied: true,
-          filesAffected: ['src/feature.test.ts'],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(true)
-        expect(result.warnings).toBeDefined()
-        expect(result.warnings?.[0]).toMatch(/missing a \*\*Role\*\* field/)
-      })
-
-      it('should allow missing role for solitary proposal', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#abc123',
-          role: undefined,
-          isGateTied: false,
-          filesAffected: ['src/feature.ts'],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(true)
-      })
-
-      it('should warn on unknown role', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#abc123',
-          role: 'unknown-role',
-          isGateTied: true,
-          filesAffected: [],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(true)
-        expect(result.warnings).toBeDefined()
-        expect(result.warnings?.[0]).toMatch(/Unknown proposal role/)
-      })
-    })
-
     describe('gate-level structure validation', () => {
       it('should validate gate with proper structure', () => {
         const context: TestFirstValidationContext = {

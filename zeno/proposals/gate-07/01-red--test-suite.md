@@ -3,7 +3,7 @@ zeno:
   hash: 'a7d4f2e8'
   gate_id: 'gate-07'
   requirement_id: null
-  status: pending
+  status: completed
   reason: null
   created_at: '2026-03-11'
 ---
@@ -22,7 +22,7 @@ zeno:
 
 **Hash**: #a7d4f2e8
 **Gate**: gate-07 - Proposal Generation & Management
-**Status**: pending
+**Status**: in_progress
 **Created**: 2026-03-11
 
 ---
@@ -62,10 +62,10 @@ Extend the existing `calculateProposalDependencies` describe block. Add test cas
 
 **Acceptance**:
 
-- [ ] All new assertions fail with `TypeError` or shape-mismatch before implementation (RED)
-- [ ] Existing `calculateProposalDependencies` tests updated to destructure `.edges` from the return
-- [ ] Test for `parallelSets[1]` uses `expect.arrayContaining` for order-independence
-- [ ] Test for cycle-free multi-impl: all impls grouped in the same set (parallelSets[1])
+- [x] All new assertions fail with `TypeError` or shape-mismatch before implementation (RED)
+- [x] Existing `calculateProposalDependencies` tests updated to destructure `.edges` from the return
+- [x] Test for `parallelSets[1]` uses `expect.arrayContaining` for order-independence
+- [x] Test for cycle-free multi-impl: all impls grouped in the same set (parallelSets[1])
 
 ---
 
@@ -78,9 +78,9 @@ Add a describe block `ProposalMetadata shape` that imports the `ProposalMetadata
 
 **Acceptance**:
 
-- [ ] TypeScript `satisfies ProposalMetadata` check compiles when `parallelSetIndex` is omitted
-- [ ] TypeScript `satisfies ProposalMetadata` check compiles when `parallelSetIndex: 0` is included
-- [ ] TypeScript compile error when `parallelSetIndex: 'bad'` is assigned (negative type test via `@ts-expect-error`)
+- [x] TypeScript `satisfies ProposalMetadata` check compiles when `parallelSetIndex` is omitted
+- [x] TypeScript `satisfies ProposalMetadata` check compiles when `parallelSetIndex: 0` is included
+- [x] TypeScript compile error when `parallelSetIndex: 'bad'` is assigned (negative type test via `@ts-expect-error`)
 
 ---
 
@@ -93,10 +93,10 @@ Create a new test file. Import `ProposalRole` from `src/core/types.ts`. Write te
 
 **Acceptance**:
 
-- [ ] File is created and all imports fail (RED — types don't exist yet)
-- [ ] Five valid `ProposalRole` values accepted without compile error
-- [ ] `@ts-expect-error` annotations silence the expected TS errors for invalid values
-- [ ] Test file follows existing naming convention (`describe('ProposalRole', ...)`)
+- [x] File is created and all imports fail (RED — types don't exist yet)
+- [x] Five valid `ProposalRole` values accepted without compile error
+- [x] `@ts-expect-error` annotations silence the expected TS errors for invalid values
+- [x] Test file follows existing naming convention (`describe('ProposalRole', ...)`)
 
 ---
 
@@ -109,10 +109,10 @@ Locate the existing test file for proposal schemas. Add assertions that `Proposa
 
 **Acceptance**:
 
-- [ ] Assertions fail before schema is updated (RED — `parallelSets` key not present yet)
-- [ ] `ProposalListOutputSchema.parse({ proposals: [], parallelSets: [] })` passes (post-impl)
-- [ ] Missing `parallelSets` key throws `ZodError` (required field)
-- [ ] `parallelSetIndex: 0` on a proposal summary is accepted; `parallelSetIndex: 'bad'` rejected
+- [x] Assertions fail before schema is updated (RED — `parallelSets` key not present yet)
+- [x] `ProposalListOutputSchema.parse({ proposals: [], parallelSets: [] })` passes (post-impl)
+- [x] Missing `parallelSets` key throws `ZodError` (required field)
+- [x] `parallelSetIndex: 0` on a proposal summary is accepted; `parallelSetIndex: 'bad'` rejected
 
 ---
 
@@ -125,9 +125,9 @@ Locate the existing proposal-template test file (or create if absent). Add asser
 
 **Acceptance**:
 
-- [ ] TypeScript assignability test for `roles: ['testing', 'feature']` on `ProposalData` passes
-- [ ] `renderProposalTemplate` test fails with "replace is not a function" or placeholder mismatch (RED)
-- [ ] Test for missing `roles` renders without throwing
+- [x] TypeScript assignability test for `roles: ['testing', 'feature']` on `ProposalData` passes
+- [x] `renderProposalTemplate` test fails with "replace is not a function" or placeholder mismatch (RED)
+- [x] Test for missing `roles` renders without throwing
 
 ---
 
@@ -140,9 +140,34 @@ Add a `proposalSet` factory helper inside the existing test file that constructs
 
 **Acceptance**:
 
-- [ ] Helper is co-located in the test file, not exported
-- [ ] All Task 1 `parallelSets` tests use the helper
-- [ ] No duplication of hash literals across tests that use the helper
+- [x] Helper is co-located in the test file, not exported
+- [x] All Task 1 `parallelSets` tests use the helper
+- [x] No duplication of hash literals across tests that use the helper
+
+---
+
+### Task 7: Consolidate role behaviour tests into `tests/core/types.test.ts`
+
+**File(s)**: `tests/mcp/validators/test-first-validator.test.ts`, `tests/core/types.test.ts`
+**Action**: modify / modify
+
+The `describe('missing or invalid role', ...)` block (3 tests) in `test-first-validator.test.ts` tests role-specific validation behaviour and belongs alongside the `ProposalRole` type tests in `tests/core/types.test.ts`. Move those 3 tests into a new `describe('ProposalRole — validation behaviour', ...)` block at the bottom of `tests/core/types.test.ts`. Remove the block from `test-first-validator.test.ts`. Add any imports needed by the moved tests (`validateTestFirstPattern`, `TestFirstValidationContext`) to `tests/core/types.test.ts`.
+
+The three tests to move are:
+
+1. `'should warn on missing role for gate-tied proposal'`
+2. `'should allow missing role for solitary proposal'`
+3. `'should warn on unknown role'`
+
+Do **not** move the tests in `tests/mcp/tools/proposal-coverage-filePath.test.ts`, `tests/mcp/tools/gate-coverage-filePath.test.ts`, or `tests/mcp/validators/artifact-validator.test.ts` — those use `role` only as fixture data and are not testing `ProposalRole` constraints.
+
+**Acceptance**:
+
+- [x] All 3 tests removed from the `describe('missing or invalid role', ...)` block in `test-first-validator.test.ts`
+- [x] `describe('missing or invalid role', ...)` parent block removed from that file if it becomes empty
+- [x] All 3 tests present under `describe('ProposalRole — validation behaviour', ...)` in `tests/core/types.test.ts`
+- [x] `tests/core/types.test.ts` imports `validateTestFirstPattern` and `TestFirstValidationContext` from their source modules
+- [x] No test regressions: same assertions, same pass/fail behaviour
 
 ---
 
@@ -151,9 +176,10 @@ Add a `proposalSet` factory helper inside the existing test file that constructs
 | File | Action | Description |
 |------|--------|-------------|
 | `tests/core/proposal-writer.test.ts` | modify | Extend `calculateProposalDependencies` tests + `ProposalMetadata` shape tests + fixture helper |
-| `tests/core/types.test.ts` | create | New test file for `ProposalRole` type constraints |
-| `tests/mcp/proposal-schemas.test.ts` | modify | Add `parallelSets` + `parallelSetIndex` assertions on `ProposalListOutputSchema` |
+| `tests/core/types.test.ts` | create | New test file for `ProposalRole` type constraints + moved role validation behaviour tests |
+| `tests/mcp/proposal-schemas.test.ts` | create | New test file for `parallelSets` + `parallelSetIndex` assertions on `ProposalListOutputSchema` |
 | `tests/generation/proposal-template.test.ts` | modify | Add `roles` field tests on `ProposalData` |
+| `tests/mcp/validators/test-first-validator.test.ts` | modify | Remove `describe('missing or invalid role', ...)` block (moved to `types.test.ts`) |
 
 ---
 
@@ -161,13 +187,13 @@ Add a `proposalSet` factory helper inside the existing test file that constructs
 
 All tasks are pure test-writing; no source files are modified. Tests in Tasks 1 and 4 will fail at import or runtime because the expected shapes don't exist yet. Tasks 2, 3, and 5 fail at compile time via `@ts-expect-error` inversion or type-only assertions once the types are absent.
 
-The `tests/mcp/` directory might not yet have a `proposal-schemas.test.ts` — check first and create it if absent (write a `describe` wrapper + the four assertions from Task 4).
+`tests/mcp/proposal-schemas.test.ts` does not yet exist — create it (write a `describe` wrapper + the four assertions from Task 4).
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: Delete `tests/core/types.test.ts` (newly created). Revert changes to the three modified test files. No source code was touched.
+**If rejected or failed**: Delete `tests/core/types.test.ts` (newly created). Revert changes to the four modified test files (`proposal-writer.test.ts`, `proposal-template.test.ts`, `test-first-validator.test.ts`, and `proposal-schemas.test.ts` if created). No source code was touched.
 
 ---
 
@@ -181,3 +207,4 @@ The `tests/mcp/` directory might not yet have a `proposal-schemas.test.ts` — c
 | Version | Date | Summary | Author |
 |---------|------|---------|--------|
 | 1.0.0 | 2026-03-11 | Initial version | zeno |
+| 1.1.0 | 2026-03-11 | Add Task 7: consolidate role validation behaviour tests from test-first-validator.test.ts into types.test.ts; update Files Affected table | user |

@@ -138,60 +138,168 @@ describe('proposal-writer decomposeToProposals coverage', () => {
   })
 
   describe('calculateProposalDependencies', () => {
+    // Factory helper: builds minimal proposal-shaped objects for RED/impl/GREEN layouts
+    function proposalSet(
+      implHashes: string[],
+      redHash = 'red-hash',
+      greenHash = 'green-hash'
+    ): { hash: string; phase?: string }[] {
+      return [
+        { hash: redHash, phase: 'RED' },
+        ...implHashes.map((h) => ({ hash: h })),
+        { hash: greenHash, phase: 'GREEN' },
+      ]
+    }
+
     it('should create RED -> implementation dependencies', () => {
-      const deps = calculateProposalDependencies([
+      const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
         { hash: 'green-a', phase: 'GREEN' },
       ])
 
-      expect(deps).toContainEqual({ from: 'red-a', to: 'impl-a', type: 'red-impl' })
+      expect(edges).toContainEqual({ from: 'red-a', to: 'impl-a', type: 'red-impl' })
     })
 
     it('should create implementation -> GREEN dependencies', () => {
-      const deps = calculateProposalDependencies([
+      const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
         { hash: 'impl-b' },
         { hash: 'green-a', phase: 'GREEN' },
       ])
 
-      expect(deps).toContainEqual({ from: 'impl-a', to: 'green-a', type: 'impl-green' })
-      expect(deps).toContainEqual({ from: 'impl-b', to: 'green-a', type: 'impl-green' })
+      expect(edges).toContainEqual({ from: 'impl-a', to: 'green-a', type: 'impl-green' })
+      expect(edges).toContainEqual({ from: 'impl-b', to: 'green-a', type: 'impl-green' })
     })
 
     it('should handle complete RED -> impl -> GREEN flow', () => {
-      const deps = calculateProposalDependencies([
+      const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
         { hash: 'impl-b' },
         { hash: 'green-a', phase: 'GREEN' },
       ])
 
-      expect(deps).toContainEqual({ from: 'red-a', to: 'impl-a', type: 'red-impl' })
-      expect(deps).toContainEqual({ from: 'red-a', to: 'impl-b', type: 'red-impl' })
-      expect(deps).toContainEqual({ from: 'impl-a', to: 'green-a', type: 'impl-green' })
-      expect(deps).toContainEqual({ from: 'impl-b', to: 'green-a', type: 'impl-green' })
-      expect(deps).toHaveLength(4)
+      expect(edges).toContainEqual({ from: 'red-a', to: 'impl-a', type: 'red-impl' })
+      expect(edges).toContainEqual({ from: 'red-a', to: 'impl-b', type: 'red-impl' })
+      expect(edges).toContainEqual({ from: 'impl-a', to: 'green-a', type: 'impl-green' })
+      expect(edges).toContainEqual({ from: 'impl-b', to: 'green-a', type: 'impl-green' })
+      expect(edges).toHaveLength(4)
     })
 
     it('should create RED -> GREEN direct dependency when no impl proposals exist', () => {
-      const deps = calculateProposalDependencies([
+      const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'green-a', phase: 'GREEN' },
       ])
 
-      expect(deps).toEqual([{ from: 'red-a', to: 'green-a', type: 'red-green' }])
+      expect(edges).toEqual([{ from: 'red-a', to: 'green-a', type: 'red-green' }])
     })
 
     it('should return empty for single proposal', () => {
-      const deps = calculateProposalDependencies([{ hash: 'only' }])
-      expect(deps).toEqual([])
+      const { edges } = calculateProposalDependencies([{ hash: 'only' }])
+      expect(edges).toEqual([])
     })
 
     it('should return empty for no proposals', () => {
-      const deps = calculateProposalDependencies([])
-      expect(deps).toEqual([])
+      const { edges } = calculateProposalDependencies([])
+      expect(edges).toEqual([])
     })
+
+    // --- parallelSets tests ---
+
+    it('should return parallelSets key alongside edges', () => {
+      const result = calculateProposalDependencies(proposalSet(['impl-a']))
+      expect(result).toHaveProperty('edges')
+      expect(result).toHaveProperty('parallelSets')
+    })
+
+    it('should return empty parallelSets for empty proposal list', () => {
+      const { edges, parallelSets } = calculateProposalDependencies([])
+      expect(edges).toEqual([])
+      expect(parallelSets).toEqual([])
+    })
+
+    it('should return single-element parallelSets for single proposal', () => {
+      const { parallelSets } = calculateProposalDependencies([{ hash: 'only' }])
+      expect(parallelSets).toEqual([['only']])
+    })
+
+    it('should group RED/impl/GREEN into three sequential parallel sets', () => {
+      const { parallelSets } = calculateProposalDependencies(
+        proposalSet(['impl-a', 'impl-b'])
+      )
+      expect(parallelSets[0]).toEqual(['red-hash'])
+      expect(parallelSets[1]).toEqual(expect.arrayContaining(['impl-a', 'impl-b']))
+      expect(parallelSets[1]).toHaveLength(2)
+      expect(parallelSets[2]).toEqual(['green-hash'])
+    })
+
+    it('should group all impl proposals in the same parallel set (cycle-free multi-impl)', () => {
+      const { parallelSets } = calculateProposalDependencies(
+        proposalSet(['i1', 'i2', 'i3'])
+      )
+      expect(parallelSets).toHaveLength(3)
+      expect(parallelSets[1]).toEqual(expect.arrayContaining(['i1', 'i2', 'i3']))
+    })
+
+    it('should produce two parallelSets for RED -> GREEN direct (no impls)', () => {
+      const { parallelSets } = calculateProposalDependencies([
+        { hash: 'red-hash', phase: 'RED' },
+        { hash: 'green-hash', phase: 'GREEN' },
+      ])
+      expect(parallelSets).toHaveLength(2)
+      expect(parallelSets[0]).toEqual(['red-hash'])
+      expect(parallelSets[1]).toEqual(['green-hash'])
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// ProposalMetadata shape — parallelSetIndex field
+// ---------------------------------------------------------------------------
+describe('ProposalMetadata shape', () => {
+  it('should accept ProposalMetadata without parallelSetIndex (optional field)', () => {
+    const meta = {
+      hash: 'abc123',
+      filename: '01-red--test-suite.md',
+      path: '/output/proposals/01-red--test-suite.md',
+      type: 'gate-tied' as const,
+      status: 'pending',
+      summary: 'Test suite proposal',
+      phase: 'RED' as const,
+    }
+    // Compile-time: must not require parallelSetIndex
+    const _check: import('../../src/core/proposal-writer.js').ProposalMetadata = meta
+    expect(_check.hash).toBe('abc123')
+  })
+
+  it('should accept ProposalMetadata with parallelSetIndex: 0', () => {
+    const meta = {
+      hash: 'abc123',
+      filename: '01-red--test-suite.md',
+      path: '/output/proposals/01-red--test-suite.md',
+      type: 'gate-tied' as const,
+      status: 'pending',
+      summary: 'Test suite proposal',
+      parallelSetIndex: 0,
+    }
+    const _check: import('../../src/core/proposal-writer.js').ProposalMetadata = meta
+    expect(_check.parallelSetIndex).toBe(0)
+  })
+
+  it('should reject non-numeric parallelSetIndex at the type level', () => {
+    const meta = {
+      hash: 'abc123',
+      filename: 'f.md',
+      path: '/p/f.md',
+      type: 'gate-tied' as const,
+      status: 'pending',
+      summary: 's',
+      // @ts-expect-error parallelSetIndex must be a number, not a string
+      parallelSetIndex: 'bad',
+    }
+    expect(meta.parallelSetIndex).toBe('bad') // runtime value still accessible
   })
 })

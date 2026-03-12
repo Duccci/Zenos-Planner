@@ -4,6 +4,7 @@ import {
   loadProposalTemplate,
 } from '../../src/generation/proposal-template.js'
 import type { ProposalData } from '../../src/generation/proposal-template.js'
+import type { ProposalRole } from '../../src/core/types.js'
 
 describe('Proposal Template - Rendering Branches', () => {
   const baseData: ProposalData = {
@@ -170,6 +171,40 @@ describe('Proposal Template - Rendering Branches', () => {
       const rendered = renderProposalTemplate(template, data)
       expect(rendered).toBeDefined()
       expect(rendered).toContain(isoDate)
+    })
+  })
+
+  describe('roles field on ProposalData', () => {
+    it('should accept ProposalData with roles: ProposalRole[]', () => {
+      const data: ProposalData = {
+        ...baseData,
+        roles: ['testing', 'feature'] as ProposalRole[],
+      }
+      expect(data.roles).toContain('testing')
+      expect(data.roles).toContain('feature')
+    })
+
+    it('should accept ProposalData without roles (optional field)', () => {
+      const data: ProposalData = { ...baseData }
+      const rendered = renderProposalTemplate(template, data)
+      expect(rendered).toBeDefined()
+      expect(rendered.length).toBeGreaterThan(0)
+    })
+
+    it('should render {{ROLES}} placeholder as comma-joined string when roles provided', () => {
+      const minimalTemplate = '## Roles\n{{ROLES}}'
+      const data: ProposalData = {
+        ...baseData,
+        roles: ['testing', 'feature'] as ProposalRole[],
+      }
+      const rendered = renderProposalTemplate(minimalTemplate, data)
+      expect(rendered).toContain('testing, feature')
+    })
+
+    it('should not throw when rendering template without roles field', () => {
+      const minimalTemplate = '## Roles\n{{ROLES}}'
+      const data: ProposalData = { ...baseData }
+      expect(() => renderProposalTemplate(minimalTemplate, data)).not.toThrow()
     })
   })
 })
