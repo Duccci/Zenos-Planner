@@ -4,6 +4,8 @@ zeno:
   gate_id: '{{GATE_ID}}'
   requirement_id: null   # replace with requirement hash or remove
   status: pending
+  roles: '{{ROLES}}'
+  parallel_set_index: null
   created_at: '{{DATE}}'
 ---
 
@@ -13,6 +15,7 @@ zeno:
 **Gate**: {{GATE_ID}} - [Gate Name]
 **Requirement**: #[Requirement Hash] (optional - may address gate-level objective)
 **Status**: pending
+**Roles**: {{ROLES}}
 **Created**: {{DATE}}
 
 ---

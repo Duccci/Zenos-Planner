@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // ---------------------------------------------------------------------------
 
 const mockReadFile = vi.fn()
+const mockWriteFile = vi.fn()
 const mockFsAccess = vi.fn()
 const mockExtractObjectives = vi.fn()
 const mockExtractRequirements = vi.fn()
@@ -24,6 +25,7 @@ const mockFindGateByGateId = vi.fn()
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
+  writeFile: (...args: unknown[]) => mockWriteFile(...args),
 }))
 
 vi.mock('../../src/utils/artifact-locator.js', () => ({
@@ -102,6 +104,7 @@ describe('proposal-generation', () => {
 
     // Default mock implementations for all tests
     mockReadFile.mockResolvedValue(GATE_PRD)
+    mockWriteFile.mockResolvedValue(undefined)
     mockExtractObjectives.mockReturnValue(['Build API', 'Add Auth'])
     mockExtractRequirements.mockReturnValue([{ id: 'req-1', description: 'REST endpoints' }])
     mockDecomposeToProposals.mockResolvedValue([
@@ -122,9 +125,12 @@ describe('proposal-generation', () => {
         summary: 'Add Auth',
       },
     ])
-    mockCalculateProposalDependencies.mockReturnValue([
-      { from: 'abc12345', to: 'def67890', type: 'sequential' },
-    ])
+    mockCalculateProposalDependencies.mockReturnValue({
+      edges: [
+        { from: 'abc12345', to: 'def67890', type: 'sequential' },
+      ],
+      parallelSets: [['abc12345'], ['def67890']],
+    })
     mockValidateArtifactFile.mockResolvedValue({
       allowed: true,
       warnings: undefined,

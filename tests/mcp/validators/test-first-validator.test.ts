@@ -37,7 +37,7 @@ describe('test-first-validator', () => {
       it('should skip all checks for solitary proposals', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: false,
           filesAffected: [],
         }
@@ -47,11 +47,11 @@ describe('test-first-validator', () => {
       })
     })
 
-    describe('test-suite role', () => {
-      it('should allow test-suite with only test files', () => {
+    describe('testing role', () => {
+      it('should allow testing with only test files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-suite',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.test.ts', 'tests/feature.spec.ts'],
         }
@@ -61,10 +61,10 @@ describe('test-first-validator', () => {
         expect(result.errors).toBeUndefined()
       })
 
-      it('should reject test-suite with implementation files', () => {
+      it('should reject testing with implementation files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-suite',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.ts', 'src/feature.test.ts'],
         }
@@ -75,10 +75,10 @@ describe('test-first-validator', () => {
         expect(result.errors?.[0]).toMatch(/non-test files/)
       })
 
-      it('should reject test-suite with no test files', () => {
+      it('should reject testing with no test files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-suite',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
         }
@@ -89,10 +89,10 @@ describe('test-first-validator', () => {
         expect(result.errors?.[0]).toMatch(/must include test files/)
       })
 
-      it('should allow test-suite with empty files affected', () => {
+      it('should allow testing with empty files affected', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-suite',
+          role: 'testing',
           isGateTied: true,
           filesAffected: [],
         }
@@ -102,11 +102,11 @@ describe('test-first-validator', () => {
       })
     })
 
-    describe('implementation role', () => {
-      it('should allow implementation with only implementation files', () => {
+    describe('feature role', () => {
+      it('should allow feature with only implementation files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts', 'src/handler.ts'],
         }
@@ -116,10 +116,10 @@ describe('test-first-validator', () => {
         expect(result.errors).toBeUndefined()
       })
 
-      it('should reject implementation with test files', () => {
+      it('should reject feature with test files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts', 'src/feature.test.ts'],
         }
@@ -130,10 +130,10 @@ describe('test-first-validator', () => {
         expect(result.errors?.[0]).toMatch(/must not contain test files/)
       })
 
-      it('should warn on implementation with no files affected', () => {
+      it('should warn on feature with no files affected', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: [],
         }
@@ -145,11 +145,11 @@ describe('test-first-validator', () => {
       })
     })
 
-    describe('test-cleanup role', () => {
-      it('should allow test-cleanup with only test files', () => {
+    describe('cleanup role', () => {
+      it('should allow cleanup with only test files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-cleanup',
+          role: 'cleanup',
           isGateTied: true,
           filesAffected: ['src/feature.test.ts', 'tests/feature.spec.ts'],
         }
@@ -159,10 +159,10 @@ describe('test-first-validator', () => {
         expect(result.errors).toBeUndefined()
       })
 
-      it('should reject test-cleanup with implementation files', () => {
+      it('should reject cleanup with implementation files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-cleanup',
+          role: 'cleanup',
           isGateTied: true,
           filesAffected: ['src/feature.ts', 'src/feature.test.ts'],
         }
@@ -173,10 +173,10 @@ describe('test-first-validator', () => {
         expect(result.errors?.[0]).toMatch(/non-test files/)
       })
 
-      it('should reject test-cleanup with no test files', () => {
+      it('should reject cleanup with no test files', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-cleanup',
+          role: 'cleanup',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
         }
@@ -192,23 +192,23 @@ describe('test-first-validator', () => {
       it('should validate gate with proper structure', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#impl1',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
           gateProposals: [
             {
-              hash: '#test-suite',
-              role: 'test-suite',
+              hash: '#testing1',
+              role: 'testing',
               createdAt: '2026-01-01T10:00:00Z',
             },
             {
               hash: '#impl1',
-              role: 'implementation',
+              role: 'feature',
               createdAt: '2026-01-01T11:00:00Z',
             },
             {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
+              hash: '#testing2',
+              role: 'testing',
               createdAt: '2026-01-01T12:00:00Z',
             },
           ],
@@ -218,21 +218,21 @@ describe('test-first-validator', () => {
         expect(result.allowed).toBe(true)
       })
 
-      it('should reject gate without test-suite', () => {
+      it('should reject gate without testing proposal', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#impl1',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
           gateProposals: [
             {
               hash: '#impl1',
-              role: 'implementation',
+              role: 'feature',
               createdAt: '2026-01-01T11:00:00Z',
             },
             {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
+              hash: '#cleanup1',
+              role: 'cleanup',
               createdAt: '2026-01-01T12:00:00Z',
             },
           ],
@@ -240,147 +240,55 @@ describe('test-first-validator', () => {
 
         const result = validateTestFirstPattern(context)
         expect(result.warnings).toBeDefined()
-        expect(result.warnings?.[0]).toMatch(/no test-suite proposal/)
+        expect(result.warnings?.some((w) => w.includes('testing'))).toBe(true)
       })
 
-      it('should reject gate without test-cleanup', () => {
+      it('should warn gate without testing proposal (renamed from test-cleanup)', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#impl1',
-          role: 'implementation',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
           gateProposals: [
             {
-              hash: '#test-suite',
-              role: 'test-suite',
+              hash: '#testing1',
+              role: 'testing',
               createdAt: '2026-01-01T10:00:00Z',
             },
             {
               hash: '#impl1',
-              role: 'implementation',
+              role: 'feature',
               createdAt: '2026-01-01T11:00:00Z',
             },
           ],
         }
 
         const result = validateTestFirstPattern(context)
+        // Should warn (no cleanup/final testing), but allow the gate to proceed
         expect(result.warnings).toBeDefined()
-        expect(result.warnings?.[0]).toMatch(/no test-cleanup proposal/)
+        expect(result.warnings?.some((w) => w.includes('testing'))).toBe(true)
       })
 
-      it('should reject gate with multiple test-suite proposals', () => {
+      it('should warn on multiple testing proposals', () => {
         const context: TestFirstValidationContext = {
-          proposalHash: '#ts2',
-          role: 'test-suite',
+          proposalHash: '#testing3',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.test.ts'],
           gateProposals: [
             {
-              hash: '#ts1',
-              role: 'test-suite',
+              hash: '#testing1',
+              role: 'testing',
               createdAt: '2026-01-01T10:00:00Z',
             },
             {
-              hash: '#ts2',
-              role: 'test-suite',
+              hash: '#testing2',
+              role: 'testing',
               createdAt: '2026-01-01T11:00:00Z',
             },
             {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
-              createdAt: '2026-01-01T12:00:00Z',
-            },
-          ],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(false)
-        expect(result.errors).toBeDefined()
-        expect(result.errors?.[0]).toMatch(/2 test-suite proposals/)
-      })
-
-      it('should reject gate with multiple test-cleanup proposals', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#tc2',
-          role: 'test-cleanup',
-          isGateTied: true,
-          filesAffected: ['src/feature.test.ts'],
-          gateProposals: [
-            {
-              hash: '#test-suite',
-              role: 'test-suite',
-              createdAt: '2026-01-01T10:00:00Z',
-            },
-            {
-              hash: '#tc1',
-              role: 'test-cleanup',
-              createdAt: '2026-01-01T11:00:00Z',
-            },
-            {
-              hash: '#tc2',
-              role: 'test-cleanup',
-              createdAt: '2026-01-01T12:00:00Z',
-            },
-          ],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(false)
-        expect(result.errors).toBeDefined()
-        expect(result.errors?.[0]).toMatch(/2 test-cleanup proposals/)
-      })
-
-      it('should reject gate where first proposal is not test-suite', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#impl1',
-          role: 'implementation',
-          isGateTied: true,
-          filesAffected: ['src/feature.ts'],
-          gateProposals: [
-            {
-              hash: '#impl1',
-              role: 'implementation',
-              createdAt: '2026-01-01T10:00:00Z',
-            },
-            {
-              hash: '#test-suite',
-              role: 'test-suite',
-              createdAt: '2026-01-01T11:00:00Z',
-            },
-            {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
-              createdAt: '2026-01-01T12:00:00Z',
-            },
-          ],
-        }
-
-        const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(false)
-        expect(result.errors).toBeDefined()
-        expect(result.errors?.[0]).toMatch(/first proposal.*should be "test-suite"/)
-      })
-
-      it('should reject gate where last proposal is not test-cleanup', () => {
-        const context: TestFirstValidationContext = {
-          proposalHash: '#impl1',
-          role: 'implementation',
-          isGateTied: true,
-          filesAffected: ['src/feature.ts'],
-          gateProposals: [
-            {
-              hash: '#test-suite',
-              role: 'test-suite',
-              createdAt: '2026-01-01T10:00:00Z',
-            },
-            {
-              hash: '#impl1',
-              role: 'implementation',
-              createdAt: '2026-01-01T11:00:00Z',
-            },
-            {
-              hash: '#impl2',
-              role: 'implementation',
+              hash: '#testing3',
+              role: 'testing',
               createdAt: '2026-01-01T12:00:00Z',
             },
           ],
@@ -388,66 +296,63 @@ describe('test-first-validator', () => {
 
         const result = validateTestFirstPattern(context)
         expect(result.warnings).toBeDefined()
-        expect(result.warnings?.some((w) => w.includes('no test-cleanup'))).toBe(true)
+        expect(result.warnings?.some((w) => w.includes('testing proposals'))).toBe(true)
       })
 
-      it('should reject gate with implementation before test-suite', () => {
+      it('should allow feature and cleanup when there is testing proposal', () => {
         const context: TestFirstValidationContext = {
-          proposalHash: '#impl1',
-          role: 'implementation',
+          proposalHash: '#feature1',
+          role: 'feature',
           isGateTied: true,
           filesAffected: ['src/feature.ts'],
           gateProposals: [
             {
-              hash: '#impl1',
-              role: 'implementation',
+              hash: '#testing1',
+              role: 'testing',
               createdAt: '2026-01-01T10:00:00Z',
             },
             {
-              hash: '#test-suite',
-              role: 'test-suite',
+              hash: '#feature1',
+              role: 'feature',
               createdAt: '2026-01-01T11:00:00Z',
             },
             {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
+              hash: '#cleanup1',
+              role: 'cleanup',
               createdAt: '2026-01-01T12:00:00Z',
             },
           ],
         }
 
         const result = validateTestFirstPattern(context)
-        expect(result.allowed).toBe(false)
-        expect(result.errors).toBeDefined()
-        // The error is triggered because first proposal must be test-suite
-        expect(result.errors?.[0]).toMatch(/first proposal.*should be "test-suite"/)
+        expect(result.allowed).toBe(true)
       })
-
+      
       it('should validate proper test-first gate structure', () => {
         const context: TestFirstValidationContext = {
-          proposalHash: '#test-suite',
-          role: 'test-suite',
+          proposalHash: '#testing1',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.test.ts'],
           gateProposals: [
             {
-              hash: '#test-suite',
-              role: 'test-suite',
+              hash: '#testing1',
+              role: 'testing',
               createdAt: '2026-01-01T10:00:00Z',
             },
             {
-              hash: '#impl1',
-              role: 'implementation',
+              hash: '#feature1',
+              role: 'feature',
               createdAt: '2026-01-01T11:00:00Z',
             },
             {
-              hash: '#impl2',
-              role: 'implementation',
+              hash: '#feature2',
+              role: 'feature',
               createdAt: '2026-01-01T12:00:00Z',
             },
             {
-              hash: '#test-cleanup',
-              role: 'test-cleanup',
+              hash: '#testing2',
+              role: 'testing',
               createdAt: '2026-01-01T13:00:00Z',
             },
           ],
@@ -461,7 +366,7 @@ describe('test-first-validator', () => {
       it('should skip gate-level checks when gateProposals is empty', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#abc123',
-          role: 'test-suite',
+          role: 'testing',
           isGateTied: true,
           filesAffected: ['src/feature.test.ts'],
           gateProposals: [],
@@ -537,18 +442,18 @@ describe('test-first-validator', () => {
     it('should pass gate with proper structure', () => {
       const proposals: ProposalGateSibling[] = [
         {
-          hash: '#test-suite',
-          role: 'test-suite',
+          hash: '#testing1',
+          role: 'testing',
           createdAt: '2026-01-01T10:00:00Z',
         },
         {
-          hash: '#impl1',
-          role: 'implementation',
+          hash: '#feature1',
+          role: 'feature',
           createdAt: '2026-01-01T11:00:00Z',
         },
         {
-          hash: '#test-cleanup',
-          role: 'test-cleanup',
+          hash: '#testing2',
+          role: 'testing',
           createdAt: '2026-01-01T12:00:00Z',
         },
       ]
@@ -557,79 +462,82 @@ describe('test-first-validator', () => {
       expect(result.allowed).toBe(true)
     })
 
-    it('should warn on missing test-suite', () => {
+    it('should warn on missing testing proposal', () => {
       const proposals: ProposalGateSibling[] = [
         {
-          hash: '#impl1',
-          role: 'implementation',
+          hash: '#feature1',
+          role: 'feature',
           createdAt: '2026-01-01T10:00:00Z',
         },
         {
-          hash: '#impl2',
-          role: 'implementation',
+          hash: '#feature2',
+          role: 'feature',
           createdAt: '2026-01-01T11:00:00Z',
         },
       ]
 
       const result = validateGateLevelTestFirst(proposals)
       expect(result.warnings).toBeDefined()
-      expect(result.warnings?.[0]).toMatch(/no test-suite/)
+      expect(result.warnings?.[0]).toMatch(/no testing/)
     })
 
-    it('should warn on missing test-cleanup', () => {
+    it('should warn on too few testing proposals', () => {
       const proposals: ProposalGateSibling[] = [
         {
-          hash: '#test-suite',
-          role: 'test-suite',
+          hash: '#testing1',
+          role: 'testing',
           createdAt: '2026-01-01T10:00:00Z',
         },
         {
-          hash: '#impl1',
-          role: 'implementation',
+          hash: '#feature1',
+          role: 'feature',
           createdAt: '2026-01-01T11:00:00Z',
         },
       ]
 
       const result = validateGateLevelTestFirst(proposals)
       expect(result.warnings).toBeDefined()
-      expect(result.warnings?.[0]).toMatch(/no test-cleanup/)
+      expect(result.warnings?.some((w) => w.includes('testing'))).toBe(true)
     })
 
-    it('should reject multiple test-suite proposals', () => {
+    it('should allow multiple testing proposals (typical RED/GREEN pattern)', () => {
       const proposals: ProposalGateSibling[] = [
         {
-          hash: '#ts1',
-          role: 'test-suite',
+          hash: '#testing1',
+          role: 'testing',
           createdAt: '2026-01-01T10:00:00Z',
         },
         {
-          hash: '#ts2',
-          role: 'test-suite',
+          hash: '#feature1',
+          role: 'feature',
           createdAt: '2026-01-01T11:00:00Z',
+        },
+        {
+          hash: '#testing2',
+          role: 'testing',
+          createdAt: '2026-01-01T12:00:00Z',
         },
       ]
 
       const result = validateGateLevelTestFirst(proposals)
-      expect(result.allowed).toBe(false)
-      expect(result.errors).toBeDefined()
-      expect(result.errors?.[0]).toMatch(/2 test-suite/)
+      expect(result.allowed).toBe(true)
     })
 
     it('should sort proposals by createdAt before validation', () => {
       const proposals: ProposalGateSibling[] = [
         {
-          hash: '#impl1',
-          role: 'implementation',
+          hash: '#feature1',
+          role: 'feature',
           createdAt: '2026-01-01T11:00:00Z',
         },
         {
-          hash: '#test-suite',
-          role: 'test-suite',
+          hash: '#testing1',
+          role: 'testing',
           createdAt: '2026-01-01T10:00:00Z',
         },
         {
-          hash: '#test-cleanup',
-          role: 'test-cleanup',
+          hash: '#testing2',
+          role: 'testing',
           createdAt: '2026-01-01T12:00:00Z',
         },
       ]
@@ -644,7 +552,7 @@ describe('test-first-validator', () => {
       // Indirect test via role consistency check
       const context: TestFirstValidationContext = {
         proposalHash: '#abc123',
-        role: 'test-suite',
+        role: 'testing',
         isGateTied: true,
         filesAffected: ['src/feature.test.ts'],
       }
@@ -656,7 +564,7 @@ describe('test-first-validator', () => {
     it('should recognize .spec.ts files', () => {
       const context: TestFirstValidationContext = {
         proposalHash: '#abc123',
-        role: 'test-suite',
+        role: 'testing',
         isGateTied: true,
         filesAffected: ['src/feature.spec.ts'],
       }
@@ -668,7 +576,7 @@ describe('test-first-validator', () => {
     it('should recognize __tests__ directory files', () => {
       const context: TestFirstValidationContext = {
         proposalHash: '#abc123',
-        role: 'test-suite',
+        role: 'testing',
         isGateTied: true,
         filesAffected: ['src/__tests__/feature.ts'],
       }
@@ -680,7 +588,7 @@ describe('test-first-validator', () => {
     it('should recognize tests/ directory files', () => {
       const context: TestFirstValidationContext = {
         proposalHash: '#abc123',
-        role: 'test-suite',
+        role: 'testing',
         isGateTied: true,
         filesAffected: ['tests/feature.ts'],
       }

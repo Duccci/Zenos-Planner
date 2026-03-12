@@ -401,6 +401,20 @@ function scoreSection(body: string, spec: SectionSpec): SectionScore {
     }
   }
 
+  // ── acceptable null values ("N/A", "null", etc.) ──────────────────────────
+  // Some sections like "Open Questions" are acceptable when set to "N/A",
+  // indicating no content is needed.  Skip structural checks for these.
+  if (/^(?:N\/A|null)$/i.test(cleanBody)) {
+    return {
+      section: spec.heading,
+      score: 100,
+      wordCount: 1,
+      placeholderCount: 0,
+      hasContent: true,
+      issues: [],
+    }
+  }
+
   // ── LLM instruction bleed ─────────────────────────────────────────────────
   // Check if any LLM context-injection fragments (from template HTML comments)
   // appear verbatim in the artifact section — they must not.

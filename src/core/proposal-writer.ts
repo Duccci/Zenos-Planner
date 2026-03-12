@@ -1,6 +1,7 @@
 import { ensureDir, writeFile } from '../utils/file.js'
 import { shortHash } from '../utils/hash.js'
 import { loadConfig } from '../utils/config.js'
+import { type ProposalRole } from './types.js'
 import path from 'path'
 
 export interface ProposalMetadata {
@@ -12,6 +13,8 @@ export interface ProposalMetadata {
   summary: string
   phase?: 'RED' | 'GREEN'
   coverageTarget?: number
+  roles?: string[]
+  parallelSetIndex?: number
 }
 
 /**
@@ -158,6 +161,7 @@ async function generateRedTestSuiteProposal(
     summary: `RED: Test suite for all gate objectives`,
     phase: 'RED',
     coverageTarget: totalCoverageTarget,
+    roles: ['testing'] as ProposalRole[],
   })
 
   return startIndex + 1
@@ -221,6 +225,7 @@ async function generateImplementationProposals(
       summary: `Implement: ${objective}`,
       phase: undefined,
       coverageTarget,
+      roles: ['feature'] as ProposalRole[],
     })
 
     index++
@@ -281,6 +286,7 @@ async function generateGreenVerificationProposal(
     summary: 'GREEN: Attach implementation to tests and verify all pass',
     phase: 'GREEN',
     coverageTarget: totalCoverageTarget,
+    roles: ['testing'] as ProposalRole[],
   })
 }
 
@@ -401,8 +407,8 @@ Review test coverage reports and identify uncovered code paths. Add edge case te
  */
 export function calculateProposalDependencies(
   proposals: { hash: string; filename?: string; path?: string; phase?: string }[]
-): { from: string; to: string; type: string }[] {
-  const dependencies: { from: string; to: string; type: string }[] = []
+): { edges: { from: string; to: string; type: string }[]; parallelSets: string[][] } {
+  const edges: { from: string; to: string; type: string }[] = []
 
   const redProposals = proposals.filter(
     (p) => p.phase === 'RED' || p.filename?.includes('-red-')
@@ -424,7 +430,7 @@ export function calculateProposalDependencies(
     const red = redProposals[0]
     if (red) {
       for (const impl of implProposals) {
-        dependencies.push({
+        edges.push({
           from: red.hash,
           to: impl.hash,
           type: 'red-impl',
@@ -434,7 +440,7 @@ export function calculateProposalDependencies(
       if (implProposals.length === 0 && greenProposals.length > 0) {
         const greenProposal = greenProposals[0]
         if (greenProposal) {
-          dependencies.push({
+          edges.push({
             from: red.hash,
             to: greenProposal.hash,
             type: 'red-green',
@@ -449,7 +455,7 @@ export function calculateProposalDependencies(
     const green = greenProposals[0]
     if (green) {
       for (const impl of implProposals) {
-        dependencies.push({
+        edges.push({
           from: impl.hash,
           to: green.hash,
           type: 'impl-green',
@@ -458,5 +464,35 @@ export function calculateProposalDependencies(
     }
   }
 
-  return dependencies
+  // Compute parallel execution sets using Kahn's algorithm
+  const inDegree = new Map<string, number>()
+  const adj = new Map<string, string[]>()
+
+  for (const p of proposals) {
+    inDegree.set(p.hash, 0)
+    adj.set(p.hash, [])
+  }
+
+  for (const e of edges) {
+    adj.get(e.from)?.push(e.to)
+    inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1)
+  }
+
+  const parallelSets: string[][] = []
+  let frontier = proposals.map((p) => p.hash).filter((h) => (inDegree.get(h) ?? 0) === 0)
+
+  while (frontier.length > 0) {
+    parallelSets.push([...frontier])
+    const next: string[] = []
+    for (const h of frontier) {
+      for (const dep of adj.get(h) ?? []) {
+        const deg = (inDegree.get(dep) ?? 1) - 1
+        inDegree.set(dep, deg)
+        if (deg === 0) next.push(dep)
+      }
+    }
+    frontier = next
+  }
+
+  return { edges, parallelSets }
 }

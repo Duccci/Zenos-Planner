@@ -2,6 +2,21 @@
  * Core types for gate generation and Zeno engine
  */
 
+/**
+ * Proposal role taxonomy consolidating three dimensions:
+ * - Location type: gate-tied vs solitary
+ * - Test-driven phase: RED (test-suite) vs GREEN (test-cleanup) vs implementation
+ * - Semantic role: feature, testing, cleanup, documentation
+ * 
+ * Each proposal may carry multiple roles, though typical patterns are:
+ * - 'testing': test-suite or test-cleanup proposals (RED/GREEN phase)
+ * - 'feature': implementation proposals with new functionality
+ * - 'cleanup': refactoring or maintenance tasks
+ * - 'documentation': docs-only changes
+ * - 'solitary': not tied to a gate (any content)
+ */
+export type ProposalRole = 'testing' | 'feature' | 'cleanup' | 'documentation' | 'solitary'
+
 export interface WorkDescription {
   description: string;
   complexity: number; // 0-100, estimated complexity

@@ -83,6 +83,7 @@ interface ParsedProposalMetadata {
   gateId: string | null
   requirementId: string | null
   createdAt: string | null
+  parallelSetIndex: number | null
   // lifecycle fields — populated from frontmatter when available
   approvedAt: string | null
   approvedBy: string | null
@@ -117,6 +118,7 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
       gateId,
       requirementId: fm.requirement_id ?? null,
       createdAt: fm.created_at ?? null,
+      parallelSetIndex: typeof fm.parallel_set_index === 'number' ? fm.parallel_set_index : null,
       approvedAt: fm.approved_at ?? null,
       approvedBy: fm.approved_by ?? null,
       rejectedAt: fm.rejected_at ?? null,
@@ -160,6 +162,7 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
     gateId,
     requirementId,
     createdAt,
+    parallelSetIndex: null,
     approvedAt: null,
     approvedBy: null,
     rejectedAt: null,
@@ -200,14 +203,14 @@ export function syncProposalsFromDisk(
   const upsert = db.prepare(`
     INSERT INTO proposals
       (id, gate_id, requirement_id, title, status, hash,
-       created_at, updated_at,
+       created_at, updated_at, parallel_set_index,
        approved_at, approved_by,
        rejected_at, rejected_by,
        started_at,  started_by,
        implemented_at)
     VALUES
       (lower(hex(randomblob(16))), ?, ?, ?, ?, ?,
-       ?, ?,
+       ?, ?, ?,
        ?, ?,
        ?, ?,
        ?, ?,
@@ -262,7 +265,7 @@ export function syncProposalsFromDisk(
 
       upsert.run(
         meta.gateId, resolvedRequirementId, meta.title, normalizeProposalStatus(meta.status), meta.hash,
-        normalizeDateTime(meta.createdAt, nowIso), nowIso,
+        normalizeDateTime(meta.createdAt, nowIso), nowIso, meta.parallelSetIndex,
         meta.approvedAt, meta.approvedBy,
         meta.rejectedAt, meta.rejectedBy,
         meta.startedAt,  meta.startedBy,

@@ -90,6 +90,31 @@ function patchProposalStatusConstraint(db: Database.Database): void {
 }
 
 /**
+ * Add parallel_set_index column to proposals table if it doesn't exist.
+ * SQLite returns an error if the column already exists; we swallow that.
+ */
+function patchProposalsParallelSetIndex(db: Database.Database): void {
+  // Only attempt to patch if the table already exists
+  const tableExists = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='proposals'")
+    .get() !== undefined
+
+  if (!tableExists) {
+    return // Table will be created by schema.sql with the correct schema
+  }
+
+  try {
+    db.exec('ALTER TABLE proposals ADD COLUMN parallel_set_index INTEGER')
+  } catch (error) {
+    // Ignore "duplicate column name" errors — the column already exists
+    const msg = error instanceof Error ? error.message : String(error)
+    if (!msg.includes('duplicate column')) {
+      throw error
+    }
+  }
+}
+
+/**
  * Apply the canonical schema to the database.
  *
  * Reads schema.sql from the migrations directory and executes it.
@@ -130,6 +155,7 @@ export async function runMigrations(
   // Must run before schema.sql so the table is in the correct shape when the
   // idempotent CREATE TABLE statements are evaluated.
   patchProposalStatusConstraint(db)
+  patchProposalsParallelSetIndex(db)
 
   try {
     db.exec(sql)

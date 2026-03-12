@@ -42,6 +42,7 @@ export interface ZenoProposalFrontmatter {
   requirement_id?: string | null
   status?: string
   created_at?: string | null
+  parallel_set_index?: number | null
   // lifecycle fields — only present after the relevant event
   approved_at?: string | null
   approved_by?: string | null

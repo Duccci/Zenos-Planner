@@ -6,7 +6,7 @@
  * decomposing into proposals with tasks, and calculating dependencies.
  */
 
-import { readFile } from '../utils/file.js'
+import { readFile, writeFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
@@ -83,8 +83,27 @@ export async function generateProposals(
       outputDir ?? `zeno/proposals/gate-${gateNumberStr}`
     )
 
-    // Calculate dependencies
-    const dependencies = calculateProposalDependencies(proposals)
+    // Calculate dependencies and parallel execution sets
+    const { edges: dependencies, parallelSets } = calculateProposalDependencies(proposals)
+
+    // Annotate each proposal with its parallel set index
+    parallelSets.forEach((set, idx) => {
+      set.forEach((hash) => {
+        const proposal = proposals.find((p) => p.hash === hash)
+        if (proposal) {
+          proposal.parallelSetIndex = idx
+        }
+      })
+    })
+
+    // Update frontmatter files to write the computed parallelSetIndex values
+    for (const proposal of proposals) {
+      if (proposal.parallelSetIndex !== undefined) {
+        const content = await readFile(proposal.path, 'utf-8')
+        const updatedContent = content.replace(/parallel_set_index: null/, `parallel_set_index: ${String(proposal.parallelSetIndex)}`)
+        await writeFile(proposal.path, updatedContent)
+      }
+    }
 
     // NOTE: Artifact validation is intentionally NOT run here. Generated scaffold
     // files contain unfilled bracket placeholders and LLM instruction comments by

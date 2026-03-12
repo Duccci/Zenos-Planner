@@ -22,7 +22,7 @@ zeno:
 
 **Hash**: #c6d0a2b4
 **Gate**: gate-07 - Proposal Generation & Management
-**Status**: pending
+**Status**: in_progress
 **Created**: 2026-03-11
 
 ---
@@ -64,10 +64,10 @@ Add `export type ProposalRole = 'testing' | 'feature' | 'cleanup' | 'documentati
 
 **Acceptance**:
 
-- [ ] `ProposalRole` is exported from `src/core/types.ts`
-- [ ] Union contains exactly `'testing' | 'feature' | 'cleanup' | 'documentation' | 'solitary'`
-- [ ] JSDoc comment documents all three merged dimensions
-- [ ] `npm run build` compiles cleanly
+- [x] `ProposalRole` is exported from `src/core/types.ts`
+- [x] Union contains exactly `'testing' | 'feature' | 'cleanup' | 'documentation' | 'solitary'`
+- [x] JSDoc comment documents all three merged dimensions
+- [x] `npm run build` compiles cleanly
 
 ---
 
@@ -80,11 +80,11 @@ Import `ProposalRole` from `src/core/types.ts`. Add `roles?: ProposalRole[]` to 
 
 **Acceptance**:
 
-- [ ] `ProposalMetadata` has `roles?: ProposalRole[]`
-- [ ] RED proposal push sets `roles: ['testing']`
-- [ ] Implementation proposal push sets `roles: ['feature']`
-- [ ] GREEN proposal push sets `roles: ['testing']`
-- [ ] Import of `ProposalRole` from `../../core/types.js` compiles cleanly
+- [x] `ProposalMetadata` has `roles?: ProposalRole[]`
+- [x] RED proposal push sets `roles: ['testing']`
+- [x] Implementation proposal push sets `roles: ['feature']`
+- [x] GREEN proposal push sets `roles: ['testing']`
+- [x] Import of `ProposalRole` from `../../core/types.js` compiles cleanly
 
 ---
 
@@ -97,10 +97,10 @@ Import `ProposalRole` from `../core/types.js`. Add `roles?: ProposalRole[]` to t
 
 **Acceptance**:
 
-- [ ] `ProposalData` has `roles?: ProposalRole[]`
-- [ ] `renderProposalTemplate` replaces `{{ROLES}}` with comma-joined roles
-- [ ] No error thrown when `data.roles` is `undefined` or `[]`
-- [ ] No error thrown when the template string does not contain `{{ROLES}}` placeholder
+- [x] `ProposalData` has `roles?: ProposalRole[]`
+- [x] `renderProposalTemplate` replaces `{{ROLES}}` with comma-joined roles
+- [x] No error thrown when `data.roles` is `undefined` or `[]`
+- [x] No error thrown when the template string does not contain `{{ROLES}}` placeholder
 
 ---
 
@@ -113,10 +113,10 @@ Add `roles: '{{ROLES}}'` to the YAML frontmatter block (after `status`). Add a `
 
 **Acceptance**:
 
-- [ ] `roles: '{{ROLES}}'` appears in the YAML frontmatter of the template
-- [ ] `**Roles**: {{ROLES}}` appears in the header section of the template body
-- [ ] Existing template structure is otherwise unchanged
-- [ ] `renderProposalTemplate` test with a minimal template string containing `{{ROLES}}` passes
+- [x] `roles: '{{ROLES}}'` appears in the YAML frontmatter of the template
+- [x] `**Roles**: {{ROLES}}` appears in the header section of the template body
+- [x] Existing template structure is otherwise unchanged
+- [x] `renderProposalTemplate` test with a minimal template string containing `{{ROLES}}` passes
 
 ---
 
@@ -129,10 +129,10 @@ Find all occurrences of the old role strings (`'test-suite'`, `'implementation'`
 
 **Acceptance**:
 
-- [ ] No `'test-suite'` or `'test-cleanup'` or `'implementation'` string literals remain
-- [ ] `ProposalRole` is imported and used for type-safe comparisons where applicable
-- [ ] All existing tests for `test-first-validator` continue to pass
-- [ ] `npm run build` compiles cleanly
+- [x] No `'test-suite'` or `'test-cleanup'` or `'implementation'` string literals remain
+- [x] `ProposalRole` is imported and used for type-safe comparisons where applicable
+- [x] All existing tests for `test-first-validator` continue to pass
+- [x] `npm run build` compiles cleanly
 
 ---
 

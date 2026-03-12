@@ -88,7 +88,8 @@ CREATE TABLE IF NOT EXISTS proposals (
   approved_by      TEXT,
   rejected_by      TEXT,
   rejected_at      TIMESTAMP,
-  implemented_at   TIMESTAMP
+  implemented_at   TIMESTAMP,
+  parallel_set_index INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS metrics_snapshots (

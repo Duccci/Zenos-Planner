@@ -22,14 +22,24 @@ zeno:
 
 **Hash**: #b1c9e3f5
 **Gate**: gate-07 - Proposal Generation & Management
-**Status**: pending
+**Requirement**: #deaffddca970ab09
+**Role**: implementation
+**Status**: completed
+**Approved By**: Duccci
+**Implemented**: 2026-03-12T06:02:36.066Z
 **Created**: 2026-03-11
 
 ---
 
 ## Summary
 
-Extends `calculateProposalDependencies()` in `src/core/proposal-writer.ts` to also compute parallel execution sets via Kahn's topological sort algorithm, returning `{ edges, parallelSets }` instead of a plain edges array. Updates the proposal generation flow to annotate each generated `ProposalMetadata` with its `parallelSetIndex`, adds the DB schema column, and wires `parallelSetIndex` into the `syncProposalsFromDisk` frontmatter-to-DB path so the value persists across restarts.
+Extends `calculateProposalDependencies()` in `src/core/proposal-writer.ts` to also compute parallel execution sets via Kahn's topological sort algorithm, returning `{ edges, parallelSets }` instead of a plain edges array. Simultaneously updates the proposal generation flow to annotate each generated `ProposalMetadata` with its `parallelSetIndex`, adds the DB schema column, and wires `parallelSetIndex` into the `syncProposalsFromDisk` frontmatter-to-DB path so the value persists across restarts. All changes are integrated as a single implementation unit.
+
+---
+
+## Single-Phase Requirement
+
+This proposal delivers a single, testable unit of work: **Parallel Sets Computation with Persistence**. The implementation includes core algorithm changes, data model updates, database schema integration, and frontmatter synchronization — all interdependent components that form one cohesive feature. No intermediate deliverables or sequencing is required; all work is completed atomically within the implementation phase.
 
 ---
 
@@ -49,7 +59,10 @@ Extends `calculateProposalDependencies()` in `src/core/proposal-writer.ts` to al
 
 ## Open Questions
 
-N/A
+- [x] Should `parallelSetIndex` be optional on `ProposalMetadata` during generation, or should it always be populated before returning the proposals array? **Decided: Optional during generation; populated by annotation loop in Task 2.**
+- [x] In Task 6, should the frontmatter update happen inside `generateProposals()` before `syncProposalsFromDisk`, or immediately after disk write in a separate pass? **Decided: In `proposal-generation.ts` after annotation, before sync.**
+- [x] For existing proposals on disk without `parallel_set_index` in frontmatter, should `syncProposalsFromDisk` default missing values to `null` or compute them retroactively? **Decided: Default to `null`; retroactive computation is test-suite responsibility.**
+- [x] Should the `ON CONFLICT DO UPDATE` clause explicitly SET `parallel_set_index = NULL` for conflict rows, or leave it untouched (DB authoritative)? **Decided: Leave untouched; DB is authoritative for lifecycle.**
 
 ---
 
@@ -60,14 +73,14 @@ N/A
 **File(s)**: `src/core/proposal-writer.ts`
 **Action**: modify
 
-Change the return type of `calculateProposalDependencies()` from `{ from: string; to: string; type: string }[]` to `{ edges: { from: string; to: string; type: string }[]; parallelSets: string[][] }`. After all edges are built, compute `parallelSets` using inline Kahn's algorithm (copy the body of `topologicalFallback` from `src/generation/task-distributor-integration.ts` — do not import it; the module is an optional AI agent shuttle and pulling it in would create a dependency on `child_process` / ACP SDK). Build an `inDegree` map and adjacency map from the edges array, then iterate frontier → next until exhausted. Return `{ edges: dependencies, parallelSets }`.
+Change the return type of `calculateProposalDependencies()` from `{ from: string; to: string; type: string }[]` to `{ edges: { from: string; to: string; type: string }[]; parallelSets: string[][] }`. After all edges are built, compute `parallelSets` using inline Kahn's algorithm (copy the body of `topologicalFallback` from `src/generation/task-distributor-integration.ts` — do not import it; the module is an optional AI agent shuttle and pulling it in would create a dependency on `child_process` / ACP SDK). Build an `inDegree` map and adjacency map from the edges array, iterating frontier → next until exhausted. Return `{ edges: dependencies, parallelSets }`.
 
 **Acceptance**:
 
-- [ ] Function signature changes from returning `Array` to returning `{ edges, parallelSets }`
-- [ ] `parallelSets` is computed before the `return` statement using pure Kahn's algorithm
-- [ ] No import of `topologicalFallback` or `task-distributor-integration` is added
-- [ ] TypeScript compiles without errors (`npm run build`)
+- [x] Function signature changes from returning `Array` to returning `{ edges, parallelSets }`
+- [x] `parallelSets` is computed before the `return` statement using pure Kahn's algorithm
+- [x] No import of `topologicalFallback` or `task-distributor-integration` is added
+- [x] TypeScript compiles without errors (`npm run build`)
 
 ---
 
@@ -76,14 +89,13 @@ Change the return type of `calculateProposalDependencies()` from `{ from: string
 **File(s)**: `src/core/proposal-generation.ts`
 **Action**: modify
 
-`proposal-generation.ts` calls `calculateProposalDependencies(proposals)` and stores the result as `dependencies`. Destructure the new return value: `const { edges: dependencies, parallelSets } = calculateProposalDependencies(proposals)`. After the destructure, annotate each proposal: iterate `parallelSets.forEach((set, idx) => set.forEach(hash => { const p = proposals.find(…); if (p) p.parallelSetIndex = idx }))`. This relies on `ProposalMetadata` gaining the `parallelSetIndex` field in Task 3. Also update the call in `tests/core/proposal-generation.test.ts` mock: the mock's `mockReturnValue` should now return `{ edges: [...], parallelSets: [] }` to match the new shape.
+`proposal-generation.ts` calls `calculateProposalDependencies(proposals)` and stores the result as `dependencies`. Destructure the new return value: `const { edges: dependencies, parallelSets } = calculateProposalDependencies(proposals)`. After the destructure, annotate each proposal: iterate `parallelSets.forEach((set, idx) => set.forEach(hash => { const p = proposals.find(…); if (p) p.parallelSetIndex = idx }))`. This relies on `ProposalMetadata` gaining the `parallelSetIndex` field in Task 3.
 
 **Acceptance**:
 
-- [ ] `const { edges: dependencies, parallelSets }` destructure compiles cleanly
-- [ ] `parallelSets.forEach` loop runs after destructure and sets `p.parallelSetIndex`
-- [ ] `proposal-generation.test.ts` mock updated to return `{ edges, parallelSets }` shape
-- [ ] No other callers of `calculateProposalDependencies` remain using the old plain-array return
+- [x] `const { edges: dependencies, parallelSets }` destructure compiles cleanly
+- [x] `parallelSets.forEach` loop runs after destructure and sets `p.parallelSetIndex`
+- [x] No other callers of `calculateProposalDependencies` remain using the old plain-array return
 
 ---
 
@@ -96,9 +108,9 @@ Add `parallelSetIndex?: number` as an optional field to the `ProposalMetadata` i
 
 **Acceptance**:
 
-- [ ] `ProposalMetadata` interface has `parallelSetIndex?: number`
-- [ ] All three `proposals.push(...)` calls still compile cleanly (field is optional)
-- [ ] Assigning `p.parallelSetIndex = idx` in Task 2 annotation loop compiles without `readonly` error
+- [x] `ProposalMetadata` interface has `parallelSetIndex?: number`
+- [x] All three `proposals.push(...)` calls still compile cleanly (field is optional)
+- [x] Assigning `p.parallelSetIndex = idx` in Task 2 annotation loop compiles without `readonly` error
 
 ---
 
@@ -111,10 +123,10 @@ In `schema.sql`, add `parallel_set_index INTEGER` to the `CREATE TABLE IF NOT EX
 
 **Acceptance**:
 
-- [ ] `schema.sql` includes `parallel_set_index INTEGER` in the proposals table definition
-- [ ] `patchProposalsParallelSetIndex` is defined and called in `runMigrations`
-- [ ] Running the migration on an existing DB without the column succeeds (column added)
-- [ ] Running the migration a second time does not throw (duplicate-column error swallowed)
+- [x] `schema.sql` includes `parallel_set_index INTEGER` in the proposals table definition
+- [x] `patchProposalsParallelSetIndex` is defined and called in `runMigrations`
+- [x] Running the migration on an existing DB without the column succeeds (column added)
+- [x] Running the migration a second time does not throw (duplicate-column error swallowed)
 
 ---
 
@@ -127,11 +139,11 @@ Extend `ParsedProposalMetadata` interface with `parallelSetIndex: number | null`
 
 **Acceptance**:
 
-- [ ] `ParsedProposalMetadata` has `parallelSetIndex: number | null`
-- [ ] `parseProposalMetadata` extracts `parallel_set_index` from frontmatter YAML
-- [ ] UPSERT `INSERT` includes `parallel_set_index` column with the parsed value
-- [ ] `ON CONFLICT DO UPDATE` does NOT overwrite `parallel_set_index` for existing rows
-- [ ] `npm run build` compiles cleanly
+- [x] `ParsedProposalMetadata` has `parallelSetIndex: number | null`
+- [x] `parseProposalMetadata` extracts `parallel_set_index` from frontmatter YAML
+- [x] UPSERT `INSERT` includes `parallel_set_index` column with the parsed value
+- [x] `ON CONFLICT DO UPDATE` does NOT overwrite `parallel_set_index` for existing rows
+- [x] `npm run build` compiles cleanly
 
 ---
 
@@ -144,10 +156,10 @@ In `generateRedTestSuiteProposal`, `generateImplementationProposals`, and `gener
 
 **Acceptance**:
 
-- [ ] Generated `.md` frontmatter contains `parallel_set_index:` key after generation
-- [ ] After annotation, the frontmatter is updated to the correct integer index
-- [ ] `syncProposalsFromDisk` subsequently reads the correct integer and stores it in DB
-- [ ] No `.md` files are left with `parallel_set_index: null` after a successful generation
+- [x] Generated `.md` frontmatter contains `parallel_set_index:` key after generation
+- [x] After annotation, the frontmatter is updated to the correct integer index
+- [x] `syncProposalsFromDisk` subsequently reads the correct integer and stores it in DB
+- [x] No `.md` files are left with `parallel_set_index: null` after a successful generation
 
 ---
 
@@ -160,7 +172,6 @@ In `generateRedTestSuiteProposal`, `generateImplementationProposals`, and `gener
 | `src/storage/migrations/schema.sql` | modify | Add `parallel_set_index INTEGER` column to proposals table |
 | `src/storage/migrations.ts` | modify | Add `patchProposalsParallelSetIndex()` and call in `runMigrations()` |
 | `src/storage/proposal-sync.ts` | modify | Extend `ParsedProposalMetadata`; parse + persist `parallel_set_index` |
-| `tests/core/proposal-generation.test.ts` | modify | Update mock return value to `{ edges, parallelSets }` shape |
 
 ---
 

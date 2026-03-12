@@ -42,6 +42,7 @@ export interface ProposalData {
   filesAffected: FileAffected[]
   implementationNotes: string
   rollback: string
+  roles?: string[]
 }
 
 /**
@@ -69,6 +70,7 @@ export function renderProposalTemplate(template: string, data: ProposalData): st
   rendered = rendered.replace(/\[DATE\]/g, data.created)
   rendered = rendered.replace(/\[2-3 sentence description...\]/g, data.summary)
   rendered = rendered.replace(/\[1-2 sentences explaining...\]/g, data.context.whyChange)
+  rendered = rendered.replace(/\{\{ROLES\}\}/g, data.roles && data.roles.length > 0 ? data.roles.join(', ') : '')
 
   // Dependencies table
   const depRows = data.context.dependencies

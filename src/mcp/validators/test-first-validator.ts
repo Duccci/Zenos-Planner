@@ -85,7 +85,7 @@ function validateRoleFileConsistency(
       warnings.push(
         'Gate-tied proposal is missing a **Role** field. ' +
           'Set role to one of: test-suite, implementation, or test-cleanup. ' +
-          'This is required for Test-First Gate Pattern enforcement.'
+          'This is required for Test-First Gate Pattern enforcement (testing replaces test-suite/test-cleanup, feature replaces implementation).'
       )
     }
     // Solitary proposals without an explicit role are treated as solitary ΓÇö no enforcement.
@@ -96,53 +96,53 @@ function validateRoleFileConsistency(
   const implFiles = filesAffected.filter(isImplementationFile)
 
   switch (role) {
-    case 'test-suite':
+    case 'testing':
       // Must contain test files; must NOT contain implementation files outside tests/
       if (testFiles.length === 0 && filesAffected.length > 0) {
         errors.push(
-          'test-suite proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +
+          'testing proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +
             'No test files found in Files Affected. ' +
-            'The test-suite proposal defines the acceptance criteria as executable tests.'
+            'The testing proposal defines the acceptance criteria as executable tests.'
         )
       }
       if (implFiles.length > 0) {
         errors.push(
-          `test-suite proposal must not contain implementation files. ` +
+          `testing proposal must not contain implementation files. ` +
             `Found non-test files: ${implFiles.join(', ')}. ` +
-            `Remove implementation files ΓÇö this proposal only establishes the test contract.`
+            `Remove implementation files — this proposal only establishes the test contract.`
         )
       }
       break
 
-    case 'implementation':
+    case 'feature':
       // Must NOT contain test files
       if (testFiles.length > 0) {
         errors.push(
-          `implementation proposal must not contain test files. ` +
+          `feature proposal must not contain test files. ` +
             `Found test files: ${testFiles.join(', ')}. ` +
-            `Test tasks belong in the gate's test-suite (Proposal 1) or test-cleanup (Proposal N) proposals.`
+            `Test tasks belong in the gate's testing proposals.`
         )
       }
       if (filesAffected.length === 0) {
         warnings.push(
-          'implementation proposal has no files in Files Affected. ' +
+          'feature proposal has no files in Files Affected. ' +
             'Ensure implementation files are listed.'
         )
       }
       break
 
-    case 'test-cleanup':
+    case 'cleanup':
       // Must contain test files; must NOT contain implementation files
       if (testFiles.length === 0 && filesAffected.length > 0) {
         errors.push(
-          'test-cleanup proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +
+          'cleanup proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +
             'No test files found in Files Affected. ' +
-            'The test-cleanup proposal refines tests discovered during implementation.'
+            'The cleanup proposal refines tests and verifies all tests pass.'
         )
       }
       if (implFiles.length > 0) {
         errors.push(
-          `test-cleanup proposal must not contain implementation files. ` +
+          `cleanup proposal must not contain implementation files. ` +
             `Found non-test files: ${implFiles.join(', ')}. ` +
             `Only test refinements are permitted here; implementation is complete.`
         )
@@ -163,7 +163,7 @@ function validateRoleFileConsistency(
     default:
       warnings.push(
         `Unknown proposal role "${role}". ` +
-          `Valid roles are: test-suite, implementation, test-cleanup, solitary.`
+          `Valid roles are: testing, feature, cleanup, documentation, solitary.`
       )
   }
 
@@ -199,72 +199,49 @@ function validateGateStructure(
 
   // Guarded by length >= 2 check above, but TypeScript needs explicit narrowing
   const first: ProposalGateSibling | undefined = sorted[0]
-  const last: ProposalGateSibling | undefined = sorted[sorted.length - 1]
 
   const roleCount = (role: string): number => sorted.filter((p) => p.role === role).length
-  const testSuiteCount = roleCount('test-suite')
-  const testCleanupCount = roleCount('test-cleanup')
+  const testingCount = roleCount('testing')
+  const cleanupCount = roleCount('cleanup')
 
-  // Gate must have exactly one test-suite proposal
-  if (testSuiteCount === 0) {
+  // Gate must have at least one testing proposal
+  if (testingCount === 0) {
     warnings.push(
-      'Gate has no test-suite proposal. ' +
-        'The first proposal in every gate should be a test-suite that defines acceptance criteria as failing tests. ' +
-        'Create a test-suite proposal (role: test-suite) as Proposal 1.'
+      'Gate has no testing proposal. ' +
+        'The first proposal in every gate should be a testing proposal that defines acceptance criteria as failing tests. ' +
+        'Create a testing proposal (role: testing) as Proposal 1.'
     )
-  } else if (testSuiteCount > 1) {
-    errors.push(
-      `Gate has ${String(testSuiteCount)} test-suite proposals; expected exactly 1. ` +
-        `Only the first proposal may have role: test-suite.`
-    )
-  }
-
-  // Gate must have exactly one test-cleanup proposal
-  if (testCleanupCount === 0) {
+  } else if (testingCount > 2) {
+    // Two testing proposals are typical: one RED (first) and one GREEN (last)
+    // More than two may indicate redundancy, but is not an error
     warnings.push(
-      'Gate has no test-cleanup proposal. ' +
-        'The last proposal in every gate should be a test-cleanup that refines tests based on implementation learnings. ' +
-        'Create a test-cleanup proposal (role: test-cleanup) as the final proposal.'
-    )
-  } else if (testCleanupCount > 1) {
-    errors.push(
-      `Gate has ${String(testCleanupCount)} test-cleanup proposals; expected exactly 1. ` +
-        `Only the final proposal may have role: test-cleanup.`
+      `Gate has ${String(testingCount)} testing proposals. ` +
+        `Typical structure has one testing proposal first (RED) and one last (GREEN).`
     )
   }
 
-  // The first proposal must be the test-suite
-  if (first?.role && first.role !== 'test-suite' && testSuiteCount >= 1) {
-    const testSuiteProposal = sorted.find((p) => p.role === 'test-suite')
-    errors.push(
-      `The first proposal in the gate (#${first.hash}) has role "${first.role}" but should be "test-suite". ` +
-        `The test-suite proposal (#${testSuiteProposal?.hash ?? 'unknown'}) must be created first so ` +
-        `implementation proposals can depend on it.`
+  // Typical gate structure has at least one cleanup proposal (GREEN/final testing)
+  // unless the gate has only a single testing proposal (solitary test gate)
+  if (testingCount > 0 && cleanupCount === 0 && sorted.length > 1) {
+    warnings.push(
+      'Gate has no cleanup proposal for final testing verification. ' +
+        'Typical gate structure has a cleanup proposal (role: cleanup) as the last proposal to verify all tests pass after implementation. ' +
+        'Consider adding a cleanup proposal.'
     )
   }
 
-  // The last proposal must be the test-cleanup
-  if (last?.role && last.role !== 'test-cleanup' && testCleanupCount >= 1) {
-    const testCleanupProposal = sorted.find((p) => p.role === 'test-cleanup')
-    errors.push(
-      `The last proposal in the gate (#${last.hash}) has role "${last.role}" but should be "test-cleanup". ` +
-        `The test-cleanup proposal (#${testCleanupProposal?.hash ?? 'unknown'}) must be the final proposal ` +
-        `so it refines tests only after all implementation is complete.`
-    )
-  }
+  // No feature proposal may precede a testing proposal
+  if (testingCount >= 1 && first?.role === 'testing') {
+    const testingIndex = sorted.findIndex((p) => p.role === 'testing')
+    const featureBeforeTesting = sorted
+      .slice(0, testingIndex)
+      .filter((p) => p.role === 'feature')
 
-  // No implementation proposal may precede the test-suite
-  if (testSuiteCount === 1) {
-    const testSuiteIndex = sorted.findIndex((p) => p.role === 'test-suite')
-    const implementationBeforeTestSuite = sorted
-      .slice(0, testSuiteIndex)
-      .filter((p) => p.role === 'implementation')
-
-    if (implementationBeforeTestSuite.length > 0) {
+    if (featureBeforeTesting.length > 0) {
       errors.push(
-        `Implementation proposals found before the test-suite proposal: ` +
-          `${implementationBeforeTestSuite.map((p) => `#${p.hash}`).join(', ')}. ` +
-          `All implementation proposals must depend on (come after) the test-suite proposal.`
+        `Feature proposals found before a testing proposal: ` +
+          `${featureBeforeTesting.map((p) => `#${p.hash}`).join(', ')}. ` +
+          `All feature proposals must depend on (come after) the testing proposal.`
       )
     }
   }
