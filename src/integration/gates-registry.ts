@@ -217,6 +217,34 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   )
 
   registry.register(
+    'gates_set_validated',
+    async (params) => {
+      const validated = z.object({ gateId: z.string() }).parse(params)
+      const normalizedId = normalizeGateId(validated.gateId)
+      const db = (await import('../storage/database.js')).getDatabase()
+      db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(normalizedId)
+      const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
+      await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
+      return { gateId: normalizedId, newStatus: 'validated' as const }
+    },
+    {
+      description: 'Advance a gate status to validated after structural checks pass',
+      parameters: [
+        {
+          name: 'gateId',
+          type: 'string',
+          description: 'The ID of the gate to mark as validated',
+          required: true,
+        },
+      ],
+      returnType: 'void',
+      schema: z.object({
+        gateId: z.string().min(1, 'Gate ID is required'),
+      }),
+    }
+  )
+
+  registry.register(
     'gates_start',
     async (params) => {
       const validated = z.object({ gateId: z.string(), startedBy: z.string().optional() }).parse(params)

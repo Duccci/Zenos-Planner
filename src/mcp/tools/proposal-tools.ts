@@ -235,6 +235,7 @@ export function proposalHandlers(
           // Route gate-tied proposals to the gate workflow (generateProposals)
           const isSolitary = (payload as { solitary?: boolean }).solitary === true
           const hasGateId = Boolean((payload as { gateId?: string }).gateId)
+          const gateId = (payload as { gateId?: string }).gateId
 
           let invokeResult
           if (isSolitary || !hasGateId) {
@@ -249,9 +250,29 @@ export function proposalHandlers(
               delete (solitaryPayload as Record<string, unknown>)['gateId']
             }
             invokeResult = await r.invoke('proposal_create', solitaryPayload)
+            // Inject project-level requirements so the solitary proposal can align with the registry
+            if (invokeResult.success) {
+              const reqResult = await r.invoke('reg_action', { action: 'list', payload: {} }).catch(() => null)
+              if (reqResult?.success) {
+                invokeResult = {
+                  ...invokeResult,
+                  data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
+                }
+              }
+            }
           } else {
             // Gate-tied proposal: use gate workflow (generateProposals)
             invokeResult = await r.invoke('generateProposals', payload)
+            // Inject gate requirements so generated proposals utilize the prescribed specs
+            if (invokeResult.success && gateId) {
+              const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } }).catch(() => null)
+              if (reqResult?.success) {
+                invokeResult = {
+                  ...invokeResult,
+                  data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
+                }
+              }
+            }
           }
 
           // Inject preReviewSummary and proposal-generation guidance into successful response

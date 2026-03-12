@@ -11,9 +11,11 @@
   - in_progress: Gate started via `zeno gates start`, requirements generated
   - completed: All requirements tested, gate approved
   - archived: Gate completed and moved to archive with final artifacts
-  - rejected: Gate rejected during review
-  - cancelled: Gate cancelled/dropped with optional reason
-  - backlog: Gate deferred to later implementation
+  - rejected: Gate will not be implemented (covers both review rejection and deliberate cancellation); user-provided reason required
+  - deferred: Gate postponed to later implementation; user-provided reason required
+
+  Non-implementation terminal statuses (rejected, deferred) require a reason.
+  When setting either status, add **Reason**: <explanation> on a new line directly below the Status field.
 -->
 
 ## Overview
@@ -115,7 +117,26 @@ Individual tasks are created during proposal generation (`/zeno-proposal`), not 
 
 ## Proposals
 
-**Status**: Proposals will be generated when gate is started.
+**Status**: 5 proposals generated. All pending — implementation not yet started.
+
+| Title | Hash | Status | Notes |
+|-------|------|--------|-------|
+| RED — Gate 07 Test Suite | #a7d4f2e8 | pending | Write all failing tests first |
+| Parallel Sets Computation & `parallelSetIndex` Annotation | #b1c9e3f5 | pending | Extends `calculateProposalDependencies()`; DB migration; frontmatter + sync |
+| `ProposalRole` Type Taxonomy | #c6d0a2b4 | pending | Consolidates 3 classification dimensions; updates `ProposalMetadata`, `ProposalData`, template |
+| Surface `parallelSets` in `proposal list` and `proposal_action` MCP Response | #e8f3c1d7 | pending | Updates Zod schemas and `proposals-registry.ts` |
+| GREEN — Test Verification & Gate 07 Quality Pass | #f5a2b3e6 | pending | Wires impls to RED tests; coverage gaps; migration idempotency |
+
+### Parallel Set Dependency Graph
+
+```
+RED (#a7d4f2e8)
+  ├─→ Parallel Sets (#b1c9e3f5)  ──┐
+  ├─→ ProposalRole (#c6d0a2b4)   ──┼─→ GREEN (#f5a2b3e6)
+  └─→ MCP Surface (#e8f3c1d7)   ──┘
+```
+
+Proposals P02, P03, and P04 are in parallel set 1 and can be implemented concurrently after P01 RED is complete.
 
 After gate start, view detailed proposal information via: `zeno proposal show <hash>`
 

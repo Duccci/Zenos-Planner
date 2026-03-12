@@ -24,7 +24,7 @@ describe('Requirement Handlers (integration)', () => {
     }
 
     const handlers = requirementHandlers(fakeRegistry)
-    const res = await handlers.reg_action({ action: 'deps', payload: { hash: 'abcd123401234567' } })
+    const res = await handlers.reg_action({ action: 'deps', hash: 'abcd123401234567' })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -39,7 +39,7 @@ describe('Requirement Handlers (integration)', () => {
     }
 
     const handlers = requirementHandlers(fakeRegistry)
-    const res = await handlers.reg_action({ action: 'show', payload: { hash: 'abcd123401234567' } })
+    const res = await handlers.reg_action({ action: 'show', hash: 'abcd123401234567' })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -54,7 +54,7 @@ describe('Requirement Handlers (integration)', () => {
     }
 
     const handlers = requirementHandlers(fakeRegistry)
-    const res = await handlers.reg_action({ action: 'transfer', payload: { hash: 'abcd123401234567', targetGateId: 'gate-02' } })
+    const res = await handlers.reg_action({ action: 'transfer', hash: 'abcd123401234567', targetGateId: 'gate-02' })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()

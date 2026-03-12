@@ -28,20 +28,25 @@ export type { PreReview }
  *
  * @param pre         The preReview value extracted from the action payload (may be undefined).
  * @param entityLabel Used in error messages to identify which action triggered the check.
+ * @param gateId      Optional gate ID; when provided for proposal_action, error message includes gateId-scoped reg_action hint.
  */
 export function validatePreReviewGeneratePhase(
   pre: PreReview | undefined,
-  entityLabel: 'gates_action' | 'proposal_action'
+  entityLabel: 'gates_action' | 'proposal_action',
+  gateId?: string
 ): ValidationResult {
   const isProposal = entityLabel === 'proposal_action'
 
   if (!pre) {
+    const regActionHint = isProposal
+      ? gateId
+        ? `Read the Gate PRD for ${gateId}, then call reg_action { action: 'list', gateId: '${gateId}' } to see requirements prescribed for this gate, then re-call proposal_action:generate with preReview populated.`
+        : `Read the Gate PRD, then call reg_action { action: 'list' } to see all project requirements, then re-call proposal_action:generate with preReview populated.`
+      : `Call reg_action { action: 'list' } to see all project-level requirements, then re-call gates_action:generate with preReview populated.`
+
     const missingHint = isProposal
       ? 'Read the full Gate PRD and all requirements before generating (SKILL.md G5-G8).'
       : 'Read the full project PRD and requirements before generating gates (SKILL.md G5-G8).'
-    const guidanceHint = isProposal
-      ? 'If you have already reviewed the Gate PRD, supply preReview with your findings.'
-      : 'If you have reviewed the requirements, supply preReview with your findings.'
 
     return {
       allowed: false,
@@ -52,7 +57,7 @@ export function validatePreReviewGeneratePhase(
           'gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), ' +
           `assumptionsDocumented (string[]), blockersIdentified (string[]). ${missingHint}`,
       ],
-      warnings: [guidanceHint],
+      warnings: [regActionHint],
     }
   }
 

@@ -107,6 +107,36 @@ export const ReqActionInputSchema = z.object({
   // --- db maintenance fields ---
   dryRun: z.boolean().optional().describe('purge_orphans: report without deleting (default false)'),
   solitary: z.boolean().optional().describe('purge_orphans: when true, only target proposals with no gate (solitary). Mutually exclusive with gateId.'),
+}).superRefine((val, ctx) => {
+  const hashRequired = ['show', 'deps', 'transfer', 'inherit', 'trace'] as const
+  if (val.action && (hashRequired as readonly string[]).includes(val.action) && !val.hash) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['hash'],
+      message: `hash is required for action "${val.action}"`,
+    })
+  }
+  if (val.action === 'transfer' && !val.targetGateId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['targetGateId'],
+      message: 'targetGateId is required for action "transfer"',
+    })
+  }
+  if (val.action === 'search' && !val.query) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['query'],
+      message: 'query is required for action "search"',
+    })
+  }
+  if (val.action === 'reset_gate' && !val.gateId) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['gateId'],
+      message: 'gateId is required for action "reset_gate"',
+    })
+  }
 })
 
 export type ReqActionInput = z.infer<typeof ReqActionInputSchema>

@@ -31,7 +31,8 @@ export function createGenerateValidators(
     async () =>
       validatePreReviewGeneratePhase(
         (payload as { preReview?: PreReview }).preReview,
-        toolName
+        toolName,
+        (payload as { gateId?: string }).gateId
       ),
     // eslint-disable-next-line @typescript-eslint/require-await
     async () => {

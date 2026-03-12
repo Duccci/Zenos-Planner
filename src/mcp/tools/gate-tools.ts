@@ -276,7 +276,7 @@ export function gateHandlers(
           // project-level requirements should be attributed to the gate before validation,
           // and gate-level requirements are generated when gates_action:start is called.
           try {
-            const reqResult = await r.invoke('reg_action', { action: 'list', gateId })
+            const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } })
             if (reqResult.success) {
               const reqData = reqResult.data as {
                 requirements?: unknown[]
@@ -317,16 +317,7 @@ export function gateHandlers(
 
           // When all checks pass, advance gate status to 'validated'
           if (passed && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
-            try {
-              const { getDatabase } = await import('../../storage/database.js')
-              const db = getDatabase()
-              db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(gateId)
-              // Sync to project-overview.json
-              const { syncGatesToProjectOverview } = await import('../../utils/gate-sync.js')
-              await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
-            } catch {
-              // Status update is best-effort; validation result is still returned
-            }
+            await r.invoke('gates_set_validated', { gateId }).catch(() => { /* best-effort */ })
           }
 
           if (passed) {
