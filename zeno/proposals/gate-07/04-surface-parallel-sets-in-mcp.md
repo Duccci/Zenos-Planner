@@ -3,7 +3,7 @@ zeno:
   hash: 'e8f3c1d7'
   gate_id: 'gate-07'
   requirement_id: null
-  status: pending
+  status: validated
   reason: null
   created_at: '2026-03-11'
 ---
@@ -22,7 +22,10 @@ zeno:
 
 **Hash**: #e8f3c1d7
 **Gate**: gate-07 - Proposal Generation & Management
-**Status**: pending
+**Roles**: feature
+**Status**: completed
+**Approved By**: Duccci
+**Implemented**: 2026-03-13T07:26:16.880Z
 **Created**: 2026-03-11
 
 ---
@@ -65,11 +68,11 @@ Add `parallelSetIndex: z.number().int().min(0).optional()` to `ProposalSummarySc
 
 **Acceptance**:
 
-- [ ] `ProposalSummarySchema` has `parallelSetIndex: z.number().int().min(0).optional()`
-- [ ] `ProposalListOutputSchema` has `parallelSets: z.array(z.array(z.string()))` (required)
-- [ ] `ProposalListOutputSchema.parse({ proposals: [], parallelSets: [] })` succeeds
-- [ ] `ProposalListOutputSchema.parse({ proposals: [] })` throws `ZodError` (missing `parallelSets`)
-- [ ] `npm run build` compiles cleanly
+- [x] `ProposalSummarySchema` has `parallelSetIndex: z.number().int().min(0).optional()`
+- [x] `ProposalListOutputSchema` has `parallelSets: z.array(z.array(z.string()))` (required)
+- [x] `ProposalListOutputSchema.parse({ proposals: [], parallelSets: [] })` succeeds
+- [x] `ProposalListOutputSchema.parse({ proposals: [] })` throws `ZodError` (missing `parallelSets`)
+- [x] `npm run build` compiles cleanly
 
 ---
 
@@ -82,8 +85,8 @@ Find the location in `proposal-action-schemas.ts` where the `list` action result
 
 **Acceptance**:
 
-- [ ] The `list` action result shape in `proposal-action-schemas.ts` reflects `parallelSets` field
-- [ ] `npm run build` compiles cleanly with no type errors related to list output
+- [x] The `list` action result shape in `proposal-action-schemas.ts` reflects `parallelSets` field
+- [x] `npm run build` compiles cleanly with no type errors related to list output
 
 ---
 
@@ -96,11 +99,11 @@ Locate the `proposal_list` function registration. After fetching proposal rows f
 
 **Acceptance**:
 
-- [ ] `proposal_list` returns `{ proposals, parallelSets }` matching `ProposalListOutput` shape
-- [ ] Each proposal summary object includes `parallelSetIndex` when `parallel_set_index` is set in DB
-- [ ] Proposals with `parallel_set_index IS NULL` fall back to set `0` in the output
-- [ ] Empty gate (no proposals) returns `{ proposals: [], parallelSets: [] }`
-- [ ] Output validates against `ProposalListOutputSchema.parse(result)` without throwing
+- [x] `proposal_list` returns `{ proposals, parallelSets }` matching `ProposalListOutput` shape
+- [x] Each proposal summary object includes `parallelSetIndex` when `parallel_set_index` is set in DB
+- [x] Proposals with `parallel_set_index IS NULL` fall back to set `0` in the output
+- [x] Empty gate (no proposals) returns `{ proposals: [], parallelSets: [] }`
+- [x] Output validates against `ProposalListOutputSchema.parse(result)` without throwing
 
 ---
 
@@ -113,9 +116,9 @@ In the `proposalHandlers` function, the `list` action branch calls `r.invoke('pr
 
 **Acceptance**:
 
-- [ ] `proposal_action` list handler compiles cleanly with updated schema
-- [ ] Handler returns `parallelSets` as part of MCP structured content response
-- [ ] No runtime `ZodError` thrown when `proposal_list` returns a valid `{ proposals, parallelSets }` result
+- [x] `proposal_action` list handler compiles cleanly with updated schema
+- [x] Handler returns `parallelSets` as part of MCP structured content response
+- [x] No runtime `ZodError` thrown when `proposal_list` returns a valid `{ proposals, parallelSets }` result
 
 ---
 
@@ -132,7 +135,7 @@ In the `proposalHandlers` function, the `list` action branch calls `r.invoke('pr
 
 ## Implementation Notes
 
-The `parallelSets` reconstruction in `proposals-registry.ts` should be O(n): one pass over the proposals to group by `parallel_set_index`, then order the groups by index value. Use `Map<number, string[]>` keyed by index. After building the map, create the output array by iterating `[...map.entries()].sort((a,b) => a[0]-b[0]).map(([,hashes]) => hashes)`.
+The algorithm for `parallelSets` reconstruction in `proposals-registry.ts` should be O(n): group all proposals by `parallel_set_index` using a `Map<number, string[]>` keyed by index, then iterate the sorted entries via `[...map.entries()].sort((a,b) => a[0]-b[0]).map(([,hashes]) => hashes)` to produce the output array in index order.
 
 When `parallelSets` is empty (gate has no proposals, or no proposals have been through generation), return `parallelSets: []` — never `undefined`. This keeps the schema required field contract.
 

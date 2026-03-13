@@ -744,7 +744,13 @@ export function proposalHandlers(
               const { readFile } = await import('../../utils/file.js')
               const content = await readFile(filePath)
               const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-              const role = roleMatch?.[1]?.trim()
+              const rawRole = roleMatch?.[1]?.trim()
+              // Treat unreplaced template placeholders as unset.
+              // Do NOT infer role from filename here — the validator must receive
+              // undefined when the **Roles** field is absent so it can flag it as
+              // an error. Filename-based inference is only used for sibling-structure
+              // checks (resolveGateTestFirstSiblings), not per-proposal field validation.
+              const role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
 
               return await validateArtifactFile(filePath, 'proposal', {
                 hash,

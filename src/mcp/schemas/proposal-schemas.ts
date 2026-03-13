@@ -28,12 +28,14 @@ export const ProposalSummarySchema = z.object({
   gateId: z.string(),   // permissive: DB gate_id may not always match gate-NN regex
   tasksCompleted: z.number().int().min(0),
   totalTasks: z.number().int().min(0),
+  parallelSetIndex: z.number().int().min(0).optional(),
   lastUpdated: TimestampSchema,
 })
 export type ProposalSummary = z.infer<typeof ProposalSummarySchema>
 
 export const ProposalListOutputSchema = z.object({
   proposals: z.array(ProposalSummarySchema),
+  parallelSets: z.array(z.array(z.string())),
 })
 export type ProposalListOutput = z.infer<typeof ProposalListOutputSchema>
 

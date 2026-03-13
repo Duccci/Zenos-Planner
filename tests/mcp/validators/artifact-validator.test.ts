@@ -234,6 +234,29 @@ describe('artifact-validator', () => {
       expect(result.warnings).toContain('phase warning')
     })
 
+    it('calls validateTestFirstPattern even when phases check already produced an error', async () => {
+      // Regression: missing-role must surface even when multi-phase error fires first.
+      mockValidateProposalPhases.mockReturnValue({ errors: ['multi-phase error'], warnings: [] })
+      mockValidateTestFirstPattern.mockReturnValue({
+        errors: ['Gate-tied proposal is missing a **Roles** field'],
+        warnings: [],
+      })
+
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      const result = validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/test.md',
+        content: VALID_PROPOSAL,
+        gateId: 'gate-01',
+        // no role — simulates absent **Roles** field
+      })
+
+      expect(mockValidateTestFirstPattern).toHaveBeenCalled()
+      expect(result.errors).toContain('multi-phase error')
+      expect(result.errors).toContain('Gate-tied proposal is missing a **Roles** field')
+    })
+
     it('calls validateTestFirstPattern when gateId AND gateProposals are both provided', async () => {
       mockValidateTestFirstPattern.mockReturnValue({ errors: ['test-first error'], warnings: [] })
 

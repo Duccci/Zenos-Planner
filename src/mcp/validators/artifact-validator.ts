@@ -233,10 +233,11 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // =========================================================================
 
   // Check 3: Test-first pattern (if gate-tied)
-  // Skip if proposal has already failed earlier validation to avoid cascading noise.
+  // Always run for gate-tied proposals — missing-role and file/role consistency errors
+  // are independent of earlier checks and must not be suppressed by them.
   // gateProposals is optional: per-proposal role checks (incl. missing-role error)
   // run whenever gateId is set; gate-level structure checks require sibling data.
-  if (errors.length === 0 && context.gateId) {
+  if (context.gateId) {
     const filesAffected = extractFilesAffected(content)
     const testFirstContext: TestFirstValidationContext = {
       proposalHash: context.hash ?? 'unknown',

@@ -218,5 +218,74 @@ describe('proposal-phases-validator', () => {
       expect(result.allowed).toBe(false)
       expect(result.errors).toBeDefined()
     })
+
+    it('should accept algorithm descriptions with sequential steps', () => {
+      const result = validateProposalPhases({
+        title: 'Implement data processing',
+        summary: 'Add a data processing algorithm that parses input, then validates it, then transforms it.',
+        taskDescriptions: [
+          'Implement the processing algorithm',
+          'Add unit tests',
+        ],
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors).toBeUndefined()
+    })
+
+    it('should accept workflow descriptions with multiple steps', () => {
+      const result = validateProposalPhases({
+        title: 'Add request handler',
+        summary: 'Implement HTTP request handler that receives input, then processes the request, then returns response.',
+        implementationNotes: 'The workflow executes: validate data, then apply business logic, then serialize response.',
+        taskDescriptions: [
+          'Add request handler middleware',
+          'Add error handling',
+        ],
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors).toBeUndefined()
+    })
+
+    it('should accept data transformation pipeline descriptions', () => {
+      const result = validateProposalPhases({
+        title: 'Add CSV import',
+        summary: 'Add CSV import functionality that reads file, then parses data, then validates records, then stores in database.',
+        taskDescriptions: [
+          'Implement CSV parser',
+          'Add validation logic',
+          'Update database schema if needed',
+        ],
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors).toBeUndefined()
+    })
+
+    it('should reject when multiple separate deliverables are listed with "then"', () => {
+      const result = validateProposalPhases({
+        title: 'Multi-step feature',
+        summary: 'Create authentication service, then integrate with API, then add user management.',
+        taskDescriptions: [],
+      })
+
+      expect(result.allowed).toBe(false)
+      expect(result.errors).toBeDefined()
+    })
+
+    it('should accept same data being transformed multiple times', () => {
+      const result = validateProposalPhases({
+        title: 'Add request pipeline',
+        summary: 'Add middleware that receives the request, then validates the request, then processes the request, then returns the response.',
+        taskDescriptions: [
+          'Implement middleware',
+          'Add tests',
+        ],
+      })
+
+      expect(result.allowed).toBe(true)
+      expect(result.errors).toBeUndefined()
+    })
   })
 })

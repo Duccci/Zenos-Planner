@@ -78,6 +78,7 @@ describe('Proposal Action Dispatcher', () => {
 
     const mockListResult = {
       proposals: mockProposals,
+      parallelSets: [['prop0001', 'prop0002']],
     }
 
     registry.setMockResult('proposal_list', mockListResult)
@@ -628,6 +629,7 @@ describe('Action Dispatcher Output Schema Validation', () => {
           lastUpdated: now,
         },
       ],
+      parallelSets: [['p0000001']],
     }
     registry.setMockResult('proposal_list', mockListResult)
 

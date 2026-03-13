@@ -9,6 +9,7 @@ import type { ValidationResult } from '../validators/types.js'
 import { validatePreReviewGeneratePhase, type PreReview } from '../validators/pre-review-validator.js'
 import { validateMarkdownOnly } from '../validators/scope-validator.js'
 import type { ProposalGateSibling } from '../validators/test-first-validator.js'
+import { inferRoleFromFilename } from '../validators/test-first-validator.js'
 import { createStateTransitionValidator } from './entity-action-handler.js'
 import { type GateStatus, GATE_TRANSITIONS, type ProposalStatus, PROPOSAL_TRANSITIONS } from '../../core/transitions.js'
 
@@ -137,6 +138,8 @@ export async function resolveGateTestFirstSiblings(
           const rawRole = roleMatch?.[1]?.trim()
           // Treat unreplaced template placeholders (e.g. '{{ROLES}}') as unset
           role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
+          // Fall back to filename convention when explicit role is absent
+          role ??= inferRoleFromFilename(filePath)
         }
       } catch {
         // role stays undefined — validator treats as unset

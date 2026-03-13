@@ -31,7 +31,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // is authoritative in the DB; the sync only adds missing rows.
       syncProposalsFromDisk(db)
 
-      let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at FROM proposals'
+      let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at, parallel_set_index FROM proposals'
       const conditions: string[] = []
       const queryParams: (string | null)[] = []
 
@@ -59,6 +59,26 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           typeof row['created_at'] === 'string'
       )
 
+      // Reconstruct parallelSets from parallel_set_index
+      const parallelSetMap = new Map<number, string[]>()
+      for (const row of validRows) {
+        const index = row['parallel_set_index'] as number | null
+        const setIndex = index ?? 0  // Fallback to set 0 if NULL
+        const hash = row['hash'] as string
+        if (!parallelSetMap.has(setIndex)) {
+          parallelSetMap.set(setIndex, [])
+        }
+        const set = parallelSetMap.get(setIndex)
+        if (set) {
+          set.push(hash)
+        }
+      }
+
+      // Build parallelSets array by iterating ordered entries
+      const parallelSets = [...parallelSetMap.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([, hashes]) => hashes)
+
       return {
         proposals: validRows.map((row) => ({
           hash: row['hash'] as string,
@@ -68,8 +88,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           gateId: (row['gate_id'] as string | null) ?? 'solitary',
           tasksCompleted: 0,
           totalTasks: 0,
+          parallelSetIndex: row['parallel_set_index'] as number | undefined,
           lastUpdated: resolveLastUpdated(row['approved_at'] as string | null, row['created_at'] as string | null),
         })),
+        parallelSets,
       }
     },
     {
@@ -608,9 +630,16 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         )
       }
       try {
+        const { readFile: readProposalFile } = await import('../utils/file.js')
+        const proposalContent = await readProposalFile(resolvedPath)
+        const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(proposalContent)
+        const rawRole = roleMatch?.[1]?.trim()
+        const role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
+
         const validationResult = await validateArtifactFile(resolvedPath, 'proposal', {
           gateId: proposal['gate_id'] as string,
           hash: validated.hash,
+          role,
         })
 
         if (!validationResult.allowed) {

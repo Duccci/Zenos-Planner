@@ -4,7 +4,7 @@ import { ProposalListOutputSchema, ProposalDetailSchema } from '../../../src/mcp
 
 describe('Proposal Handlers (integration)', () => {
   it('parses and validates proposal list outputs', async () => {
-    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, lastUpdated: new Date().toISOString() }] }
+    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, lastUpdated: new Date().toISOString() }], parallelSets: [['abcd1234']] }
     const fakeRegistry: any = {
       invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
     }
@@ -72,7 +72,7 @@ describe('Proposal Handlers (integration)', () => {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_start') return { success: true, data: startData }
         if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
-        if (name === 'proposal_list') return { success: true, data: { proposals: [] } }
+        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
         return { success: true, data: showData }
       }),
     }
@@ -141,7 +141,7 @@ describe('Proposal Handlers (integration)', () => {
           }
         }
         if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
-        if (name === 'proposal_list') return { success: true, data: { proposals: [] } }
+        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
         if (name === 'proposal_start') return { success: true, data: { hash: 'solitary01', newStatus: 'in_progress', startedAt: new Date().toISOString() } }
         return { success: true, data: {} }
       }),
@@ -197,7 +197,7 @@ describe('Proposal Handlers (integration)', () => {
         }
         if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
         // proposal_list returns EMPTY → rows.length === 0 → early return allowed:true
-        if (name === 'proposal_list') return { success: true, data: { proposals: [] } }
+        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
         if (name === 'proposal_start') return { success: true, data: { hash: 'impl01', newStatus: 'in_progress', startedAt: new Date().toISOString() } }
         return { success: true, data: {} }
       }),
@@ -260,6 +260,7 @@ describe('Proposal Handlers (integration)', () => {
                 { hash: 'impl02', lastUpdated: new Date().toISOString() },
                 { hash: 'other03', lastUpdated: new Date().toISOString() },
               ],
+              parallelSets: [['impl02', 'other03']],
             },
           }
         }
@@ -364,6 +365,7 @@ describe('Proposal Handlers (integration)', () => {
                 { hash: 'val01', lastUpdated: new Date().toISOString() },
                 { hash: 'val02', lastUpdated: new Date().toISOString() },
               ],
+              parallelSets: [['val01', 'val02']],
             },
           }
         }
@@ -646,7 +648,7 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string, payload: unknown) => {
         invokedArgs.push({ name, payload })
-        if (name === 'proposal_list') return { success: true, data: { proposals: [] } }
+        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
         if (name === 'proposal_create') return { success: true, data: { hash: 'new-sol-01', title: 'Solitary Gen' } }
         return { success: true, data: {} }
       }),

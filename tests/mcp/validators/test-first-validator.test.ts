@@ -13,6 +13,7 @@ import {
   validateTestFirstPattern,
   validateGateLevelTestFirst,
   validateRedTestCoverage,
+  inferRoleFromFilename,
   type TestFirstValidationContext,
   type ProposalGateSibling,
   type RedTestCoverageContext,
@@ -44,6 +45,35 @@ describe('test-first-validator', () => {
 
         const result = validateTestFirstPattern(context)
         expect(result.allowed).toBe(true)
+      })
+    })
+
+    describe('missing role field', () => {
+      it('should error when gate-tied proposal has no role (undefined)', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: undefined,
+          isGateTied: true,
+          filesAffected: ['src/feature.ts'],
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(false)
+        expect(result.errors).toBeDefined()
+        expect(result.errors?.[0]).toMatch(/missing a \*\*Roles\*\* field/)
+      })
+
+      it('should not error when solitary proposal has no role', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: undefined,
+          isGateTied: false,
+          filesAffected: ['src/feature.ts'],
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.errors).toBeUndefined()
       })
     })
 
@@ -711,5 +741,36 @@ describe('validateRedTestCoverage', () => {
     }
     const result = validateRedTestCoverage(ctx)
     expect(result.allowed).toBe(true)
+  })
+})
+
+describe('inferRoleFromFilename', () => {
+  it('returns testing for red-prefixed filename', () => {
+    expect(inferRoleFromFilename('zeno/proposals/gate-07/01-red--test-suite.md')).toBe('testing')
+  })
+
+  it('returns cleanup for green-prefixed filename', () => {
+    expect(inferRoleFromFilename('zeno/proposals/gate-07/05-green--test-verification.md')).toBe('cleanup')
+  })
+
+  it('returns feature for numbered filename without red/green', () => {
+    expect(inferRoleFromFilename('zeno/proposals/gate-07/02-parallel-sets.md')).toBe('feature')
+  })
+
+  it('is case-insensitive', () => {
+    expect(inferRoleFromFilename('03-RED--something.md')).toBe('testing')
+    expect(inferRoleFromFilename('04-GREEN--something.md')).toBe('cleanup')
+  })
+
+  it('returns undefined for undefined input', () => {
+    expect(inferRoleFromFilename(undefined)).toBeUndefined()
+  })
+
+  it('returns undefined for filename without number prefix', () => {
+    expect(inferRoleFromFilename('random-proposal.md')).toBeUndefined()
+  })
+
+  it('handles Windows-style paths', () => {
+    expect(inferRoleFromFilename('zeno\\proposals\\gate-07\\01-red--test.md')).toBe('testing')
   })
 })

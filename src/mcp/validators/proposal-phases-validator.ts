@@ -75,6 +75,10 @@ const ACCEPTABLE_PATTERNS = [
   /(?:human\s+)?review|approval|feedback/gi,
   // Code review comments
   /in\s+the\s+same\s+(?:pr|pull\s+request|commit)/gi,
+  // Algorithm/workflow context words that clearly indicate processing steps (not work phases)
+  /(?:algorithm|workflow|process|pipeline|stream|flow).*?then/gi,
+  // Data transformation verbs (parse, process, validate, etc.) indicating a single processing phase
+  /(?:parse|process|validate|transform|render|execute|filter|map|reduce|serialize|deserialize|compile|encode|decode|format|extract|normalize).*?then/gi,
 ]
 
 /**

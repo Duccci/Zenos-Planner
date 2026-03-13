@@ -32,7 +32,7 @@ describe('MCP entity-action integration smoke tests', () => {
   it('proposal_action: list and create validations', async () => {
     const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
     const registry = new MockFunctionRegistry() as any
-    registry.setMockResult('proposal_list', { proposals: [] })
+    registry.setMockResult('proposal_list', { proposals: [], parallelSets: [] })
 
     const handlers = proposalHandlers(registry)
 

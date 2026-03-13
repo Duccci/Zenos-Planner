@@ -31,6 +31,25 @@ function isImplementationFile(filePath: string): boolean {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Infer a proposal role from its filename when the explicit **Roles** field
+ * is absent. Filename conventions:
+ *   - `NN-red--*`   → testing
+ *   - `NN-green--*` → cleanup
+ *   - anything else  → feature
+ *
+ * Returns `undefined` when no filename is available (caller decides policy).
+ */
+export function inferRoleFromFilename(filePath: string | undefined): string | undefined {
+  if (!filePath) return undefined
+  const basename = filePath.replace(/\\/g, '/').split('/').pop() ?? ''
+  if (/^\d+-red--/i.test(basename)) return 'testing'
+  if (/^\d+-green--/i.test(basename)) return 'cleanup'
+  // Only infer 'feature' when the file sits inside a gate folder (not solitary)
+  if (/^\d+-/.test(basename)) return 'feature'
+  return undefined
+}
+
 export interface ProposalGateSibling {
   hash: string
   /** Role extracted from proposal file, undefined if not set */
