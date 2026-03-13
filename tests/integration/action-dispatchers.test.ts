@@ -170,6 +170,7 @@ describe('Proposal Action Dispatcher', () => {
       description: 'Test',
       status: 'in_progress',
       gateId: 'gate-01',
+      role: 'feature',
       tasks: [],
       lastUpdated: now,
     })
@@ -239,6 +240,7 @@ describe('Proposal Action Dispatcher', () => {
       description: 'Test',
       status: 'validated',
       gateId: 'gate-01',
+      role: 'testing',
       tasks: [],
       lastUpdated: now,
     })

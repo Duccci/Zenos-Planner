@@ -190,7 +190,11 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // templateSections is populated by validateArtifactFile; if absent (e.g.,
   // direct validateArtifact call without file I/O), skip and warn.
   if (context.templateSections) {
-    const sectionResult = validateTemplateSections(content, context.templateSections)
+    const sectionResult = validateTemplateSections(
+      content,
+      context.templateSections,
+      !!context.gateId // Gate-tied proposals skip solitary-only sections
+    )
     errors.push(...(sectionResult.errors ?? []))
     warnings.push(...(sectionResult.warnings ?? []))
   } else {

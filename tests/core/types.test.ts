@@ -51,7 +51,7 @@ describe('ProposalRole', () => {
 // ProposalRole — validation behaviour (moved from test-first-validator.test.ts)
 // ---------------------------------------------------------------------------
 describe('ProposalRole — validation behaviour', () => {
-  it('should warn on missing role for gate-tied proposal', () => {
+  it('should error on missing role for gate-tied proposal', () => {
     const context: TestFirstValidationContext = {
       proposalHash: '#abc123',
       role: undefined,
@@ -60,9 +60,9 @@ describe('ProposalRole — validation behaviour', () => {
     }
 
     const result = validateTestFirstPattern(context)
-    expect(result.allowed).toBe(true)
-    expect(result.warnings).toBeDefined()
-    expect(result.warnings?.[0]).toMatch(/missing a \*\*Role\*\* field/)
+    expect(result.allowed).toBe(false)
+    expect(result.errors).toBeDefined()
+    expect(result.errors?.[0]).toMatch(/missing a \*\*Roles\*\* field/)
   })
 
   it('should allow missing role for solitary proposal', () => {

@@ -87,6 +87,7 @@ describe('Proposal validate command', () => {
   it('validates with hash prefix normalization', async () => {
     const { getDatabase } = await import('../../../src/storage/database.js')
     const { logger } = await import('../../../src/utils/logger.js')
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
 
     mockDb.prepare.mockReturnValue({ get: vi.fn().mockReturnValue(undefined) })
     vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
@@ -99,6 +100,8 @@ describe('Proposal validate command', () => {
     await program.parseAsync(['node', 'test', 'proposal', 'validate', '#abcdef'])
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Proposal not found'))
+    expect(exitSpy).toHaveBeenCalledWith(1)
+    exitSpy.mockRestore()
   })
 
   it('fails validation in strict mode when warnings are present', async () => {
@@ -143,6 +146,7 @@ describe('Proposal validate command', () => {
   it('handles missing proposal in validate command', async () => {
     const { getDatabase } = await import('../../../src/storage/database.js')
     const { logger } = await import('../../../src/utils/logger.js')
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
 
     mockDb.prepare.mockReturnValue({ get: vi.fn().mockReturnValue(undefined) })
     vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
@@ -154,6 +158,8 @@ describe('Proposal validate command', () => {
     await program.parseAsync(['node', 'test', 'proposal', 'validate', '#notfound'])
 
     expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Proposal not found'))
+    expect(exitSpy).toHaveBeenCalledWith(1)
+    exitSpy.mockRestore()
   })
 
   it('validates proposal with proper completion summary', async () => {
@@ -251,6 +257,122 @@ Complete proposal with all required fields.
 
     expect(logger.warn).toHaveBeenCalled()
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('Tasks Completed'))
+  })
+
+  it('does not warn about missing completion summary for pending proposals', async () => {
+    const { getDatabase } = await import('../../../src/storage/database.js')
+    const { readFile } = await import('../../../src/utils/file.js')
+    const { readdir } = await import('node:fs/promises')
+    const { logger } = await import('../../../src/utils/logger.js')
+
+    mockDb.prepare.mockReturnValue({
+      get: vi.fn().mockReturnValue({
+        id: '3',
+        gate_id: 'gate-01',
+        title: 'Pending Proposal',
+        status: 'pending',
+        hash: 'pending03',
+      }),
+    })
+    vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
+
+    vi.mocked(readdir).mockResolvedValue(['proposal.md'])
+    vi.mocked(readFile).mockResolvedValue(
+      '# Proposal: Pending Proposal\n\n**Hash**: #pending03\n\n## Summary\n\nNot yet started.\n'
+    )
+
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+
+    await program.parseAsync(['node', 'test', 'proposal', 'validate', '#pending03'])
+
+    expect(logger.warn).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('All checks passed'))
+  })
+
+  it('counts checked tasks only within the Completion Summary section', async () => {
+    const { getDatabase } = await import('../../../src/storage/database.js')
+    const { readFile } = await import('../../../src/utils/file.js')
+    const { readdir } = await import('node:fs/promises')
+    const { logger } = await import('../../../src/utils/logger.js')
+
+    mockDb.prepare.mockReturnValue({
+      get: vi.fn().mockReturnValue({
+        id: '4',
+        gate_id: 'gate-01',
+        title: 'Mixed Checkboxes',
+        status: 'in_progress',
+        hash: 'mixed04',
+      }),
+    })
+    vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
+
+    // Document has [x] items in Tasks section AND Completion Summary.
+    // Claimed 2/2 in summary; summary has exactly 2 checked boxes.
+    // The 3 checked boxes in Tasks section must NOT inflate the count.
+    const proposalContent = `
+# Proposal: Mixed Checkboxes
+
+**Hash**: #mixed04
+
+## Tasks
+
+- [x] Pre-work item 1
+- [x] Pre-work item 2
+- [x] Pre-work item 3
+
+## Completion Summary
+
+**Tasks Completed**: 2/2
+
+- [x] Final task 1
+- [x] Final task 2
+`
+    vi.mocked(readdir).mockResolvedValue(['proposal.md'])
+    vi.mocked(readFile).mockResolvedValue(proposalContent)
+
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+
+    await program.parseAsync(['node', 'test', 'proposal', 'validate', '#mixed04'])
+
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('Tasks Completed'))
+    expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('All checks passed'))
+  })
+
+  it('exits with code 1 when project root is not found during validate', async () => {
+    const { findProjectRoot } = await import('../../../src/utils/config.js')
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
+
+    vi.mocked(findProjectRoot).mockReturnValueOnce(undefined as unknown as string)
+
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+
+    await program.parseAsync(['node', 'test', 'proposal', 'validate', '#anything'])
+
+    expect(exitSpy).toHaveBeenCalledWith(1)
+    exitSpy.mockRestore()
+  })
+
+  it('exits with code 1 when proposal is not found during validate', async () => {
+    const { getDatabase } = await import('../../../src/storage/database.js')
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as never)
+
+    mockDb.prepare.mockReturnValue({ get: vi.fn().mockReturnValue(undefined) })
+    vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
+
+    const program = new Command()
+    program.exitOverride()
+    registerProposalCommands(program)
+
+    await program.parseAsync(['node', 'test', 'proposal', 'validate', '#missinghash'])
+
+    expect(exitSpy).toHaveBeenCalledWith(1)
+    exitSpy.mockRestore()
   })
 
   it('should create a proposal file and register in DB', async () => {

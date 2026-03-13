@@ -112,12 +112,12 @@ async function resolveAndValidateTestFirst(
     const gateId = proposal['gateId'] as string | undefined
     const isSolitary = !gateId || gateId === 'solitary'
 
+    let role: string | undefined = (proposal['role'] as string | undefined)
     const filePath = await findProposalByHash(hash)
-    let role: string | undefined
     if (filePath) {
       const content = await readFile(filePath)
-      const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
-      role = roleMatch?.[1]?.trim()
+      const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
+      role = roleMatch?.[1]?.trim() ?? role
       // Fall back to parsing markdown when DB has no files_affected recorded.
       if (filesAffected.length === 0) {
         const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
@@ -725,72 +725,6 @@ export function proposalHandlers(
 
             return validateTestFileScope(filesAffected, isSolitary)
           },
-          // Scope-creep check: proposal must not mix RED and GREEN phases.
-          // Reads title/summary/tasks from the stored proposal via proposal_show.
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              const title = typeof proposal['title'] === 'string' ? proposal['title'] : ''
-              const summary = typeof proposal['description'] === 'string' ? proposal['description'] : ''
-              const tasks = Array.isArray(proposal['tasks'])
-                ? (proposal['tasks'] as { description?: string }[])
-                : []
-
-              return validateProposalPhases({
-                title,
-                summary,
-                taskDescriptions: tasks.map((t) => t.description ?? ''),
-              })
-            } catch {
-              return { allowed: true }
-            }
-          },
-          // Explicit path check: no wildcards or directory-only entries in filesAffected.
-          // Reads files_affected from the stored proposal via proposal_show.
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              const filesAffected = Array.isArray(proposal['files_affected'])
-                ? (proposal['files_affected'] as string[])
-                : []
-
-              const scopeContext: ScopeValidationContext = {
-                filesAffected,
-                filesModified: filesAffected,
-                allowTestFiles: true,
-              }
-              return validateScope(scopeContext)
-            } catch {
-              return { allowed: true }
-            }
-          },
-          // Circular dependency check: declared proposal dependencies must form a DAG.
-          // Reads dependencies from the stored proposal and sibling proposals in its gate.
-          async () => {
-            const hash = (payload as { hash?: string }).hash ?? ''
-            try {
-              const proposalResult = await r.invoke('proposal_show', { hash })
-              if (!proposalResult.success) return { allowed: true }
-
-              const proposal = proposalResult.data as Record<string, unknown>
-              const rawDeps = proposal['dependencies']
-              const payloadDeps = Array.isArray(rawDeps) ? (rawDeps as string[]) : []
-              if (payloadDeps.length === 0) return { allowed: true }
-
-              const gateId = typeof proposal['gateId'] === 'string' ? proposal['gateId'] : ''
-              return await validateProposalDependencies(r, hash, gateId, payloadDeps)
-            } catch {
-              return { allowed: true }
-            }
-          },
           // Comprehensive artifact validation: template sections, single-phase check,
           // explicit file paths (no wildcards), and dependency DAG check.
           // validateArtifactFile is the unified validator — replaces individual section checks.
@@ -809,7 +743,7 @@ export function proposalHandlers(
 
               const { readFile } = await import('../../utils/file.js')
               const content = await readFile(filePath)
-              const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+              const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
               const role = roleMatch?.[1]?.trim()
 
               return await validateArtifactFile(filePath, 'proposal', {
@@ -842,10 +776,6 @@ export function proposalHandlers(
               warnings: allWarnings.length > 0 ? allWarnings : undefined,
             }
           },
-          // Test-first gate pattern: role-file consistency at validation time.
-          // Mirrors the approve/start validators so agents get early feedback before
-          // the proposal reaches the approval stage.
-          async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
           // Gate-level test-first structure: exactly 1 test-suite (first) and 1 cleanup (last)
           // among all sibling proposals in the gate. Surfaces the holistic gate structure
           // issue early, mirrors the gates_action:complete and gates_action:validate checks.

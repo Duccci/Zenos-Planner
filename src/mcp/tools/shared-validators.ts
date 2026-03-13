@@ -133,7 +133,7 @@ export async function resolveGateTestFirstSiblings(
         if (filePath) {
           resolvedPath = filePath
           const content = await readFile(filePath)
-          const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+          const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
           role = roleMatch?.[1]?.trim()
         }
       } catch {

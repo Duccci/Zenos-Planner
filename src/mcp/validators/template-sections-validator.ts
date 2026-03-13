@@ -85,10 +85,15 @@ export function parseTemplateSections(templateContent: string): TemplateSections
  * Validate that a proposal document contains every required section defined
  * in the template.  Missing required sections are errors; missing optional
  * sections are warnings.
+ *
+ * @param proposalContent - The content of the proposal document
+ * @param templateSections - Parsed template sections (required vs optional)
+ * @param isGateTied - True if this is a gate-tied proposal (skips solitary-only sections like "## Single-Phase Requirement")
  */
 export function validateTemplateSections(
   proposalContent: string,
-  templateSections: TemplateSections
+  templateSections: TemplateSections,
+  isGateTied?: boolean
 ): ValidationResult {
   const errors: string[] = []
   const warnings: string[] = []
@@ -108,6 +113,13 @@ export function validateTemplateSections(
   }
 
   for (const section of templateSections.optional) {
+    // Skip "## Single-Phase Requirement" for gate-tied proposals.
+    // This section is guidance for solitary proposals only; gate-tied proposals
+    // enforce single-phase through the test-first gate pattern (testing/implementation/cleanup roles).
+    if (isGateTied && section === '## Single-Phase Requirement') {
+      continue
+    }
+
     if (!proposalContent.includes(section)) {
       warnings.push(`Missing optional section: "${section}"`)
     }

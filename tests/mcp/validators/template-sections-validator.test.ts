@@ -198,6 +198,29 @@ describe('validateTemplateSections', () => {
     const extraWarnings = (result.warnings ?? []).filter((w) => w.includes('Extraneous section'))
     expect(extraWarnings).toHaveLength(0)
   })
+
+  it('skips "## Single-Phase Requirement" warning for gate-tied proposals', () => {
+    const singlePhaseTemplate = {
+      required: ['## Summary', '## Tasks'],
+      optional: ['## Single-Phase Requirement', '## Implementation Notes'],
+    }
+    const contentWithout = '## Summary\n\nFoo\n\n## Tasks\n\nBar\n'
+
+    // For solitary proposal (isGateTied = false/undefined), should warn about missing Single-Phase Requirement
+    const resultSolitary = validateTemplateSections(contentWithout, singlePhaseTemplate, false)
+    expect(resultSolitary.warnings).toBeDefined()
+    expect(resultSolitary.warnings!.some((w) => w.includes('## Single-Phase Requirement'))).toBe(
+      true
+    )
+
+    // For gate-tied proposal (isGateTied = true), should NOT warn about Single-Phase Requirement
+    const resultGate = validateTemplateSections(contentWithout, singlePhaseTemplate, true)
+    expect(
+      resultGate.warnings
+        ? resultGate.warnings.some((w) => w.includes('## Single-Phase Requirement'))
+        : false
+    ).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

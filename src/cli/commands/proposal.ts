@@ -256,7 +256,7 @@ export function registerProposalCommands(program: Command): void {
       const result = await invokeProposalAction('start', { hash })
 
       if (!result.success) {
-        logger.error(`Failed to show proposal: ${result.error ?? 'Unknown error'}`)
+        logger.error(`Failed to start proposal: ${result.error ?? 'Unknown error'}`)
         return
       }
 
@@ -271,6 +271,7 @@ export function registerProposalCommands(program: Command): void {
       const projectRoot = findProjectRoot(process.cwd())
       if (!projectRoot) {
         logger.error('Not a Zeno project')
+        process.exit(1)
         return
       }
 
@@ -282,24 +283,34 @@ export function registerProposalCommands(program: Command): void {
 
       if (!proposal) {
         logger.error(`Proposal not found: #${normalizedHash}`)
+        process.exit(1)
         return
       }
 
       const warnings: string[] = []
+      const requiresCompletion = proposal.status === 'in_progress' || proposal.status === 'completed'
 
       const content = await readProposalFile(projectRoot, proposal)
 
       if (!content) {
         warnings.push('Proposal file not found: could not locate file in proposals directory')
       } else {
-        if (!content.includes('## Completion Summary')) {
+        const hasCompletionSummary = content.includes('## Completion Summary')
+        if (!hasCompletionSummary && requiresCompletion) {
           warnings.push('Missing ## Completion Summary section in proposal file')
-        } else {
+        } else if (hasCompletionSummary) {
           const tasksClaimedMatch = /\*\*Tasks Completed\*\*:\s*(\d+)\/(\d+)/.exec(content)
           if (tasksClaimedMatch) {
             const claimed = parseInt(tasksClaimedMatch[1] ?? '0', 10)
             const total = parseInt(tasksClaimedMatch[2] ?? '0', 10)
-            const actualChecked = (content.match(/- \[x\]/gi) ?? []).length
+            // Count checkboxes only within the Completion Summary section
+            const summaryStart = content.indexOf('## Completion Summary')
+            const nextSectionMatch = /^## /m.exec(content.slice(summaryStart + 1))
+            const summaryEnd = nextSectionMatch
+              ? summaryStart + 1 + nextSectionMatch.index
+              : content.length
+            const summarySection = content.slice(summaryStart, summaryEnd)
+            const actualChecked = (summarySection.match(/- \[x\]/gi) ?? []).length
             if (actualChecked !== claimed || claimed !== total) {
               warnings.push(
                 `Tasks Completed: ${String(claimed)}/${String(total)} claimed but ${String(actualChecked)} checked tasks found`

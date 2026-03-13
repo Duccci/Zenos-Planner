@@ -834,7 +834,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         const proposalFilePath = await findProposalByHash(validated.hash)
         if (proposalFilePath) {
           const content = await readFile(proposalFilePath)
-          const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+          const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
           const role = roleMatch?.[1]?.trim()
 
           // Load gate objectives and out-of-scope items for richer qualitative scope-creep evaluation.
@@ -906,7 +906,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         let tfFilesAffected = filesAffected
         if (proposalFilePath) {
           const content = await readFile(proposalFilePath)
-          const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+          const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
           role = roleMatch?.[1]?.trim()
           // Fall back to parsing markdown when DB has no files_affected recorded.
           if (tfFilesAffected.length === 0) {
@@ -945,7 +945,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
                 const fp = await findProposalByHash(p.hash)
                 if (fp) {
                   const content = await readFile(fp)
-                  const m = /\*\*Role\*\*:\s*(.+)/.exec(content)
+                  const m = /\*\*Roles\*\*:\s*(.+)/.exec(content)
                   role = m?.[1]?.trim()
                 }
               } catch { /* role stays undefined */ }
@@ -971,7 +971,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           let currentRole: string | undefined
           if (proposalFilePath) {
             const content = await readFile(proposalFilePath)
-            const roleMatch = /\*\*Role\*\*:\s*(.+)/.exec(content)
+            const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
             currentRole = roleMatch?.[1]?.trim()
           }
 

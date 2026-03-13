@@ -404,7 +404,9 @@ function scoreSection(body: string, spec: SectionSpec): SectionScore {
   // ── acceptable null values ("N/A", "null", etc.) ──────────────────────────
   // Some sections like "Open Questions" are acceptable when set to "N/A",
   // indicating no content is needed.  Skip structural checks for these.
-  if (/^(?:N\/A|null)$/i.test(cleanBody)) {
+  // The body may contain a trailing `---` horizontal rule (section separator)
+  // that is captured before the next `##` heading — allow for that.
+  if (/^(?:N\/A|null)(?:\s*\n\s*-{3,}\s*)*$/i.test(cleanBody)) {
     return {
       section: spec.heading,
       score: 100,

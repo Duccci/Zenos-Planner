@@ -1087,3 +1087,282 @@ describe('extractScaffoldFingerprints – HTML comment process-invariant lines',
     expect(allMessages.some((m) => /scaffold/i.test(m))).toBe(false)
   })
 })
+
+// ---------------------------------------------------------------------------
+// validateSectionImplementation — acceptable null values (N/A, null)
+// ---------------------------------------------------------------------------
+
+describe('validateSectionImplementation – acceptable null values', () => {
+  it('accepts "N/A" in a section without word count warnings', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+N/A
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    // N/A should pass without word count warning
+    expect(depsScore?.score).toBe(100)
+    expect(depsScore?.issues).toEqual([])
+    expect(depsScore?.hasContent).toBe(true)
+  })
+
+  it('accepts "null" in a section without word count warnings', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+null
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    expect(depsScore?.score).toBe(100)
+    expect(depsScore?.issues).toEqual([])
+  })
+
+  it('accepts "N/A" in optional sections without structure warnings', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+*No dependencies.*
+
+## Implementation Notes
+
+N/A
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const notesScore = result.sectionScores.find((s) => s.section === '## Implementation Notes')
+    // Should pass even though N/A is less than minWords and no checkboxes/list
+    expect(notesScore?.issues).toEqual([])
+    expect(notesScore?.score).toBe(100)
+  })
+
+  it('treats N/A as case-insensitive', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+n/a
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    expect(depsScore?.score).toBe(100)
+    expect(depsScore?.issues).toEqual([])
+  })
+
+  it('treats NULL as case-insensitive', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+NULL
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    expect(depsScore?.score).toBe(100)
+    expect(depsScore?.issues).toEqual([])
+  })
+
+  it('rejects N/A when used as a technical term in prose', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+The API response was marked N/A in production. We should handle this case gracefully.
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    // Should NOT get a perfect score for technical N/A usage
+    // Instead, word count should be checked normally
+    expect(depsScore?.score).toBeLessThan(100)
+  })
+
+  it('rejects null when used as a technical term in prose', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+We need to handle null values in the response payload correctly.
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    // Should NOT get a perfect score for technical null usage
+    expect(depsScore?.score).toBeLessThan(100)
+  })
+
+  it('rejects "N/A:" or "null:" prefixes (not standalone)', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+N/A: No external dependencies required.
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    // "N/A:" is not the same as standalone "N/A"
+    expect(depsScore?.score).toBeLessThan(100)
+  })
+
+  it('accepts N/A surrounded only by whitespace (not other content)', () => {
+    const doc = `
+## Summary
+
+This proposal implements a real feature with measurable results and clear timeline.
+
+## Tasks
+
+- [x] Implement it
+
+## Files Affected
+
+| File | Action | Description |
+| ---- | ------ | ------------ |
+| src/x.ts | create | Real description |
+
+## Dependencies
+
+  N/A
+`.trimStart()
+
+    const result = validateSectionImplementation(doc, SPECS)
+    const depsScore = result.sectionScores.find((s) => s.section === '## Dependencies')
+    // N/A with whitespace should still pass (whitespace is trimmed)
+    expect(depsScore?.score).toBe(100)
+    expect(depsScore?.issues).toEqual([])
+  })
+
+  it('accepts N/A followed by a trailing --- horizontal rule (real proposal layout)', () => {
+    // In actual proposals the body captured for "## Open Questions" includes the
+    // `---` separator that precedes the next heading — the N/A check must not
+    // fire word-count or checkbox warnings in that case.
+    const oqTemplate = `
+## Open Questions
+
+[Optional: Capture questions that need resolution before or during implementation. Mark each item \`[x]\` once the question is answered. The validator requires every listed question to be resolved (\`[x]\`) before approval — or set this section to \`N/A\` if there are no open questions. Remove this section entirely if it is not needed.]
+
+- [ ] [Question text — replace once resolved or remove this placeholder]
+`.trimStart()
+    const oqSpecs = parseSectionSpecs(oqTemplate)
+
+    const doc = `## Open Questions\n\nN/A\n\n---\n`
+    const result = validateSectionImplementation(doc, oqSpecs)
+    const oqScore = result.sectionScores.find((s) => s.section === '## Open Questions')
+    expect(oqScore?.score).toBe(100)
+    expect(oqScore?.issues).toEqual([])
+  })
+})
+

@@ -82,10 +82,10 @@ function validateRoleFileConsistency(
 
   if (!role) {
     if (isGateTied) {
-      warnings.push(
-        'Gate-tied proposal is missing a **Role** field. ' +
-          'Set role to one of: test-suite, implementation, or test-cleanup. ' +
-          'This is required for Test-First Gate Pattern enforcement (testing replaces test-suite/test-cleanup, feature replaces implementation).'
+      errors.push(
+        'Gate-tied proposal is missing a **Roles** field. ' +
+          'Set role to one of: testing, feature, or cleanup. ' +
+          'This field enforces the Test-First Gate Pattern.'
       )
     }
     // Solitary proposals without an explicit role are treated as solitary ΓÇö no enforcement.
