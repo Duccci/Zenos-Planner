@@ -253,7 +253,11 @@ describe('artifact-validator', () => {
       expect(result.errors).toContain('test-first error')
     })
 
-    it('does NOT call validateTestFirstPattern when gateProposals is absent', async () => {
+    it('calls validateTestFirstPattern when gateId is set, even without gateProposals', async () => {
+      // gateProposals is optional: per-proposal role checks run whenever gateId is present;
+      // gate-level structure checks are skipped (handled internally by validateTestFirstPattern)
+      mockValidateTestFirstPattern.mockReturnValue({ errors: [], warnings: [] })
+
       const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
 
       validateArtifact({
@@ -264,7 +268,7 @@ describe('artifact-validator', () => {
         // no gateProposals
       })
 
-      expect(mockValidateTestFirstPattern).not.toHaveBeenCalled()
+      expect(mockValidateTestFirstPattern).toHaveBeenCalled()
     })
 
     it('does NOT call validateTestFirstPattern when gateId is absent', async () => {

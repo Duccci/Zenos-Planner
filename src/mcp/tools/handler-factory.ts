@@ -328,7 +328,6 @@ export function formatValidationError(
   return {
     content: [{ type: 'text', text: JSON.stringify(errorOutput, null, 2) }],
     isError: true,
-    structuredContent: errorOutput,
   }
 }
 

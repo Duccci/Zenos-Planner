@@ -387,6 +387,11 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .replace(/\[Gate ID\] - \[Gate Name\]/g, gateLabel)
         .replace(/pending \| validated \| in_progress \| completed \| rejected/g, 'pending')
         .replace(/\*\*Requirement\*\*: #\[Requirement Hash\] \(optional - may address gate-level objective\) {2}\n/g, '')
+        // Replace {{...}} style placeholders introduced in the updated template
+        .replace(/\{\{HASH\}\}/g, hash)
+        .replace(/\{\{DATE\}\}/g, createdDate)
+        .replace(/\{\{GATE_ID\}\}/g, gateLabel)
+        .replace(/\{\{ROLES\}\}/g, '')
 
       // Update summary section
       proposalContent = proposalContent.replace(

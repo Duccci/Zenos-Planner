@@ -134,7 +134,9 @@ export async function resolveGateTestFirstSiblings(
           resolvedPath = filePath
           const content = await readFile(filePath)
           const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-          role = roleMatch?.[1]?.trim()
+          const rawRole = roleMatch?.[1]?.trim()
+          // Treat unreplaced template placeholders (e.g. '{{ROLES}}') as unset
+          role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
         }
       } catch {
         // role stays undefined — validator treats as unset

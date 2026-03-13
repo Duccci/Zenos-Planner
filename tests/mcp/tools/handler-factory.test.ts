@@ -88,7 +88,11 @@ describe('Handler Factory', () => {
     const vr = { allowed: false, errors: ['x'] }
     const err = formatValidationError(vr, 'create')
     expect(err.isError).toBe(true)
-    expect(err.structuredContent && (err.structuredContent as any).validation).toBeDefined()
+    // structuredContent was removed from formatValidationError to prevent
+    // MCP clients from rendering the same error twice (once from content, once from structuredContent)
+    expect(err.structuredContent).toBeUndefined()
+    const parsed = JSON.parse((err.content[0] as any).text)
+    expect(parsed.validation).toBeDefined()
 
     const ni = createNotImplementedHandler('nope')
     expect(ni.isError).toBe(true)

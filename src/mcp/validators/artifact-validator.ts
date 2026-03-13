@@ -233,18 +233,17 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // =========================================================================
 
   // Check 3: Test-first pattern (if gate-tied)
-  // Skip gate-level errors if proposal has already failed validation.
-  // This prevents cascading errors (e.g., missing role) from being reported
-  // alongside other format/structure issues. The LLM will fix structural
-  // issues first, then gate-level checks will run on the next validation.
-  if (errors.length === 0 && context.gateId && context.gateProposals) {
+  // Skip if proposal has already failed earlier validation to avoid cascading noise.
+  // gateProposals is optional: per-proposal role checks (incl. missing-role error)
+  // run whenever gateId is set; gate-level structure checks require sibling data.
+  if (errors.length === 0 && context.gateId) {
     const filesAffected = extractFilesAffected(content)
     const testFirstContext: TestFirstValidationContext = {
       proposalHash: context.hash ?? 'unknown',
       role: context.role,
       isGateTied: !!context.gateId,
       filesAffected,
-      gateProposals: context.gateProposals.map((p) => ({
+      gateProposals: context.gateProposals?.map((p) => ({
         hash: p.hash,
         role: p.role,
         createdAt: p.createdAt,
