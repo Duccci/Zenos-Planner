@@ -3,7 +3,7 @@ zeno:
   hash: 'f5a2b3e6'
   gate_id: 'gate-07'
   requirement_id: null
-  status: pending
+  status: completed
   reason: null
   created_at: '2026-03-11'
 ---
@@ -22,7 +22,10 @@ zeno:
 
 **Hash**: #f5a2b3e6
 **Gate**: gate-07 - Proposal Generation & Management
-**Status**: pending
+**Status**: completed
+**Approved By**: Duccci
+**Implemented**: 2026-03-14T03:35:09.061Z
+**Roles**: testing
 **Created**: 2026-03-11
 
 ---
@@ -66,11 +69,11 @@ Run the updated `calculateProposalDependencies` tests. Each test now destructure
 
 **Acceptance**:
 
-- [ ] All `calculateProposalDependencies` tests pass
-- [ ] `parallelSets[0] === ['red-hash']` test passes for standard layout
-- [ ] `parallelSets[1]` contains all impl hashes (order-independent) test passes
-- [ ] Single-proposal test returns `parallelSets: [['only']]`
-- [ ] Empty-proposals test returns `parallelSets: []`
+- [x] All `calculateProposalDependencies` tests pass
+- [x] `parallelSets[0] === ['red-hash']` test passes for standard layout
+- [x] `parallelSets[1]` contains all impl hashes (order-independent) test passes
+- [x] Single-proposal test returns `parallelSets: [['only']]`
+- [x] Empty-proposals test returns `parallelSets: []`
 
 ---
 
@@ -83,9 +86,9 @@ Run `tests/core/types.test.ts`. Confirm the five valid `ProposalRole` values are
 
 **Acceptance**:
 
-- [ ] All `ProposalRole` tests pass
-- [ ] No TypeScript errors or `@ts-expect-error` mismatches
-- [ ] `describe('ProposalRole', ...)` block reports all tests green
+- [x] All `ProposalRole` tests pass
+- [x] No TypeScript errors or `@ts-expect-error` mismatches
+- [x] `describe('ProposalRole', ...)` block reports all tests green
 
 ---
 
@@ -98,9 +101,9 @@ Run the proposal-schemas tests. Confirm `ProposalListOutputSchema.parse({ propos
 
 **Acceptance**:
 
-- [ ] All four schema assertions from RED Task 4 pass
-- [ ] No `ZodError` thrown for valid shapes
-- [ ] `ZodError` thrown for missing `parallelSets` (required field test)
+- [x] All four schema assertions from RED Task 4 pass
+- [x] No `ZodError` thrown for valid shapes
+- [x] `ZodError` thrown for missing `parallelSets` (required field test)
 
 ---
 
@@ -113,9 +116,9 @@ Run the proposal-template tests. Confirm `ProposalData` accepts `roles?: Proposa
 
 **Acceptance**:
 
-- [ ] `roles: ['testing', 'feature']` renders as `'testing, feature'` in template output
-- [ ] Missing `roles` renders without error and produces an empty string for `{{ROLES}}`
-- [ ] All existing `proposal-template` tests continue to pass
+- [x] `roles: ['testing', 'feature']` renders as `'testing, feature'` in template output
+- [x] Missing `roles` renders without error and produces an empty string for `{{ROLES}}`
+- [x] All existing `proposal-template` tests continue to pass
 
 ---
 
@@ -128,9 +131,9 @@ Update the mock for `calculateProposalDependencies` to return `{ edges: [...], p
 
 **Acceptance**:
 
-- [ ] Mock returns `{ edges, parallelSets }` shape
-- [ ] Integration test asserts `parallelSetIndex` is set on at least one proposal
-- [ ] No regression in existing `proposal-generation` tests
+- [x] Mock returns `{ edges, parallelSets }` shape
+- [x] Integration test asserts `parallelSetIndex` is set on at least one proposal
+- [x] No regression in existing `proposal-generation` tests
 
 ---
 
@@ -143,9 +146,9 @@ Locate the existing migrations test file. Add a test that calls `patchProposalsP
 
 **Acceptance**:
 
-- [ ] `patchProposalsParallelSetIndex` on existing column does not throw
-- [ ] Fresh DB from `runMigrations` has `parallel_set_index` column in `proposals` table
-- [ ] Existing migrations tests continue to pass
+- [x] `patchProposalsParallelSetIndex` on existing column does not throw
+- [x] Fresh DB from `runMigrations` has `parallel_set_index` column in `proposals` table
+- [x] Existing migrations tests continue to pass
 
 ---
 
