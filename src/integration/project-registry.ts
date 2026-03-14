@@ -18,6 +18,7 @@ import {
   loadConfig,
   getDefaultConfig,
   saveConfig,
+  getWorkspaceRoot,
 } from '../utils/config.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { readdir } from 'node:fs/promises'
@@ -47,7 +48,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
     'project_init',
     async (params: Record<string, unknown>) => {
       const input = ProjectInitInputSchema.parse(params)
-      const projectRoot = process.cwd()
+      const projectRoot = getWorkspaceRoot()
 
       try {
         // Check if project already exists
@@ -141,7 +142,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
     'project_status',
     async () => {
       try {
-        const projectRoot = process.cwd()
+        const projectRoot = getWorkspaceRoot()
         const zenoDir = join(projectRoot, 'zeno')
         const gatesDir = join(zenoDir, 'gates')
         const archiveDir = join(gatesDir, 'archive')

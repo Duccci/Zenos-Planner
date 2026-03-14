@@ -8,8 +8,14 @@ import {
 } from '../schemas/architecture-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 import { createDiscoveryService } from '../../generation/artifact-discovery-service.js'
+import { getWorkspaceRoot } from '../../utils/config.js'
 
-const discovery = createDiscoveryService(process.cwd())
+// Defer discovery creation until first use so it picks up ZENO_WORKSPACE if set.
+let _discovery: ReturnType<typeof createDiscoveryService> | undefined
+function getDiscovery(): ReturnType<typeof createDiscoveryService> {
+  _discovery ??= createDiscoveryService(getWorkspaceRoot())
+  return _discovery
+}
 
 /**
  * Unified diagram_action tool definition.
@@ -75,7 +81,7 @@ export function architectureHandlers(
       // --- template actions handled inline (use discovery service, not registry) ---
       if (action === 'list_template') {
         try {
-          const templates = await discovery.getTemplates()
+          const templates = await getDiscovery().getTemplates()
           return {
             content: [{ type: 'text', text: JSON.stringify({ templates }, null, 2) }],
           }
@@ -100,7 +106,7 @@ export function architectureHandlers(
         }
         try {
           const includeContext = includeContextVal === true || includeContextVal === 'true'
-          const artifact = await discovery.getArtifact('template', nameVal)
+          const artifact = await getDiscovery().getArtifact('template', nameVal)
           if (!artifact) {
             const payload = { code: 'NOT_FOUND', message: `Template not found: ${nameVal}`, timestamp: new Date().toISOString() }
             return {

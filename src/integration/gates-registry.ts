@@ -12,7 +12,11 @@ import { listArchivedGates } from '../utils/gate-consolidation.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 
 import { join } from 'node:path'
-import { getZenoDir } from '../utils/config.js'
+import { fileURLToPath } from 'node:url'
+import { getZenoDir, getWorkspaceRoot } from '../utils/config.js'
+
+// Install-relative directory so templates are found regardless of the user's CWD.
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 import { normalizePath } from '../utils/file.js'
 
 export function registerGatesOps(registry: FunctionRegistry): void {
@@ -255,7 +259,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       let startedBy = validated.startedBy
       if (!startedBy) {
         try {
-          const gitUser = await getGitUserInfo(process.cwd())
+          const gitUser = await getGitUserInfo(getWorkspaceRoot())
           startedBy = gitUser.name ?? gitUser.email ?? undefined
         } catch {
           // Silently ignore git user pull errors; startedBy remains optional
@@ -308,7 +312,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       let completedBy = validated.completedBy
       if (!completedBy) {
         try {
-          const gitUser = await getGitUserInfo(process.cwd())
+          const gitUser = await getGitUserInfo(getWorkspaceRoot())
           completedBy = gitUser.name ?? gitUser.email ?? undefined
         } catch {
           // Silently ignore git user pull errors; completedBy remains optional
@@ -541,7 +545,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const { readFile } = await import('fs/promises')
       const { join } = await import('path')
 
-      const templatePath = join(process.cwd(), 'templates', 'md-templates', 'gate-prd-template.md')
+      const templatePath = join(__installDir, 'templates', 'md-templates', 'gate-prd-template.md')
       let gateContent = await readFile(templatePath, 'utf-8')
 
       // Replace template placeholders
@@ -563,7 +567,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       // Write gate file
       const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
-      const filePath = normalizePath(join(process.cwd(), 'zeno', 'gates', fileName))
+      const filePath = normalizePath(join(getWorkspaceRoot(), 'zeno', 'gates', fileName))
 
       const { writeFile } = await import('../utils/file.js')
       await writeFile(filePath, gateContent, 'utf-8')

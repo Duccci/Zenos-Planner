@@ -216,6 +216,20 @@ const ZENO_DIR = join('zeno', '.zeno')
 const CONFIG_FILE = 'config.json'
 
 /**
+ * Resolve the active workspace root.
+ *
+ * Precedence: ZENO_WORKSPACE env var → process.cwd()
+ *
+ * Use this instead of a bare `process.cwd()` anywhere a registry or tool
+ * needs to locate user-project files (gates, proposals, requirements, etc.)
+ * so that the MCP server correctly targets the configured workspace when
+ * ZENO_WORKSPACE is set by the editor/client.
+ */
+export function getWorkspaceRoot(): string {
+  return process.env['ZENO_WORKSPACE'] ?? process.cwd()
+}
+
+/**
  * Get the path to the .zeno directory for a given project root.
  * @param projectRoot - Project root directory (default: process.cwd())
  * @returns Absolute path to .zeno directory

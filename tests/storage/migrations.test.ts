@@ -81,10 +81,11 @@ describe('migration system', () => {
       expect(row).toBeDefined()
     })
 
-    it('throws DatabaseError when schema.sql is missing', async () => {
-      // Do NOT copy schema — migrations dir will be absent
+    it('succeeds even when no projectRoot is provided (schema is install-relative)', async () => {
+      // Schema is now resolved from the Zeno installation dir, not projectRoot,
+      // so runMigrations always finds it regardless of what projectRoot is passed.
       const db = getDatabase(TEST_DIR)
-      await expect(runMigrations(db, TEST_DIR)).rejects.toThrow('Failed to read schema.sql')
+      await expect(runMigrations(db, TEST_DIR)).resolves.not.toThrow()
     })
   })
 })

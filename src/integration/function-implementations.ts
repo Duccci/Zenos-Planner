@@ -31,6 +31,7 @@ import {
   registerAnalysisOps,
 } from './schema-registry.js'
 import { registerContextOps } from './context-registry.js'
+import { registerProjectOps } from './project-registry.js'
 
 /**
  * Create and return a fully initialized function registry
@@ -59,6 +60,7 @@ export function createFunctionRegistry(): FunctionRegistry {
   registerArchitectureOps(registry)
   registerAnalysisOps(registry)
   registerContextOps(registry)
+  registerProjectOps(registry)
   registerTemplateOps(registry)
 
   logger.debug(`Function registry initialized with ${String(registry.list().length)} functions`)

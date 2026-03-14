@@ -8,9 +8,12 @@
 
 import Database from 'better-sqlite3'
 import { DatabaseError } from '../utils/errors.js'
-import { findProjectRoot } from '../utils/config.js'
-import { join } from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
+
+// Path to schema.sql resolved relative to this module (install-relative),
+// so it is found correctly whether Zeno is run from the repo or globally installed.
+const _schemaPath = fileURLToPath(new URL('../../src/storage/migrations/schema.sql', import.meta.url))
 
 /**
  * SQLite CHECK constraints cannot be altered in-place; changing them requires
@@ -128,7 +131,7 @@ function patchProposalsParallelSetIndex(db: Database.Database): void {
  */
 export async function runMigrations(
   db: Database.Database,
-  projectRoot: string = process.cwd()
+  _projectRoot: string = process.cwd()
 ): Promise<number> {
   // Detect whether this is a fresh database before applying the schema
   const alreadyInitialised =
@@ -136,8 +139,7 @@ export async function runMigrations(
       .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='requirements'")
       .get() !== undefined
 
-  const root = findProjectRoot(projectRoot) ?? projectRoot
-  const schemaPath = join(root, 'src', 'storage', 'migrations', 'schema.sql')
+  const schemaPath = _schemaPath
 
   let sql: string
   try {

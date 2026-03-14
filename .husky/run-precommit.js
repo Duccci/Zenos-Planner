@@ -113,4 +113,7 @@ try {
   // non-fatal — red test reporting is best-effort
 }
 
+// Write a timestamped sentinel so prepare-commit-msg can confirm --no-verify was not used.
+fs.writeFileSync(path.join(process.cwd(), '.git', '.pre-commit-passed'), Date.now().toString())
+
 process.exit(0)

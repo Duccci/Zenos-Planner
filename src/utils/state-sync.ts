@@ -144,7 +144,8 @@ export async function syncProjectMetadataToState(
         upcomingGates: overview.upcomingGates,
         architecture: overview.architecture,
         lastUpdated: new Date().toISOString(),
-        status: overview.currentGate ? 'gate_in_progress' : 'awaiting_review',
+        // Keep gate_completed if that was the triggering reason; otherwise awaiting_review
+        status: overview.currentGate ? 'gate_in_progress' : 'gate_completed',
       }
     } else {
       // Update existing state
@@ -157,8 +158,42 @@ export async function syncProjectMetadataToState(
       state.upcomingGates = overview.upcomingGates
       state.architecture = overview.architecture
       state.lastUpdated = new Date().toISOString()
-      state.status = overview.currentGate ? 'gate_in_progress' : 'awaiting_review'
+      // Preserve gate_completed (set by archiveCompletedGateInState) so a full sync
+      // called right after gate completion doesn't revert it to awaiting_review.
+      state.status = overview.currentGate
+        ? 'gate_in_progress'
+        : state.status === 'gate_completed'
+          ? 'gate_completed'
+          : 'awaiting_review'
     }
+
+    // Upsert completed gates from project-overview into state.gates.
+    // This fills retroactive gaps (gates completed before state-sync existed)
+    // and corrects stale sequence/hash values from previous name-lookup failures.
+    for (const g of overview.completedGates) {
+      const gateId = `gate-${g.sequence.toString().padStart(2, '0')}`
+      const existingIdx = state.gates.findIndex((sg) => sg.id === gateId || sg.name === g.name)
+      const existingGate = existingIdx >= 0 ? state.gates[existingIdx] : undefined
+      const entry: StateFile['gates'][0] = {
+        id: gateId,
+        sequence: g.sequence,
+        name: g.name,
+        hash: g.hash,
+        status: 'completed',
+        type: 'feature',
+        createdAt: existingGate !== undefined
+          ? existingGate.createdAt
+          : g.completedAt,
+        completedAt: g.completedAt,
+      }
+      if (existingIdx >= 0) {
+        state.gates[existingIdx] = { ...state.gates[existingIdx], ...entry }
+      } else {
+        state.gates.push(entry)
+      }
+    }
+    // Keep gates sorted by sequence for deterministic output
+    state.gates.sort((a, b) => a.sequence - b.sequence)
 
     await writeState(state, projectRoot)
   } catch (error) {

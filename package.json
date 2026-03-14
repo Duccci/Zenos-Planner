@@ -41,7 +41,7 @@
     "mcp-server": "node --loader ts-node/esm src/mcp/server.ts",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#.local\" \"#coverage\" \"#dist\" \"#tests/fixtures\" \"#tests/tmp\" \"#agents\"",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#.local\" \"#coverage\" \"#dist\" \"#tests/fixtures\" \"#tests/tmp\" \"#agents\" \"#.serena\"",
     "format": "prettier --write \"src/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -50,7 +50,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "prebuild": "npm run clean",
-    "prepare": "husky install"
+    "prepare": "husky"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.15.0",

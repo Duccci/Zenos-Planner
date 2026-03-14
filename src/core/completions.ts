@@ -29,7 +29,7 @@ import { normalizeGateId, normalizeHash } from '../utils/normalize.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis, regenerateGatesTheoreticalFromProject } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
-import { archiveCompletedGateInState, updateCurrentGateInState } from '../utils/state-sync.js'
+import { archiveCompletedGateInState, updateCurrentGateInState, syncProjectMetadataToState } from '../utils/state-sync.js'
 import { readProjectOverview, saveProjectOverview } from '../utils/config.js'
 import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
@@ -336,11 +336,11 @@ export async function completeGate(
   const gate = getRequiredRow(
     db
       .prepare(
-        `SELECT id, name, status
+        `SELECT id, name, status, sequence, hash
          FROM gates
          WHERE id = ?`
       )
-      .get(gateId) as { id: string; name: string; status: string } | undefined,
+      .get(gateId) as { id: string; name: string; status: string; sequence: number; hash: string | null } | undefined,
     'Gate not found',
     { gateId }
   )
@@ -424,30 +424,22 @@ export async function completeGate(
     }
 
     // Delete proposals from database after consolidation
-    // First get proposal hashes for cleanup
+    // First get proposal IDs and hashes for cleanup
     const proposalRows = db
-      .prepare('SELECT hash FROM proposals WHERE gate_id = ?')
-      .all(gate.id) as { hash: string }[]
+      .prepare('SELECT id, hash FROM proposals WHERE gate_id = ?')
+      .all(gate.id) as { id: string; hash: string }[]
+    const proposalIds = proposalRows.map((row) => row.id)
     const proposalHashes = proposalRows.map((row) => row.hash)
 
-    // Delete dependencies involving these proposals
-    if (proposalHashes.length > 0) {
-      const placeholders = proposalHashes.map(() => '?').join(',')
+    // Delete proposal_dependencies involving these proposals (both directions)
+    if (proposalIds.length > 0) {
+      const idPlaceholders = proposalIds.map(() => '?').join(',')
+      const hashPlaceholders = proposalHashes.map(() => '?').join(',')
       db.prepare(
-        `DELETE FROM dependencies WHERE source_entity_type = 'proposal' AND source_hash IN (${placeholders})`
-      ).run(...proposalHashes)
+        `DELETE FROM proposal_dependencies WHERE source_proposal_id IN (${idPlaceholders})`
+      ).run(...proposalIds)
       db.prepare(
-        `DELETE FROM dependencies WHERE target_entity_type = 'proposal' AND target_hash IN (${placeholders})`
-      ).run(...proposalHashes)
-
-      // Delete from hash registry
-      db.prepare(
-        `DELETE FROM hash_registry WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`
-      ).run(...proposalHashes)
-
-      // Delete from state history
-      db.prepare(
-        `DELETE FROM state_history WHERE entity_type = 'proposal' AND entity_id IN (${placeholders})`
+        `DELETE FROM proposal_dependencies WHERE target_proposal_hash IN (${hashPlaceholders})`
       ).run(...proposalHashes)
     }
 
@@ -494,22 +486,28 @@ export async function completeGate(
   }
 
   // Sync gate completion to state.json (backup/traceability archive)
-  // state.json serves as a historical snapshot of gate progress
+  // Use DB gate values directly — avoids brittle name-based lookup against
+  // project-overview.completedGates which may not be synced yet at this point.
   try {
-    const overview = await readProjectOverview(projectRoot)
-    const gateInfo = overview.completedGates.find((g) => g.name === gate.name) ?? {
-      sequence: 0,
-      hash: '#unknown',
-    }
     await archiveCompletedGateInState(
       gateId,
       gate.name,
-      gateInfo.sequence,
-      gateInfo.hash,
+      gate.sequence,
+      gate.hash ?? `#gate${gateId.replace('gate-', '')}`,
       projectRoot
     )
   } catch (error) {
     logger.warn(`Failed to archive gate in state.json: ${String(error)}`)
+    // Don't fail the completion if state sync fails
+  }
+
+  // Full state.json sync from project-overview ensures version, totalGatesPlanned,
+  // upcomingGates, and all completed gates (including any retroactive gaps) are current.
+  try {
+    const overview = await readProjectOverview(projectRoot)
+    await syncProjectMetadataToState(overview, projectRoot)
+  } catch (error) {
+    logger.warn(`Failed to full-sync state.json after gate completion: ${String(error)}`)
     // Don't fail the completion if state sync fails
   }
 

@@ -12,6 +12,11 @@ import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
+import { fileURLToPath } from 'node:url'
+import { getWorkspaceRoot } from '../utils/config.js'
+
+// Install-relative directory so templates are found regardless of user CWD.
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -396,7 +401,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       // Load proposal template
-      const templatePath = join(process.cwd(), 'templates', 'md-templates', 'proposal-template.md')
+      const templatePath = join(__installDir, 'templates', 'md-templates', 'proposal-template.md')
       let proposalContent = await readFile(templatePath, 'utf-8')
 
       // Replace template placeholders
@@ -484,7 +489,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
         const fileName = `${date}-01-${slug}.md`
-        filePath = normalizePath(join(process.cwd(), 'zeno', 'proposals', 'solitary', fileName))
+        filePath = normalizePath(join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary', fileName))
       } else {
         // Gate-tied: zeno/proposals/gate-XX/NN-name.md
         const gateNumMatch = validated.gateId ? /\d+/.exec(validated.gateId)?.[0] : undefined
@@ -495,7 +500,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/[^\w-]/g, '')
         const fileName = `01-${slug}.md`
         filePath = normalizePath(join(
-          process.cwd(),
+          getWorkspaceRoot(),
           'zeno',
           'proposals',
           `gate-${gateNum.padStart(2, '0')}`,
@@ -616,7 +621,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         throw new Error(`Proposal not found: ${validated.hash}`)
       }
 
-      const projectRoot = process.cwd()
+      const projectRoot = getWorkspaceRoot()
 
       // Resolve the actual file by scanning proposal frontmatter hashes.
       // Constructing from a title slug is unreliable when files have numbered
@@ -1339,7 +1344,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Pull git user info to get approver name
       let approvedBy: string | undefined
       try {
-        const gitUser = await getGitUserInfo(process.cwd())
+        const gitUser = await getGitUserInfo(getWorkspaceRoot())
         approvedBy = gitUser.name ?? gitUser.email ?? undefined
       } catch {
         // Silently ignore git user pull errors; approvedBy remains undefined
@@ -1419,7 +1424,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       let rejectedBy = validated.rejectedBy
       if (!rejectedBy) {
         try {
-          const gitUser = await getGitUserInfo(process.cwd())
+          const gitUser = await getGitUserInfo(getWorkspaceRoot())
           rejectedBy = gitUser.name ?? gitUser.email ?? undefined
         } catch {
           // Silently ignore git user pull errors; rejectedBy remains optional

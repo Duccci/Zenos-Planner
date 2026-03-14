@@ -20,6 +20,7 @@ import type { RequirementType, RequirementPriority } from '../generation/types.j
 import { getDatabase } from '../storage/database.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { logger } from '../utils/logger.js'
+import { getWorkspaceRoot } from '../utils/config.js'
 
 // Valid type and priority values for validation
 const VALID_TYPES = new Set<string>(['functional', 'non_functional', 'constraint'])
@@ -647,7 +648,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'db_status': {
           const db = getDatabase()
-          const proposalsDir = path.join(process.cwd(), 'zeno', 'proposals')
+          const proposalsDir = path.join(getWorkspaceRoot(), 'zeno', 'proposals')
           const diskHashes = collectDiskHashes(proposalsDir)
 
           interface StatusRow { hash: string; status: string; gate_id: string | null }
@@ -677,7 +678,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'db_sync': {
           const db = getDatabase()
-          const projectRoot = process.cwd()
+          const projectRoot = getWorkspaceRoot()
           const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
 
           const before = (
@@ -731,7 +732,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             .parse(validated.payload ?? {})
 
           const db = getDatabase()
-          const proposalsDir = path.join(process.cwd(), 'zeno', 'proposals')
+          const proposalsDir = path.join(getWorkspaceRoot(), 'zeno', 'proposals')
           const diskHashes = collectDiskHashes(proposalsDir)
 
           interface ProposalRow { hash: string; gate_id: string | null; title: string; status: string }
@@ -784,7 +785,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             .run(payload.gateId)
           const deletedCount = result.changes
 
-          syncProposalsFromDisk(db, process.cwd())
+          syncProposalsFromDisk(db, getWorkspaceRoot())
 
           const resyncedCount = (
             db

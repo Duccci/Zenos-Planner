@@ -47,21 +47,23 @@
       "hash": "g06multirepo",
       "completedAt": "2026-03-06",
       "status": "completed"
+    },
+    {
+      "sequence": 7,
+      "name": "Gate 07: Proposal Generation & Management",
+      "hash": "g07proposal",
+      "completedAt": "2026-03-14",
+      "status": "completed"
     }
   ],
   "currentGateInfo": {
-    "sequence": 7,
-    "name": "Gate 07: Proposal Generation & Management",
-    "hash": "#gate07",
+    "sequence": 8,
+    "name": "Gate 08: Automated Validation & Quality Gates",
+    "hash": "#gate08",
     "status": "pending",
     "estimatedComplexity": "high"
   },
   "upcomingGates": [
-    {
-      "sequence": 8,
-      "name": "Gate 08: Automated Validation & Quality Gates",
-      "estimatedComplexity": "high"
-    },
     {
       "sequence": 9,
       "name": "Gate 09: Human Approval & Rejection Workflow",

@@ -77,6 +77,7 @@ vi.mock('../../src/storage/proposal-sync.js', () => ({
 
 vi.mock('../../src/utils/config.js', () => ({
   getZenoDir: vi.fn().mockReturnValue('/project/zeno/.zeno'),
+  getWorkspaceRoot: vi.fn().mockReturnValue('/mock/project'),
   readProjectOverview: (...args: unknown[]) => mockReadProjectOverview(...args),
   getGatesFromOverview: (...args: unknown[]) => mockGetGatesFromOverview(...args),
   loadConfig: vi.fn().mockResolvedValue({ quality: { coverageThreshold: 90 } }),

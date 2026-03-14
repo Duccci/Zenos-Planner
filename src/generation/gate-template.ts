@@ -6,7 +6,11 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { fileURLToPath } from 'url';
 import { DIAGRAM_CATALOGUE } from './diagram-catalogue.js';
+
+// Install-relative __dirname so templates are found regardless of the user's CWD.
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 export interface DiagramEntry {
   name: string;
@@ -51,7 +55,7 @@ export function loadTemplate(templateName: string): string {
 
 /**
  * Generate diagram entries for a gate PRD
- * 
+ *
  * Always includes the five core diagram entries with sequential order numbers.
  * Leaves conditional diagram slots for LLM selection.
  */

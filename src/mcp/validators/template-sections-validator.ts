@@ -17,8 +17,13 @@
  */
 
 import { join } from 'path'
+import { fileURLToPath } from 'url'
 import { readFile } from '../../utils/file.js'
 import type { ValidationResult } from './types.js'
+
+// Templates are part of the Zeno installation, not the user's project.
+// Resolve relative to this module so the path is correct regardless of CWD.
+const _templatesDir = join(fileURLToPath(new URL('.', import.meta.url)), '../../../templates/md-templates')
 
 // ---------------------------------------------------------------------------
 // Types
@@ -162,12 +167,12 @@ const _sectionCache = new Map<string, TemplateSections>()
  */
 export async function loadTemplateSections(
   artifactType: 'proposal' | 'gate',
-  projectRoot: string = process.cwd()
+  _projectRoot: string = process.cwd()
 ): Promise<TemplateSections> {
   const templateFile =
     artifactType === 'proposal' ? 'proposal-template.md' : 'gate-prd-template.md'
 
-  const templatePath = join(projectRoot, 'templates', 'md-templates', templateFile)
+  const templatePath = join(_templatesDir, templateFile)
 
   if (_sectionCache.has(templatePath)) {
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion

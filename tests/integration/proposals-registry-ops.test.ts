@@ -95,6 +95,7 @@ vi.mock('../../src/mcp/validators/apply-phase-validator.js', () => ({
 }))
 
 vi.mock('../../src/utils/config.js', () => ({
+  getWorkspaceRoot: vi.fn().mockReturnValue('/mock/project'),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
   getDefaultConfig: vi.fn().mockReturnValue({ version: '1.0.0' }),
   readProjectOverview: vi.fn().mockResolvedValue({ completedGates: [], currentGate: null }),

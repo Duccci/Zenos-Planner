@@ -536,11 +536,7 @@ Gates 1-4 have been completed and archived. These foundational gates established
 
 MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 implementation.
 
-### Active MVP Gates (07-14)
-
-### Gate 07: Proposal Generation & Management
-
-[ ] Implementation in progress...
+### Active MVP Gates (08-14)
 
 ### Gate 08: Gate 08: Automated Validation & Quality Gates
 
@@ -558,7 +554,7 @@ MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 imp
 
 [ ] Implementation in progress...
 
-### Gate 12: Gate 12: Status & Reporting
+### Gate 12: Gate 12: Dashboard & Visualization
 
 [ ] Implementation in progress...
 
@@ -580,3 +576,4 @@ Gates 1-4 have been completed and archived. These foundational gates established
 - Gate 04: Gate 04: Requirements & Database Layer
 - Gate 05: Gate 05: Architecture & Diagram Generation
 - Gate 06: Gate 06: Multi-Repo & Subproject Detection
+- Gate 07: Gate 07: Proposal Generation & Management

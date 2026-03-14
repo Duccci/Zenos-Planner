@@ -22,7 +22,7 @@ import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-tr
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
 import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
-import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview, getWorkspaceRoot } from '../utils/config.js'
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -48,7 +48,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
   const context: DiagramContext = { projectName: 'Zeno\'s Planner' }
 
   try {
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
 
     // Read PROJECT_PRD.md for aspirational vision
     try {
@@ -118,7 +118,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
 export function registerRepositoryOps(registry: FunctionRegistry): void {
   registry.register('repos_list', (params) => {
     const { type } = params as { type?: string }
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
     const repos = listRepositories(type, projectRoot)
     return {
       repositories: repos.map(r => ({
@@ -141,7 +141,7 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
 
   registry.register('repos_deps', (params) => {
     const { repositoryId } = params as { repositoryId?: string }
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
 
     const graph = getRepoDependencyGraph(projectRoot)
     const circles = detectCircularDependencies(projectRoot)
@@ -192,7 +192,7 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
   })
 
   registry.register('repos_detect', async () => {
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
     const result = await detectRepositoryBoundaries(projectRoot, { persist: false })
     const validTypes = new Set(['main', 'service', 'library', 'tool', 'app'])
     return {
@@ -212,7 +212,7 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
   })
 
   registry.register('repos_adjust', async () => {
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
     const result = await detectRepositoryBoundaries(projectRoot, { persist: true })
     return {
       adjustmentsApplied: result.recommendations.length,
@@ -270,7 +270,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     // subsequent MCP calls can read from disk instead of re-generating.
     // Graphviz diagrams: write .dot + .svg sidecars to dot-diagrams/ and reference
     // via <img> in the .md (avoids VS Code DOMPurify stripping SVG transform attrs).
-    const archDir = join(process.cwd(), 'zeno', 'architecture')
+    const archDir = join(getWorkspaceRoot(), 'zeno', 'architecture')
     const dotDiagramsDir = join(archDir, 'dot-diagrams')
     mkdirSync(archDir, { recursive: true })
     const written: string[] = []
@@ -348,7 +348,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     }
 
     // Read from persisted file first (written by arch_generate); re-generate if missing.
-    const archFile = join(process.cwd(), 'zeno', 'architecture', `${diagramType}.md`)
+    const archFile = join(getWorkspaceRoot(), 'zeno', 'architecture', `${diagramType}.md`)
     if (existsSync(archFile)) {
       const content = readFileSync(archFile, 'utf-8')
       const format = content.includes('dot-diagrams/') || content.includes('<svg') ? 'graphviz' : 'mermaid'
@@ -365,7 +365,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     const output = await generator.generate(context)
 
     // Persist freshly generated diagram for future reads
-    const archDir = join(process.cwd(), 'zeno', 'architecture')
+    const archDir = join(getWorkspaceRoot(), 'zeno', 'architecture')
     const dotDiagramsDir = join(archDir, 'dot-diagrams')
     mkdirSync(archDir, { recursive: true })
     if (output.svgContent && output.dotSource) {

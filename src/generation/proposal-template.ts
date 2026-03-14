@@ -6,6 +6,10 @@
 
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { fileURLToPath } from 'url'
+
+// Install-relative __dirname so templates are found regardless of the user's CWD.
+const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 export interface Task {
   title: string

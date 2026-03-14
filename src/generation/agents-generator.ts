@@ -11,7 +11,12 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ZenoConfig } from '../utils/config.js';
+
+// Install-relative __dirname so templates are resolved from the Zeno package,
+// not from wherever the user invokes the CLI or MCP server.
+const __installDir = fileURLToPath(new URL('../..', import.meta.url));
 
 export const ZENO_BLOCK_START = '<!-- ZENO:START — Managed by Zeno\'s Planner. Do not edit this block manually. -->';
 export const ZENO_BLOCK_END = '<!-- ZENO:END -->';
@@ -25,7 +30,7 @@ export const ZENO_BLOCK_END = '<!-- ZENO:END -->';
 export function generateAgentsMD(projectConfig: ZenoConfig): string {
   const today = new Date().toISOString().split('T')[0];
 
-  const templatePath = join(process.cwd(), 'templates', 'md-templates', 'agents-template.md');
+  const templatePath = join(__installDir, 'templates', 'md-templates', 'agents-template.md');
   let innerBlock: string;
 
   try {

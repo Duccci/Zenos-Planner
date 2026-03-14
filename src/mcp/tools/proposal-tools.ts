@@ -263,8 +263,21 @@ export function proposalHandlers(
           } else {
             // Gate-tied proposal: use gate workflow (generateProposals)
             invokeResult = await r.invoke('generateProposals', payload)
-            // Inject gate requirements so generated proposals utilize the prescribed specs
             if (invokeResult.success && gateId) {
+              // Auto-start gate when proposals are generated: generating proposals is the
+              // first concrete work on a gate, so transition it to in_progress if not already.
+              try {
+                const showResult = await r.invoke('gates_show', { gateId })
+                const currentStatus = showResult.success
+                  ? (showResult.data as { status?: string }).status
+                  : undefined
+                if (currentStatus !== 'in_progress' && currentStatus !== 'completed') {
+                  await r.invoke('gates_start', { gateId })
+                }
+              } catch {
+                // best-effort: don't fail proposal generation if gate state update fails
+              }
+              // Inject gate requirements so generated proposals utilize the prescribed specs
               const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } }).catch(() => null)
               if (reqResult?.success) {
                 invokeResult = {

@@ -12,6 +12,12 @@
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { spawn } from 'child_process'
+import { fileURLToPath } from 'url'
+
+// Resolve the Zeno installation directory (parent of bin/) so that all
+// internal paths (dist/, package.json, npm build) are install-relative and
+// never depend on where the user runs the command from.
+const __installDir = fileURLToPath(new URL('..', import.meta.url))
 
 // Parse command line arguments
 const args = process.argv.slice(2)
@@ -87,10 +93,10 @@ if (parentPid && parentPid !== 0) {
 
 async function run() {
   try {
-    console.error(`[mcp-server] Checking build state at ${process.cwd()}`)
+    console.error(`[mcp-server] Install dir: ${__installDir}, workspace: ${process.cwd()}`)
 
     // Check if dist files exist
-    const distServerPath = join(process.cwd(), 'dist', 'mcp', 'server.js')
+    const distServerPath = join(__installDir, 'dist', 'mcp', 'server.js')
     if (!existsSync(distServerPath)) {
       console.error('[mcp-server] dist files not found, building...')
       await runCommand('npm', ['run', 'build'])
@@ -120,7 +126,7 @@ function runCommand(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: 'inherit',
-      cwd: process.cwd()
+      cwd: __installDir
     })
 
     child.on('close', (code) => {

@@ -91,7 +91,6 @@ src/
 ## Gate Roadmap (auto-updated from project-overview.json)
 
 ### Completed (6/14)
-
 - **Gate 01: Core Infrastructure** *(completed 2026-01-28)*
 - **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30)*
 - **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04)*
@@ -100,19 +99,16 @@ src/
 - **Gate 06: Multi-Repo & Subproject Detection** *(completed 2026-03-06)*
 
 ### Current
-
-- **Gate 07: Proposal Generation & Management** ← *next*
+- **Gate 07: Proposal Generation & Management** ← *pending*
 
 ### Upcoming
-
 - Gate 08: Automated Validation & Quality Gates
 - Gate 09: Human Approval & Rejection Workflow
 - Gate 10: Git Integration & Commit Automation
 - Gate 11: Rescope & Replan Engine
-- Gate 12: Status & Reporting
+- Gate 12: Dashboard & Visualization
 - Gate 13: Subagent Orchestration & Parallel Execution
 - Gate 14: Documentation & Polish
-
 ## Quality Thresholds (Non-Configurable in MVP)
 
 - Code coverage: ≥90%

@@ -1,6 +1,6 @@
 {
   "projectName": "Zenos-Planner",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "qualityThresholds": {
     "codeCoverage": 90,
     "securityVulnerabilities": 0,
@@ -22,5 +22,9 @@
     "gateBump": "minor",
     "lifecycleBump": "major"
   },
-  "workflowMode": "solo"
+  "workflowMode": "solo",
+  "ai": {
+    "cli": "copilot",
+    "invocationMode": "cli"
+  }
 }

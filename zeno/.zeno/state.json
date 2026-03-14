@@ -1,10 +1,10 @@
 {
   "project": {
     "name": "Zeno's Planner",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "endState": "Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human 'vibe coding' by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.",
     "startState": null,
-    "totalGatesPlanned": 12,
+    "totalGatesPlanned": 14,
     "gitHistory": {
       "repository": "https://github.com/owner/Zenos-Planner",
       "remote": "origin",
@@ -16,8 +16,8 @@
     {
       "id": "gate-01",
       "sequence": 1,
-      "name": "Core Infrastructure",
-      "hash": "#g01coreinfra",
+      "name": "Gate 01: Core Infrastructure",
+      "hash": "g01c0re1nfra",
       "status": "completed",
       "type": "feature",
       "createdAt": "2026-01-25T00:00:00.000Z",
@@ -70,8 +70,8 @@
     {
       "id": "gate-02",
       "sequence": 2,
-      "name": "Zeno Engine & Gate Generation",
-      "hash": "#g02zenoeng",
+      "name": "Gate 02: Zeno Engine & Gate Generation",
+      "hash": "g02zenoeng",
       "status": "completed",
       "type": "feature",
       "createdAt": "2026-01-28T00:00:00.000Z",
@@ -144,34 +144,86 @@
       ]
     },
     {
-      "id": "gate-06",
-      "sequence": 0,
-      "name": "Gate 06: Multi-Repo & Subproject Detection",
-      "hash": "#unknown",
+      "id": "gate-03",
+      "sequence": 3,
+      "name": "Gate 03: MCP Server & LLM Tool Integration",
+      "hash": "g03mcpserver",
       "status": "completed",
       "type": "feature",
-      "createdAt": "2026-03-06T08:40:55.912Z",
-      "completedAt": "2026-03-06T08:40:55.912Z"
+      "createdAt": "2026-01-30T00:00:00.000Z",
+      "completedAt": "2026-02-04T00:00:00.000Z"
+    },
+    {
+      "id": "gate-04",
+      "sequence": 4,
+      "name": "Gate 04: Requirements & Database Layer",
+      "hash": "g04reqdb01",
+      "status": "completed",
+      "type": "feature",
+      "createdAt": "2026-02-04T00:00:00.000Z",
+      "completedAt": "2026-02-07T00:00:00.000Z"
+    },
+    {
+      "id": "gate-05",
+      "sequence": 5,
+      "name": "Gate 05: Architecture & Diagram Generation",
+      "hash": "g05archdiag",
+      "status": "completed",
+      "type": "feature",
+      "createdAt": "2026-02-07T00:00:00.000Z",
+      "completedAt": "2026-02-21T00:00:00.000Z"
+    },
+    {
+      "id": "gate-06",
+      "sequence": 6,
+      "name": "Gate 06: Multi-Repo & Subproject Detection",
+      "hash": "g06multirepo",
+      "status": "completed",
+      "type": "feature",
+      "createdAt": "2026-02-21T00:00:00.000Z",
+      "completedAt": "2026-03-06T00:00:00.000Z"
+    },
+    {
+      "id": "gate-07",
+      "sequence": 7,
+      "name": "Gate 07: Proposal Generation & Management",
+      "hash": "g07proposal",
+      "status": "completed",
+      "type": "feature",
+      "createdAt": "2026-03-06T00:00:00.000Z",
+      "completedAt": "2026-03-14T00:00:00.000Z"
     }
   ],
   "upcomingGates": [
     {
-      "sequence": 3,
-      "name": "Requirements & Database Layer",
-      "estimatedComplexity": "high",
-      "description": "Implements requirement decomposition, database CRUD operations, and hash registry"
+      "sequence": 9,
+      "name": "Gate 09: Human Approval & Rejection Workflow",
+      "estimatedComplexity": "high"
     },
     {
-      "sequence": 4,
-      "name": "Architecture & Mermaid Generation",
-      "estimatedComplexity": "high",
-      "description": "Creates architecture diagrams and Mermaid generation system"
+      "sequence": 10,
+      "name": "Gate 10: Git Integration & Commit Automation",
+      "estimatedComplexity": "high"
     },
     {
-      "sequence": 5,
-      "name": "Multi-Repo & Subproject Detection",
-      "estimatedComplexity": "high",
-      "description": "Implements repository boundary detection and multi-repo support"
+      "sequence": 11,
+      "name": "Gate 11: Rescope & Replan Engine",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 12,
+      "name": "Gate 12: Dashboard & Visualization",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 13,
+      "name": "Gate 13: Subagent Orchestration & Parallel Execution",
+      "estimatedComplexity": "high"
+    },
+    {
+      "sequence": 14,
+      "name": "Gate 14: Documentation & Polish",
+      "estimatedComplexity": "high"
     }
   ],
   "architecture": {
@@ -192,6 +244,6 @@
       "zod": "^3.22.0"
     }
   },
-  "lastUpdated": "2026-03-06T08:40:55.912Z",
+  "lastUpdated": "2026-03-14T00:00:00.000Z",
   "status": "gate_completed"
 }
