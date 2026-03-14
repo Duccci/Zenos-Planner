@@ -34,7 +34,8 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  *   generate   — generate gates from requirements; required: preReview (enforced by handler); optional: mode, anchorGateId, templateName, requirementsPerGate
  *   start      — transition gate to in_progress; required: gateId; optional: notes
  *   complete   — mark gate completed; required: gateId; optional: completionNotes, approvalDate
- *   regenerate — regenerate gate sequence; optional: fromGateId, mode
+ *   regenerate — unified replan: regenerate future gates, or clear+re-render a single gate from template.
+ *                 optional: gateId (single-gate mode), fromGateId, prdChanged, dryRun, mode
  *
  * preReview: required for `generate` action (enforced by handler, not schema).
  */
@@ -51,7 +52,8 @@ export const GatesActionInputSchema = z.object({
         'validate=dry-run quality/structural checks without completing (needs: gateId). ' +
         'start=begin gate work, validated→in_progress (needs: gateId; required: qualitativeReview with all six booleans + flaggedItems). ' +
         'complete=finish gate (needs: gateId). ' +
-        'regenerate=rebuild future gates after rescope (optional: fromGateId, mode). ' +
+        'regenerate=unified replan: omit gateId to regenerate all future gates; supply gateId to clear+re-render that single gate from template. ' +
+        'Optional: gateId (single-gate), fromGateId (multi-gate baseline), prdChanged=true (rescope signal), dryRun=true (plan only), mode. ' +
         'cancel=mark gate as cancelled/dropped (needs: gateId, confirmed: true; optional: notes as reason). ' +
         'defer=move gate to backlog for later implementation (needs: gateId, confirmed: true; optional: notes as reason). ' +
         'IMPORTANT: cancel and defer are destructive and require confirmed: true — omitting it returns a confirmation prompt instead of executing.'
@@ -114,7 +116,21 @@ export const GatesActionInputSchema = z.object({
   notes: z.string().optional().describe('Optional notes (start, cancel, defer)'),
   completionNotes: z.string().optional().describe('Completion summary notes (complete)'),
   approvalDate: z.string().optional().describe('ISO timestamp of approval (complete)'),
-  fromGateId: z.string().optional().describe('Regenerate from this gate forward (regenerate)'),
+  fromGateId: z.string().optional().describe('Multi-gate baseline: regenerate gates after this completed gate (regenerate)'),
+  prdChanged: z
+    .boolean()
+    .optional()
+    .describe(
+      'Rescope signal: set true when the project PRD end-state has changed. ' +
+      'Causes the replan to pull the current PRD end-state as additional reasoning context (regenerate).'
+    ),
+  dryRun: z
+    .boolean()
+    .optional()
+    .describe(
+      'Return the replan result without writing any files to disk (regenerate). ' +
+      'Useful for previewing changes before committing.'
+    ),
 
   // --- qualitativeReview field (start) ---
   /**

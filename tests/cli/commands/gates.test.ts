@@ -29,6 +29,7 @@ vi.mock('../../../src/core/completions.js', () => ({
 vi.mock('../../../src/core/gate-generator.js', () => ({
   regenerateGatesWithAnalysis: vi.fn(),
   regenerateGatesTheoreticalFromProject: vi.fn(),
+  replanGates: vi.fn(),
 }))
 
 vi.mock('../../../src/core/write-time-analyzer.js', () => ({
@@ -81,7 +82,7 @@ describe('Gates Commands', () => {
     expect(subcommands).toContain('show')
     expect(subcommands).toContain('start')
     expect(subcommands).toContain('complete')
-    expect(subcommands).toContain('regenerate')
+    expect(subcommands).toContain('replan')
   })
 
   describe('gates list', () => {
@@ -386,7 +387,7 @@ describe('Gates Commands', () => {
       const { readProjectOverview, getGatesFromOverview } =
         await import('../../../src/utils/config.js')
       const { existsSync, readdirSync } = await import('node:fs')
-      const { regenerateGatesWithAnalysis } = await import('../../../src/core/gate-generator.js')
+      const { replanGates } = await import('../../../src/core/gate-generator.js')
 
       // No completed gates in overview — fall through to archive
       vi.mocked(readProjectOverview).mockRejectedValue(new Error('no overview'))
@@ -396,8 +397,8 @@ describe('Gates Commands', () => {
       vi.mocked(existsSync).mockImplementation(() => true)
       vi.mocked(readdirSync).mockReturnValue(['gate-03-one.md', 'gate-04-other.md'])
 
-      // regenerate returns no changes
-      vi.mocked(regenerateGatesWithAnalysis).mockResolvedValue({ reason: 'ok', changes: [] } as any)
+      // replanGates returns a result
+      vi.mocked(replanGates).mockResolvedValue({ mode: 'multi', trigger: 'regenerate', gatesAffected: [], filesWritten: [], reasoning: 'ok' } as any)
 
       const program = new Command()
       program.exitOverride()
@@ -406,8 +407,8 @@ describe('Gates Commands', () => {
       await program.parseAsync(['node', 'test', 'gates', 'regenerate'])
 
       const { logger } = await import('../../../src/utils/logger.js')
-      expect(regenerateGatesWithAnalysis).toHaveBeenCalled()
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Regenerating gates'))
+      expect(replanGates).toHaveBeenCalled()
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Running regenerate on future gates'))
     })
   })
 })

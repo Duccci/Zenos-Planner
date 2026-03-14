@@ -19,10 +19,7 @@ import {
   getGatesFromOverview,
 } from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
-import {
-  regenerateGatesWithAnalysis,
-  regenerateGatesTheoreticalFromProject,
-} from '../../core/gate-generator.js'
+import { replanGates } from '../../core/gate-generator.js'
 import { updateCurrentGateInState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 import { invokeGatesAction } from '../cli-tool-invoker.js'
@@ -507,74 +504,65 @@ export function registerGatesCommands(program: Command): void {
     })
 
   gatesCmd
-    .command('regenerate')
-    .description('Regenerate future gates (automatically uses analysis data if available)')
-    .action(async () => {
-      logger.info('Regenerating gates...')
+    .command('replan [gate-id]')
+    .description(
+      'Replan gates: regenerate future gates, or clear+re-render a single gate from template.\n' +
+      '  zeno gates replan              — regenerate all pending/future gates\n' +
+      '  zeno gates replan gate-08      — clear and re-render gate-08 from template\n' +
+      '  zeno gates replan --prd-changed — rescope: pull current PRD end-state as context'
+    )
+    .alias('regenerate')
+    .option('--prd-changed', 'Signal that the project PRD end-state has changed (rescope)')
+    .option('--from <gate-id>', 'Multi-gate baseline: regenerate gates after this completed gate')
+    .option('--dry-run', 'Show the replan without writing any files')
+    .action(async (gateId: string | undefined, options: { prdChanged?: boolean; from?: string; dryRun?: boolean }) => {
+      const isSingle = !!gateId
+      const label = isSingle ? `gate ${gateId}` : 'future gates'
+      const trigger = options.prdChanged ? 'rescope' : 'regenerate'
+      logger.info(`Running ${trigger} on ${label}...`)
 
-      // Sync database gates to project-overview.json first to ensure we have current data
-      try {
-        await syncGatesToProjectOverview()
-      } catch (error) {
-        logger.debug(
-          `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
-        )
+      if (options.dryRun) {
+        logger.info('(dry-run: no files will be written)')
       }
 
-      // Get most recently completed gate from project-overview.json
-      let recentGate: { id: string; name: string; completed_at?: string } | undefined
-
-      try {
-        const overview = await readProjectOverview()
-        if (overview.completedGates.length > 0) {
-          const last = overview.completedGates[overview.completedGates.length - 1]
-          if (last) {
-            recentGate = {
-              id: `gate-${last.sequence.toString().padStart(2, '0')}`,
-              name: last.name,
-              completed_at: last.completedAt,
-            }
-          }
-        }
-      } catch {
-        // No project-overview.json yet — check archive folder as fallback
-      }
-
-      // Archive fallback if overview has no completed gates
-      if (!recentGate) {
-        const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
-        const archivedGateList = listArchivedGates(archivePath)
-
-        // Get the most recently completed gate (last in sorted list)
-        if (archivedGateList.length > 0) {
-          const mostRecent = archivedGateList[archivedGateList.length - 1]
-          if (mostRecent) {
-            recentGate = { id: mostRecent.id, name: mostRecent.name }
-          }
-        }
-      }
-
-      // If no completed gate found, use theoretical regeneration without a base gate
-      if (!recentGate) {
-        logger.info('No completed gates found - using theoretical decomposition')
-      } else {
-        logger.info(`Using completed gate: ${recentGate.id}`)
-        if (recentGate.completed_at) {
-          logger.info(`(Completed: ${recentGate.completed_at})`)
+      // Sync database before multi-gate replan to ensure current data
+      if (!isSingle) {
+        try {
+          await syncGatesToProjectOverview()
+        } catch (error) {
+          logger.debug(
+            `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
+          )
         }
       }
 
       try {
-        const suggestions = recentGate
-          ? await regenerateGatesWithAnalysis(recentGate.id)
-          : await regenerateGatesTheoreticalFromProject()
+        const result = await replanGates({
+          gateId,
+          fromGateId: options.from,
+          prdChanged: options.prdChanged ?? false,
+          dryRun: options.dryRun ?? false,
+        })
 
-        logger.info('\nRegeneration Summary:')
-        logger.info(`  ${suggestions.reasoning}`)
+        logger.info(`\nReplan Summary (${result.mode} / ${result.trigger}):`)
+        logger.info(`  ${result.reasoning}`)
         logger.info('')
+        logger.info(`Gates affected: ${result.gatesAffected.join(', ') || 'none'}`)
 
-        if (suggestions.changes.length === 0) {
-          logger.info('No changes suggested - current gate plan appears optimal')
+        if (result.mode === 'single') {
+          if (options.dryRun) {
+            logger.info(`Would overwrite: ${result.gatesAffected[0] ?? ''}`)
+          } else {
+            logger.info(`Wrote: ${result.filesWritten[0] ?? result.gatesAffected[0] ?? ''}`)
+            logger.info('Gate MD cleared and re-rendered from template. Status reset to pending.')
+          }
+          return
+        }
+
+        // Multi-gate: show suggestions and prompt to apply
+        const suggestions = result.suggestions
+        if (!suggestions || suggestions.changes.length === 0) {
+          logger.info('No changes suggested — current gate plan appears optimal.')
           logger.info('')
           logger.info('Current gates:')
           try {
@@ -595,6 +583,11 @@ export function registerGatesCommands(program: Command): void {
           )
         })
 
+        if (options.dryRun) {
+          logger.info('\n(dry-run: skipping apply prompt)')
+          return
+        }
+
         logger.info('')
         const apply = await confirm({
           message: 'Apply these gate regeneration suggestions?',
@@ -608,7 +601,7 @@ export function registerGatesCommands(program: Command): void {
           logger.info('Gate regeneration cancelled')
         }
       } catch (error) {
-        logger.error('Failed to regenerate gates:', error)
+        logger.error(`Failed to replan: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
 }

@@ -244,6 +244,7 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
       role: context.role,
       isGateTied: !!context.gateId,
       filesAffected,
+      content,
       gateProposals: context.gateProposals?.map((p) => ({
         hash: p.hash,
         role: p.role,

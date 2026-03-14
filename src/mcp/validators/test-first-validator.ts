@@ -78,6 +78,12 @@ export interface TestFirstValidationContext {
   /** Files declared in the proposal's Files Affected table */
   filesAffected: string[]
   /**
+   * Full markdown content of the proposal file.
+   * Used for content-level checks, e.g. verifying that cleanup proposals
+   * mention removing skip calls.
+   */
+  content?: string
+  /**
    * All proposals in the same gate, ordered by created_at ASC.
    * Only populated for gate-tied proposals when siblings can be loaded.
    */
@@ -94,7 +100,8 @@ export type { ValidationResult }
 function validateRoleFileConsistency(
   role: string | undefined,
   filesAffected: string[],
-  isGateTied: boolean
+  isGateTied: boolean,
+  content?: string
 ): { errors: string[]; warnings: string[] } {
   const errors: string[] = []
   const warnings: string[] = []
@@ -164,6 +171,16 @@ function validateRoleFileConsistency(
           `cleanup proposal must not contain implementation files. ` +
             `Found non-test files: ${implFiles.join(', ')}. ` +
             `Only test refinements are permitted here; implementation is complete.`
+        )
+      }
+      // Must describe removal of skip calls (it.skip / skip.it / describe.skip / test.skip)
+      if (content !== undefined && !/\bskip\b/i.test(content)) {
+        errors.push(
+          'cleanup proposal does not mention removing skip calls. ' +
+            'The GREEN phase must include a task to remove `it.skip`, `skip.it`, ' +
+            '`describe.skip`, or `test.skip` calls that were added during the RED phase. ' +
+            'Without this step the RED phase tests remain permanently skipped and are wasted. ' +
+            'Add a task explicitly describing the removal of skip markers.'
         )
       }
       break
@@ -296,7 +313,8 @@ export function validateTestFirstPattern(context: TestFirstValidationContext): V
   const roleResult = validateRoleFileConsistency(
     context.role,
     context.filesAffected,
-    context.isGateTied
+    context.isGateTied,
+    context.content
   )
   errors.push(...roleResult.errors)
   warnings.push(...roleResult.warnings)

@@ -1,10 +1,17 @@
+import { readFile, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { WorkDescription, DecompositionContext, GeneratedGates, Gate } from './types.js'
 import { decomposeWork } from './zeno-engine.js'
 import { sequenceGates } from './gate-sequencer.js'
 import { calculateConfidence } from './gate-scoring.js'
 import { getDatabase } from '../storage/database.js'
 import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
+import { findGateByGateId } from '../utils/artifact-locator.js'
+import { normalizeGateId } from '../utils/normalize.js'
 import type { CodeMetrics } from '../analysis/types.js'
+
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 
 // --- Gate-generation thresholds (tune here; move to ZenoConfig.generation if per-project control needed) ---
 const MAX_GATE_COMPLEXITY = 30       // Decomposition split threshold
@@ -439,5 +446,169 @@ async function regenerateGatesTheoretical(fromGateId: string): Promise<Regenerat
     suggestedGates: resequenced.gates,
     changes,
     reasoning,
+  }
+}
+
+// ============================================================================
+// Unified Replan
+// ============================================================================
+
+export interface ReplanOptions {
+  /** Single-gate mode: clear and re-render this specific gate's MD from template. */
+  gateId?: string
+  /** Multi-gate mode: use this completed gate as the baseline (auto-detected if omitted). */
+  fromGateId?: string
+  /** Rescope signal: the project PRD end-state has changed. Reads current endState for context. */
+  prdChanged?: boolean
+  /** Return the plan without writing any files. */
+  dryRun?: boolean
+}
+
+export interface ReplanResult {
+  mode: 'single' | 'full' | 'partial'
+  trigger: 'regenerate' | 'rescope'
+  gatesAffected: string[]
+  filesWritten: string[]
+  reasoning: string
+  suggestions?: RegenerationSuggestions
+}
+
+/**
+ * Unified replan entry point that consolidates regenerate and rescope workflows.
+ *
+ * - Single-gate mode (`gateId` provided): Clears the gate's MD file and re-renders it from
+ *   the gate PRD template, resetting status to `pending` with current metadata intact.
+ *   Use this when a specific gate's content has drifted or needs fresh scaffolding.
+ *
+ * - Multi-gate mode (`gateId` omitted): Regenerates all pending/future gates based on the
+ *   most recently completed gate. Uses analysis data when available, falls back to theoretical
+ *   decomposition. Optionally accepts `prdChanged: true` as a rescope signal to pull the
+ *   current PRD end-state into the reasoning context.
+ *
+ * Both modes respect `dryRun: true`, which returns the plan without writing files.
+ */
+export async function replanGates(options: ReplanOptions = {}): Promise<ReplanResult> {
+  const { gateId, fromGateId, prdChanged = false, dryRun = false } = options
+  const trigger: ReplanResult['trigger'] = prdChanged ? 'rescope' : 'regenerate'
+
+  // ── Single-gate mode ────────────────────────────────────────────────────────
+  if (gateId) {
+    const normalizedId = normalizeGateId(gateId)
+    const gatePath = await findGateByGateId(normalizedId)
+
+    if (!gatePath) {
+      throw new Error(`Gate not found: ${gateId}`)
+    }
+
+    // Parse current metadata to preserve in the fresh render
+    const existing = await readFile(gatePath, 'utf-8')
+
+    const nameMatch = /^# Gate \d+: (.+)$/m.exec(existing)
+    const statusMatch = /^\*\*Status\*\*:\s*(\S+)/m.exec(existing)
+    const typeMatch = /^\*\*Type\*\*:\s*(\S+)/m.exec(existing)
+    const seqMatch = /^\*\*Sequence\*\*:\s*(.+)$/m.exec(existing)
+    const hashMatch = /^\*\*Hash\*\*:\s*#(\S+)/m.exec(existing)
+    const createdMatch = /^\*\*Created\*\*:\s*(.+)$/m.exec(existing)
+
+    const gateName = nameMatch?.[1]?.trim() ?? normalizedId
+    const gateType = typeMatch?.[1]?.trim() ?? 'feature'
+    const gateSequence = seqMatch?.[1]?.trim() ?? '?'
+    const gateHash = hashMatch?.[1]?.trim() ?? normalizedId.replace('gate-', 'g')
+    const gateCreated = createdMatch?.[1]?.trim() ?? new Date().toISOString().split('T')[0] ?? new Date().toISOString()
+    const previousStatus = statusMatch?.[1]?.trim() ?? 'pending'
+    const gateNumber = parseInt(/\d+/.exec(normalizedId)?.[0] ?? '0', 10)
+
+    // Build PRD end-state context if rescope signal
+    let rescopeNote = ''
+    if (prdChanged) {
+      try {
+        const overview = await readProjectOverview()
+        rescopeNote = `\n\n> **Rescoped**: PRD end-state has changed. Previous end-state: "${overview.endState}"`
+      } catch {
+        rescopeNote = '\n\n> **Rescoped**: PRD end-state updated (could not read current value).'
+      }
+    }
+
+    // Load and render fresh template
+    const templatePath = join(__installDir, 'templates', 'md-templates', 'gate-prd-template.md')
+    let template: string
+    try {
+      template = await readFile(templatePath, 'utf-8')
+    } catch {
+      throw new Error(`Gate PRD template not found at: ${templatePath}`)
+    }
+
+    // Substitute metadata placeholders — reset objectives/content to template defaults
+    const gateNumberStr = gateNumber.toString()
+    const freshContent = template
+      .replace(/\[XX\]/g, gateNumberStr)
+      .replace(/\[Gate Name\]/g, gateName)
+      .replace(/\[feature \| quality \| rescope\]/g, gateType)
+      .replace(/\[YYYY-MM-DD\]/g, gateCreated)
+      .replace(/\[X of Y\]/g, gateSequence)
+      .replace(/#\[hash\]/g, `#${gateHash}`)
+      + rescopeNote
+
+    const reasoning =
+      `Single-gate replan of ${normalizedId} (${gateName}). ` +
+      `Previous status: ${previousStatus}. ` +
+      (prdChanged ? 'Triggered by PRD end-state change (rescope). ' : '') +
+      `MD file cleared and re-rendered from template. Status reset to pending.`
+
+    if (!dryRun) {
+      await writeFile(gatePath, freshContent, 'utf-8')
+    }
+
+    return {
+      mode: 'single',
+      trigger,
+      gatesAffected: [normalizedId],
+      filesWritten: dryRun ? [] : [gatePath],
+      reasoning,
+    }
+  }
+
+  // ── Multi-gate mode ─────────────────────────────────────────────────────────
+  let rescopeContext = ''
+  if (prdChanged) {
+    try {
+      const overview = await readProjectOverview()
+      rescopeContext = ` PRD rescope detected — current end-state: "${overview.endState}".`
+    } catch {
+      rescopeContext = ' PRD rescope signal provided but end-state could not be read.'
+    }
+  }
+
+  // Determine baseline gate
+  let baselineGateId = fromGateId
+  if (!baselineGateId) {
+    try {
+      const overview = await readProjectOverview()
+      if (overview.completedGates.length > 0) {
+        const last = overview.completedGates[overview.completedGates.length - 1]
+        if (last) {
+          baselineGateId = `gate-${last.sequence.toString().padStart(2, '0')}`
+        }
+      }
+    } catch {
+      // No overview — proceed without baseline
+    }
+  }
+
+  const suggestions = baselineGateId
+    ? await regenerateGatesWithAnalysis(baselineGateId)
+    : await regenerateGatesTheoreticalFromProject()
+
+  const gatesAffected = suggestions.suggestedGates.map((g) => g.id)
+
+  const reasoning = suggestions.reasoning + rescopeContext
+
+  return {
+    mode: baselineGateId ? 'partial' : 'full',
+    trigger,
+    gatesAffected,
+    filesWritten: [],   // multi-gate write is handled by the caller (CLI confirms before applying)
+    reasoning,
+    suggestions,
   }
 }

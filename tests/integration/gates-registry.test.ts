@@ -12,6 +12,14 @@ const mockReaddirSync = vi.fn()
 const mockFindGateByGateId = vi.fn().mockResolvedValue(null)
 const mockReadFileFsPromises = vi.fn().mockResolvedValue('')
 const mockSyncProposalsFromDisk = vi.fn()
+const mockReplanGates = vi.fn().mockResolvedValue({
+  mode: 'multi',
+  trigger: 'regenerate',
+  gatesAffected: [],
+  filesWritten: [],
+  reasoning: 'ok',
+  suggestions: null,
+})
 
 vi.mock('../../src/storage/database.js', () => ({
   getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
@@ -47,6 +55,12 @@ vi.mock('node:fs/promises', () => ({
 
 vi.mock('../../src/storage/proposal-sync.js', () => ({
   syncProposalsFromDisk: (...args: unknown[]) => mockSyncProposalsFromDisk(...args),
+}))
+
+vi.mock('../../src/core/gate-generator.js', () => ({
+  replanGates: (...args: unknown[]) => mockReplanGates(...args),
+  regenerateGatesWithAnalysis: vi.fn().mockResolvedValue(undefined),
+  regenerateGatesTheoreticalFromProject: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../../src/generation/requirement-storage.js', () => ({

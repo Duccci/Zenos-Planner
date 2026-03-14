@@ -216,6 +216,62 @@ describe('test-first-validator', () => {
         expect(result.errors).toBeDefined()
         expect(result.errors?.[0]).toMatch(/must include test files/)
       })
+
+      it('should warn cleanup that does not mention removing skip calls', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'cleanup',
+          isGateTied: true,
+          filesAffected: ['tests/feature.test.ts'],
+          content: '## Summary\nVerify all tests pass after implementation.\n\n## Tasks\n- [ ] Run full test suite',
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(false)
+        expect(result.errors).toBeDefined()
+        expect(result.errors?.some((e) => /skip/i.test(e))).toBe(true)
+      })
+
+      it('should not warn cleanup that mentions it.skip removal', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'cleanup',
+          isGateTied: true,
+          filesAffected: ['tests/feature.test.ts'],
+          content: '## Tasks\n- [ ] Remove `it.skip` calls added in the RED phase',
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.warnings?.some((w) => /skip/i.test(w))).toBeFalsy()
+      })
+
+      it('should not warn cleanup that mentions skip.it removal', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'cleanup',
+          isGateTied: true,
+          filesAffected: ['tests/feature.test.ts'],
+          content: '## Tasks\n- [ ] Remove skip.it markers from test suite',
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.warnings?.some((w) => /skip/i.test(w))).toBeFalsy()
+      })
+
+      it('should not warn cleanup when content is not provided', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'cleanup',
+          isGateTied: true,
+          filesAffected: ['tests/feature.test.ts'],
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.warnings?.some((w) => /skip/i.test(w))).toBeFalsy()
+      })
     })
 
     describe('gate-level structure validation', () => {

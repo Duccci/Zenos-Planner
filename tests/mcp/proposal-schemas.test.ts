@@ -5,7 +5,7 @@ import {
 } from '../../src/mcp/schemas/proposal-schemas.js'
 
 describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () => {
-  it.skip('should parse a valid output with parallelSets', () => { // @red
+  it('should parse a valid output with parallelSets', () => {
     const result = ProposalListOutputSchema.parse({
       proposals: [],
       parallelSets: [],
@@ -13,7 +13,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     expect(result.parallelSets).toEqual([])
   })
 
-  it.skip('should parse a valid output with nested parallelSets', () => { // @red
+  it('should parse a valid output with nested parallelSets', () => {
     const result = ProposalListOutputSchema.parse({
       proposals: [],
       parallelSets: [['hash-a'], ['hash-b', 'hash-c'], ['hash-d']],
@@ -22,7 +22,7 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     expect(result.parallelSets[1]).toEqual(['hash-b', 'hash-c'])
   })
 
-  it.skip('should reject missing parallelSets (required field)', () => { // @red
+  it('should reject missing parallelSets (required field)', () => {
     expect(() =>
       ProposalListOutputSchema.parse({
         proposals: [],
@@ -31,11 +31,11 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
     ).toThrow(ZodError)
   })
 
-  it.skip('should accept proposals with optional parallelSetIndex: 0', () => { // @red
+  it('should accept proposals with optional parallelSetIndex: 0', () => {
     const result = ProposalListOutputSchema.parse({
       proposals: [
         {
-          hash: '#abc12345',
+          hash: 'abc12345',
           title: 'Test Proposal',
           status: 'pending',
           gateId: 'gate-01',
@@ -45,12 +45,12 @@ describe('ProposalListOutputSchema — parallelSets and parallelSetIndex', () =>
           parallelSetIndex: 0,
         },
       ],
-      parallelSets: [['#abc12345']],
+      parallelSets: [['abc12345']],
     })
     expect(result.proposals[0]!.parallelSetIndex).toBe(0)
   })
 
-  it.skip('should reject proposals with non-numeric parallelSetIndex', () => { // @red
+  it('should reject proposals with non-numeric parallelSetIndex', () => {
     expect(() =>
       ProposalListOutputSchema.parse({
         proposals: [

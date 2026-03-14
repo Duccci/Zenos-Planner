@@ -222,13 +222,20 @@ export type GatesValidateOutput = z.infer<typeof GatesValidateOutputSchema>
 // ============================================================================
 
 export const GatesRegenerateInputSchema = z.object({
+  /** Single-gate replan: clear and re-render this specific gate's MD from template. */
+  gateId: GateIdSchema.optional(),
+  /** Multi-gate baseline: regenerate gates after this completed gate (auto-detected if omitted). */
   fromGateId: GateIdSchema.optional(),
-  mode: z.enum(['full', 'partial', 'check']).default('check')
+  /** Rescope signal: the project PRD end-state has changed. */
+  prdChanged: z.boolean().optional().default(false),
+  /** Return the plan without writing any files. */
+  dryRun: z.boolean().optional().default(false),
+  mode: z.enum(['single', 'full', 'partial', 'check']).default('check')
 })
 export type GatesRegenerateInput = z.infer<typeof GatesRegenerateInputSchema>
 
 export const GatesRegenerateOutputSchema = z.object({
-  mode: z.enum(['full', 'partial', 'check']),
+  mode: z.enum(['single', 'full', 'partial', 'check']),
   status: z.enum(['no_changes', 'changes_suggested', 'regenerated']),
   changes: z.object({
     gatesAffected: z.array(GateIdSchema),

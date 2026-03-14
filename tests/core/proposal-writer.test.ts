@@ -151,7 +151,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       ]
     }
 
-    it.skip('should create RED -> implementation dependencies', () => { // @red
+    it('should create RED -> implementation dependencies', () => {
       const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
@@ -161,7 +161,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(edges).toContainEqual({ from: 'red-a', to: 'impl-a', type: 'red-impl' })
     })
 
-    it.skip('should create implementation -> GREEN dependencies', () => { // @red
+    it('should create implementation -> GREEN dependencies', () => {
       const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
@@ -173,7 +173,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(edges).toContainEqual({ from: 'impl-b', to: 'green-a', type: 'impl-green' })
     })
 
-    it.skip('should handle complete RED -> impl -> GREEN flow', () => { // @red
+    it('should handle complete RED -> impl -> GREEN flow', () => {
       const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'impl-a' },
@@ -188,7 +188,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(edges).toHaveLength(4)
     })
 
-    it.skip('should create RED -> GREEN direct dependency when no impl proposals exist', () => { // @red
+    it('should create RED -> GREEN direct dependency when no impl proposals exist', () => {
       const { edges } = calculateProposalDependencies([
         { hash: 'red-a', phase: 'RED' },
         { hash: 'green-a', phase: 'GREEN' },
@@ -197,36 +197,36 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(edges).toEqual([{ from: 'red-a', to: 'green-a', type: 'red-green' }])
     })
 
-    it.skip('should return empty for single proposal', () => { // @red
+    it('should return empty for single proposal', () => {
       const { edges } = calculateProposalDependencies([{ hash: 'only' }])
       expect(edges).toEqual([])
     })
 
-    it.skip('should return empty for no proposals', () => { // @red
+    it('should return empty for no proposals', () => {
       const { edges } = calculateProposalDependencies([])
       expect(edges).toEqual([])
     })
 
     // --- parallelSets tests ---
 
-    it.skip('should return parallelSets key alongside edges', () => { // @red
+    it('should return parallelSets key alongside edges', () => {
       const result = calculateProposalDependencies(proposalSet(['impl-a']))
       expect(result).toHaveProperty('edges')
       expect(result).toHaveProperty('parallelSets')
     })
 
-    it.skip('should return empty parallelSets for empty proposal list', () => { // @red
+    it('should return empty parallelSets for empty proposal list', () => {
       const { edges, parallelSets } = calculateProposalDependencies([])
       expect(edges).toEqual([])
       expect(parallelSets).toEqual([])
     })
 
-    it.skip('should return single-element parallelSets for single proposal', () => { // @red
+    it('should return single-element parallelSets for single proposal', () => {
       const { parallelSets } = calculateProposalDependencies([{ hash: 'only' }])
       expect(parallelSets).toEqual([['only']])
     })
 
-    it.skip('should group RED/impl/GREEN into three sequential parallel sets', () => { // @red
+    it('should group RED/impl/GREEN into three sequential parallel sets', () => {
       const { parallelSets } = calculateProposalDependencies(
         proposalSet(['impl-a', 'impl-b'])
       )
@@ -236,7 +236,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(parallelSets[2]).toEqual(['green-hash'])
     })
 
-    it.skip('should group all impl proposals in the same parallel set (cycle-free multi-impl)', () => { // @red
+    it('should group all impl proposals in the same parallel set (cycle-free multi-impl)', () => {
       const { parallelSets } = calculateProposalDependencies(
         proposalSet(['i1', 'i2', 'i3'])
       )
@@ -244,7 +244,7 @@ describe('proposal-writer decomposeToProposals coverage', () => {
       expect(parallelSets[1]).toEqual(expect.arrayContaining(['i1', 'i2', 'i3']))
     })
 
-    it.skip('should produce two parallelSets for RED -> GREEN direct (no impls)', () => { // @red
+    it('should produce two parallelSets for RED -> GREEN direct (no impls)', () => {
       const { parallelSets } = calculateProposalDependencies([
         { hash: 'red-hash', phase: 'RED' },
         { hash: 'green-hash', phase: 'GREEN' },

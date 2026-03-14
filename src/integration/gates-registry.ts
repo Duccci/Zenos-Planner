@@ -354,19 +354,51 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
   registry.register(
     'gates_regenerate',
-    async () => {
-      const { regenerateGates } = await import('../core/completions.js')
-      await regenerateGates()
+    async (params) => {
+      const { replanGates } = await import('../core/gate-generator.js')
+      const validated = z.object({
+        gateId: z.string().optional(),
+        fromGateId: z.string().optional(),
+        prdChanged: z.boolean().optional(),
+        dryRun: z.boolean().optional(),
+      }).parse(params)
+
+      const result = await replanGates({
+        gateId: validated.gateId,
+        fromGateId: validated.fromGateId,
+        prdChanged: validated.prdChanged ?? false,
+        dryRun: validated.dryRun ?? false,
+      })
+
       return {
-        mode: 'full' as const,
+        mode: result.mode,
         status: 'regenerated' as const,
+        changes: {
+          gatesAffected: result.gatesAffected,
+          proposalsGenerated: 0,
+          requirementsAttributed: 0,
+          summary: result.reasoning,
+        },
       }
     },
     {
-      description: 'Regenerate future gates based on current project state',
-      parameters: [],
-      returnType: 'void',
-      schema: z.object({}),
+      description:
+        'Unified replan: regenerate future gates or clear+re-render a single gate from template. ' +
+        'Pass gateId to target a single gate; omit for full/partial multi-gate replan. ' +
+        'Set prdChanged=true to signal a rescope (PRD end-state changed).',
+      parameters: [
+        { name: 'gateId', type: 'string', description: 'Single-gate mode: clear and re-render this gate\'s MD', required: false },
+        { name: 'fromGateId', type: 'string', description: 'Multi-gate baseline (auto-detected if omitted)', required: false },
+        { name: 'prdChanged', type: 'boolean', description: 'Rescope signal: PRD end-state has changed', required: false },
+        { name: 'dryRun', type: 'boolean', description: 'Return plan without writing files', required: false },
+      ],
+      returnType: 'GatesRegenerateOutput',
+      schema: z.object({
+        gateId: z.string().optional(),
+        fromGateId: z.string().optional(),
+        prdChanged: z.boolean().optional(),
+        dryRun: z.boolean().optional(),
+      }),
     }
   )
 
