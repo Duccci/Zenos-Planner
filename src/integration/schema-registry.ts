@@ -285,7 +285,8 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       }
       const filePath = join(archDir, `${r.diagramType}.md`)
       const markdown = safeToString(r.markdown)
-      writeFileSync(filePath, markdown, 'utf-8')
+      const markdownWithNewline = markdown.endsWith('\n') ? markdown : markdown + '\n'
+      writeFileSync(filePath, markdownWithNewline, 'utf-8')
       written.push(filePath)
     }
 
@@ -376,7 +377,8 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
       writeFileSync(join(dotDiagramsDir, `${diagramType}.svg`), svgContentOut, 'utf-8')
     }
     const markdownOut = safeToString(output.markdown)
-    writeFileSync(archFile, markdownOut, 'utf-8')
+    const markdownOutWithNewline = markdownOut.endsWith('\n') ? markdownOut : markdownOut + '\n'
+    writeFileSync(archFile, markdownOutWithNewline, 'utf-8')
 
     return {
       type: diagramType,

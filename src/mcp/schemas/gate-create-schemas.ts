@@ -37,6 +37,52 @@ export const GateCreateInputSchema = z.object({
 export type GateCreateInput = z.infer<typeof GateCreateInputSchema>
 
 /**
+ * Schema for gate_plan input.
+ * Registers a gate with a name and goal statement before generating the full PRD.
+ * Stores only the minimal identifying information needed to anchor the gate's intent.
+ */
+export const GatePlanInputSchema = z.object({
+  /** Gate ID (e.g., "gate-03") */
+  gateId: GateIdSchema,
+
+  /** Human-readable gate name */
+  name: z.string().min(1, 'Gate name is required'),
+
+  /** Short project statement defining the main goal of the gate (1–3 sentences) */
+  goal: z.string().min(1, 'Gate goal is required'),
+
+  /** Gate sequence number */
+  sequence: z.number().int().min(1),
+
+  /** Gate type */
+  type: GateTypeEnum.default('feature'),
+
+  /** Gate dependencies (gate IDs that must complete first) */
+  dependencies: z.array(GateIdSchema).default([]),
+})
+
+export type GatePlanInput = z.infer<typeof GatePlanInputSchema>
+
+/**
+ * Schema for gate_plan output
+ */
+export const GatePlanOutputSchema = z.object({
+  /** Planned gate ID */
+  gateId: GateIdSchema,
+
+  /** Gate hash reference */
+  hash: z.string(),
+
+  /** Whether the gate already existed (updated vs inserted) */
+  alreadyExisted: z.boolean(),
+
+  /** Creation timestamp */
+  createdAt: TimestampSchema,
+})
+
+export type GatePlanOutput = z.infer<typeof GatePlanOutputSchema>
+
+/**
  * Schema for gate_create output
  * Returns details about the created gate
  */

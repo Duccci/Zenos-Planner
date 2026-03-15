@@ -8,6 +8,7 @@ zeno:
   hash: gXXslug
   created_at: 'YYYY-MM-DD'
   depends_on: []   # optional: ['gate-01', 'gate-02']
+  phases: []       # optional: [1, 'MVP'] | ['Post-MVP'] | ['Deferred'] | ['Backup'] | ['May Demo']
 ---
 
 # Gate [XX]: [Gate Name]
@@ -15,6 +16,7 @@ zeno:
 **Hash**: `#gXXslug`
 **Status**: pending
 **Type**: [feature | quality | rescope]
+**Phases**: [e.g. 1, MVP | Post-MVP | Deferred | Backup | custom]
 **Created**: [YYYY-MM-DD]
 **Sequence**: [X of Y]
 

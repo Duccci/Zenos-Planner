@@ -11,6 +11,7 @@ vi.mock('node:fs/promises', () => ({
   mkdir: vi.fn(),
   readdir: vi.fn(),
   unlink: vi.fn(),
+  rm: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
@@ -53,7 +54,7 @@ vi.mock('../../src/core/metrics-capture.js', () => ({
 }));
 
 import { archiveGate, archiveBatch, archiveProposal } from '../../src/core/archive-logic.js';
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, rm, unlink } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import { loadConfig, getZenoDir } from '../../src/utils/config.js';
 import { consolidateGateProposals } from '../../src/utils/gate-consolidation.js';
@@ -158,6 +159,53 @@ describe('archiveGate', () => {
     await archiveGate('gate-01');
     const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
     expect(commitCall?.commitMessage).not.toContain('Notes:');
+  });
+
+  it('removes gate proposals directory when it exists', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    await archiveGate('gate-01');
+    expect(vi.mocked(rm)).toHaveBeenCalledWith(
+      expect.stringContaining('gate-01'),
+      { recursive: true, force: true }
+    );
+  });
+
+  it('skips proposal directory cleanup when directory absent', async () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    await archiveGate('gate-01');
+    expect(vi.mocked(rm)).not.toHaveBeenCalled();
+  });
+
+  it('includes gate proposals dir in git commit when proposals existed', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    await archiveGate('gate-01');
+    const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
+    expect(commitCall?.files).toHaveLength(2);
+    expect(commitCall?.files?.[1]).toContain('gate-01');
+  });
+
+  it('commits only archive file when no proposals dir existed', async () => {
+    vi.mocked(existsSync).mockReturnValue(false);
+    await archiveGate('gate-01');
+    const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
+    expect(commitCall?.files).toEqual([expect.stringContaining('gate-01-test-gate.md')]);
+  });
+
+  it('skips proposal cleanup and does not call rm for invalid gateId pattern', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    // Simulate an invalid gateId that does not match gate-NN
+    vi.mocked(validateGateReady).mockResolvedValue({ filePath: '/project/zeno/gates/badid-test.md' } as any);
+    await archiveGate('../bad-id');
+    expect(vi.mocked(rm)).not.toHaveBeenCalled();
+  });
+
+  it('only removes the specific gate proposals dir, not the parent proposals dir', async () => {
+    vi.mocked(existsSync).mockReturnValue(true);
+    await archiveGate('gate-05');
+    const rmCall = vi.mocked(rm).mock.calls[0]?.[0] as string;
+    // Must end with the gate-specific segment, not a parent folder
+    expect(rmCall).toMatch(/proposals[/\\]gate-05$/);
+    expect(rmCall).not.toMatch(/proposals[/\\]?$/);
   });
 });
 
@@ -283,6 +331,7 @@ describe('archiveProposal', () => {
     vi.mocked(validateProposalReady).mockResolvedValue({
       type: 'solitary',
       title: 'Standalone Proposal',
+      filePath: '/project/zeno/proposals/solitary/p-hash123.md',
     });
     vi.mocked(readdir).mockResolvedValue([]);
     vi.mocked(readdirSync).mockReturnValue([]);
@@ -350,6 +399,40 @@ describe('archiveProposal', () => {
     vi.mocked(readFile).mockRejectedValue(new Error('read fail'));
 
     await expect(archiveProposal('p-hash')).rejects.toThrow('read fail');
+  });
+
+  it('deletes source proposal file after archiving', async () => {
+    const sourcePath = '/project/zeno/proposals/solitary/p-del-hash.md';
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Delete Me',
+      filePath: sourcePath,
+    });
+    vi.mocked(readdir).mockResolvedValue([]);
+    vi.mocked(readdirSync).mockReturnValue([]);
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    await archiveProposal('p-del-hash');
+
+    expect(vi.mocked(unlink)).toHaveBeenCalledWith(sourcePath);
+  });
+
+  it('includes source path in git commit files for deletion staging', async () => {
+    const sourcePath = '/project/zeno/proposals/gate-01/p-git-hash.md';
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'gate-tied',
+      title: 'Git Files Test',
+      gateId: 'gate-01',
+      filePath: sourcePath,
+    });
+    vi.mocked(readdir).mockResolvedValue([]);
+    vi.mocked(readdirSync).mockReturnValue([]);
+    vi.mocked(existsSync).mockReturnValue(true);
+
+    await archiveProposal('p-git-hash');
+
+    const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
+    expect(commitCall?.files).toContain(sourcePath);
   });
 });
 

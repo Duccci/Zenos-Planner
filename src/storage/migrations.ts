@@ -93,6 +93,31 @@ function patchProposalStatusConstraint(db: Database.Database): void {
 }
 
 /**
+ * Add prd_generated_at column to gates table if it doesn't exist.
+ * Tracks when the gate PRD markdown file was first generated, separate from
+ * the gate being planned (inserted with name + goal only).
+ */
+function patchGatesPrdGeneratedAt(db: Database.Database): void {
+  const tableExists =
+    db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='gates'")
+      .get() !== undefined
+
+  if (!tableExists) {
+    return // Table will be created by schema.sql with the correct schema
+  }
+
+  try {
+    db.exec('ALTER TABLE gates ADD COLUMN prd_generated_at TIMESTAMP')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    if (!msg.includes('duplicate column')) {
+      throw error
+    }
+  }
+}
+
+/**
  * Add parallel_set_index column to proposals table if it doesn't exist.
  * SQLite returns an error if the column already exists; we swallow that.
  */
@@ -158,6 +183,7 @@ export async function runMigrations(
   // idempotent CREATE TABLE statements are evaluated.
   patchProposalStatusConstraint(db)
   patchProposalsParallelSetIndex(db)
+  patchGatesPrdGeneratedAt(db)
 
   try {
     db.exec(sql)

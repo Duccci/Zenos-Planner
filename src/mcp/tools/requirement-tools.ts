@@ -1,7 +1,7 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `Requirements DB: list, show, deps, transfer, search, inherit, trace, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
+    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
     inputSchema: {
       type: 'object',
       properties: {

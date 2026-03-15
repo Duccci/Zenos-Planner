@@ -8,6 +8,7 @@
 
 import type { ComplexityThresholds, DiagramType } from './diagram-types.js'
 import type { DiagramGeneratorBase } from './diagram-generator-base.js'
+import { ComplexityAnalyzer } from './complexity-analyzer.js'
 import { DIAGRAM_CATALOGUE, getCoreTypes, isValidDiagramType } from './diagram-catalogue.js'
 import { logger } from '../utils/logger.js'
 
@@ -29,13 +30,14 @@ import { NetworkDiagramGenerator } from './diagram-generators/conditional-genera
  * Service for selecting and instantiating diagram generators
  */
 export class DiagramSelector {
+  private readonly analyzer: ComplexityAnalyzer
+
   /**
    * Constructor
    * @param complexityThresholds Thresholds for complexity-based rendering backend selection
    */
   constructor(complexityThresholds: ComplexityThresholds) {
-    // Thresholds are available if needed for future complexity analysis
-    void complexityThresholds
+    this.analyzer = new ComplexityAnalyzer(complexityThresholds)
   }
 
   /**
@@ -46,11 +48,11 @@ export class DiagramSelector {
    */
   selectCoreDiagrams(): DiagramGeneratorBase[] {
     const generators: DiagramGeneratorBase[] = [
-      new SystemOverviewGenerator(),
-      new DataFlowGenerator(),
-      new GateLifecycleGenerator(),
-      new GateRoadmapGenerator(),
-      new ContextDiagramGenerator(),
+      new SystemOverviewGenerator(this.analyzer),
+      new DataFlowGenerator(this.analyzer),
+      new GateLifecycleGenerator(this.analyzer),
+      new GateRoadmapGenerator(this.analyzer),
+      new ContextDiagramGenerator(this.analyzer),
     ]
 
     logger.debug(
@@ -96,27 +98,27 @@ export class DiagramSelector {
     for (const type of selectedTypes) {
       switch (type) {
         case 'sequence': {
-          const gen = new SequenceDiagramGenerator()
+          const gen = new SequenceDiagramGenerator(undefined, this.analyzer)
           generators.push(gen)
           break
         }
         case 'component': {
-          const gen = new ComponentDiagramGenerator()
+          const gen = new ComponentDiagramGenerator(undefined, this.analyzer)
           generators.push(gen)
           break
         }
         case 'package': {
-          const gen = new PackageDiagramGenerator()
+          const gen = new PackageDiagramGenerator(undefined, this.analyzer)
           generators.push(gen)
           break
         }
         case 'deployment': {
-          const gen = new DeploymentDiagramGenerator()
+          const gen = new DeploymentDiagramGenerator(undefined, this.analyzer)
           generators.push(gen)
           break
         }
         case 'network': {
-          const gen = new NetworkDiagramGenerator()
+          const gen = new NetworkDiagramGenerator(undefined, this.analyzer)
           generators.push(gen)
           break
         }

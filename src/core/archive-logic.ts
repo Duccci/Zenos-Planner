@@ -11,7 +11,7 @@
  * without duplicating logic from other modules.
  */
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, rm, unlink } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
 import { loadConfig } from '../utils/config.js'
@@ -188,6 +188,20 @@ export async function archiveGate(
   // Step 6: Write to archive
   await writeFile(archivePath, updatedContent)
 
+  // Step 6.5: Clean up gate proposals directory (content consolidated into archive)
+  // Guard: gateId must look like "gate-NN" to prevent accidentally deleting unrelated directories
+  const proposalsBaseDir = join(getZenoDir(), '..', 'proposals')
+  const gateProposalsDir = join(proposalsBaseDir, gateId)
+  const isValidGateId = /^gate-\d+$/.test(gateId)
+  if (!isValidGateId) {
+    logger.warn(`Skipping proposal cleanup: gateId "${gateId}" does not match expected pattern gate-NN`)
+  }
+  const hadProposals = isValidGateId && existsSync(gateProposalsDir)
+  if (hadProposals) {
+    await rm(gateProposalsDir, { recursive: true, force: true })
+    logger.info(`Removed proposal directory ${gateProposalsDir}`)
+  }
+
   // Step 7: Git operations
   const tagName = createTagName(gateId, gateName)
 
@@ -200,7 +214,7 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`)
   await performGitCommitAndPush({
     tagName,
     commitMessage,
-    files: [archivePath],
+    files: hadProposals ? [archivePath, gateProposalsDir] : [archivePath],
     remote: config.git?.remote,
   })
 
@@ -304,7 +318,15 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
   // Step 7: Write to archive
   await writeFile(archivePath, updatedContent)
 
-  // Step 8: Git commit
+  // Step 7.5: Delete source proposal file (content is now in the archive)
+  try {
+    await unlink(sourcePath)
+    logger.info(`Removed source proposal file at ${sourcePath}`)
+  } catch (err) {
+    logger.warn(`Failed to remove source proposal file at ${sourcePath}`, err)
+  }
+
+  // Step 8: Git commit (stage archive creation + source deletion)
   const commitMessage = stripAnsi(
     `chore(proposal): archive ${proposalHash} - ${proposalInfo.title}
 
@@ -314,7 +336,7 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
 
   await performGitCommitAndPush({
     commitMessage,
-    files: [archivePath],
+    files: [archivePath, sourcePath],
   })
 
   const result: ArchiveProposalOutput = {

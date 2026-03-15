@@ -177,6 +177,37 @@ export function registerProjectOps(registry: FunctionRegistry): void {
           // Archive directory doesn't exist yet, empty list
         }
 
+        // Aggregate requirements by priority and level
+        const reqRows = db
+          .prepare('SELECT priority, level, COUNT(*) as cnt FROM requirements GROUP BY priority, level')
+          .all() as { priority: string; level: string; cnt: number }[]
+        const requirements = {
+          total: 0,
+          byPriority: { must: 0, should: 0, could: 0, wont: 0 } as Record<string, number>,
+          byLevel: { project: 0, gate: 0 } as Record<string, number>,
+        }
+        for (const row of reqRows) {
+          requirements.total += row.cnt
+          const pVal = requirements.byPriority[row.priority]
+          if (pVal !== undefined) requirements.byPriority[row.priority] = pVal + row.cnt
+          const lVal = requirements.byLevel[row.level]
+          if (lVal !== undefined) requirements.byLevel[row.level] = lVal + row.cnt
+        }
+
+        // Aggregate proposals by status
+        const propRows = db
+          .prepare('SELECT status, COUNT(*) as cnt FROM proposals GROUP BY status')
+          .all() as { status: string; cnt: number }[]
+        const proposals = {
+          total: 0,
+          byStatus: { pending: 0, validated: 0, approved: 0, in_progress: 0, completed: 0, rejected: 0 } as Record<string, number>,
+        }
+        for (const row of propRows) {
+          proposals.total += row.cnt
+          const sVal = proposals.byStatus[row.status]
+          if (sVal !== undefined) proposals.byStatus[row.status] = sVal + row.cnt
+        }
+
         // Get MCP server status
         let mcpStatus = 'unknown'
         let toolsRegistered = 0
@@ -200,6 +231,8 @@ export function registerProjectOps(registry: FunctionRegistry): void {
         return {
           activeGates,
           completedGates,
+          requirements,
+          proposals,
           mcp: {
             status: mcpStatus,
             toolsRegistered,

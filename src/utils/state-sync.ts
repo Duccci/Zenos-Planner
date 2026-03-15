@@ -66,10 +66,24 @@ export interface StateFile {
     proposalsArchived?: string[]
   }[]
   upcomingGates: {
+    /** Normalized gate ID, e.g. "gate-09". Present once gate_plan has been called. */
+    id?: string
     sequence: number
     name: string
     estimatedComplexity?: string
-    description?: string
+    /**
+     * Short project statement (1–3 sentences) defining the main goal of the gate.
+     * Stored here so the intent survives DB regeneration (registry.db is gitignored).
+     * Set by gate_plan; read back by registry rebuild to seed the DB.
+     */
+    goal?: string
+    /** Content-addressable hash reference for the gate. */
+    hash?: string
+    /**
+     * True once gate_create has written the PRD markdown file.
+     * Allows differentiating "planned but not yet documented" from "fully specified".
+     */
+    prdGenerated?: boolean
   }[]
   architecture: {
     layers: string[]
@@ -290,6 +304,90 @@ export async function archiveCompletedGateInState(
   } catch (error) {
     logger.warn(
       `Failed to archive completed gate in state.json: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
+
+/**
+ * Upsert a planned gate entry in state.json upcomingGates.
+ *
+ * Called by gate_plan before any PRD markdown file exists.  Stores the gate's
+ * name and goal so the intent survives DB re-generation (registry.db is not
+ * git-tracked).  If an entry for the gate already exists it is updated in-place.
+ */
+export async function upsertPlannedGateInState(
+  gateId: string,
+  name: string,
+  goal: string,
+  sequence: number,
+  hash: string,
+  projectRoot: string = process.cwd()
+): Promise<void> {
+  try {
+    const state = await readState(projectRoot)
+    if (!state) {
+      logger.warn('state.json not found, skipping planned gate upsert')
+      return
+    }
+
+    const existingIdx = state.upcomingGates.findIndex(
+      (g) => g.id === gateId || g.sequence === sequence
+    )
+
+    const entry = {
+      id: gateId,
+      sequence,
+      name,
+      goal,
+      hash,
+      prdGenerated: false,
+      estimatedComplexity: existingIdx >= 0
+        ? (state.upcomingGates[existingIdx]?.estimatedComplexity ?? 'high')
+        : 'high',
+    }
+
+    if (existingIdx >= 0) {
+      state.upcomingGates[existingIdx] = { ...state.upcomingGates[existingIdx], ...entry }
+    } else {
+      state.upcomingGates.push(entry)
+    }
+
+    state.upcomingGates.sort((a, b) => a.sequence - b.sequence)
+    state.lastUpdated = new Date().toISOString()
+
+    await writeState(state, projectRoot)
+    logger.debug(`Upserted planned gate in state.json: ${gateId}`)
+  } catch (error) {
+    logger.warn(
+      `Failed to upsert planned gate in state.json: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
+
+/**
+ * Mark a planned gate's PRD as generated in state.json.
+ *
+ * Called by gate_create after the PRD markdown file has been written.
+ * Sets prdGenerated: true on the matching upcomingGates entry.
+ */
+export async function markPrdGeneratedInState(
+  gateId: string,
+  projectRoot: string = process.cwd()
+): Promise<void> {
+  try {
+    const state = await readState(projectRoot)
+    if (!state) return
+
+    const entry = state.upcomingGates.find((g) => g.id === gateId)
+    if (entry) {
+      entry.prdGenerated = true
+      state.lastUpdated = new Date().toISOString()
+      await writeState(state, projectRoot)
+      logger.debug(`Marked prdGenerated=true for ${gateId} in state.json`)
+    }
+  } catch (error) {
+    logger.warn(
+      `Failed to mark prdGenerated in state.json: ${error instanceof Error ? error.message : String(error)}`
     )
   }
 }

@@ -36,10 +36,17 @@ export function registerRegistryCommands(program: Command): void {
 
         // 2. Gates — must run first (proposals FK → gates)
         logger.info('Syncing gates from disk…')
-        const { syncGatesFromDisk } = await import('../../storage/gate-sync.js')
+        const { syncGatesFromDisk, syncPlannedGatesFromState } = await import('../../storage/gate-sync.js')
         const gateResult = syncGatesFromDisk(db, projectRoot)
         logger.info(
           `  gates: ${String(gateResult.synced)} inserted, ${String(gateResult.skipped)} skipped`
+        )
+
+        // 2b. Planned gates (no MD file yet) — seeded from git-tracked state.json
+        logger.info('Syncing planned gates from state.json…')
+        const plannedResult = syncPlannedGatesFromState(db, projectRoot)
+        logger.info(
+          `  planned gates: ${String(plannedResult.synced)} inserted, ${String(plannedResult.skipped)} skipped`
         )
 
         // 3. Proposals — depends on gate rows existing

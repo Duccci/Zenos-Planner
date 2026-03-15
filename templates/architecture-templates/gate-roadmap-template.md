@@ -12,12 +12,23 @@
 
 ```mermaid
 graph TB
-    Start([Project Start]) --> G1[Gate 1: Name]
-    G1 --> G2[Gate 2: Name]
-    G2 --> G3[Gate 3: Name]
-    G3 --> G4[Gate 4: Name]
-    G3 --> G5[Gate 5: Name]
-    G4 --> G6[Gate 6: Name]
+    subgraph Phase1["Phase 1 — MVP"]
+        G1[Gate 1: Name]
+        G2[Gate 2: Name]
+        G3[Gate 3: Name]
+    end
+    subgraph Phase2["Phase 2 — Post-MVP"]
+        G4[Gate 4: Name]
+        G5[Gate 5: Name]
+        G6[Gate 6: Name]
+    end
+
+    Start([Project Start]) --> G1
+    G1 --> G2
+    G2 --> G3
+    G3 --> G4
+    G3 --> G5
+    G4 --> G6
     G5 --> G6
     G6 --> End([Complete])
 
@@ -32,6 +43,7 @@ graph TB
 
 ## Sequencing
 
+**Phases**: [Group gates by delivery milestone — e.g. Phase 1 (MVP): gates 1-4; Phase 2 (Post-MVP): gates 5-7; or named milestones like 'May Demo', 'Beta', 'GA'. Deferred/Backup gates noted separately.]  
 **Parallel Gates**: [Identify gates that can run simultaneously and why]  
 **Critical Path**: [Longest sequential chain through the roadmap]
 

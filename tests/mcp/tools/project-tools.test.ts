@@ -82,5 +82,38 @@ describe('Project Action Handlers', () => {
     expect(handlers).toBeDefined()
     expect(Object.keys(handlers)).toContain('project_action')
   })
+
+  it('ProjectStatusOutputSchema validates enriched status response', async () => {
+    const { ProjectStatusOutputSchema } = await import(
+      '../../../src/mcp/schemas/project-action-schemas.js'
+    )
+    const result = ProjectStatusOutputSchema.safeParse({
+      activeGates: [{ id: 'gate-03', name: 'API Layer', status: 'in_progress' }],
+      completedGates: ['gate-01-startup'],
+      requirements: {
+        total: 10,
+        byPriority: { must: 5, should: 3, could: 2, wont: 0 },
+        byLevel: { project: 4, gate: 6 },
+      },
+      proposals: {
+        total: 6,
+        byStatus: { pending: 1, validated: 0, approved: 1, in_progress: 2, completed: 2, rejected: 0 },
+      },
+      mcp: { status: 'healthy', toolsRegistered: 10, configLoaded: true },
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('ProjectStatusOutputSchema requires requirements and proposals fields', async () => {
+    const { ProjectStatusOutputSchema } = await import(
+      '../../../src/mcp/schemas/project-action-schemas.js'
+    )
+    const result = ProjectStatusOutputSchema.safeParse({
+      activeGates: [],
+      completedGates: [],
+      mcp: { status: 'healthy', toolsRegistered: 0, configLoaded: true },
+    })
+    expect(result.success).toBe(false)
+  })
 })
 

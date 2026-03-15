@@ -39,7 +39,7 @@ A specific, measurable capability or constraint that must be satisfied. Requirem
 - Status: pending → implemented → tested
 - Hash reference for tracking
 
-Requirements are stored in the SQLite database (`zeno/.zeno/requirements.db`) for queryability and dependency tracking. Gate-level requirements inherit from or decompose project-level requirements.
+Requirements are stored in the SQLite database (`zeno/.zeno/registry.db`) for queryability and dependency tracking. Gate-level requirements inherit from or decompose project-level requirements.
 
 **Gate-Specific Requirement Generation**
 When `zeno gates start <gate-id>` is called:
@@ -195,12 +195,16 @@ project-root/
    - `zeno/architecture/data-flow.md` - End-to-end flow
    - `zeno/architecture/gate-roadmap.md` - Gate roadmap
 
+3. **Query project state via MCP tools** — `registry.db` is internal; direct reads bypass validation. Use `gates_action`, `reg_action`, `proposal_action` — see **For More Details** for the full dispatch table.
+
 ## Core Concepts
 
 - **Gates**: Concrete milestones representing actual deliverables, not percentages. Progress measured by completion, not time
 - **Hash-Based References**: `#a3f9c2d1` format for internal tracking/commands (internal only). Resolve to plain text names when communicating with users
 - **Quality Thresholds**: 90% coverage, 0 vulnerabilities, <0.01% linting, 0 TypeScript errors (strict mode)
 - **Human Approval**: Required at gate generation, repository boundaries, proposals, and gate completion
+
+> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (`Get-Content`, `better-sqlite3` scripts, raw SQL, `node -e`, `npx tsx -e`, or any file-read of the `.db` file). The schema changes between gates; direct reads return stale or incomplete data and bypass validation. Use MCP tools exclusively — they are schema-validated, versioned, and return structured content.
 
 **MCP Handler-First Policy**: Handler-based tools take precedence over CLI-backed function implementations when registering MCP tools. This allows handlers to provide predictable, schema-validated `structuredContent` for LLMs, while function implementations remain available as a fallback. Prefer adding handler implementations for new or critical tools and migrate CLI implementations into handlers incrementally.
 
@@ -321,15 +325,15 @@ Use Git history to trace work back to Zeno artifacts (requirements, proposals, g
 
 ## File Locations Quick Reference
 
-| Artifact | Location |
-|----------|----------|
-| Project PRD | `zeno/PROJECT_PRD.md` |
-| Architecture diagrams | `zeno/architecture/*.md` |
-| Gate PRDs | `zeno/gates/gate-XX-name.md` |
-| Requirements database | `zeno/.zeno/requirements.db` |
-| Proposals (active) | `zeno/proposals/gate-XX/<name>.md` |
-| Gates (completed archive) | `zeno/gates/archive/<gate-id>.md` |
-| Configuration | `zeno/.zeno/config.json` |
+| Artifact | Location | Access Method |
+|----------|----------|---------------|
+| Project PRD | `zeno/PROJECT_PRD.md` | Read file directly |
+| Architecture diagrams | `zeno/architecture/*.md` | `diagram_action { action: "show", type: "..." }` |
+| Gate PRDs | `zeno/gates/gate-XX-name.md` | `context_action { action: "gate", gateId: "..." }` |
+| Requirements | `zeno/.zeno/registry.db` (internal — **MCP only**) | `reg_action { action: "list\|show" }` |
+| Proposals (active) | `zeno/proposals/gate-XX/<name>.md` | `proposal_action { action: "show", hash: "#..." }` |
+| Gates (completed archive) | `zeno/gates/archive/<gate-id>.md` | `context_action { action: "gate", gateId: "..." }` |
+| Configuration | `zeno/.zeno/config.json` | `config_get {}` |
 
 ## Zeno vs Traditional Spec Systems
 
@@ -350,9 +354,10 @@ Zeno provides project-level planning (gates, roadmap) with architecture as a fir
 
 ## For More Details
 
-Use MCP tools for operational guidance:
+> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (`Get-Content`, `better-sqlite3`, raw SQL, `node -e`). The schema changes between gates; direct reads return stale data. Use MCP tools exclusively.
 
 - `gates_action` / `reg_action` / `proposal_action` for project state queries
+- `context_action` to resolve any `#hash` to its entity
 - `config_get` for quality thresholds and project configuration
 - `archive_action` for gate finalization
 - See `PROJECT_PRD.md` for project scope, technical decisions, and architecture principles

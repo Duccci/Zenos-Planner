@@ -58,41 +58,22 @@
   ],
   "currentGateInfo": {
     "sequence": 8,
-    "name": "Gate 08: Automated Validation & Quality Gates",
-    "hash": "#gate08",
+    "name": "Gate 08: MVP Hardening",
+    "hash": "#g08harden",
     "status": "pending",
     "estimatedComplexity": "high"
   },
   "upcomingGates": [
     {
       "sequence": 9,
-      "name": "Gate 09: Human Approval & Rejection Workflow",
-      "estimatedComplexity": "high"
+      "name": "Gate 09: Documentation & Polish",
+      "estimatedComplexity": "low"
     },
     {
       "sequence": 10,
-      "name": "Gate 10: Git Integration & Commit Automation",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 11,
-      "name": "Gate 11: Rescope & Replan Engine",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 12,
-      "name": "Gate 12: Dashboard & Visualization",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 13,
-      "name": "Gate 13: Subagent Orchestration & Parallel Execution",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 14,
-      "name": "Gate 14: Documentation & Polish",
-      "estimatedComplexity": "high"
+      "name": "Gate 10: Subagent Orchestration & Parallel Execution",
+      "estimatedComplexity": "high",
+      "status": "deferred"
     }
   ],
   "architecture": {

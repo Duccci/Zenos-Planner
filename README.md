@@ -252,7 +252,7 @@ my-project/
 │   ├── gates/archive/          # Completed gates
 │   ├── proposals/              # Proposals organized by gate
 │   │   └── gate-XX/            # Proposal records (pending/in_progress/completed/rejected)
-│   ├── requirements/           # README for requirements DB
+│   ├── requirements/           # README for registry DB
 │   └── subprojects/            # Multi-repo detection artifacts
 ├── src/                        # Source code
 ├── agents/                     # AI agent definitions (git submodule)

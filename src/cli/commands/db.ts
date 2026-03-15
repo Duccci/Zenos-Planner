@@ -13,7 +13,7 @@ export function registerDbCommands(program: Command): void {
 
   db.command('cleanup')
     .description('Remove stale WAL/SHM files for the database')
-    .option('--path <path>', 'Path to .db file (defaults to project requirements DB)')
+    .option('--path <path>', 'Path to .db file (defaults to project registry DB)')
     .action((options: { path?: string }) => {
       try {
         const path = options.path ?? getDatabasePath()
@@ -33,7 +33,7 @@ export function registerDbCommands(program: Command): void {
 
   db.command('validate')
     .description('Run integrity and foreign key checks on the database')
-    .option('--path <path>', 'Path to .db file (defaults to project requirements DB)')
+    .option('--path <path>', 'Path to .db file (defaults to project registry DB)')
     .action((options: { path?: string }) => {
       try {
         const res = validateDatabaseIntegrity(options.path)

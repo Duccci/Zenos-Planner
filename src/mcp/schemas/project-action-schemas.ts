@@ -58,6 +58,30 @@ export const ProjectStatusOutputSchema = z.object({
     status: z.string(),
   })),
   completedGates: z.array(z.string()),
+  requirements: z.object({
+    total: z.number().int().min(0),
+    byPriority: z.object({
+      must: z.number().int().min(0),
+      should: z.number().int().min(0),
+      could: z.number().int().min(0),
+      wont: z.number().int().min(0),
+    }),
+    byLevel: z.object({
+      project: z.number().int().min(0),
+      gate: z.number().int().min(0),
+    }),
+  }),
+  proposals: z.object({
+    total: z.number().int().min(0),
+    byStatus: z.object({
+      pending: z.number().int().min(0),
+      validated: z.number().int().min(0),
+      approved: z.number().int().min(0),
+      in_progress: z.number().int().min(0),
+      completed: z.number().int().min(0),
+      rejected: z.number().int().min(0),
+    }),
+  }),
   mcp: z.object({
     status: z.string(),
     toolsRegistered: z.number().int().min(0),

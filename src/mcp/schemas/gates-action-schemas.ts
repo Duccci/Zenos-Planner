@@ -80,6 +80,15 @@ export const GatesActionInputSchema = z.object({
     .describe('Gate IDs that must complete first (create)'),
   objectives: z.array(z.string()).optional().describe('Goals the gate must achieve (create)'),
   description: z.string().optional().describe('Optional gate description (create)'),
+  phases: z
+    .array(z.union([z.number().int().min(1), z.string().min(1)]))
+    .optional()
+    .describe(
+      'Delivery phase labels for this gate (create/generate). ' +
+      'Well-known values: numeric sequence (1, 2, 3), "MVP", "Post-MVP", "Deferred", "Backup". ' +
+      'Custom project-specific values (e.g. "May Demo", "Beta") are also accepted. ' +
+      'Multiple values allowed, e.g. [2, "Post-MVP"].'
+    ),
 
   // --- generate fields ---
   mode: z

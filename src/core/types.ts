@@ -7,7 +7,7 @@
  * - Location type: gate-tied vs solitary
  * - Test-driven phase: RED (test-suite) vs GREEN (test-cleanup) vs implementation
  * - Semantic role: feature, testing, cleanup, documentation
- * 
+ *
  * Each proposal may carry multiple roles, though typical patterns are:
  * - 'testing': test-suite or test-cleanup proposals (RED/GREEN phase)
  * - 'feature': implementation proposals with new functionality

@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS gates (
   created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   completed_at           TIMESTAMP,
   created_by             TEXT,
-  completed_by           TEXT
+  completed_by           TEXT,
+  prd_generated_at       TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS repositories (

@@ -45,6 +45,27 @@ export const GateTypeEnum = z.enum(['feature', 'quality', 'rescope'])
 export type GateType = z.infer<typeof GateTypeEnum>
 
 /**
+ * Gate phase — groups gates into delivery milestones.
+ *
+ * Well-known string values:
+ *   'MVP'       — minimum viable product scope
+ *   'Post-MVP'  — planned work after the MVP is shipped
+ *   'Deferred'  — explicitly pushed to a later decision point
+ *   'Backup'    — contingency / nice-to-have scope
+ *
+ * Numeric phases (1, 2, 3 …) allow simple sequential grouping.
+ * Any other string (e.g. 'May Demo', 'Beta', 'GA') is accepted for
+ * project-specific milestones.
+ *
+ * A gate may carry multiple phases at once, e.g. [2, 'Post-MVP'].
+ */
+export const GatePhaseSchema = z.union([
+  z.number().int().min(1),
+  z.string().min(1),
+])
+export type GatePhase = z.infer<typeof GatePhaseSchema>
+
+/**
  * Requirement types for categorization
  */
 export const RequirementTypeEnum = z.enum(['functional', 'non_functional', 'constraint'])

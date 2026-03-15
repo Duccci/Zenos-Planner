@@ -225,3 +225,86 @@ export function syncGatesFromDisk(
 
   return { synced, skipped }
 }
+
+/**
+ * Seed the DB from planned gate entries in state.json.
+ *
+ * Called during `zeno registry rebuild` (and on DB init) to restore gates that
+ * were registered with gate_plan but whose PRD markdown files have not been
+ * generated yet — so syncGatesFromDisk() cannot find them.
+ *
+ * Uses `INSERT OR IGNORE` so existing rows are never overwritten.
+ */
+export function syncPlannedGatesFromState(
+  db: Database.Database,
+  projectRoot: string = process.cwd()
+): SyncGatesResult {
+  const statePath = path.join(projectRoot, 'zeno', '.zeno', 'state.json')
+
+  let stateContent: string
+  try {
+    stateContent = readFileSync(statePath, 'utf-8')
+  } catch {
+    return { synced: 0, skipped: 0 }  // state.json not present — nothing to do
+  }
+
+  let state: { upcomingGates?: unknown[] }
+  try {
+    state = JSON.parse(stateContent) as { upcomingGates?: unknown[] }
+  } catch {
+    return { synced: 0, skipped: 0 }
+  }
+
+  const upcomingGates = state.upcomingGates ?? []
+  if (upcomingGates.length === 0) return { synced: 0, skipped: 0 }
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO gates
+      (id, project_id, sequence, name, description, type, status, hash, created_at, prd_generated_at)
+    VALUES
+      (?, 'default-project', ?, ?, ?, 'feature', 'pending', ?, ?, NULL)
+  `)
+
+  const now = new Date().toISOString()
+  let synced = 0
+  let skipped = 0
+
+  const runAll = db.transaction(() => {
+    for (const raw of upcomingGates) {
+      const g = raw as {
+        id?: string
+        sequence?: number
+        name?: string
+        goal?: string
+        hash?: string
+        prdGenerated?: boolean
+      }
+
+      // Skip entries without the gate_plan fields (legacy entries with only name/sequence)
+      if (!g.id || !g.name || !g.hash) {
+        skipped++
+        continue
+      }
+
+      // Skip gates whose PRD has already been generated — syncGatesFromDisk handles those
+      if (g.prdGenerated) {
+        skipped++
+        continue
+      }
+
+      insert.run(
+        g.id,
+        g.sequence ?? 0,
+        g.name,
+        g.goal ?? null,
+        g.hash,
+        now
+      )
+      synced++
+    }
+  })
+
+  runAll()
+
+  return { synced, skipped }
+}

@@ -53,6 +53,15 @@ describe('Status command coverage', () => {
       data: {
         activeGates: [{ id: 'gate-03', name: 'API Layer', status: 'in_progress' }],
         completedGates: ['gate-01-startup', 'gate-02-setup'],
+        requirements: {
+          total: 12,
+          byPriority: { must: 6, should: 4, could: 2, wont: 0 },
+          byLevel: { project: 5, gate: 7 },
+        },
+        proposals: {
+          total: 8,
+          byStatus: { pending: 2, validated: 1, approved: 0, in_progress: 3, completed: 2, rejected: 0 },
+        },
         mcp: { status: 'healthy', toolsRegistered: 10, configLoaded: true },
       },
     })
@@ -71,6 +80,10 @@ describe('Status command coverage', () => {
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Completed Gates:')
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('  Gate 01: startup (completed)')
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('  Gate 02: setup (completed)')
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Requirements:')
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('  Total: 12')
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('Proposals:')
+    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('  Total: 8')
   })
 
   it('should handle no active gates', async () => {
@@ -79,6 +92,8 @@ describe('Status command coverage', () => {
       data: {
         activeGates: [],
         completedGates: [],
+        requirements: { total: 0, byPriority: { must: 0, should: 0, could: 0, wont: 0 }, byLevel: { project: 0, gate: 0 } },
+        proposals: { total: 0, byStatus: { pending: 0, validated: 0, approved: 0, in_progress: 0, completed: 0, rejected: 0 } },
         mcp: { status: 'healthy', toolsRegistered: 10, configLoaded: true },
       },
     })
@@ -111,6 +126,8 @@ describe('Status command coverage', () => {
       data: {
         activeGates: [{ id: 'gate-03', name: 'API Layer', status: 'in_progress' }],
         completedGates: [],
+        requirements: { total: 3, byPriority: { must: 3, should: 0, could: 0, wont: 0 }, byLevel: { project: 1, gate: 2 } },
+        proposals: { total: 1, byStatus: { pending: 1, validated: 0, approved: 0, in_progress: 0, completed: 0, rejected: 0 } },
         mcp: { status: 'healthy', toolsRegistered: 10, configLoaded: true },
       },
     })
@@ -132,6 +149,8 @@ describe('Status command coverage', () => {
       data: {
         activeGates: [{ id: 'gate-03', name: 'API Layer', status: 'in_progress' }],
         completedGates: ['gate-01-startup', 'gate-02-setup'],
+        requirements: { total: 5, byPriority: { must: 3, should: 2, could: 0, wont: 0 }, byLevel: { project: 2, gate: 3 } },
+        proposals: { total: 4, byStatus: { pending: 0, validated: 0, approved: 0, in_progress: 1, completed: 3, rejected: 0 } },
         mcp: { status: 'unavailable', toolsRegistered: 0, configLoaded: false },
       },
     })

@@ -71,17 +71,23 @@
 
 ### Gate 1: [Gate Name]
 
+**Phases**: [e.g. 1, MVP]
+
 - [ ] [High-level objective]
 - [ ] [High-level objective]
 - [ ] [High-level objective]
 
 ### Gate 2: [Gate Name]
 
+**Phases**: [e.g. 1, MVP]
+
 - [ ] [High-level objective]
 - [ ] [High-level objective]
 - [ ] [High-level objective]
 
 ### Gate 3: [Gate Name]
+
+**Phases**: [e.g. 2, Post-MVP]
 
 - [ ] [High-level objective]
 - [ ] [High-level objective]

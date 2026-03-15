@@ -35,7 +35,7 @@
 
 ### Database Access
 
-> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (no `better-sqlite3` scripts, no raw SQL, no `node -e`, no `npx tsx -e` DB scripts). The database schema changes between gates; direct queries will silently return stale or incomplete data. Always use MCP tools — they are schema-validated and return structured content.
+> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (`Get-Content`, `cat`, `better-sqlite3` scripts, raw SQL, `node -e`, `npx tsx -e`). The schema changes between gates; direct reads return stale data and bypass validation. Always use MCP tools — they are schema-validated and return structured content.
 
 ### MCP Tool Reference
 
