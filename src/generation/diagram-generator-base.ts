@@ -164,7 +164,7 @@ export abstract class DiagramGeneratorBase {
    */
   protected wrapMarkdown(content: string, backend: RenderingBackend): string {
     if (backend === 'mermaid') {
-      return ['```mermaid', content, '```'].join('\n')
+      return ['```mermaid', content, '```', ''].join('\n')
     }
     // Graphviz content is returned as-is; rendering happens at output time
     return content

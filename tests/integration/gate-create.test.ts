@@ -18,6 +18,7 @@ import { registerGatesOps } from '../../src/integration/gates-registry.js'
 
 const mockGet = vi.fn()
 const mockAll = vi.fn()
+const mockRun = vi.fn()
 const mockPrepare = vi.fn()
 const mockGetDatabase = vi.fn()
 const mockReadProjectOverview = vi.fn()
@@ -97,7 +98,8 @@ describe('gates-registry: gate_create', () => {
     vi.clearAllMocks()
     registry = new FunctionRegistry()
 
-    mockPrepare.mockImplementation(() => ({ get: mockGet, all: mockAll }))
+    mockPrepare.mockImplementation(() => ({ get: mockGet, all: mockAll, run: mockRun }))
+    mockRun.mockReturnValue({ changes: 1 })
     mockGet.mockReturnValue(undefined) // no existing gate by default
     mockGetDatabase.mockReturnValue({ prepare: mockPrepare })
     mockReadProjectOverview.mockResolvedValue({})

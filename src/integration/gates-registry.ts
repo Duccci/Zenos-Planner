@@ -47,15 +47,69 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }
 
       const now = new Date().toISOString()
+
+      // Fetch prd_generated_at from DB for all gates in one query
+      const prdGeneratedMap: Record<string, boolean> = {}
+      const descriptionMap: Record<string, string> = {}
+      try {
+        const db = (await import('../storage/database.js')).getDatabase()
+        const dbRows = db
+          .prepare('SELECT id, description, prd_generated_at FROM gates')
+          .all() as { id: string; description: string | null; prd_generated_at: string | null }[]
+        for (const row of dbRows) {
+          prdGeneratedMap[row.id] = row.prd_generated_at !== null
+          if (row.description) descriptionMap[row.id] = row.description
+        }
+      } catch {
+        // DB unavailable — default all to true (unknown) to avoid false alarms
+        for (const g of summaries) prdGeneratedMap[g.id] = true
+      }
+
+      // Build phases map by scanning gate MD frontmatter (phases live only in MD files)
+      const phasesMap: Record<string, (number | string)[]> = {}
+      try {
+        const { readdirSync, readFileSync } = await import('node:fs')
+        const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
+        const gatesDir = join(getZenoDir(), '..', 'gates')
+        const files = readdirSync(gatesDir).filter(
+          (f: string) => f.endsWith('.md') && /^gate-\d+/.test(f)
+        )
+        for (const file of files) {
+          try {
+            const content = readFileSync(join(gatesDir, file), 'utf-8')
+            const fm = parseGateFrontmatter(content)
+            if (fm?.id && fm.phases && fm.phases.length > 0) {
+              phasesMap[fm.id] = fm.phases
+            } else if (fm?.id) {
+              // Body-field fallback: **Phases**: MVP, 2
+              const bodyMatch = /\*\*Phases\*\*:\s*(.+)$/m.exec(content)
+              if (bodyMatch?.[1]) {
+                phasesMap[fm.id] = bodyMatch[1]
+                  .split(',')
+                  .map((s: string) => s.trim())
+                  .filter((s: string) => s.length > 0)
+                  .map((s: string) => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
+              }
+            }
+          } catch {
+            // skip unreadable files
+          }
+        }
+      } catch {
+        // gates dir unavailable — phases simply omitted
+      }
+
       return {
         gates: summaries.map((g) => ({
           id: g.id,
           name: g.name,
-          description: 'No description',
+          description: descriptionMap[g.id] ?? 'No description',
           sequence: g.sequence,
           status: g.status,
           type: 'feature',
+          phases: phasesMap[g.id],
           lastUpdated: resolveLastUpdated(g.completedAt, now),
+          prdGenerated: prdGeneratedMap[g.id] ?? true,
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
@@ -94,9 +148,10 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const now = new Date().toISOString()
 
-      // Parse objectives and description from gate PRD file
+      // Parse objectives, description, and phases from gate PRD file
       const objectives: { title: string; completed: boolean }[] = []
       let description = 'No description'
+      let phases: (number | string)[] | undefined
 
       try {
         const { findGateByGateId } = await import('../utils/artifact-locator.js')
@@ -104,6 +159,23 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         const gatePath = await findGateByGateId(normalizedId)
         if (gatePath) {
           const content = await readFile(gatePath, 'utf-8')
+
+          // Parse phases from frontmatter (authoritative), fallback to body field
+          const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
+          const fm = parseGateFrontmatter(content)
+          if (fm?.phases && fm.phases.length > 0) {
+            phases = fm.phases
+          } else {
+            // Body-field fallback: **Phases**: MVP, 2
+            const phasesBodyMatch = /\*\*Phases\*\*:\s*(.+)$/m.exec(content)
+            if (phasesBodyMatch?.[1]) {
+              phases = phasesBodyMatch[1]
+                .split(',')
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0)
+                .map((s) => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
+            }
+          }
 
           // Parse description from ## Overview section (first non-empty line)
           const overviewMatch = /## Overview\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
@@ -124,7 +196,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           }
         }
       } catch {
-        // File unavailable — fall back to empty objectives
+        // File unavailable — fall back to empty objectives/phases
       }
 
       // Query gate-level requirements from the database
@@ -176,15 +248,23 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       // overview and those distinctions are lost in the DB column.
       let effectiveStatus: typeof gate.status = gate.status
       let effectiveCompletedAt: string | null = gate.completedAt
+      let prdGenerated = true // default: assume generated unless DB says otherwise
       try {
         const { getDatabase } = await import('../storage/database.js')
         const dbRow = getDatabase()
-          .prepare('SELECT status, completed_at FROM gates WHERE id = ?')
-          .get(normalizedId) as { status: string; completed_at: string | null } | undefined
-        if (dbRow && dbRow.status !== 'pending') {
-          // 'pending' in DB can represent validated/backlog — don't override those.
-          effectiveStatus = dbRow.status as typeof gate.status
-          effectiveCompletedAt = dbRow.completed_at
+          .prepare('SELECT status, completed_at, description, prd_generated_at FROM gates WHERE id = ?')
+          .get(normalizedId) as { status: string; completed_at: string | null; description: string | null; prd_generated_at: string | null } | undefined
+        if (dbRow) {
+          if (dbRow.status !== 'pending') {
+            // 'pending' in DB can represent validated/backlog — don't override those.
+            effectiveStatus = dbRow.status as typeof gate.status
+            effectiveCompletedAt = dbRow.completed_at
+          }
+          prdGenerated = dbRow.prd_generated_at !== null
+          // Use DB description (goal statement) as fallback when MD file has none
+          if (description === 'No description' && dbRow.description) {
+            description = dbRow.description
+          }
         }
       } catch {
         // DB unavailable — use overview-derived status
@@ -197,6 +277,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         sequence: gate.sequence,
         status: effectiveStatus,
         type: 'feature',
+        phases,
+        prdGenerated,
         objectives,
         requirements,
         proposals,
@@ -370,6 +452,15 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         dryRun: validated.dryRun ?? false,
       })
 
+      // Refresh gate roadmap diagram to reflect updated gate state
+      if (!validated.dryRun) {
+        try {
+          await registry.invoke('arch_generate', { diagramType: 'gate-roadmap' })
+        } catch {
+          // Non-fatal: roadmap update failure must not fail the replan
+        }
+      }
+
       return {
         mode: result.mode,
         status: 'regenerated' as const,
@@ -523,6 +614,125 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     }
   )
 
+  // Gate planning (pre-PRD registration)
+
+  registry.register(
+    'gate_plan',
+    async (params) => {
+      const { GatePlanInputSchema } = await import('../mcp/schemas/gate-create-schemas.js')
+      const validated = GatePlanInputSchema.parse(params)
+
+      const { hashObject } = await import('../utils/hash.js')
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedId = normalizeGateId(validated.gateId)
+
+      const existing = db.prepare('SELECT id, hash FROM gates WHERE id = ?').get(normalizedId) as
+        | { id: string; hash: string }
+        | undefined
+
+      const now = new Date().toISOString()
+      const hash =
+        existing?.hash ??
+        hashObject({ id: normalizedId, name: validated.name, sequence: validated.sequence })
+
+      if (existing) {
+        // Update name and goal without touching prd_generated_at
+        db.prepare(
+          'UPDATE gates SET name = ?, description = ?, type = ?, depends_on = ? WHERE id = ?'
+        ).run(
+          validated.name,
+          validated.goal,
+          validated.type,
+          validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
+          normalizedId
+        )
+      } else {
+        db.prepare(
+          `INSERT INTO gates
+             (id, project_id, sequence, name, description, status, type, depends_on, hash, created_at, prd_generated_at)
+           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, ?, NULL)`
+        ).run(
+          normalizedId,
+          validated.sequence,
+          validated.name,
+          validated.goal,
+          validated.type,
+          validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
+          hash,
+          now
+        )
+      }
+
+      // Persist to state.json (git-tracked) so name + goal survive DB regeneration
+      const { upsertPlannedGateInState } = await import('../utils/state-sync.js')
+      await upsertPlannedGateInState(normalizedId, validated.name, validated.goal, validated.sequence, hash)
+
+      // Sync to project-overview.json so the planned gate appears in gates_list
+      const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
+      await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
+
+      return {
+        gateId: normalizedId,
+        hash,
+        alreadyExisted: existing !== undefined,
+        createdAt: now,
+      }
+    },
+    {
+      description:
+        'Register a gate name and goal statement before generating its PRD markdown file. ' +
+        'Stores the gate intent in the database without writing any file, deferring full PRD ' +
+        'generation until the gate is about to be implemented.',
+      parameters: [
+        {
+          name: 'gateId',
+          type: 'string',
+          description: 'Gate ID (e.g., "gate-03")',
+          required: true,
+        },
+        {
+          name: 'name',
+          type: 'string',
+          description: 'Human-readable gate name',
+          required: true,
+        },
+        {
+          name: 'goal',
+          type: 'string',
+          description: 'Short project statement defining the main goal of the gate (1–3 sentences)',
+          required: true,
+        },
+        {
+          name: 'sequence',
+          type: 'number',
+          description: 'Gate sequence number',
+          required: true,
+        },
+        {
+          name: 'type',
+          type: 'string',
+          description: 'Gate type: feature, quality, or rescope (default: feature)',
+          required: false,
+        },
+        {
+          name: 'dependencies',
+          type: 'array',
+          description: 'Array of gate IDs that must complete first',
+          required: false,
+        },
+      ],
+      returnType: 'GatePlanOutput',
+      schema: z.object({
+        gateId: z.string(),
+        name: z.string(),
+        goal: z.string(),
+        sequence: z.number(),
+        type: z.string().optional(),
+        dependencies: z.array(z.string()).optional(),
+      }),
+    }
+  )
+
   // Gate creation
 
   registry.register(
@@ -604,6 +814,57 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const { writeFile } = await import('../utils/file.js')
       await writeFile(filePath, gateContent, 'utf-8')
 
+      // Persist gate to DB and stamp prd_generated_at.
+      // If a gate_plan row already exists, update it; otherwise insert fresh.
+      const now = new Date().toISOString()
+      const { hashObject } = await import('../utils/hash.js')
+      const normalizedCreateId = normalizeGateId(validated.gateId)
+      const existingRow = db
+        .prepare('SELECT id FROM gates WHERE id = ?')
+        .get(normalizedCreateId) as { id: string } | undefined
+
+      if (existingRow) {
+        db.prepare(
+          'UPDATE gates SET name = ?, description = ?, type = ?, prd_generated_at = ? WHERE id = ?'
+        ).run(
+          validated.name,
+          validated.description ?? null,
+          validated.type,
+          now,
+          normalizedCreateId
+        )
+      } else {
+        const gateHash = hashObject({
+          id: normalizedCreateId,
+          name: validated.name,
+          sequence: validated.sequence,
+        })
+        db.prepare(
+          `INSERT INTO gates
+             (id, project_id, sequence, name, description, status, type, depends_on, hash, created_at, prd_generated_at)
+           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`
+        ).run(
+          normalizedCreateId,
+          validated.sequence,
+          validated.name,
+          validated.description ?? null,
+          validated.type,
+          validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
+          gateHash,
+          now,
+          now
+        )
+      }
+
+      // Sync to project-overview.json
+      const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
+      await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
+
+      // Mark prdGenerated in state.json (git-tracked) so registry rebuild knows
+      // the MD file exists and syncGatesFromDisk can handle it from here on
+      const { markPrdGeneratedInState } = await import('../utils/state-sync.js')
+      await markPrdGeneratedInState(normalizedCreateId).catch(() => { /* best-effort */ })
+
       // TODO: Update gate-roadmap.md (deferred to full implementation)
       const roadmapUpdated = false
 
@@ -616,7 +877,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           warnings,
         },
         roadmapUpdated,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
       }
     },
     {

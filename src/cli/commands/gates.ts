@@ -544,6 +544,17 @@ export function registerGatesCommands(program: Command): void {
           dryRun: options.dryRun ?? false,
         })
 
+        // Refresh gate roadmap diagram to reflect updated gate state
+        if (!options.dryRun) {
+          try {
+            const { getGlobalRegistry } = await import('../../index.js')
+            await getGlobalRegistry().invoke('arch_generate', { diagramType: 'gate-roadmap' })
+            logger.info('Gate roadmap updated.')
+          } catch {
+            logger.debug('Gate roadmap update skipped (diagram generation unavailable).')
+          }
+        }
+
         logger.info(`\nReplan Summary (${result.mode} / ${result.trigger}):`)
         logger.info(`  ${result.reasoning}`)
         logger.info('')

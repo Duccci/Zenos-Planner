@@ -42,6 +42,8 @@ export interface Gate {
   dependencies: string[]; // gate ids that must complete before this
   estimatedComplexity: number;
   confidence: number; // 0-100
+  /** Delivery phase labels for this gate (e.g. 1, 'MVP', 'Post-MVP', 'May Demo') */
+  phases?: (number | string)[];
 }
 
 export interface DecompositionContext {

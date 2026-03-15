@@ -30,6 +30,15 @@ export function registerStatusCommand(program: Command): void {
         const data = result.data as {
           activeGates: { id: string; name: string; status: string }[]
           completedGates: string[]
+          requirements?: {
+            total: number
+            byPriority: Record<string, number>
+            byLevel: Record<string, number>
+          }
+          proposals?: {
+            total: number
+            byStatus: Record<string, number>
+          }
           mcp: { status: string; toolsRegistered: number; configLoaded: boolean }
         }
 
@@ -57,6 +66,28 @@ export function registerStatusCommand(program: Command): void {
             const name = namePart.replace(/-/g, ' ')
             logger.info(`  Gate ${num}: ${name} (completed)`)
           }
+        }
+
+        // Display requirements summary
+        if (data.requirements) {
+          logger.info('Requirements:')
+          logger.info(`  Total: ${String(data.requirements.total)}`)
+          const p = data.requirements.byPriority
+          logger.info(`  By priority: must=${String(p['must'] ?? 0)} should=${String(p['should'] ?? 0)} could=${String(p['could'] ?? 0)} wont=${String(p['wont'] ?? 0)}`)
+          const l = data.requirements.byLevel
+          logger.info(`  By level: project=${String(l['project'] ?? 0)} gate=${String(l['gate'] ?? 0)}`)
+        }
+
+        // Display proposals summary
+        if (data.proposals) {
+          logger.info('Proposals:')
+          logger.info(`  Total: ${String(data.proposals.total)}`)
+          const s = data.proposals.byStatus
+          const parts: string[] = []
+          for (const [key, val] of Object.entries(s)) {
+            if (val > 0) parts.push(`${key}=${String(val)}`)
+          }
+          if (parts.length > 0) logger.info(`  By status: ${parts.join(' ')}`)
         }
 
         // Display MCP server status
