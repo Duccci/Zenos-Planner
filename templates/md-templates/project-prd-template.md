@@ -194,10 +194,10 @@ Response: { structure }
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
+**Document Version**: [MAJOR.MINOR.PATCH]
+**Last Updated**: [YYYY-MM-DD]
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: [git.user.name]
 **Reviewers**: [git.user.name]
 
 ### Change Log

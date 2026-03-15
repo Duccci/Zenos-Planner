@@ -38,7 +38,7 @@ import { captureMetricsSnapshot } from './metrics-capture.js'
 
 /**
  * Updates architecture documentation when a gate completes
- * 
+ *
  * Non-fatal helper: failures logged but don't block gate archive
  * Updates:
  * - Version number (PATCH bump: 2.0.0 → 2.0.1)
@@ -52,7 +52,7 @@ async function updateArchitectureOnGateCompletion(
 ): Promise<void> {
   try {
     const archFile = join(getZenoDir(), '..', 'architecture', 'system-overview.md')
-    
+
     if (!existsSync(archFile)) {
       logger.warn(`Architecture file not found at ${archFile}, skipping architecture update`)
       return
@@ -65,18 +65,18 @@ async function updateArchitectureOnGateCompletion(
     // **Version**: 2.0.0
     const dateMatch = /\*\*Last Updated\*\*: (\d{4}-\d{2}-\d{2})/
     const versionMatch = /\*\*Version\*\*: (\d+\.\d+\.\d+)/
-    
+
     const oldDate = dateMatch.exec(content)?.[1] ?? '2026-02-23'
     const versionStr = versionMatch.exec(content)?.[1] ?? '2.0.0'
-    
+
     // Parse version and bump PATCH (2.0.0 → 2.0.1)
     const [major = '2', minor = '0', patch] = versionStr.split('.')
     const newPatch = String(parseInt(patch ?? '0', 10) + 1)
     const newVersion = `${major}.${minor}.${newPatch}`
-    
+
     // Format timestamp as YYYY-MM-DD
     const newDate = timestamp.split('T')[0] ?? timestamp
-    
+
     // Update "Last Updated" line
     if (dateMatch.test(content)) {
       content = content.replace(
@@ -84,7 +84,7 @@ async function updateArchitectureOnGateCompletion(
         `**Last Updated**: ${newDate}`
       )
     }
-    
+
     // Update Version line if it exists, otherwise add it after "Last Updated"
     if (versionMatch.test(content)) {
       content = content.replace(
@@ -98,7 +98,7 @@ async function updateArchitectureOnGateCompletion(
         `**Last Updated**: ${newDate}\n**Version**: ${newVersion}`
       )
     }
-    
+
     // Add changelog entry at the end if not present
     if (!content.includes('## Changelog')) {
       const changelog = `\n---\n\n## Changelog\n\n- ${newDate}: Gate ${gateId} (${gateName}) completion: Updated implementation status\n`
@@ -117,7 +117,7 @@ async function updateArchitectureOnGateCompletion(
 
     // Write updated content
     await writeFile(archFile, content)
-    
+
     // Commit architecture update
     const commitMsg = `docs(arch): Update system-overview.md for gate ${gateId} completion
 
