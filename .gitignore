@@ -1,7 +1,5 @@
 # Dependencies
 node_modules/
-package-lock.json
-# yarn.lock and pnpm-lock.yaml left out if switching package managers in future
 
 # Build outputs
 dist/
