@@ -1,3 +1,4 @@
+```mermaid
 graph LR
     G1["Gate 01: Core Infrastructure<br/><small>completed</small>"]
     G2["Gate 02: Zeno Engine & Gate Generation<br/><small>completed</small>"]
@@ -22,3 +23,4 @@ graph LR
     classDef pending fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
     classDef in_progress fill:#FFC107,stroke:#F57F17,stroke-width:2px,color:#000
     classDef completed fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#fff
+```
