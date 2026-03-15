@@ -257,6 +257,18 @@ export const ReqInheritOutputSchema = z.object({
 export type ReqInheritOutput = z.infer<typeof ReqInheritOutputSchema>
 
 // ============================================================================
+// REQ_UPDATE - Update mutable fields on a requirement
+// ============================================================================
+
+export const ReqUpdateOutputSchema = z.object({
+  success: z.boolean(),
+  hash: z.string(),
+  updated: z.record(z.string(), z.unknown()).describe('Map of field → new value for each field that was changed'),
+  message: z.string(),
+})
+export type ReqUpdateOutput = z.infer<typeof ReqUpdateOutputSchema>
+
+// ============================================================================
 // REQ_TRACE - Full traceability chain for a requirement
 // Shows PRD ancestry → owner gate → linked gates → children
 // ============================================================================

@@ -134,6 +134,42 @@ export function registerReqCommands(program: Command): void {
     })
 
   reqCmd
+    .command('update <hash>')
+    .description('Update mutable fields of a requirement')
+    .option('--title <text>', 'New title / description')
+    .option('--type <type>', 'New type: functional | non_functional | constraint')
+    .option('--priority <priority>', 'New priority: must | should | could | wont')
+    .option('--acceptance <text>', 'New acceptance criteria')
+    .action(
+      async (
+        hash: string,
+        options: { title?: string; type?: string; priority?: string; acceptance?: string }
+      ) => {
+        try {
+          const registry = getGlobalRegistry()
+          const result = await registry.invoke('reg_action', {
+            action: 'update',
+            payload: {
+              hash,
+              ...(options.title !== undefined && { title: options.title }),
+              ...(options.type !== undefined && { type: options.type }),
+              ...(options.priority !== undefined && { priority: options.priority }),
+              ...(options.acceptance !== undefined && { acceptance: options.acceptance }),
+            },
+          })
+          if (result.success) {
+            const data = result.data as { message?: string }
+            logger.info(data.message ?? `Requirement ${hash} updated`)
+          } else {
+            logger.error('Failed to update requirement:', result.error)
+          }
+        } catch (error) {
+          logger.error('Error updating requirement:', error)
+        }
+      }
+    )
+
+  reqCmd
     .command('search <query>')
     .description('Search requirements by keyword')
     .option('--gate <gate-id>', 'Filter by gate')

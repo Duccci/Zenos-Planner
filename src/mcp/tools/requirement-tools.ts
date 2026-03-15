@@ -1,7 +1,7 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
+    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -15,13 +15,14 @@
             'search',
             'inherit',
             'trace',
+            'update',
             'db_sync',
             'db_status',
             'purge_orphans',
             'reset_gate',
           ],
           description:
-            'Action to perform. list=retrieve requirements (optional: gateId, type filter). show=get requirement details (needs: hash). deps=dependency graph (needs: hash). transfer=move to another gate (needs: hash, targetGateId). search=full-text search (needs: query). inherit=link existing requirement to a gate for cross-gate reuse (needs: hash, gateId). trace=full traceability chain (needs: hash). db_sync=reconcile proposals DB with disk. db_status=report proposal DB health. purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). reset_gate=wipe and re-sync proposals for one gate from disk (needs: gateId).',
+            'Action to perform. list=retrieve requirements (optional: gateId, type filter). show=get requirement details (needs: hash). deps=dependency graph (needs: hash). transfer=move to another gate (needs: hash, targetGateId). search=full-text search (needs: query). inherit=link existing requirement to a gate for cross-gate reuse (needs: hash, gateId). trace=full traceability chain (needs: hash). update=edit mutable fields (needs: hash; optional: title, type, priority, acceptance). db_sync=reconcile proposals DB with disk. db_status=report proposal DB health. purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). reset_gate=wipe and re-sync proposals for one gate from disk (needs: gateId).',
         },
         hash: {
           type: 'string',
@@ -34,7 +35,7 @@
         type: {
           type: 'string',
           enum: ['functional', 'non_functional', 'constraint'],
-          description: 'Filter by requirement type (list/search)',
+          description: 'Filter by requirement type (list/search) or new type for update',
         },
         query: {
           type: 'string',
@@ -47,6 +48,19 @@
         reason: {
           type: 'string',
           description: 'Reason for transfer (transfer)',
+        },
+        title: {
+          type: 'string',
+          description: 'New title / description for the requirement (update)',
+        },
+        priority: {
+          type: 'string',
+          enum: ['must', 'should', 'could', 'wont'],
+          description: 'New priority (update)',
+        },
+        acceptance: {
+          type: 'string',
+          description: 'New acceptance criteria text (update)',
         },
         dryRun: {
           type: 'boolean',
@@ -86,6 +100,7 @@ export function requirementHandlers(
         'search',
         'inherit',
         'trace',
+        'update',
         'db_sync',
         'db_status',
         'purge_orphans',
@@ -114,6 +129,7 @@ export function requirementHandlers(
         search: async (payload, r) => r.invoke('reg_action', { action: 'search', payload }),
         inherit: async (payload, r) => r.invoke('reg_action', { action: 'inherit', payload }),
         trace: async (payload, r) => r.invoke('reg_action', { action: 'trace', payload }),
+        update: async (payload, r) => r.invoke('reg_action', { action: 'update', payload }),
         db_sync: async (payload, r) => r.invoke('reg_action', { action: 'db_sync', payload }),
         db_status: async (payload, r) =>
           r.invoke('reg_action', { action: 'db_status', payload }),

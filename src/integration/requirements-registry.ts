@@ -609,6 +609,73 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
         // Returns: owner gate, all linked gates, parent/child hierarchy, and
         //          related proposals. Enables answering "where does this spec flow?"
         // -----------------------------------------------------------------------
+        // -----------------------------------------------------------------------
+        // update — edit mutable fields on an existing requirement.
+        // At least one of: title, type, priority, acceptance must be supplied.
+        // -----------------------------------------------------------------------
+        case 'update': {
+          const payload = z
+            .object({
+              hash: z.string(),
+              title: z.string().min(1).optional(),
+              type: z.enum(['functional', 'non_functional', 'constraint']).optional(),
+              priority: z.enum(['must', 'should', 'could', 'wont']).optional(),
+              acceptance: z.string().optional(),
+            })
+            .refine(
+              (v) => v.title !== undefined || v.type !== undefined || v.priority !== undefined || v.acceptance !== undefined,
+              { message: 'At least one of title, type, priority, or acceptance must be provided for update' }
+            )
+            .parse(validated.payload ?? {})
+
+          const req = storage.getRequirementByHash(payload.hash)
+          if (!req) {
+            return {
+              success: false,
+              hash: payload.hash,
+              updated: {},
+              message: `Requirement ${payload.hash} not found`,
+            }
+          }
+
+          const db = getDatabase()
+          const setClauses: string[] = []
+          const setParts: unknown[] = []
+          const changedFields: Record<string, unknown> = {}
+
+          if (payload.title !== undefined) {
+            setClauses.push('description = ?')
+            setParts.push(payload.title.trim())
+            changedFields['title'] = payload.title.trim()
+          }
+          if (payload.type !== undefined) {
+            setClauses.push('type = ?')
+            setParts.push(payload.type)
+            changedFields['type'] = payload.type
+          }
+          if (payload.priority !== undefined) {
+            setClauses.push('priority = ?')
+            setParts.push(payload.priority)
+            changedFields['priority'] = payload.priority
+          }
+          if (payload.acceptance !== undefined) {
+            setClauses.push('acceptance_criteria = ?')
+            setParts.push(payload.acceptance.trim() || null)
+            changedFields['acceptance'] = payload.acceptance.trim() || null
+          }
+
+          db.prepare(
+            `UPDATE requirements SET ${setClauses.join(', ')} WHERE id = ?`
+          ).run(...setParts, req.id)
+
+          return {
+            success: true,
+            hash: req.hash,
+            updated: changedFields,
+            message: `Requirement ${req.hash} updated: ${Object.keys(changedFields).join(', ')}.`,
+          }
+        }
+
         case 'trace': {
           const payload = z.object({ hash: z.string() }).parse(validated.payload ?? {})
           const req = storage.getRequirementByHash(payload.hash)

@@ -7,6 +7,7 @@ import {
   ReqSearchOutputSchema,
   ReqInheritOutputSchema,
   ReqTraceOutputSchema,
+  ReqUpdateOutputSchema,
 } from './requirement-schemas.js'
 
 // ============================================================================
@@ -70,7 +71,7 @@ export type ResetGateOutput = z.infer<typeof ResetGateOutputSchema>
  */
 export const ReqActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'])
+    .enum(['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'update', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -81,6 +82,7 @@ export const ReqActionInputSchema = z.object({
         'search=full-text search (needs: query). ' +
         'inherit=link existing requirement to a gate for cross-gate reuse (needs: hash, gateId). ' +
         'trace=full traceability chain — ancestors, children, all referencing gates (needs: hash). ' +
+        'update=edit mutable fields on a requirement (needs: hash; optional: title, type, priority, acceptance). ' +
         'db_sync=reconcile proposals DB with disk (upsert new files, remove orphans). ' +
         'db_status=report proposal DB health (orphan count, status breakdown). ' +
         'purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). ' +
@@ -95,7 +97,7 @@ export const ReqActionInputSchema = z.object({
   type: z
     .enum(['functional', 'non_functional', 'constraint'])
     .optional()
-    .describe('Filter by requirement type (list/search)'),
+    .describe('Filter by requirement type (list/search) or new type for update'),
 
   // --- search fields ---
   query: z.string().optional().describe('Search query string (search)'),
@@ -103,6 +105,14 @@ export const ReqActionInputSchema = z.object({
   // --- transfer fields ---
   targetGateId: z.string().optional().describe('Destination gate ID (transfer)'),
   reason: z.string().optional().describe('Reason for transfer (transfer)'),
+
+  // --- update fields ---
+  title: z.string().optional().describe('New title / description for the requirement (update)'),
+  priority: z
+    .enum(['must', 'should', 'could', 'wont'])
+    .optional()
+    .describe('New priority (update)'),
+  acceptance: z.string().optional().describe('New acceptance criteria text (update)'),
 
   // --- db maintenance fields ---
   dryRun: z.boolean().optional().describe('purge_orphans: report without deleting (default false)'),
@@ -128,6 +138,13 @@ export const ReqActionInputSchema = z.object({
       code: 'custom',
       path: ['query'],
       message: 'query is required for action "search"',
+    })
+  }
+  if (val.action === 'update' && !val.hash) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['hash'],
+      message: 'hash is required for action "update"',
     })
   }
   if (val.action === 'reset_gate' && !val.gateId) {
@@ -172,6 +189,10 @@ export const ReqActionOutputSchema = z.discriminatedUnion('action', [
     result: ReqTraceOutputSchema,
   }),
   z.object({
+    action: z.literal('update'),
+    result: ReqUpdateOutputSchema,
+  }),
+  z.object({
     action: z.literal('db_sync'),
     result: DbSyncOutputSchema,
   }),
@@ -208,6 +229,8 @@ export function getReqActionOutputSchema(action: string): z.ZodType {
       return ReqInheritOutputSchema
     case 'trace':
       return ReqTraceOutputSchema
+    case 'update':
+      return ReqUpdateOutputSchema
     case 'db_sync':
       return DbSyncOutputSchema
     case 'db_status':
