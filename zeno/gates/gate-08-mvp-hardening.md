@@ -7,7 +7,7 @@ zeno:
   status: pending
   hash: g08harden
   created_at: '2026-03-14'
-  depends_on: []
+  depends_on: [gate-07]
   phases:
     - MVP
 ---
@@ -135,14 +135,14 @@ See subsystem status table in Overview. Key files:
 
 ### Project Requirements (Attributed to This Gate)
 
-| Hash    | Name                          | Type         | Priority | How This Gate Addresses It                                    |
-| ------- | ----------------------------- | ------------ | -------- | ------------------------------------------------------------- |
-| #[hash] | Shell-Based Quality Checks    | functional   | must     | ShellValidationRunner invokes ESLint, tsc, Vitest, npm audit  |
-| #[hash] | Approval Audit Trail          | functional   | must     | SQLite table logs all approval decisions with context          |
-| #[hash] | Isolated Parallel Development | functional   | must     | Worktrees enable isolated proposal implementation              |
-| #[hash] | Atomic Commits                | functional   | must     | Structured commit messages with proposal hash references       |
-| #[hash] | Requirement Traceability      | functional   | must     | Transfer preserves parent-child relationships during replan    |
-| #[hash] | Rescope Audit                 | functional   | should   | History log tracks all replan events with before/after snapshots |
+| Hash                 | Name                                              | Type            | Priority | How This Gate Addresses It                                                       |
+| -------------------- | ------------------------------------------------- | --------------- | -------- | -------------------------------------------------------------------------------- |
+| #e1c0bf4e09c47b85   | Maintain 90% or higher test coverage              | non_functional  | must     | E2E integration tests for all 4 subsystems maintain ≥90% coverage                |
+| #1896540582268f73   | Zero known security vulnerabilities               | non_functional  | must     | Shell runner invokes `npm audit`; WorktreeManager validates paths to prevent traversal |
+| #cefa008f80de78d8   | Support requirement transfer between gates        | functional      | should   | RequirementTransferService implements cross-gate transfer preserving parent-child refs |
+| #10a621a3715172ae   | Expose all operations as MCP tools                | functional      | must     | Worktree operations and audit-trail queries exposed as new MCP tools              |
+| #9fc8ed09586f6ee2   | TypeScript strict mode with zero type errors      | non_functional  | must     | All new components (ShellValidationRunner, WorktreeManager, etc.) maintain strict mode |
+| #4bc74e36854c4221   | Lightweight SQLite schema with no server dependency | constraint    | must     | `approval_events` and `rescope_events` tables added via migration to existing registry.db |
 
 ### Gate-Specific Requirements
 
@@ -164,28 +164,36 @@ Individual tasks are created during proposal generation.
 
 ### Proposal Status
 
-| Proposal        | Hash    | Status  | Notes            |
-| --------------- | ------- | ------- | ---------------- |
-| [proposal-name] | #[hash] | pending | [Optional notes] |
+| Proposal                          | Hash      | Status  | Notes                               |
+| --------------------------------- | --------- | ------- | ----------------------------------- |
+| 01-shell-validation-runner        | pending   | pending | Generated when gate is started      |
+| 02-approval-audit-trail           | pending   | pending | Generated when gate is started      |
+| 03-worktree-manager               | pending   | pending | Depends on 01 (validation pipeline) |
+| 04-commit-messages-and-tagging    | pending   | pending | Depends on 03 (worktree lifecycle)  |
+| 05-rescope-hardening              | pending   | pending | Generated when gate is started      |
+| 06-e2e-integration-tests          | pending   | pending | Depends on 01, 02, 04, 05           |
 
 ### Proposal Dependency Graph
 
 ```mermaid
 graph LR
-    P1["01 Shell Validation Runner"]
-    P2["02 Approval Audit Trail"]
-    P3["03 Worktree Manager"] --> P1
-    P4["04 Commit Messages & Tagging"] --> P3
-    P5["05 Rescope Hardening"]
-    P6["06 E2E Integration Tests"] --> P1
-    P6 --> P2
-    P6 --> P4
-    P6 --> P5
+    shellValidationRunner["01 Shell Validation Runner"]
+    approvalAuditTrail["02 Approval Audit Trail"]
+    worktreeManager["03 Worktree Manager"]
+    commitMessagesTagging["04 Commit Messages & Tagging"]
+    rescopeHardening["05 Rescope Hardening"]
+    e2eIntegrationTests["06 E2E Integration Tests"]
+    shellValidationRunner --> worktreeManager
+    worktreeManager --> commitMessagesTagging
+    shellValidationRunner --> e2eIntegrationTests
+    approvalAuditTrail --> e2eIntegrationTests
+    commitMessagesTagging --> e2eIntegrationTests
+    rescopeHardening --> e2eIntegrationTests
 ```
 
 ### High-Level Delta (Gate Completion Summary)
 
-[To be populated on gate completion.]
+Populated after gate completion. Will summarise all four subsystem gaps closed: ShellValidationRunner, ApprovalAuditTrail, WorktreeManager, and RescopeHistoryTracker, along with E2E test results.
 
 ---
 
@@ -252,6 +260,54 @@ graph LR
 - **Impact**: Safety-first approach for in-progress gates
 - **Trade-offs**: Gained safety; requires user confirmation for mid-gate replan
 
+### 7. WorktreeManager Abstracts Raw Git Fallbacks
+
+- **Choice**: `WorktreeManager` hides whether a call uses the `simple-git` typed API or `.raw(['worktree', ...])`. The public interface (`create`, `list`, `remove`, `prune`, `merge`) never leaks this detail.
+- **Alternatives Considered**: Expose a `rawMode` flag on each call
+- **Rationale**: Callers should not need to know which operations are covered by the typed API vs. the raw fallback. Abstraction makes the interface stable if `simple-git` adds typed coverage later.
+- **Impact**: Uniform call site regardless of underlying implementation
+- **Trade-offs**: Gained stable public API; internal implementation carries the complexity
+
+### 8. Extended `commitFormat` Token Set (`%g`, `%h`)
+
+- **Choice**: Extend the token interpolation set with `%g` (gate ID) and `%h` (proposal hash). Default format in `.zeno/config.json` becomes `feat(%g/%h): %m`.
+- **Alternatives Considered**: Unconditionally append gate/hash after the user-configured format string
+- **Rationale**: Token extension lets authors choose how gate ID and proposal hash appear (scope, body, omitted). Unconditional appending would produce non-standard commit shapes without user control.
+- **Impact**: `CommitMessageGenerator` interpolates `%g` and `%h` in addition to existing `%s`/`%m` tokens
+- **Trade-offs**: Gained flexibility; existing `commitFormat` values with `%s` remain valid without migration
+
+### 9. Audit Trail Records Git Identity
+
+- **Choice**: `approval_events.approver` stores the git `user.name`; `approver_email` stores `user.email` as a secondary field.
+- **Alternatives Considered**: Enum literals `"human"` / `"agent"`, LLM model string
+- **Rationale**: Solo projects grow. Recording the real git identity means the audit trail stays meaningful when new contributors join, without requiring a schema migration.
+- **Impact**: `ApprovalAuditTrail` reads git config for identity at record time
+- **Trade-offs**: Gained future-proof identity; requires git config to be set in the working environment
+
+### 10. Worktrees Mandatory in Solitary Mode
+
+- **Choice**: The `solitary` flag in `proposal_action:start` no longer suppresses worktree creation from gate-08 onwards. All proposals — solitary or otherwise — follow the same worktree lifecycle.
+- **Alternatives Considered**: Skip worktrees in solitary mode for speed
+- **Rationale**: Consistency reduces cognitive overhead. Solitary work can also benefit from isolation, and the same approval/merge path works regardless of mode.
+- **Impact**: `proposal_action:start` always calls `WorktreeManager.create()`; removes the conditional branch
+- **Trade-offs**: Gained consistency; minimal extra disk use for solitary proposals
+
+### 11. Rescope Snapshots Capture Source Files, Not the Derived DB
+
+- **Choice**: `rescope_events` snapshots serialise `.zeno/config.json` (project-level requirements, authoritative) and each gate markdown file. `registry.db` is excluded because it is derived from those files and can be rebuilt at any time.
+- **Alternatives Considered**: Full DB dump, compact hash diff
+- **Rationale**: The config JSON is the authoritative source for project-level requirements and must be edited carefully. The DB is ephemeral. Capturing the true source of truth makes snapshots self-contained and portable even if the DB is wiped.
+- **Impact**: `RescopeHistoryTracker` reads config JSON + gate files; snapshot stored as JSON `{config: {...}, gates: {gateId: markdownString}}`
+- **Trade-offs**: Gained portability and accuracy; snapshot size proportional to number of gates
+
+### 12. E2E Fixture Project in `tests/fixtures/fixture-project/`
+
+- **Choice**: A minimal, static Node.js/TypeScript project is committed at `tests/fixtures/fixture-project/`. It contains the minimum files needed for ESLint, tsc, and Vitest to run (package.json, tsconfig.json, eslint.config.mjs, a source file, a test file).
+- **Alternatives Considered**: Generate fixture at test time, use the Zenos-Planner repo itself
+- **Rationale**: A version-controlled fixture is deterministic and fast. The main repo is too large and its state changes during development, making E2E results unpredictable.
+- **Impact**: E2E tests point `ShellValidationRunner` at `tests/fixtures/fixture-project/`; fixture is maintained alongside tests
+- **Trade-offs**: Gained determinism and speed; fixture must be kept in sync with tool version requirements
+
 ## Architecture Updates
 
 ### Components Modified or Created
@@ -269,6 +325,7 @@ graph LR
   - Purpose: Record and query approval decisions in SQLite
   - Changes: New component
   - Interfaces: `record(event): void`, `list(proposalHash?): AuditEvent[]`
+  - `AuditEvent` fields: `approver` (git user.name), `approver_email` (git user.email), `timestamp`, `action` (approve|reject), `reason`, `rejection_category?`
 
 - **WorktreeManager** (`src/git/worktree-manager.ts`)
   - Purpose: Create, remove, list, prune, merge worktrees
@@ -382,6 +439,44 @@ graph LR
    - Worktree lifecycle test (start → create → merge → cleanup)
    - Replan lifecycle test (trigger → regenerate → transfer → history)
 
+## Open Questions
+
+1. **`simple-git` worktree API coverage** — `simple-git` exposes `worktree.add()` but `worktree.list()`, `worktree.remove()`, and `worktree.prune()` may require raw git calls via `.raw(['worktree', ...])`. Which operations need the raw fallback, and should `WorktreeManager` abstract that detail or expose it explicitly?
+   - **[x] Resolved**: Abstract. `WorktreeManager` hides whether a given operation uses the `simple-git` typed API or falls back to `.raw(['worktree', ...])`. Callers never deal with this distinction.
+
+2. **`commitFormat` token set** — The existing format `feat(%s): %m` uses `%s` for scope and `%m` for message. The structured commit generator needs to interpolate gate ID and proposal hash as well. Should the token set be extended (e.g., `%g` = gate ID, `%h` = proposal hash) or should the generator always append them unconditionally after the configured format?
+   - **[x] Resolved**: Extend the token set. Add `%g` (gate ID) and `%h` (proposal hash) so authors can configure `feat(%g/%h): %m` or any other combination. The default `commitFormat` in `.zeno/config.json` will be updated to `feat(%g/%h): %m`.
+
+3. **Audit trail approver identity** — In a solo/AI-agent workflow there is no separate human approver account. Should `approval_events.approver` record the git user name, the LLM model string, or always the literal `"human"` / `"agent"` enum? This affects how the audit trail is queried and displayed.
+   - **[x] Resolved**: Record the git `user.name` (and `user.email` as secondary field). Solo projects may onboard additional contributors over time, so a real identity from the git stream keeps the audit trail useful and accurate for any team size.
+
+4. **Shell runner in solitary mode** — `proposal_action:start` currently has a `solitary` flag that skips some lifecycle steps. Should `ShellValidationRunner` and worktree creation be skipped in solitary mode, or is worktree use mandatory from gate-08 onwards regardless of mode?
+   - **[x] Resolved**: Worktree creation is mandatory from gate-08 regardless of solitary mode. Solitary proposals follow the same worktree lifecycle as gate proposals. The `solitary` flag no longer suppresses worktree steps.
+
+5. **`rescope_events` snapshot fidelity** — "Before/after snapshots" could mean a full JSON dump of gates + requirements (high fidelity, potentially large) or a compact diff of changed hashes (small, but loses context if the PRD also changes). Which representation should the `rescope_events` table store?
+   - **[x] Resolved**: Snapshot the source-of-truth files only — the `.zeno/config.json` (project-level requirements live here and must be edited carefully) and the gate markdown files. The `registry.db` is derived/ephemeral and can be regenerated by re-parsing gate files, so it is excluded from snapshots. Store the snapshot as a compact JSON document containing the serialised config + a map of `gateId → gateFile content`.
+
+6. **E2E test isolation** — The E2E tests must spawn real child processes (ESLint, tsc, Vitest). Should they run against a dedicated minimal fixture project (deterministic, fast) or against the Zenos-Planner repo itself (realistic, slower, tightly coupled to repo state)? The fixture approach is preferred but needs a decision on whether the fixture lives inside `tests/fixtures/` or is generated at test time.
+   - **[x] Resolved**: A minimal fixture project lives inside this repo at `tests/fixtures/fixture-project/`. It is a static, version-controlled minimal Node.js/TypeScript project with just enough files for ESLint, tsc, and Vitest to run deterministically. Generated-at-test-time fixtures are excluded.
+
+## Risks & Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+| ---- | ---------- | ------ | ---------- |
+| `simple-git` worktree API incomplete or version-incompatible | Low | High | Pin simple-git version; add integration tests against real git repo; fall back to `execFile('git', ...)` if needed |
+| Shell runner timeouts during CI (slow ESLint/tsc on large codebases) | Medium | Medium | Per-tool configurable timeout (default 30s); parallelise tool invocations; skip individual tools on timeout with warning |
+| SQLite schema migration failure mid-gate (approval_events / rescope_events) | Low | High | Run migration in a transaction; roll back on failure; add migration idempotency guard |
+| Merge conflicts when combining worktree branch into main | Medium | Medium | Detect conflicts before merge and surface structured error; document manual resolution path |
+| Mid-gate rescope while proposals have active worktrees | Low | High | `--force` guard prevents accidental overwrites; preserved worktrees allow recovery |
+
+## Known Issues & Limitations
+
+- **Rebase merge not supported (MVP)**: worktree branches are always merged (not rebased). Rebase strategy is deferred to a post-MVP gate.
+- **Git-native only**: no GitHub/GitLab API integration. Operations use local git commands only.
+- **Shell runner requires tool installation**: ESLint, tsc, Vitest, c8, and npm must be installed in the target project. Missing tools produce a structured skip result rather than an error.
+- **Automatic conflict resolution not in scope**: merge conflicts require manual intervention; Zeno detects and reports them but does not resolve them.
+- **Single-threaded SQLite writes**: concurrent proposal approvals share the same registry.db. Serialisation is handled by better-sqlite3's synchronous API; true parallelism requires a future migration to WAL mode + connection pooling.
+
 ## Gate Completion Criteria
 
 - [ ] Shell validation runner invokes all 5 tools and produces structured reports
@@ -416,8 +511,8 @@ Gate 09 (Documentation & Polish) cleans up README, CLI/MCP references, and AGENT
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: 2026-03-14
+**Document Version**: 1.1.0
+**Last Updated**: 2026-03-15
 **Versioning**: SemVer; bump on any change (minimum: PATCH).
 **Owner**: Zeno
 **Reviewers**: Zeno
@@ -426,6 +521,7 @@ Gate 09 (Documentation & Polish) cleans up README, CLI/MCP references, and AGENT
 
 | Version | Date       | Summary                                                         | Author |
 | ------- | ---------- | --------------------------------------------------------------- | ------ |
+| 1.1.0   | 2026-03-15 | Resolved all 6 open questions; added TDs 7-12; fixed depends_on; added AuditEvent fields | Zeno |
 | 1.0.0   | 2026-03-14 | Consolidated from original gates 08-11; scoped to remaining delta | Zeno   |
 
 **Related Documents**:

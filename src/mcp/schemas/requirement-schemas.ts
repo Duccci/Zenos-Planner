@@ -191,7 +191,7 @@ export type ReqTransferInput = z.infer<typeof ReqTransferInputSchema>
 
 export const ReqTransferOutputSchema = z.object({
   hash: RequirementHashSchema,
-  previousGateId: GateIdSchema,
+  previousGateId: GateIdSchema.nullable(),
   newGateId: GateIdSchema,
   transferredAt: TimestampSchema,
   affectedProposals: z.array(z.string()).optional(),

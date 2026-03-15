@@ -108,9 +108,10 @@ Individual tasks are created during proposal generation.
 
 ```mermaid
 graph LR
-    hash1["01 README & CLI Audit"]
-    hash2["02 AGENTS.md Updates"] --> hash1
-    hash3["03 JSDoc & Error Messages"]
+    readmeCliAudit["01 README & CLI Audit"]
+    agentsMdUpdates["02 AGENTS.md Updates"]
+    jsdocErrorMessages["03 JSDoc & Error Messages"]
+    readmeCliAudit --> agentsMdUpdates
 ```
 
 ### High-Level Delta (Gate Completion Summary)
