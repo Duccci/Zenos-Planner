@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS gates (
   name                   TEXT      NOT NULL,
   description            TEXT,
   status                 TEXT      NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'in_progress', 'completed', 'rejected')),
+    CHECK (status IN ('pending', 'validated', 'in_progress', 'completed', 'rejected')),
   type                   TEXT      NOT NULL DEFAULT 'feature'
     CHECK (type IN ('feature', 'quality', 'rescope')),
   completion_description TEXT,

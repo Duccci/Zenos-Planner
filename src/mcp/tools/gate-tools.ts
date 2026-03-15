@@ -317,7 +317,18 @@ export function gateHandlers(
 
           // When all checks pass, advance gate status to 'validated'
           if (passed && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
-            await r.invoke('gates_set_validated', { gateId }).catch(() => { /* best-effort */ })
+            const setValidatedResult = await r.invoke('gates_set_validated', { gateId })
+            if (!setValidatedResult.success) {
+              return {
+                success: false,
+                error: {
+                  code: 'DB_STATUS_UPDATE_FAILED',
+                  message:
+                    `Structural checks passed but failed to persist 'validated' status for gate ${gateId}: ` +
+                    setValidatedResult.error.message,
+                },
+              }
+            }
           }
 
           if (passed) {

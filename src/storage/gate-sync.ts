@@ -49,7 +49,7 @@ interface ParsedGateMeta {
 /** DB-safe subset of gate status values. */
 const DB_STATUS_MAP: Record<string, string> = {
   pending: 'pending',
-  validated: 'pending',    // validated lives in project-overview.json, not DB
+  validated: 'validated',  // DB now supports 'validated'; previously mapped to 'pending'
   in_progress: 'in_progress',
   completed: 'completed',
   rejected: 'rejected',

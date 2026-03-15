@@ -115,14 +115,14 @@ describe('gate-sync', () => {
     expect(result.synced).toBe(0)
   })
 
-  it('normalizes status validated → pending', async () => {
+  it('normalizes status validated → validated (DB now supports it)', async () => {
     const validatedGate = GATE_WITH_FM.replace('status: pending', 'status: validated')
     await writeFile(join(GATES_DIR, 'gate-01-infrastructure.md'), validatedGate)
     const db = getDatabase(TEST_DIR)
     syncGatesFromDisk(db, TEST_DIR)
     const row = db.prepare('SELECT status FROM gates WHERE id = ?').get('gate-01') as
       { status: string } | undefined
-    expect(row?.status).toBe('pending')
+    expect(row?.status).toBe('validated')
   })
 
   it('normalizes status cancelled → rejected', async () => {

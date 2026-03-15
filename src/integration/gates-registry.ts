@@ -239,13 +239,9 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         // DB unavailable — fall back to empty proposals
       }
 
-      // DB is authoritative for lifecycle state (see gate-sync.ts).
-      // The overview file can lag behind (e.g. DB has 'completed' but
-      // overview still lists the gate under currentGateInfo as 'in_progress').
-      // Override status and completedAt for states the DB owns exclusively:
-      //   in_progress, completed, rejected.
-      // Leave 'pending' alone — it maps from pending/validated/backlog in the
-      // overview and those distinctions are lost in the DB column.
+      // DB is authoritative for lifecycle state. Use DB status for all non-pending
+      // states. For 'pending', the overview may carry more granularity (e.g. the
+      // gate was never touched since init), so fall back to the overview value.
       let effectiveStatus: typeof gate.status = gate.status
       let effectiveCompletedAt: string | null = gate.completedAt
       let prdGenerated = true // default: assume generated unless DB says otherwise
@@ -256,7 +252,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           .get(normalizedId) as { status: string; completed_at: string | null; description: string | null; prd_generated_at: string | null } | undefined
         if (dbRow) {
           if (dbRow.status !== 'pending') {
-            // 'pending' in DB can represent validated/backlog — don't override those.
+            // DB has a lifecycle state that overrides the overview value.
             effectiveStatus = dbRow.status as typeof gate.status
             effectiveCompletedAt = dbRow.completed_at
           }

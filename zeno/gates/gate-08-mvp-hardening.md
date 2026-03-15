@@ -4,7 +4,7 @@ zeno:
   name: MVP Hardening
   sequence: 8
   type: feature
-  status: pending
+  status: valdidated
   hash: g08harden
   created_at: '2026-03-14'
   depends_on: [gate-07]

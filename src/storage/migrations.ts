@@ -93,6 +93,77 @@ function patchProposalStatusConstraint(db: Database.Database): void {
 }
 
 /**
+ * Patch the gates table to add 'validated' to its status CHECK constraint.
+ *
+ * The original schema only allowed ('pending', 'in_progress', 'completed', 'rejected').
+ * gates_action:validate needs to persist 'validated' to the DB so that the
+ * state-transition validator in gates_action:start reads the correct status.
+ *
+ * SQLite does not support ALTER TABLE ... MODIFY COLUMN, so we rebuild the table.
+ */
+function patchGatesStatusConstraint(db: Database.Database): void {
+  const row = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='gates'")
+    .get() as { sql: string } | undefined
+
+  if (!row) return // Table will be created by schema.sql with the correct schema
+
+  // If the constraint already includes 'validated' we're done.
+  if (row.sql.includes("'validated'")) return
+
+  db.transaction(() => {
+    // 1. Rename the existing table
+    db.exec('ALTER TABLE gates RENAME TO gates_v1')
+
+    // 2. Create replacement with the updated constraint
+    db.exec(`
+      CREATE TABLE gates (
+        id                     TEXT      PRIMARY KEY,
+        project_id             TEXT      DEFAULT 'default-project',
+        sequence               INTEGER   NOT NULL,
+        name                   TEXT      NOT NULL,
+        description            TEXT,
+        status                 TEXT      NOT NULL DEFAULT 'pending'
+          CHECK (status IN ('pending', 'validated', 'in_progress', 'completed', 'rejected')),
+        type                   TEXT      NOT NULL DEFAULT 'feature'
+          CHECK (type IN ('feature', 'quality', 'rescope')),
+        completion_description TEXT,
+        proposal_hashes        TEXT,
+        depends_on             TEXT,
+        hash                   TEXT      UNIQUE NOT NULL,
+        created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at             TIMESTAMP,
+        completed_at           TIMESTAMP,
+        started_at             TIMESTAMP,
+        prd_generated_at       TIMESTAMP,
+        created_by             TEXT,
+        completed_by           TEXT,
+        started_by             TEXT
+      )
+    `)
+
+    // 3. Copy all rows — coerce any status values not in the new constraint
+    //    (should not happen in practice, but guards against edge cases)
+    db.exec(`
+      INSERT INTO gates SELECT
+        id, project_id, sequence, name, description,
+        CASE status
+          WHEN 'cancelled' THEN 'rejected'
+          WHEN 'backlog'   THEN 'pending'
+          ELSE status
+        END,
+        type, completion_description, proposal_hashes, depends_on, hash,
+        created_at, updated_at, completed_at, started_at, prd_generated_at,
+        created_by, completed_by, started_by
+      FROM gates_v1
+    `)
+
+    // 4. Drop the old table
+    db.exec('DROP TABLE gates_v1')
+  })()
+}
+
+/**
  * Add prd_generated_at column to gates table if it doesn't exist.
  * Tracks when the gate PRD markdown file was first generated, separate from
  * the gate being planned (inserted with name + goal only).
@@ -184,6 +255,7 @@ export async function runMigrations(
   patchProposalStatusConstraint(db)
   patchProposalsParallelSetIndex(db)
   patchGatesPrdGeneratedAt(db)
+  patchGatesStatusConstraint(db)
 
   try {
     db.exec(sql)
