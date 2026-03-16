@@ -288,7 +288,7 @@ export const GATE_GENERATION_WORKFLOW: WorkflowStep[] = [
       'Assess which gates are completed, in_progress, or pending. For rescope scenarios, identify the boundary between past work and future gates.',
     actions: [
       'gates_action:list',
-      'gates_action:show <id> for each in_progress gate',
+      'gates_action:show <hash> for each in_progress gate (hash field from gates_list response)',
       'zeno req deps <hash> for requirements with complicated dependencies',
     ],
     errorHandling:
@@ -370,7 +370,7 @@ export const GATE_GENERATION_WORKFLOW: WorkflowStep[] = [
     description:
       'Present a summary of all generated or updated gates: IDs, titles, objectives, dependencies, and next steps.',
     actions: [
-      'List each gate: gateId, title, status, key objectives, gateFile path',
+      'List each gate: hash, gateId, title, status, key objectives, gateFile path',
       'Identify which gate is the recommended starting point',
     ],
     guidance:
@@ -389,9 +389,9 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     description:
       'Before archiving, verify the gate is completed: all proposals done, all requirements at "tested" status, all quality gates met.',
     actions: [
-      'gates_action:show { gateId } — check status === "completed"',
-      'zeno req list --gate <gateId> — verify all requirements are "tested"',
-      'proposal_action:list { gateId } — verify all proposals are "completed" or "archived"',
+      'gates_action:show { gateId: "<hash from gates_list>" } — check status === "completed"',
+      'zeno req list --gate <hash from gates_list> — verify all requirements are "tested"',
+      'proposal_action:list { gateId: "<hash from gates_list>" } — verify all proposals are "completed" or "archived"',
     ],
     errorHandling:
       'If gate is not completed, or requirements are not tested, report what is incomplete and stop.',
@@ -422,7 +422,7 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     title: 'Archive Gate to Completed Directory',
     description:
       'Call gates_action:complete to transition the gate to completed status and move proposal artifacts to archive.',
-    actions: ['gates_action:complete { gateId }'],
+    actions: ['gates_action:complete { gateId: "<hash from gates_list>" }'],
     guidance: 'Archived artifacts are immutable; create a new proposal if changes are needed.',
   },
   {

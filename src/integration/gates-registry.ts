@@ -102,6 +102,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       return {
         gates: summaries.map((g) => ({
           id: g.id,
+          hash: g.hash,
           name: g.name,
           description: descriptionMap[g.id] ?? 'No description',
           sequence: g.sequence,
@@ -268,6 +269,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       return {
         id: gate.id,
+        hash: gate.hash,
         name: gate.name,
         description,
         sequence: gate.sequence,
@@ -287,7 +289,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         {
           name: 'gateId',
           type: 'string',
-          description: 'The ID of the gate to show (e.g., "gate-01")',
+          description: 'Gate hash (preferred, use hash field from gates_list) or gate ID (e.g., "gate-01")',
           required: true,
         },
       ],
