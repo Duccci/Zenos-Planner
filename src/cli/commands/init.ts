@@ -13,6 +13,7 @@ import { generateGates } from '../../core/gate-generator.js'
 import { directoryExists } from '../../utils/file.js'
 import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig } from '../../utils/config.js'
 import { initializeDatabase } from '../../storage/database.js'
+import { isZenoSubmodule, addZenoSubmodule } from '../../utils/git.js'
 
 /**
  * Validate project name
@@ -43,25 +44,46 @@ function validateCodebasePath(path: string): boolean | string {
 /**
  * Run the initialization workflow
  */
-async function runInitWorkflow(projectName: string, endState: string): Promise<void> {
+async function runInitWorkflow(
+  projectName: string,
+  endState: string,
+  submoduleUrl?: string
+): Promise<void> {
   const projectRoot = process.cwd()
 
   logger.info('Initializing Zeno project...')
   logger.info(`Project: ${projectName}`)
   logger.info(`Root: ${projectRoot}`)
 
+  // 0. Set up submodule if requested (runs before createProjectStructure so
+  //    the mounted zeno/ directory is present when scaffold checks for it)
+  if (submoduleUrl) {
+    logger.info(`Adding zeno submodule from ${submoduleUrl}...`)
+    await addZenoSubmodule(submoduleUrl, projectRoot)
+    logger.info('Submodule added — zeno/ is now a separate git repository')
+  }
+
+  // Detect whether zeno/ is a submodule (explicit --submodule flag or pre-existing)
+  const usingSubmodule = submoduleUrl !== undefined || isZenoSubmodule(projectRoot)
+  if (usingSubmodule && !submoduleUrl) {
+    logger.info('Detected existing zeno/ git submodule — enabling submodule mode')
+  }
+
   // 1. Create project structure
   logger.info('Creating project structure...')
   const createdPaths = await createProjectStructure(projectRoot)
   logger.info(`Created ${createdPaths.length.toString()} directories/files`)
 
-  // 2. Update config with project name and end state
+  // 2. Update config with project name, end state, and submodule flag
   const config = getDefaultConfig(projectName, endState)
+  if (usingSubmodule) {
+    config.zenoSubmodule = true
+  }
   await saveConfig(config, projectRoot)
 
   // 3. Initialize database
   logger.info('Initializing database...')
-  await initializeDatabase(projectRoot)
+  await initializeDatabase(projectRoot, { syncRequirements: true })
 
   // 4. Generate project requirements
   logger.info('Generating project requirements...')
@@ -93,6 +115,10 @@ export function registerInitCommand(program: Command): void {
     .command('init')
     .description('Initialize a new Zeno project')
     .option('-f, --force', 'Force reinitialization even if project is already initialized')
+    .option(
+      '-s, --submodule <url>',
+      'URL of a remote git repo to mount as the zeno/ submodule (runs git submodule add <url> zeno)'
+    )
     .action(async (options) => {
       try {
         logger.info("Welcome to Zeno's Planner!")
@@ -169,7 +195,7 @@ export function registerInitCommand(program: Command): void {
           return
         }
 
-        await runInitWorkflow(projectName, endState)
+        await runInitWorkflow(projectName, endState, (options as { submodule?: string }).submodule)
       } catch (error) {
         if (error instanceof Error && error.name === 'ExitPromptError') {
           logger.info('Initialization cancelled')

@@ -20,7 +20,7 @@ import {
 } from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
 import { replanGates } from '../../core/gate-generator.js'
-import { updateCurrentGateInState } from '../../utils/state-sync.js'
+import { updateCurrentGateInState, syncProjectMetadataToState, syncUpcomingGatesToState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 import { invokeGatesAction } from '../cli-tool-invoker.js'
 import { type GateStatus, GATE_TRANSITIONS, validateTransition } from '../../core/transitions.js'
@@ -566,6 +566,12 @@ export function registerGatesCommands(program: Command): void {
           } else {
             logger.info(`Wrote: ${result.filesWritten[0] ?? result.gatesAffected[0] ?? ''}`)
             logger.info('Gate MD cleared and re-rendered from template. Status reset to pending.')
+            try {
+              const overview = await readProjectOverview()
+              await syncProjectMetadataToState(overview)
+            } catch {
+              logger.debug('state.json sync skipped after single-gate replan (non-fatal).')
+            }
           }
           return
         }
@@ -606,6 +612,11 @@ export function registerGatesCommands(program: Command): void {
         })
 
         if (apply) {
+          try {
+            await syncUpcomingGatesToState(suggestions.suggestedGates)
+          } catch {
+            logger.debug('state.json sync skipped after multi-gate replan (non-fatal).')
+          }
           logger.info('Gates regenerated successfully')
           logger.info('Run "zeno gates list" to view updated gates')
         } else {

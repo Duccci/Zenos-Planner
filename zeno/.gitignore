@@ -1,0 +1,8 @@
+# Runtime database - rebuilt from JSON manifests on startup
+.zeno/registry.db
+.zeno/registry.db-wal
+.zeno/registry.db-shm
+.zeno/registry.db.backup
+
+# MCP server PID
+.zeno/mcp.pid

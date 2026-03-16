@@ -365,6 +365,61 @@ export async function upsertPlannedGateInState(
 }
 
 /**
+ * Sync upcoming gates to state.json from a multi-gate replan result.
+ *
+ * Replaces upcomingGates with the suggested gate list (excluding already-completed
+ * sequences) and updates totalGatesPlanned.  Preserves existing hash/metadata for
+ * gates that already have an entry so we don't lose data on repeated replans.
+ *
+ * Called after `replanGates` (multi-gate mode) is applied.
+ */
+export async function syncUpcomingGatesToState(
+  suggestedGates: { id: string; sequence?: number; name: string; description?: string }[],
+  projectRoot: string = process.cwd()
+): Promise<void> {
+  try {
+    const state = await readState(projectRoot)
+    if (!state) {
+      logger.warn('state.json not found, skipping upcoming gates sync')
+      return
+    }
+
+    const completedSequences = new Set(state.gates.map((g) => g.sequence))
+
+    state.upcomingGates = suggestedGates
+      .map((g) => ({
+        ...g,
+        sequence: g.sequence ?? (parseInt(/\d+/.exec(g.id)?.[0] ?? '0', 10)),
+      }))
+      .filter((g) => !completedSequences.has(g.sequence))
+      .map((g) => {
+        const existing = state.upcomingGates.find(
+          (e) => e.id === g.id || e.sequence === g.sequence
+        )
+        return {
+          id: g.id,
+          sequence: g.sequence,
+          name: g.name,
+          goal: existing?.goal ?? g.description ?? '',
+          hash: existing?.hash ?? g.id.replace('gate-', 'g'),
+          prdGenerated: existing?.prdGenerated ?? false,
+          estimatedComplexity: existing?.estimatedComplexity ?? 'high',
+        }
+      })
+
+    state.project.totalGatesPlanned = state.gates.length + state.upcomingGates.length
+    state.lastUpdated = new Date().toISOString()
+
+    await writeState(state, projectRoot)
+    logger.debug(`Synced ${String(state.upcomingGates.length)} upcoming gates to state.json`)
+  } catch (error) {
+    logger.warn(
+      `Failed to sync upcoming gates to state.json: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+}
+
+/**
  * Mark a planned gate's PRD as generated in state.json.
  *
  * Called by gate_create after the PRD markdown file has been written.

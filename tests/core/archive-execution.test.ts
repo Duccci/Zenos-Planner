@@ -10,6 +10,12 @@ vi.mock('../../src/utils/git.js', () => ({
   createTag: vi.fn().mockResolvedValue(undefined),
   commit: vi.fn().mockResolvedValue(undefined),
   pushCurrentBranch: vi.fn().mockResolvedValue(undefined),
+  updateSubmodulePointer: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('../../src/utils/config.js', () => ({
+  loadConfig: vi.fn().mockResolvedValue({ zenoSubmodule: false }),
+  getZenoGitDir: vi.fn((root: string) => root),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -66,9 +72,9 @@ describe('archive-execution coverage', () => {
         remote: 'origin',
       })
 
-      expect(createTag).toHaveBeenCalledWith('v1.0.0', 'Archive v1.0.0')
-      expect(commit).toHaveBeenCalledWith('release v1.0.0', ['file1.ts', 'file2.ts'])
-      expect(pushCurrentBranch).toHaveBeenCalledWith('origin')
+      expect(createTag).toHaveBeenCalledWith('v1.0.0', 'Archive v1.0.0', expect.any(String))
+      expect(commit).toHaveBeenCalledWith('release v1.0.0', ['file1.ts', 'file2.ts'], expect.any(String))
+      expect(pushCurrentBranch).toHaveBeenCalledWith('origin', expect.any(String))
     })
 
     it('should commit without tag', async () => {
@@ -80,7 +86,7 @@ describe('archive-execution coverage', () => {
       })
 
       expect(createTag).not.toHaveBeenCalled()
-      expect(commit).toHaveBeenCalledWith('no tag commit', ['file.ts'])
+      expect(commit).toHaveBeenCalledWith('no tag commit', ['file.ts'], expect.any(String))
     })
 
     it('should use default remote', async () => {
@@ -91,7 +97,7 @@ describe('archive-execution coverage', () => {
         files: [],
       })
 
-      expect(pushCurrentBranch).toHaveBeenCalledWith('origin')
+      expect(pushCurrentBranch).toHaveBeenCalledWith('origin', expect.any(String))
     })
 
     it('should continue if push fails', async () => {

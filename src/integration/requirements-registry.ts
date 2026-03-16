@@ -11,13 +11,13 @@
  */
 
 import { z } from 'zod'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { FunctionRegistry } from './function-registry.js'
 import { RequirementStorage } from '../generation/requirement-storage.js'
 import type { DependencyNode } from '../generation/dependency-graph.js'
 import type { RequirementType, RequirementPriority } from '../generation/types.js'
-import { getDatabase } from '../storage/database.js'
+import { getDatabase, getDatabasePath, closeDatabase, initializeDatabase } from '../storage/database.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { logger } from '../utils/logger.js'
 import { getWorkspaceRoot } from '../utils/config.js'
@@ -398,7 +398,8 @@ function collectDiskHashes(proposalsDir: string): Set<string> {
 
 export function registerRequirementsOps(registry: FunctionRegistry): void {
   // Unified requirement action handler: list | show | deps | transfer
-  registry.register(
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-arguments
+  registry.register<unknown>(
     'reg_action',
     (params) => {
       const validated = z.object({ action: z.string(), payload: z.any().optional() }).parse(params)
@@ -882,6 +883,35 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             resyncedCount,
             message: `Reset ${resolvedResetGateId}: deleted ${String(deletedCount)} rows, resynced ${String(resyncedCount)} proposals from disk.`,
           }
+        }
+
+        case 'regenerate': {
+          return (async () => {
+            const projectRoot = getWorkspaceRoot()
+            const dbPath = getDatabasePath(projectRoot)
+
+            // Close and release the singleton before deleting
+            closeDatabase()
+
+            // Remove DB and associated WAL/SHM files
+            for (const suffix of ['', '-wal', '-shm']) {
+              rmSync(dbPath + suffix, { force: true })
+            }
+
+            // Re-initialise exactly as the MCP server does on startup
+            const initResult = await initializeDatabase(projectRoot, {
+              syncGates: true,
+              syncProposals: true,
+              syncRequirements: true,
+            })
+
+            return {
+              removed: true,
+              dbPath,
+              migrationsApplied: initResult.migrationsApplied,
+              message: `Registry regenerated: DB removed and recreated at ${dbPath}. ${String(initResult.migrationsApplied)} migration(s) applied, gates/proposals/requirements synced from disk.`,
+            }
+          })()
         }
 
         default:

@@ -456,6 +456,21 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         } catch {
           // Non-fatal: roadmap update failure must not fail the replan
         }
+
+        // Sync state.json: single-gate syncs from project-overview; multi-gate syncs
+        // upcomingGates from the suggestions returned to the caller.
+        try {
+          const { syncProjectMetadataToState, syncUpcomingGatesToState } = await import('../utils/state-sync.js')
+          if (result.mode === 'single') {
+            const { readProjectOverview } = await import('../utils/config.js')
+            const overview = await readProjectOverview()
+            await syncProjectMetadataToState(overview)
+          } else if (result.suggestions) {
+            await syncUpcomingGatesToState(result.suggestions.suggestedGates)
+          }
+        } catch {
+          // Non-fatal: state.json sync failure must not fail the replan
+        }
       }
 
       return {

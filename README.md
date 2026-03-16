@@ -101,6 +101,54 @@ cd my-project
 zeno init
 ```
 
+### Using the `zeno/` Directory as a Shared Git Submodule
+
+By default `zeno init` creates a plain `zeno/` directory inside your project. If you use Zeno across multiple projects and want a **single centralized planning repo** that each implementation repo links to, you can mount `zeno/` as a git submodule.
+
+**Why this is useful:**
+
+- Planning artifacts (gates, proposals, requirements manifests) live in their own versioned repo
+- Implementation repos reference a specific commit of the planning data — no drift
+- The planning repo can be private while implementation repos are public (or vice versa)
+- All Zeno commits land in the planning repo's history; implementation commits land in the implementation repo's history
+
+**Set up a new project with a submodule:**
+
+```bash
+cd my-new-project
+zeno init --submodule https://github.com/you/my-project-plans.git
+```
+
+This runs `git submodule add <url> zeno` before scaffolding, sets `"zenoSubmodule": true` in `zeno/.zeno/config.json`, and from that point all artifact commits (gate archives, proposal approvals) are written to the planning repo's history. The parent repo receives a follow-up commit that updates the submodule pointer.
+
+**Attach a pre-existing planning repo:**
+
+```bash
+cd my-new-project
+git submodule add https://github.com/you/my-project-plans.git zeno
+zeno init   # auto-detects zeno/.git is a submodule gitfile → sets zenoSubmodule: true
+```
+
+**Clone a project that uses a submodule:**
+
+```bash
+git clone --recurse-submodules https://github.com/you/my-project.git
+# or, if already cloned:
+git submodule update --init
+```
+
+**Configuration flag:**
+
+`zeno/.zeno/config.json`
+
+```json
+{
+  "zenoSubmodule": true
+}
+```
+
+Setting `zenoSubmodule: true` manually has the same effect as using the flag — all subsequent Zeno operations will commit inside `zeno/` and update the parent pointer.
+
 ## Workflow
 
 Zeno's workflow consists of three phases: **Planning**, **Review**, and **Execution**. Gates flow through these phases iteratively until the project end goal is reached.
@@ -233,7 +281,7 @@ zeno gates complete gate-04
 
 ```text
 my-project/
-├── zeno/
+├── zeno/                       # Planning dir — plain folder OR git submodule (see below)
 │   ├── .zeno/                  # Internal state (version controlled)
 │   │   ├── config.json         # Project configuration
 │   │   ├── state.json          # Historical snapshot of gate progress (synced with workflow)
@@ -267,6 +315,7 @@ my-project/
 ```bash
 # Project
 zeno init                         # Initialize new project
+zeno init --submodule <url>       # Init with zeno/ as a git submodule
 zeno status                       # Show project overview
 zeno show <hash>                  # Resolve hash to entity
 zeno config                       # Show project configuration

@@ -11,6 +11,8 @@
  * This is a core principle of Zeno's architecture: quality gates are non-negotiable.
  */
 
+import { statSync } from 'node:fs'
+import { join } from 'node:path'
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
 import { GitError } from './errors.js'
 import { loadConfig } from './config.js'
@@ -349,6 +351,87 @@ export async function syncWithGit(options: {
 /**
  * Commit record for git traceability
  */
+/**
+ * Stage and commit the zeno/ submodule pointer in the parent repository.
+ *
+ * Call this after committing changes inside the submodule's own git repo so
+ * that the parent records the new HEAD of the submodule.
+ *
+ * @param parentDir - Parent repository root (default: process.cwd())
+ * @param message - Commit message for the pointer update
+ */
+export async function updateSubmodulePointer(
+  parentDir: string = process.cwd(),
+  message: string
+): Promise<void> {
+  try {
+    const git = getGit(parentDir)
+    await git.add('zeno')
+    const status: StatusResult = await git.status()
+    if (status.isClean()) {
+      return // submodule pointer unchanged, nothing to commit
+    }
+    await git.commit(message)
+  } catch (error) {
+    throw new GitError(
+      'Failed to update submodule pointer in parent repo',
+      'GIT_COMMIT_FAILED',
+      { parentDir, message },
+      error instanceof Error ? error : undefined
+    )
+  }
+}
+
+/**
+ * Detect whether the `zeno/` directory inside a project root is a git submodule.
+ *
+ * A submodule's working directory contains a `.git` FILE (not a directory) that
+ * points back into the parent's `.git/modules/<name>`. A plain directory would
+ * have no `.git` entry at all, or a `.git/` directory if it was accidentally
+ * `git init`-ed standalone.
+ *
+ * @param projectRoot - Parent repository root (default: process.cwd())
+ * @returns true when zeno/ is a mounted git submodule
+ */
+export function isZenoSubmodule(projectRoot: string = process.cwd()): boolean {
+  try {
+    const gitEntry = join(projectRoot, 'zeno', '.git')
+    const stat = statSync(gitEntry)
+    return stat.isFile() // submodule gitfile, not a directory
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Register a remote URL as the `zeno/` git submodule in the parent repository.
+ *
+ * Equivalent to: git submodule add <url> zeno
+ *
+ * The caller is responsible for ensuring the parent is a git repository and
+ * that `zeno/` does not already exist as a plain directory.
+ *
+ * @param url - Remote URL of the planning repo to use as the submodule
+ * @param parentDir - Parent repository root (default: process.cwd())
+ */
+export async function addZenoSubmodule(
+  url: string,
+  parentDir: string = process.cwd()
+): Promise<void> {
+  try {
+    const git = getGit(parentDir)
+    // simple-git exposes raw git commands via `raw()`
+    await git.raw(['submodule', 'add', url, 'zeno'])
+  } catch (error) {
+    throw new GitError(
+      `Failed to add zeno submodule from ${url}`,
+      'GIT_COMMIT_FAILED',
+      { url, parentDir },
+      error instanceof Error ? error : undefined
+    )
+  }
+}
+
 export interface CommitRecord {
   commitSha: string
   author: string

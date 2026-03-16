@@ -11,6 +11,7 @@ import { FileSystemError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
 import { getDefaultConfig } from '../utils/config.js'
 import { initializeDatabase, getDatabasePath, closeDatabase } from '../storage/database.js'
+import { isZenoSubmodule } from '../utils/git.js'
 
 /**
  * Create the complete .zeno directory structure
@@ -21,9 +22,16 @@ export async function createProjectStructure(
   const createdPaths: string[] = []
 
   try {
+    // When zeno/ is a git submodule the directory already exists (mounted by git);
+    // we must not recreate it or we would overwrite the submodule mount.
+    const zenoIsSubmodule = isZenoSubmodule(projectRoot)
+    if (zenoIsSubmodule) {
+      logger.info('zeno/ is a git submodule — skipping top-level directory creation')
+    }
+
     // Define directory structure
     const directories = [
-      'zeno',
+      ...(zenoIsSubmodule ? [] : ['zeno']),
       'zeno/.zeno',
       'zeno/gates',
       'zeno/architecture',

@@ -128,6 +128,14 @@ export const ZenoConfigSchema = z
         model: z.string().optional(),
       })
       .default({ cli: 'copilot', invocationMode: 'cli' }),
+
+    /**
+     * Whether the zeno/ directory is managed as a git submodule with its own remote.
+     * When true, artifact commits are first written to the submodule's git repo
+     * (zeno/), then the parent repo's submodule pointer is updated in a follow-up commit.
+     * Set to true after running: git submodule add <url> zeno
+     */
+    zenoSubmodule: z.boolean().default(false),
   })
   .loose()
 
@@ -239,6 +247,21 @@ export function getZenoDir(projectRoot: string = process.cwd()): string {
 }
 
 /**
+ * Get the git working directory for zeno artifact commits.
+ *
+ * When zenoSubmodule is true the zeno/ directory is its own git repo;
+ * commits for planning files must target that directory so that they land
+ * in the submodule's history rather than the parent repo's.
+ *
+ * @param projectRoot - Project root directory
+ * @param config - Loaded Zeno config
+ * @returns Absolute path to the directory that owns the zeno git history
+ */
+export function getZenoGitDir(projectRoot: string, config: ZenoConfig): string {
+  return config.zenoSubmodule ? normalizePath(join(projectRoot, 'zeno')) : normalizePath(projectRoot)
+}
+
+/**
  * Get the path to the config.json file.
  * @param projectRoot - Project root directory (default: process.cwd())
  * @returns Absolute path to config.json
@@ -317,6 +340,7 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
       cli: 'copilot',
       invocationMode: 'acp',
     },
+    zenoSubmodule: false,
   }
 }
 
