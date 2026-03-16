@@ -181,9 +181,13 @@ async function detectGateChangesAndNotify(
     type: 'feature' as const,
   }))
 
+  // Build a lookup so existing gates keep their real hash. Only genuinely new
+  // gates (no matching previous entry) fall back to a derived placeholder.
+  const prevHashById = new Map(previousGates.map((g) => [g.id, g.hash]))
+
   const currentGatesMetadata = currentGates.map((g, index) => ({
     id: g.id,
-    hash: `hash-${g.id}`, // Placeholder hash
+    hash: prevHashById.get(g.id) ?? `hash-${g.id}`,
     name: g.name,
     sequence: index + 1,
     status: g.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
