@@ -35,61 +35,65 @@ function patchProposalStatusConstraint(db: Database.Database): void {
   // If the current definition already includes 'validated' we're done.
   if (row.sql.includes("'validated'")) return
 
-  db.transaction(() => {
-    db.exec('PRAGMA foreign_keys = OFF')
+  // PRAGMA foreign_keys cannot be changed inside a transaction (no-op).
+  // Set it before the transaction and restore in a finally block.
+  db.exec('PRAGMA foreign_keys = OFF')
 
-    // 1. Recreate with the full, correct constraint list.
-    db.exec(`
-      CREATE TABLE proposals_v2 (
-        id               TEXT      PRIMARY KEY,
-        gate_id          TEXT      REFERENCES gates(id),
-        requirement_id   TEXT      REFERENCES requirements(id),
-        title            TEXT      NOT NULL,
-        status           TEXT      NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')),
-        hash             TEXT      UNIQUE NOT NULL,
-        created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        approved_at      TIMESTAMP,
-        started_by       TEXT,
-        started_at       TIMESTAMP,
-        approved_by      TEXT,
-        rejected_by      TEXT,
-        rejected_at      TIMESTAMP,
-        implemented_at   TIMESTAMP
-      )
-    `)
+  try {
+    db.transaction(() => {
+      // 1. Recreate with the full, correct constraint list.
+      db.exec(`
+        CREATE TABLE proposals_v2 (
+          id               TEXT      PRIMARY KEY,
+          gate_id          TEXT      REFERENCES gates(id),
+          requirement_id   TEXT      REFERENCES requirements(id),
+          title            TEXT      NOT NULL,
+          status           TEXT      NOT NULL DEFAULT 'pending'
+            CHECK (status IN ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')),
+          hash             TEXT      UNIQUE NOT NULL,
+          created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          approved_at      TIMESTAMP,
+          started_by       TEXT,
+          started_at       TIMESTAMP,
+          approved_by      TEXT,
+          rejected_by      TEXT,
+          rejected_at      TIMESTAMP,
+          implemented_at   TIMESTAMP
+        )
+      `)
 
-    // 2. Copy all rows, coercing any stale status values that were never in the
-    //    old constraint either (safety net for hand-edited files).
-    db.exec(`
-      INSERT INTO proposals_v2
-        SELECT id, gate_id, requirement_id, title,
-          CASE status
-            WHEN 'cancelled' THEN 'rejected'
-            WHEN 'backlog'   THEN 'pending'
-            ELSE status
-          END,
-          hash, created_at, updated_at, approved_at,
-          started_by, started_at, approved_by,
-          rejected_by, rejected_at, implemented_at
-        FROM proposals
-    `)
+      // 2. Copy all rows, coercing any stale status values that were never in the
+      //    old constraint either (safety net for hand-edited files).
+      db.exec(`
+        INSERT INTO proposals_v2
+          SELECT id, gate_id, requirement_id, title,
+            CASE status
+              WHEN 'cancelled' THEN 'rejected'
+              WHEN 'backlog'   THEN 'pending'
+              ELSE status
+            END,
+            hash, created_at, updated_at, approved_at,
+            started_by, started_at, approved_by,
+            rejected_by, rejected_at, implemented_at
+          FROM proposals
+      `)
 
-    // 3. Swap tables.
-    db.exec('DROP TABLE proposals')
-    db.exec('ALTER TABLE proposals_v2 RENAME TO proposals')
+      // 3. Swap tables.
+      db.exec('DROP TABLE proposals')
+      db.exec('ALTER TABLE proposals_v2 RENAME TO proposals')
 
-    // 4. Recreate indexes (schema.sql uses IF NOT EXISTS so this is idempotent).
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_hash        ON proposals(hash)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_gate_id     ON proposals(gate_id)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_status      ON proposals(status)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_started_by  ON proposals(started_by)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_approved_by ON proposals(approved_by)')
-    db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_rejected_by ON proposals(rejected_by)')
-
+      // 4. Recreate indexes (schema.sql uses IF NOT EXISTS so this is idempotent).
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_hash        ON proposals(hash)')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_gate_id     ON proposals(gate_id)')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_status      ON proposals(status)')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_started_by  ON proposals(started_by)')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_approved_by ON proposals(approved_by)')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_proposals_rejected_by ON proposals(rejected_by)')
+    })()
+  } finally {
     db.exec('PRAGMA foreign_keys = ON')
-  })()
+  }
 }
 
 /**
@@ -111,61 +115,76 @@ function patchGatesStatusConstraint(db: Database.Database): void {
   // If the constraint already includes 'validated' we're done.
   if (row.sql.includes("'validated'")) return
 
-  db.transaction(() => {
-    db.exec('PRAGMA foreign_keys = OFF')
+  // PRAGMA foreign_keys and PRAGMA legacy_alter_table cannot be changed inside
+  // a transaction in SQLite (they are no-ops when a transaction is already
+  // active).  Set them before beginning the transaction and restore them in a
+  // finally block so they are always reset, even on failure.
+  //
+  // legacy_alter_table = ON uses the pre-3.26.0 behaviour where
+  // ALTER TABLE RENAME does NOT rewrite FK references in child tables
+  // (proposals, requirements).  Without this, renaming `gates` to `gates_v1`
+  // causes SQLite to update those FK references to point at `gates_v1`, and
+  // the subsequent DROP TABLE gates_v1 then fails with
+  // "FOREIGN KEY constraint failed".
+  db.exec('PRAGMA foreign_keys = OFF')
+  db.exec('PRAGMA legacy_alter_table = ON')
 
-    // Clean up any leftover gates_v1 from a previous failed migration attempt.
-    db.exec('DROP TABLE IF EXISTS gates_v1')
+  try {
+    db.transaction(() => {
+      // Clean up any leftover gates_v1 from a previous failed migration attempt.
+      db.exec('DROP TABLE IF EXISTS gates_v1')
 
-    // 1. Rename the existing table
-    db.exec('ALTER TABLE gates RENAME TO gates_v1')
+      // 1. Rename the existing table
+      db.exec('ALTER TABLE gates RENAME TO gates_v1')
 
-    // 2. Create replacement with the updated constraint.
-    //    Column list matches schema.sql exactly — no extra columns that may
-    //    not exist in older databases (e.g. updated_at, started_at, started_by
-    //    were never in schema.sql and would cause "no such column" errors).
-    db.exec(`
-      CREATE TABLE gates (
-        id                     TEXT      PRIMARY KEY,
-        project_id             TEXT      DEFAULT 'default-project',
-        sequence               INTEGER   NOT NULL,
-        name                   TEXT      NOT NULL,
-        description            TEXT,
-        status                 TEXT      NOT NULL DEFAULT 'pending'
-          CHECK (status IN ('pending', 'validated', 'in_progress', 'completed', 'rejected')),
-        type                   TEXT      NOT NULL DEFAULT 'feature'
-          CHECK (type IN ('feature', 'quality', 'rescope')),
-        completion_description TEXT,
-        proposal_hashes        TEXT,
-        depends_on             TEXT,
-        hash                   TEXT      UNIQUE NOT NULL,
-        created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        completed_at           TIMESTAMP,
-        created_by             TEXT,
-        completed_by           TEXT,
-        prd_generated_at       TIMESTAMP
-      )
-    `)
+      // 2. Create replacement with the updated constraint.
+      //    Column list matches schema.sql exactly — no extra columns that may
+      //    not exist in older databases (e.g. updated_at, started_at, started_by
+      //    were never in schema.sql and would cause "no such column" errors).
+      db.exec(`
+        CREATE TABLE gates (
+          id                     TEXT      PRIMARY KEY,
+          project_id             TEXT      DEFAULT 'default-project',
+          sequence               INTEGER   NOT NULL,
+          name                   TEXT      NOT NULL,
+          description            TEXT,
+          status                 TEXT      NOT NULL DEFAULT 'pending'
+            CHECK (status IN ('pending', 'validated', 'in_progress', 'completed', 'rejected')),
+          type                   TEXT      NOT NULL DEFAULT 'feature'
+            CHECK (type IN ('feature', 'quality', 'rescope')),
+          completion_description TEXT,
+          proposal_hashes        TEXT,
+          depends_on             TEXT,
+          hash                   TEXT      UNIQUE NOT NULL,
+          created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          completed_at           TIMESTAMP,
+          created_by             TEXT,
+          completed_by           TEXT,
+          prd_generated_at       TIMESTAMP
+        )
+      `)
 
-    // 3. Copy all rows using only the canonical column set.
-    db.exec(`
-      INSERT INTO gates SELECT
-        id, project_id, sequence, name, description,
-        CASE status
-          WHEN 'cancelled' THEN 'rejected'
-          WHEN 'backlog'   THEN 'pending'
-          ELSE status
-        END,
-        type, completion_description, proposal_hashes, depends_on, hash,
-        created_at, completed_at, created_by, completed_by, prd_generated_at
-      FROM gates_v1
-    `)
+      // 3. Copy all rows using only the canonical column set.
+      db.exec(`
+        INSERT INTO gates SELECT
+          id, project_id, sequence, name, description,
+          CASE status
+            WHEN 'cancelled' THEN 'rejected'
+            WHEN 'backlog'   THEN 'pending'
+            ELSE status
+          END,
+          type, completion_description, proposal_hashes, depends_on, hash,
+          created_at, completed_at, created_by, completed_by, prd_generated_at
+        FROM gates_v1
+      `)
 
-    // 4. Drop the old table
-    db.exec('DROP TABLE gates_v1')
-
+      // 4. Drop the old table
+      db.exec('DROP TABLE gates_v1')
+    })()
+  } finally {
+    db.exec('PRAGMA legacy_alter_table = OFF')
     db.exec('PRAGMA foreign_keys = ON')
-  })()
+  }
 }
 
 /**
