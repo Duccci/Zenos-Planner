@@ -22,19 +22,21 @@ export function resolveImportPath(importPath: string, fromFilePath: string): str
   }
 
   const fromDir = path.dirname(fromFilePath);
-  const basePath = path.resolve(fromDir, importPath);
+  // Use path.join instead of path.resolve to avoid CWD-based resolution,
+  // which corrupts Windows-style paths (C:/...) when running on POSIX systems.
+  const basePath = path.join(fromDir, importPath).replace(/\\/g, '/');
 
   // Generate possible paths (with and without extensions)
   const possibilities = [
-    path.normalize(basePath).replace(/\\/g, '/'),
-    path.normalize(`${basePath}.ts`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}.tsx`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}.js`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}.jsx`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}/index.ts`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}/index.tsx`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}/index.js`).replace(/\\/g, '/'),
-    path.normalize(`${basePath}/index.jsx`).replace(/\\/g, '/'),
+    basePath,
+    `${basePath}.ts`,
+    `${basePath}.tsx`,
+    `${basePath}.js`,
+    `${basePath}.jsx`,
+    `${basePath}/index.ts`,
+    `${basePath}/index.tsx`,
+    `${basePath}/index.js`,
+    `${basePath}/index.jsx`,
   ];
 
   return possibilities;
