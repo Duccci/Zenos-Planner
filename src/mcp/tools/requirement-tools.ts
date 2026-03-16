@@ -1,7 +1,7 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate. Use gate hash (from gates_action:list) for gateId/targetGateId. Use for querying requirements, managing dependencies, and DB maintenance.`,
+    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate, regenerate. Use gate hash (from gates_action:list) for gateId/targetGateId. Use for querying requirements, managing dependencies, and DB maintenance.`,
     inputSchema: ReqActionInputSchema,
   },
 ]
@@ -34,6 +34,7 @@ export function requirementHandlers(
         'db_status',
         'purge_orphans',
         'reset_gate',
+        'regenerate',
       ] as const,
       inputSchema: ReqActionInputSchema,
       outputSchema: ReqActionOutputSchema,
@@ -66,6 +67,8 @@ export function requirementHandlers(
           r.invoke('reg_action', { action: 'purge_orphans', payload }),
         reset_gate: async (payload, r) =>
           r.invoke('reg_action', { action: 'reset_gate', payload }),
+        regenerate: async (_payload, r) =>
+          r.invoke('reg_action', { action: 'regenerate', payload: {} }),
       },
     },
     registry

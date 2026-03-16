@@ -59,6 +59,14 @@ export const ResetGateOutputSchema = z.object({
 })
 export type ResetGateOutput = z.infer<typeof ResetGateOutputSchema>
 
+export const RegenerateOutputSchema = z.object({
+  removed: z.boolean().describe('Whether the existing DB file was deleted before re-init'),
+  dbPath: z.string().describe('Absolute path to the registry database file'),
+  migrationsApplied: z.number().describe('Number of migrations applied during re-init'),
+  message: z.string(),
+})
+export type RegenerateOutput = z.infer<typeof RegenerateOutputSchema>
+
 /**
  * Flat, self-documenting input schema for the reg_action tool.
  *
@@ -71,7 +79,7 @@ export type ResetGateOutput = z.infer<typeof ResetGateOutputSchema>
  */
 export const ReqActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'update', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate'])
+    .enum(['list', 'show', 'deps', 'transfer', 'search', 'inherit', 'trace', 'update', 'db_sync', 'db_status', 'purge_orphans', 'reset_gate', 'regenerate'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -86,7 +94,8 @@ export const ReqActionInputSchema = z.object({
         'db_sync=reconcile proposals DB with disk (upsert new files, remove orphans). ' +
         'db_status=report proposal DB health (orphan count, status breakdown). ' +
         'purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). ' +
-        'reset_gate=wipe and re-sync proposals for one gate from disk (needs: gateId).'
+        'reset_gate=wipe and re-sync proposals for one gate from disk (needs: gateId). ' +
+        'regenerate=delete the registry DB (and WAL/SHM) then re-initialise from disk, identical to MCP server startup.'
     ),
 
   // --- shared identifier ---
@@ -208,6 +217,10 @@ export const ReqActionOutputSchema = z.discriminatedUnion('action', [
     action: z.literal('reset_gate'),
     result: ResetGateOutputSchema,
   }),
+  z.object({
+    action: z.literal('regenerate'),
+    result: RegenerateOutputSchema,
+  }),
 ])
 
 export type ReqActionOutput = z.infer<typeof ReqActionOutputSchema>
@@ -239,6 +252,8 @@ export function getReqActionOutputSchema(action: string): z.ZodType {
       return PurgeOrphansOutputSchema
     case 'reset_gate':
       return ResetGateOutputSchema
+    case 'regenerate':
+      return RegenerateOutputSchema
     default:
       // z.unknown() has def.type='unknown'→ normalizeObjectSchema returns undefined → _zod TypeError.
       // Use passthrough object: accepts any shape and normalizes correctly.
