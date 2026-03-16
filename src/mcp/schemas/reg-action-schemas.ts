@@ -93,7 +93,7 @@ export const ReqActionInputSchema = z.object({
   hash: z.string().optional().describe('Requirement hash (show/deps/transfer)'),
 
   // --- list/search filters ---
-  gateId: z.string().optional().describe('Filter by gate ID e.g. "gate-01" (list/search)'),
+  gateId: z.string().optional().describe('Gate hash (preferred) or gate ID e.g. "gate-01" — use hash from gates_action:list (list/search)'),
   type: z
     .enum(['functional', 'non_functional', 'constraint'])
     .optional()
@@ -103,7 +103,7 @@ export const ReqActionInputSchema = z.object({
   query: z.string().optional().describe('Search query string (search)'),
 
   // --- transfer fields ---
-  targetGateId: z.string().optional().describe('Destination gate ID (transfer)'),
+  targetGateId: z.string().optional().describe('Destination gate hash (preferred) or gate ID (transfer)'),
   reason: z.string().optional().describe('Reason for transfer (transfer)'),
 
   // --- update fields ---

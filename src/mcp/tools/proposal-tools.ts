@@ -511,7 +511,37 @@ export function proposalHandlers(
           // 1) Enforce state transition: only validated proposals can be started (pending must validate first)
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
           createProposalTransitionValidator(payload, r, 'in_progress', ['validated']),
-          // 2) Apply-phase constraints (no git ops, files in scope)
+          // 2) Proposal artifact structure: markdown file must be valid (required sections, proper format)
+          async () => {
+            const proposalHash = (payload as { hash: string }).hash
+            try {
+              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+              const filePath = await findProposalByHash(proposalHash)
+              if (!filePath) return { allowed: true } // artifact not found is handled downstream
+              const { validateArtifactFile } = await import('../validators/artifact-validator.js')
+              const result = await validateArtifactFile(filePath, 'proposal')
+              
+              // Enhance error messages for LLM with explicit file fixing guidance
+              if (!result.allowed && result.errors && result.errors.length > 0) {
+                return {
+                  allowed: false,
+                  errors: [
+                    `Proposal artifact structure is invalid. Edit the proposal markdown file at:\n${filePath}\n\nErrors to fix:`,
+                    ...result.errors,
+                  ],
+                  nextRequiredStep: {
+                    blocking: true,
+                    action: 'fix-structural-errors',
+                    description: `Fix every error listed above in the proposal markdown file at ${filePath}. Ensure all required sections are present and properly formatted, then re-run proposal_action:validate before attempting start again.`,
+                  },
+                }
+              }
+              return result
+            } catch {
+              return { allowed: true } // artifact check is best-effort
+            }
+          },
+          // 3) Apply-phase constraints (no git ops, files in scope)
           async () => {
             const allErrors: string[] = []
             const allWarnings: string[] = []
@@ -567,7 +597,7 @@ export function proposalHandlers(
               warnings: allWarnings.length > 0 ? allWarnings : undefined,
             }
           },
-          // 3) PreReview enforcement: G1-G4 structured preconditions
+          // 4) PreReview enforcement: G1-G4 structured preconditions
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
             const pre = (payload as { preReview?: PreReview }).preReview
@@ -621,7 +651,7 @@ export function proposalHandlers(
               warnings: warnings.length > 0 ? warnings : undefined,
             }
           },
-          // 4) Test file scope: G10/G11 enforcement (gate-tied proposals must not have test files)
+          // 5) Test file scope: G10/G11 enforcement (gate-tied proposals must not have test files)
           async () => {
             const proposalResult = await r.invoke('proposal_show', {
               hash: (payload as { hash: string }).hash,
@@ -634,7 +664,7 @@ export function proposalHandlers(
 
             return validateTestFileScope(filesAffected, isSolitary)
           },
-          // 5) Test-first gate pattern: role-file consistency check
+          // 6) Test-first gate pattern: role-file consistency check
           async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
         ],
         generate: (_payload, _r) => [

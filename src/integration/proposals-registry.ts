@@ -14,6 +14,7 @@ import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
 import { fileURLToPath } from 'node:url'
 import { getWorkspaceRoot } from '../utils/config.js'
+import { resolveGateIdentifier } from '../utils/normalize.js'
 
 // Install-relative directory so templates are found regardless of user CWD.
 const __installDir = fileURLToPath(new URL('../..', import.meta.url))
@@ -41,8 +42,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const queryParams: (string | null)[] = []
 
       if (validated.gateId) {
+        const resolvedGateId = resolveGateIdentifier(validated.gateId)
         conditions.push('gate_id LIKE ?')
-        queryParams.push(`%${validated.gateId}%`)
+        queryParams.push(`%${resolvedGateId}%`)
       }
       if (validated.status) {
         conditions.push('status = ?')
@@ -318,6 +320,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Check if gate exists in project-overview.json (gates are no longer stored in DB)
       if (validated.gateId) {
+        const resolvedGateIdForCreate = resolveGateIdentifier(validated.gateId)
+        validated.gateId = resolvedGateIdForCreate
         try {
           const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
           const overview = await readProjectOverview()

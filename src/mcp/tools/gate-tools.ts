@@ -1,4 +1,5 @@
 ﻿import { GatesActionInputSchema } from '../schemas/gates-action-schemas.js'
+import { resolveGateIdentifier } from '../../utils/normalize.js'
 import { validateDependencies,
   type DependencyValidationContext,
 } from '../validators/dependency-validator.js'
@@ -185,7 +186,8 @@ export function gateHandlers(
           // Dry-run: run quality + structural checks against the gate without completing it.
           // Gates are held to a higher standard than proposals: they drive proposal creation,
           // so all checks must pass before a gate is fit to generate proposals.
-          const gateId = (payload as { gateId?: string }).gateId ?? ''
+          // Resolve hash or textual ID once at entry; file-system utilities need the canonical ID.
+          const gateId = resolveGateIdentifier((payload as { gateId?: string }).gateId ?? '')
           const allErrors: string[] = []
           const allWarnings: string[] = []
           let qualityPassed = true
@@ -432,12 +434,29 @@ export function gateHandlers(
           createGateTransitionValidator(_payload, r, 'in_progress', ['validated', 'rejected']),
           // Gate PRD structure check: required sections and valid status field
           async () => {
-            const gateId = (_payload as { gateId?: string }).gateId ?? ''
+            const gateId = resolveGateIdentifier((_payload as { gateId?: string }).gateId ?? '')
             try {
               const { findGateByGateId } = await import('../../utils/artifact-locator.js')
               const filePath = await findGateByGateId(gateId)
               if (!filePath) return { allowed: true }
-              return await validateArtifactFile(filePath, 'gate')
+              const result = await validateArtifactFile(filePath, 'gate')
+              
+              // Enhance error messages for LLM with explicit file fixing guidance
+              if (!result.allowed && result.errors && result.errors.length > 0) {
+                return {
+                  allowed: false,
+                  errors: [
+                    `Gate artifact structure is invalid. Edit the gate markdown file at:\n${filePath}\n\nErrors to fix:`,
+                    ...result.errors,
+                  ],
+                  nextRequiredStep: {
+                    blocking: true,
+                    action: 'fix-structural-errors',
+                    description: `Fix every error listed above in the gate markdown file at ${filePath}. Ensure all required sections are present and properly formatted, then re-run gates_action:validate before attempting start again.`,
+                  },
+                }
+              }
+              return result
             } catch {
               return { allowed: true }
             }
@@ -523,7 +542,7 @@ export function gateHandlers(
             // Read quality metrics from gates_show (read-only) — do NOT invoke
             // gates_complete here as that would complete the gate as a side-effect
             // before the action handler runs.
-            const gateId = (_payload as { gateId?: string }).gateId ?? ''
+            const gateId = resolveGateIdentifier((_payload as { gateId?: string }).gateId ?? '')
             const showResult = await r.invoke('gates_show', { gateId })
             const showData = showResult.success ? (showResult.data as Record<string, unknown>) : {}
             const qualityMetrics = extractQualityMetrics(showData)
@@ -540,7 +559,7 @@ export function gateHandlers(
           // Gate-level test-first structure: verify exactly one test-suite (first) and
           // one test-cleanup (last) among the gate's proposals
           async () => {
-            const gateId = (_payload as { gateId?: string }).gateId ?? ''
+            const gateId = resolveGateIdentifier((_payload as { gateId?: string }).gateId ?? '')
             try {
               const gateProposals = await resolveGateTestFirstSiblings(r, gateId)
               if (gateProposals.length === 0) return { allowed: true }

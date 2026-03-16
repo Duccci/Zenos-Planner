@@ -1,79 +1,8 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate. Use for querying requirements, managing dependencies, and DB maintenance.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          enum: [
-            'list',
-            'show',
-            'deps',
-            'transfer',
-            'search',
-            'inherit',
-            'trace',
-            'update',
-            'db_sync',
-            'db_status',
-            'purge_orphans',
-            'reset_gate',
-          ],
-          description:
-            'Action to perform. list=retrieve requirements (optional: gateId, type filter). show=get requirement details (needs: hash). deps=dependency graph (needs: hash). transfer=move to another gate (needs: hash, targetGateId). search=full-text search (needs: query). inherit=link existing requirement to a gate for cross-gate reuse (needs: hash, gateId). trace=full traceability chain (needs: hash). update=edit mutable fields (needs: hash; optional: title, type, priority, acceptance). db_sync=reconcile proposals DB with disk. db_status=report proposal DB health. purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). reset_gate=wipe and re-sync proposals for one gate from disk (needs: gateId).',
-        },
-        hash: {
-          type: 'string',
-          description: 'Requirement hash (show/deps/transfer/inherit/trace)',
-        },
-        gateId: {
-          type: 'string',
-          description: 'Filter by gate ID e.g. "gate-01" (list/search/inherit/reset_gate)',
-        },
-        type: {
-          type: 'string',
-          enum: ['functional', 'non_functional', 'constraint'],
-          description: 'Filter by requirement type (list/search) or new type for update',
-        },
-        query: {
-          type: 'string',
-          description: 'Search query string (search)',
-        },
-        targetGateId: {
-          type: 'string',
-          description: 'Destination gate ID (transfer)',
-        },
-        reason: {
-          type: 'string',
-          description: 'Reason for transfer (transfer)',
-        },
-        title: {
-          type: 'string',
-          description: 'New title / description for the requirement (update)',
-        },
-        priority: {
-          type: 'string',
-          enum: ['must', 'should', 'could', 'wont'],
-          description: 'New priority (update)',
-        },
-        acceptance: {
-          type: 'string',
-          description: 'New acceptance criteria text (update)',
-        },
-        dryRun: {
-          type: 'boolean',
-          description: 'purge_orphans: report without deleting (default false)',
-        },
-        solitary: {
-          type: 'boolean',
-          description:
-            'purge_orphans: when true, only target proposals with no gate. Mutually exclusive with gateId.',
-        },
-      },
-      required: ['action'],
-    },
+    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate. Use gate hash (from gates_action:list) for gateId/targetGateId. Use for querying requirements, managing dependencies, and DB maintenance.`,
+    inputSchema: ReqActionInputSchema,
   },
 ]
 

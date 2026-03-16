@@ -13,9 +13,9 @@ import { z } from 'zod'
 
 export const ContextActionInputSchema = z.object({
   action: z.enum(['gate', 'proposal', 'requirement', 'repository']).optional().describe(
-    'Action to perform. gate=gate context (needs: gateId or hash). proposal=proposal context (needs: hash). requirement=requirement details (needs: hash). repository=repository details (needs: hash or name).'
+    'Action to perform. gate=gate context (needs: hash preferred, or gateId). proposal=proposal context (needs: hash). requirement=requirement details (needs: hash). repository=repository details (needs: hash or name).'
   ),
-  gateId: z.string().min(1).optional().describe('Gate ID (e.g. "gate-01") — for gate action by name'),
+  gateId: z.string().min(1).optional().describe('Gate ID (e.g. "gate-01") — use hash instead where possible (prefer the hash field for gate action)'),
   hash: z.string().min(1).optional().describe('Entity hash — used for proposal, requirement, repository, or gate (when gateId is unknown)'),
   name: z.string().min(1).optional().describe('Entity name — for repository lookup by name'),
   operationMode: z.enum(['planning', 'execution']).optional().describe(

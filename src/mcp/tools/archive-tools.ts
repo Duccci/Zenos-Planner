@@ -18,22 +18,8 @@ import {
 export const archiveToolDefinitions = [
   {
     name: 'archive_action',
-    description: `Archive completed work: gate, batch. Use to finalize and archive completed gates or proposals.`,
-    inputSchema: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          enum: ['gate', 'batch'],
-          description: 'The archive action to perform',
-        },
-        payload: {
-          type: 'object',
-          description: 'Action-specific payload',
-        },
-      },
-      required: ['action'],
-    },
+    description: `Archive completed work: gate, batch. Use gate hash (from gates_action:list) for gateId. Use to finalize and archive completed gates or proposals.`,
+    inputSchema: ArchiveActionInputSchema,
   },
 ]
 

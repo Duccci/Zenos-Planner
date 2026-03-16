@@ -7,7 +7,7 @@
 
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
-import { normalizeGateId } from '../utils/normalize.js'
+import { normalizeGateId, resolveGateIdentifier } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 
@@ -133,8 +133,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const validated = z.object({ gateId: z.string() }).parse(params)
       const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
-      // Normalize id: accept gate-01 or 01
-      const normalizedId = normalizeGateId(validated.gateId)
+      // Resolve hash or normalize textual ID: accept hash, gate-01, or 01
+      const normalizedId = resolveGateIdentifier(validated.gateId)
 
       const overview = await readProjectOverview()
       const summaries = getGatesFromOverview(overview)
@@ -302,7 +302,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     'gates_set_validated',
     async (params) => {
       const validated = z.object({ gateId: z.string() }).parse(params)
-      const normalizedId = normalizeGateId(validated.gateId)
+      const normalizedId = resolveGateIdentifier(validated.gateId)
       const db = (await import('../storage/database.js')).getDatabase()
       db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(normalizedId)
       const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
@@ -346,12 +346,12 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const { startGate } = await import('../core/completions.js')
       const db = (await import('../storage/database.js')).getDatabase()
-      const normalizedId = normalizeGateId(validated.gateId)
+      const normalizedId = resolveGateIdentifier(validated.gateId)
       const gateRow = db
         .prepare('SELECT status FROM gates WHERE id = ?')
         .get(normalizedId) as { status?: string } | undefined
       const previousStatus = (gateRow?.status ?? 'pending') as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
-      await startGate(validated.gateId, { startedBy })
+      await startGate(normalizedId, { startedBy })
 
       return {
         gateId: normalizedId,
@@ -398,9 +398,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }
 
       const { completeGate } = await import('../core/completions.js')
-      const result = await completeGate(validated.gateId)
-
-      const normalizedId = normalizeGateId(validated.gateId)
+      const normalizedId = resolveGateIdentifier(validated.gateId)
+      const result = await completeGate(normalizedId)
       return {
         gateId: normalizedId,
         previousStatus: 'in_progress' as const,
@@ -442,8 +441,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       }).parse(params)
 
       const result = await replanGates({
-        gateId: validated.gateId,
-        fromGateId: validated.fromGateId,
+        gateId: validated.gateId ? resolveGateIdentifier(validated.gateId) : undefined,
+        fromGateId: validated.fromGateId ? resolveGateIdentifier(validated.fromGateId) : undefined,
         prdChanged: validated.prdChanged ?? false,
         dryRun: validated.dryRun ?? false,
       })
@@ -494,7 +493,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     async (params) => {
       const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
       const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
-      const normalizedId = normalizeGateId(validated.gateId)
+      const normalizedId = resolveGateIdentifier(validated.gateId)
       const seqMatch = /\d+/.exec(normalizedId)
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
@@ -554,7 +553,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     async (params) => {
       const validated = z.object({ gateId: z.string(), reason: z.string().optional() }).parse(params)
       const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
-      const normalizedId = normalizeGateId(validated.gateId)
+      const normalizedId = resolveGateIdentifier(validated.gateId)
       const seqMatch = /\d+/.exec(normalizedId)
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 

@@ -330,7 +330,7 @@ Use Git history to trace work back to Zeno artifacts (requirements, proposals, g
 | Project PRD | `zeno/PROJECT_PRD.md` | Read file directly |
 | Architecture diagrams | `zeno/architecture/*.md` | `diagram_action { action: "show", type: "..." }` |
 | Gate PRDs | `zeno/gates/gate-XX-name.md` | `context_action { action: "gate", gateId: "..." }` |
-| Requirements | `zeno/.zeno/registry.db` (internal — **MCP only**) | `reg_action { action: "list\|show" }` |
+| Registry DB (requirements, hashes, deps, all entities) | `zeno/.zeno/registry.db` (internal — **MCP only**) | `reg_action { action: "list\|show\|deps\|search\|transfer" }` |
 | Proposals (active) | `zeno/proposals/gate-XX/<name>.md` | `proposal_action { action: "show", hash: "#..." }` |
 | Gates (completed archive) | `zeno/gates/archive/<gate-id>.md` | `context_action { action: "gate", gateId: "..." }` |
 | Configuration | `zeno/.zeno/config.json` | `config_get {}` |

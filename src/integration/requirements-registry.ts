@@ -21,6 +21,7 @@ import { getDatabase } from '../storage/database.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { logger } from '../utils/logger.js'
 import { getWorkspaceRoot } from '../utils/config.js'
+import { resolveGateIdentifier } from '../utils/normalize.js'
 
 // Valid type and priority values for validation
 const VALID_TYPES = new Set<string>(['functional', 'non_functional', 'constraint'])
@@ -419,8 +420,13 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             }
           }
 
+          // Resolve gate hash to canonical gate ID before all DB and file lookups
+          const resolvedListGateId = payload.gateId
+            ? resolveGateIdentifier(payload.gateId)
+            : payload.gateId
+
           // Use buildRequirementGraph which returns nodes as a Map<string, DependencyNode>
-          let graph = storage.buildRequirementGraph(payload.gateId)
+          let graph = storage.buildRequirementGraph(resolvedListGateId)
           let allRequirements = Array.from(graph.nodes.values())
 
           // Track inherited requirement hashes from the markdown fallback
@@ -428,13 +434,13 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
           // Fallback: if no requirements found for a specific gate,
           // try parsing the gate markdown file and seeding the DB
-          if (allRequirements.length === 0 && payload.gateId) {
-            const syncResult = syncGateRequirementsFromMarkdown(storage, payload.gateId)
+          if (allRequirements.length === 0 && resolvedListGateId) {
+            const syncResult = syncGateRequirementsFromMarkdown(storage, resolvedListGateId)
             inheritedHashes = syncResult.inheritedHashes
 
             if (syncResult.inserted > 0) {
               // Re-query after seeding project requirements
-              graph = storage.buildRequirementGraph(payload.gateId)
+              graph = storage.buildRequirementGraph(resolvedListGateId)
               allRequirements = Array.from(graph.nodes.values())
             }
           }
@@ -463,16 +469,16 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             }
           }
 
-          if (allRequirements.length === 0 && payload.gateId) {
+          if (allRequirements.length === 0 && resolvedListGateId) {
             return {
               requirements: [],
-              error: `No requirements registered in the database for ${payload.gateId} and no parseable requirement tables found in the gate markdown file. Ensure the gate PRD contains a "## Requirements" section with markdown tables whose rows include valid 16-character hex hashes (e.g. |#4bc74e36854c4221|Description|type|priority|...|).`,
+              error: `No requirements registered in the database for ${resolvedListGateId} and no parseable requirement tables found in the gate markdown file. Ensure the gate PRD contains a "## Requirements" section with markdown tables whose rows include valid 16-character hex hashes (e.g. |#4bc74e36854c4221|Description|type|priority|...|).`,
             }
           }
 
           // Include cross-gate linked requirements when filtering by a specific gate
-          const linkedReqs = payload.gateId
-            ? storage.getGateLinkedRequirements(payload.gateId)
+          const linkedReqs = resolvedListGateId
+            ? storage.getGateLinkedRequirements(resolvedListGateId)
             : []
 
           const linkedFiltered = linkedReqs.filter(
@@ -542,7 +548,8 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           const payload = z
             .object({ hash: z.string(), gateId: z.string() })
             .parse(validated.payload ?? {})
-          const result = storage.transferRequirement(payload.hash, payload.gateId)
+          const resolvedTransferGateId = resolveGateIdentifier(payload.gateId)
+          const result = storage.transferRequirement(payload.hash, resolvedTransferGateId)
           return result
         }
 
@@ -554,8 +561,11 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               type: z.string().optional(),
             })
             .parse(validated.payload ?? {})
+          const resolvedSearchGateId = payload.gateId
+            ? resolveGateIdentifier(payload.gateId)
+            : payload.gateId
           const { requirements, total } = storage.searchRequirements(payload.query, {
-            gateId: payload.gateId,
+            gateId: resolvedSearchGateId,
             type: payload.type,
             skip: 0,
             take: 9999,
@@ -585,6 +595,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           const payload = z
             .object({ hash: z.string(), gateId: z.string() })
             .parse(validated.payload ?? {})
+          const resolvedInheritGateId = resolveGateIdentifier(payload.gateId)
           const req = storage.getRequirementByHash(payload.hash)
           if (!req) {
             return {
@@ -592,15 +603,15 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               error: `Requirement ${payload.hash} not found in database`,
             }
           }
-          storage.linkRequirementToGate(req.id, payload.gateId)
+          storage.linkRequirementToGate(req.id, resolvedInheritGateId)
           return {
             success: true,
             requirementHash: req.hash,
             requirementTitle: req.description,
             ownerGateId: req.gateId ?? null,
-            linkedToGateId: payload.gateId,
+            linkedToGateId: resolvedInheritGateId,
             level: req.level,
-            message: `Requirement "${req.description.substring(0, 60)}" (${req.hash}) linked to ${payload.gateId} from ${req.gateId ?? 'project'}.`,
+            message: `Requirement "${req.description.substring(0, 60)}" (${req.hash}) linked to ${resolvedInheritGateId} from ${req.gateId ?? 'project'}.`,
           }
         }
 
@@ -798,6 +809,10 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             )
             .parse(validated.payload ?? {})
 
+          const resolvedPurgeGateId = payload.gateId
+            ? resolveGateIdentifier(payload.gateId)
+            : payload.gateId
+
           const db = getDatabase()
           const proposalsDir = path.join(getWorkspaceRoot(), 'zeno', 'proposals')
           const diskHashes = collectDiskHashes(proposalsDir)
@@ -809,9 +824,9 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           const queryParams: (string | null)[] = []
           if (payload.solitary) {
             query += ' WHERE gate_id IS NULL'
-          } else if (payload.gateId) {
+          } else if (resolvedPurgeGateId) {
             query += ' WHERE gate_id = ?'
-            queryParams.push(payload.gateId)
+            queryParams.push(resolvedPurgeGateId)
           }
 
           const rows = db.prepare(query).all(...queryParams) as ProposalRow[]
@@ -824,12 +839,12 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
           const scopeLabel = payload.solitary
             ? 'solitary proposals'
-            : payload.gateId ?? 'all proposals'
+            : resolvedPurgeGateId ?? 'all proposals'
 
           return {
             removed: payload.dryRun ? 0 : orphaned.length,
             dryRun: payload.dryRun,
-            gateId: payload.gateId ?? null,
+            gateId: resolvedPurgeGateId ?? null,
             solitary: Boolean(payload.solitary),
             orphans: orphaned.map((r) => ({
               hash: r.hash,
@@ -845,11 +860,12 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'reset_gate': {
           const payload = z.object({ gateId: z.string() }).parse(validated.payload ?? {})
+          const resolvedResetGateId = resolveGateIdentifier(payload.gateId)
 
           const db = getDatabase()
           const result = db
             .prepare('DELETE FROM proposals WHERE gate_id = ?')
-            .run(payload.gateId)
+            .run(resolvedResetGateId)
           const deletedCount = result.changes
 
           syncProposalsFromDisk(db, getWorkspaceRoot())
@@ -857,14 +873,14 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           const resyncedCount = (
             db
               .prepare('SELECT COUNT(*) as count FROM proposals WHERE gate_id = ?')
-              .get(payload.gateId) as { count: number }
+              .get(resolvedResetGateId) as { count: number }
           ).count
 
           return {
-            gateId: payload.gateId,
+            gateId: resolvedResetGateId,
             deletedCount,
             resyncedCount,
-            message: `Reset ${payload.gateId}: deleted ${String(deletedCount)} rows, resynced ${String(resyncedCount)} proposals from disk.`,
+            message: `Reset ${resolvedResetGateId}: deleted ${String(deletedCount)} rows, resynced ${String(resyncedCount)} proposals from disk.`,
           }
         }
 

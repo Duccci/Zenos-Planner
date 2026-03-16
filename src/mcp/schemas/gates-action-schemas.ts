@@ -29,13 +29,13 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  *
  * action required for all calls:
  *   list       — list gates; optional: status, skip, take
- *   show       — get gate details; required: gateId
+ *   show       — get gate details; required: gateId (gate hash preferred)
  *   create     — create a new gate; required: gateId, name, type, sequence, objectives; optional: dependencies, description
  *   generate   — generate gates from requirements; required: preReview (enforced by handler); optional: mode, anchorGateId, templateName, requirementsPerGate
- *   start      — transition gate to in_progress; required: gateId; optional: notes
- *   complete   — mark gate completed; required: gateId; optional: completionNotes, approvalDate
+ *   start      — transition gate to in_progress; required: gateId (gate hash preferred); optional: notes
+ *   complete   — mark gate completed; required: gateId (gate hash preferred); optional: completionNotes, approvalDate
  *   regenerate — unified replan: regenerate future gates, or clear+re-render a single gate from template.
- *                 optional: gateId (single-gate mode), fromGateId, prdChanged, dryRun, mode
+ *                 optional: gateId (single-gate mode, gate hash preferred), fromGateId, prdChanged, dryRun, mode
  *
  * preReview: required for `generate` action (enforced by handler, not schema).
  */
@@ -63,7 +63,7 @@ export const GatesActionInputSchema = z.object({
   gateId: z
     .string()
     .optional()
-    .describe('Gate ID e.g. "gate-01" (show/create/start/complete/regenerate)'),
+    .describe('Gate hash (from gates_action:list) — preferred over the textual gate-XX ID (show/create/start/complete/validate/cancel/defer/regenerate)'),
 
   // --- list filters ---
   status: GateStatusEnum
@@ -97,7 +97,7 @@ export const GatesActionInputSchema = z.object({
     .describe(
       'Generation/regeneration mode (generate: new|rebaseline|single; regenerate: full|partial|check)'
     ),
-  anchorGateId: z.string().optional().describe('Gate to anchor generation from (generate)'),
+  anchorGateId: z.string().optional().describe('Gate hash (or ID) to anchor generation from (generate)'),
   templateName: z
     .string()
     .optional()

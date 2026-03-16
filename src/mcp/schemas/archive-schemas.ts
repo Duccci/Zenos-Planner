@@ -132,7 +132,7 @@ export type ArchiveNotReadyError = z.infer<typeof ArchiveNotReadyErrorSchema>
  * Flat, self-documenting input schema for the archive_action tool.
  *
  * action required for all calls:
- *   gate   — archive a completed gate; required: gateId; optional: completionNotes
+ *   gate   — archive a completed gate; required: gateId (gate hash preferred); optional: completionNotes
  *   batch  — archive multiple completed gates/proposals; required: artifacts
  */
 export const ArchiveActionInputSchema = z.object({
@@ -141,12 +141,12 @@ export const ArchiveActionInputSchema = z.object({
     .optional()
     .describe(
       'Action to perform. ' +
-        'gate=archive a completed gate (needs: gateId; optional: completionNotes). ' +
+        'gate=archive a completed gate (needs: gateId gate hash preferred; optional: completionNotes). ' +
         'batch=archive multiple artifacts (gates/proposals) at once (needs: artifacts array of {type, gateId|proposalHash}).'
     ),
 
   // --- gate fields ---
-  gateId: z.string().optional().describe('Gate ID to archive e.g. "gate-01" (gate action)'),
+  gateId: z.string().optional().describe('Gate hash (preferred) or gate ID e.g. "gate-01" — use hash from gates_action:list (gate action)'),
 
   // --- proposal fields ---
   proposalHash: z
@@ -162,7 +162,7 @@ export const ArchiveActionInputSchema = z.object({
       z.union([
         z.object({
           type: z.literal('gate').describe('Archive a gate'),
-          gateId: z.string().describe('Gate ID to archive'),
+          gateId: z.string().describe('Gate hash (preferred) or gate ID to archive'),
         }),
         z.object({
           type: z.literal('proposal').describe('Archive a proposal'),

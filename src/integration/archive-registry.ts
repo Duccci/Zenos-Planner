@@ -7,6 +7,7 @@
 
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
+import { resolveGateIdentifier } from '../utils/normalize.js'
 
 export function registerArchiveOps(registry: FunctionRegistry): void {
   // Unified archive_action that dispatches to gate/batch implementations
@@ -20,8 +21,9 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
           const payload = z
             .object({ gateId: z.string(), completionNotes: z.string().optional() })
             .parse(validated.payload ?? {})
+          const resolvedGateId = resolveGateIdentifier(payload.gateId)
           const { archiveGate } = await import('../core/archive-logic.js')
-          const result = await archiveGate(payload.gateId, payload.completionNotes)
+          const result = await archiveGate(resolvedGateId, payload.completionNotes)
           return result
         }
 
@@ -37,8 +39,15 @@ export function registerArchiveOps(registry: FunctionRegistry): void {
               completionNotes: z.string().optional(),
             })
             .parse(validated.payload ?? {})
+          // Resolve gate hashes in batch artifacts
+          const resolvedArtifacts = payload.artifacts.map((a) => {
+            if (a.type === 'gate') {
+              return { ...a, gateId: resolveGateIdentifier(a.gateId) }
+            }
+            return a
+          })
           const { archiveBatch } = await import('../core/archive-logic.js')
-          const result = await archiveBatch(payload.artifacts, payload.completionNotes)
+          const result = await archiveBatch(resolvedArtifacts, payload.completionNotes)
           return result
         }
 

@@ -112,10 +112,18 @@ function patchGatesStatusConstraint(db: Database.Database): void {
   if (row.sql.includes("'validated'")) return
 
   db.transaction(() => {
+    db.exec('PRAGMA foreign_keys = OFF')
+
+    // Clean up any leftover gates_v1 from a previous failed migration attempt.
+    db.exec('DROP TABLE IF EXISTS gates_v1')
+
     // 1. Rename the existing table
     db.exec('ALTER TABLE gates RENAME TO gates_v1')
 
-    // 2. Create replacement with the updated constraint
+    // 2. Create replacement with the updated constraint.
+    //    Column list matches schema.sql exactly — no extra columns that may
+    //    not exist in older databases (e.g. updated_at, started_at, started_by
+    //    were never in schema.sql and would cause "no such column" errors).
     db.exec(`
       CREATE TABLE gates (
         id                     TEXT      PRIMARY KEY,
@@ -132,18 +140,14 @@ function patchGatesStatusConstraint(db: Database.Database): void {
         depends_on             TEXT,
         hash                   TEXT      UNIQUE NOT NULL,
         created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at             TIMESTAMP,
         completed_at           TIMESTAMP,
-        started_at             TIMESTAMP,
-        prd_generated_at       TIMESTAMP,
         created_by             TEXT,
         completed_by           TEXT,
-        started_by             TEXT
+        prd_generated_at       TIMESTAMP
       )
     `)
 
-    // 3. Copy all rows — coerce any status values not in the new constraint
-    //    (should not happen in practice, but guards against edge cases)
+    // 3. Copy all rows using only the canonical column set.
     db.exec(`
       INSERT INTO gates SELECT
         id, project_id, sequence, name, description,
@@ -153,13 +157,14 @@ function patchGatesStatusConstraint(db: Database.Database): void {
           ELSE status
         END,
         type, completion_description, proposal_hashes, depends_on, hash,
-        created_at, updated_at, completed_at, started_at, prd_generated_at,
-        created_by, completed_by, started_by
+        created_at, completed_at, created_by, completed_by, prd_generated_at
       FROM gates_v1
     `)
 
     // 4. Drop the old table
     db.exec('DROP TABLE gates_v1')
+
+    db.exec('PRAGMA foreign_keys = ON')
   })()
 }
 
