@@ -4,7 +4,7 @@
     "version": "0.3.0",
     "endState": "Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human 'vibe coding' by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.",
     "startState": null,
-    "totalGatesPlanned": 14,
+    "totalGatesPlanned": 10,
     "gitHistory": {
       "repository": "https://github.com/owner/Zenos-Planner",
       "remote": "origin",
@@ -196,34 +196,31 @@
   ],
   "upcomingGates": [
     {
+      "sequence": 8,
+      "name": "Gate 08: MVP Hardening",
+      "hash": "g08harden",
+      "status": "pending",
+      "type": "feature",
+      "estimatedComplexity": "high",
+      "summary": "Consolidates remaining delta work from original gates 08-11: shell-based validation runner, approval audit trail, git worktrees, requirement transfer, and E2E integration tests"
+    },
+    {
       "sequence": 9,
-      "name": "Gate 09: Human Approval & Rejection Workflow",
-      "estimatedComplexity": "high"
+      "name": "Gate 09: Documentation & Polish",
+      "hash": "g09docs",
+      "status": "pending",
+      "type": "chore",
+      "estimatedComplexity": "medium",
+      "summary": "Post-MVP documentation accuracy pass: README, CLI/MCP references, AGENTS.md, and JSDoc on public APIs"
     },
     {
       "sequence": 10,
-      "name": "Gate 10: Git Integration & Commit Automation",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 11,
-      "name": "Gate 11: Rescope & Replan Engine",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 12,
-      "name": "Gate 12: Dashboard & Visualization",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 13,
-      "name": "Gate 13: Subagent Orchestration & Parallel Execution",
-      "estimatedComplexity": "high"
-    },
-    {
-      "sequence": 14,
-      "name": "Gate 14: Documentation & Polish",
-      "estimatedComplexity": "high"
+      "name": "Gate 10: Subagent Orchestration & Parallel Execution",
+      "hash": "g10subagent",
+      "status": "deferred",
+      "type": "feature",
+      "estimatedComplexity": "high",
+      "summary": "Multi-tier agent orchestration with CrewAI, Ollama workers, worktree-per-task isolation — deferred, requires decomposition into 10a-10d before starting"
     }
   ],
   "architecture": {
@@ -244,6 +241,6 @@
       "zod": "^3.22.0"
     }
   },
-  "lastUpdated": "2026-03-14T00:00:00.000Z",
+  "lastUpdated": "2026-03-15T00:00:00.000Z",
   "status": "gate_completed"
 }
