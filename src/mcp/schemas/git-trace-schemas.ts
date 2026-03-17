@@ -96,21 +96,3 @@ export const GitTraceOutputSchema = z.object({
   })
 })
 export type GitTraceOutput = z.infer<typeof GitTraceOutputSchema>
-
-// ============================================================================
-// git_get_user SCHEMAS
-// ============================================================================
-
-export const GitGetUserInputSchema = z.object({
-  /** Directory to resolve git user from (defaults to ZENO_WORKSPACE or cwd) */
-  dir: z.string().optional(),
-})
-export type GitGetUserInput = z.infer<typeof GitGetUserInputSchema>
-
-export const GitGetUserOutputSchema = z.object({
-  /** Value of git config user.name, or null if not set */
-  name: z.string().nullable(),
-  /** Value of git config user.email, or null if not set */
-  email: z.string().nullable(),
-})
-export type GitGetUserOutput = z.infer<typeof GitGetUserOutputSchema>
