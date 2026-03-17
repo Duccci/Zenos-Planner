@@ -35,6 +35,7 @@ import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
 import { findGateByGateId, findProposalByHash } from '../utils/artifact-locator.js'
 import { ApprovalAuditTrail } from '../storage/approval-audit-trail.js'
+import { WorktreeManager } from './worktree-manager.js'
 
 
 
@@ -300,6 +301,15 @@ export async function approveProposal(
     }
   } catch (error) {
     logger.warn(`Failed to update gate objectives for ${proposalHash}: ${String(error)}`)
+  }
+
+  // Clean up the worktree associated with this proposal (if any)
+  try {
+    const worktreeManager = new WorktreeManager(projectRoot)
+    await worktreeManager.remove(proposalHash, true)
+    logger.debug(`Removed worktree for proposal ${proposalHash}`)
+  } catch (error) {
+    logger.debug(`No worktree to remove for proposal ${proposalHash}: ${String(error)}`)
   }
 
   // Note: Commits deferred to gate completion (archive phase) for human-in-the-loop oversight.

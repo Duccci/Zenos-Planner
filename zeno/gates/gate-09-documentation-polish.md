@@ -4,7 +4,7 @@
 > reflect the actual implementation. Add JSDoc to public APIs.
 
 **Status**: in_progress
-**Type**: chore
+**Type**: documentation
 **Created**: 2026-03-14
 **Sequence**: 9 of 10
 **Hash**: #g09docs

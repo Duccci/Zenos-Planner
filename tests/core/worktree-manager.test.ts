@@ -3,6 +3,9 @@ import { WorktreeManager, WorktreeInfo } from '../../src/core/worktree-manager';
 import { simpleGit } from 'simple-git';
 
 vi.mock('simple-git');
+vi.mock('node:fs/promises', () => ({
+  stat: vi.fn().mockResolvedValue({ birthtimeMs: 0, mtimeMs: Date.now() }),
+}));
 
 describe('WorktreeManager', () => {
   let manager: WorktreeManager;

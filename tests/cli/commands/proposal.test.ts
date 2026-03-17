@@ -19,6 +19,7 @@ vi.mock('../../../src/storage/database.js', () => ({
 // Mock config helpers to return a project root
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn().mockReturnValue('project-root'),
+  loadConfig: vi.fn(),
 }))
 
 // Mock filesystem helpers used by readProposalFile
@@ -41,9 +42,19 @@ describe('Proposal validate command', () => {
     prepare: ReturnType<typeof vi.fn>
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockDb = { prepare: vi.fn() }
     vi.clearAllMocks()
+    const { loadConfig } = await import('../../../src/utils/config.js')
+    vi.mocked(loadConfig).mockResolvedValue({
+      projectName: 'test-project',
+      qualityThresholds: {
+        codeCoverage: 90,
+        securityVulnerabilities: 0,
+        lintingErrorRate: 0.01,
+        typeCheckingErrors: 0,
+      },
+    } as never)
   })
 
   afterEach(() => {

@@ -7,7 +7,7 @@ graph LR
     G5["Gate 05: Architecture & Diagram Generation<br/><small>completed</small>"]
     G6["Gate 06: Multi-Repo & Subproject Detection<br/><small>completed</small>"]
     G7["Gate 07: Proposal Generation & Management<br/><small>completed</small>"]
-    G8["Gate 08: Automated Validation & Quality Gates<br/><small>validated</small>"]
+    G8["Gate 08: Automated Validation & Quality Gates<br/><small>completed</small>"]
     G9["Gate 09: Human Approval & Rejection Workflow<br/><small>in_progress</small>"]
     G1 --> G2
     G2 --> G3

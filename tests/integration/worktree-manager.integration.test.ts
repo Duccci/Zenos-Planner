@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { WorktreeManager } from '../../src/core/worktree-manager.js'
 
 vi.mock('simple-git')
+vi.mock('node:fs/promises', () => ({
+  stat: vi.fn().mockResolvedValue({ birthtimeMs: 0, mtimeMs: Date.now() }),
+}))
 
 // ─── suite ───────────────────────────────────────────────────────────────────
 
@@ -123,6 +126,68 @@ describe('WorktreeManager (integration)', () => {
 
     it('resolves without error when no worktrees exist', async () => {
       await expect(manager.prune(1000)).resolves.toBeUndefined()
+    })
+  })
+
+  // ─── syncFromGit() ─────────────────────────────────────────────────────────
+
+  describe('syncFromGit() via list()', () => {
+    it('discovers orphaned worktrees from git that are not in memory', async () => {
+      const { simpleGit } = await import('simple-git')
+      const porcelain = [
+        'worktree /absolute/path/.local/worktrees/orphaned-hash',
+        'HEAD abc1234',
+        'branch refs/heads/proposal/orphaned-hash',
+        '',
+      ].join('\n')
+      vi.mocked(simpleGit).mockReturnValue({
+        raw: vi.fn().mockResolvedValue(porcelain),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+      } as any)
+
+      const freshManager = new WorktreeManager()
+      const list = await freshManager.list()
+
+      expect(list.find((w) => w.proposalHash === 'orphaned-hash')).toBeDefined()
+    })
+
+    it('does not duplicate worktrees already tracked in memory', async () => {
+      const { simpleGit } = await import('simple-git')
+      const porcelain = [
+        'worktree /absolute/path/.local/worktrees/tracked-hash',
+        'HEAD abc1234',
+        'branch refs/heads/proposal/tracked-hash',
+        '',
+      ].join('\n')
+      vi.mocked(simpleGit).mockReturnValue({
+        raw: vi.fn().mockResolvedValue(porcelain),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+      } as any)
+
+      const freshManager = new WorktreeManager()
+      await freshManager.create('tracked-hash')
+      const list = await freshManager.list()
+
+      expect(list.filter((w) => w.proposalHash === 'tracked-hash')).toHaveLength(1)
+    })
+
+    it('ignores worktrees not under .local/worktrees/', async () => {
+      const { simpleGit } = await import('simple-git')
+      const porcelain = [
+        'worktree /some/other/path',
+        'HEAD abc1234',
+        'branch refs/heads/main',
+        '',
+      ].join('\n')
+      vi.mocked(simpleGit).mockReturnValue({
+        raw: vi.fn().mockResolvedValue(porcelain),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+      } as any)
+
+      const freshManager = new WorktreeManager()
+      const list = await freshManager.list()
+
+      expect(list).toHaveLength(0)
     })
   })
 })

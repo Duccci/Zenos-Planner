@@ -7,6 +7,18 @@
 import type { Command } from 'commander'
 import { WorktreeManager } from '../../core/worktree-manager.js'
 import { logger } from '../../utils/logger.js'
+import { getDatabase } from '../../storage/database.js'
+
+/** Return the set of proposal hashes that exist in the registry. */
+function knownProposalHashes(projectRoot: string): Set<string> {
+  try {
+    const db = getDatabase(projectRoot)
+    const rows = db.prepare('SELECT hash FROM proposals').all() as { hash: string }[]
+    return new Set(rows.map((r) => r.hash))
+  } catch {
+    return new Set()
+  }
+}
 
 /**
  * Register worktree commands with the CLI program
@@ -24,9 +36,12 @@ export function registerWorktreeCommands(program: Command): void {
       try {
         const manager = new WorktreeManager()
         const list = await manager.list()
-        const filtered = options.status === 'all'
-          ? list
-          : list // status classification not yet tracked in memory; return all for now
+        const known = knownProposalHashes(process.cwd())
+        const filtered = options.status === 'orphaned'
+          ? list.filter((w) => !known.has(w.proposalHash))
+          : options.status === 'active'
+            ? list.filter((w) => known.has(w.proposalHash))
+            : list
         if (filtered.length === 0) {
           logger.info('No active worktrees.')
           return
@@ -59,29 +74,44 @@ export function registerWorktreeCommands(program: Command): void {
 
   worktree
     .command('prune')
-    .description('Remove expired worktrees')
-    .option('--expire-days <days>', 'Max age in days (default: 7)', '7')
+    .description('Remove expired and/or orphaned worktrees')
+    .option('--expire-days <days>', 'Remove worktrees older than N days (default: 7)', '7')
+    .option('--orphaned', 'Also remove worktrees with no matching proposal in the registry', false)
     .option('--dry-run', 'List what would be deleted without deleting', false)
-    .action(async (options: { expireDays: string; dryRun: boolean }) => {
+    .action(async (options: { expireDays: string; orphaned: boolean; dryRun: boolean }) => {
       try {
         const manager = new WorktreeManager()
         const maxAgeMs = parseInt(options.expireDays, 10) * 24 * 3600 * 1000
+        const list = await manager.list()
+        const now = Date.now()
+        const known = knownProposalHashes(process.cwd())
+
+        const toRemove = list.filter((w) => {
+          const expired = now - w.createdAt.getTime() >= maxAgeMs
+          const orphaned = options.orphaned && !known.has(w.proposalHash)
+          return expired || orphaned
+        })
+
         if (options.dryRun) {
-          const list = await manager.list()
-          const now = Date.now()
-          const expired = list.filter(w => now - w.createdAt.getTime() >= maxAgeMs)
-          if (expired.length === 0) {
+          if (toRemove.length === 0) {
             logger.info('No worktrees would be pruned.')
           } else {
-            const rows = expired.map(w => `  ${w.proposalHash}  (created: ${w.createdAt.toISOString()})`)
-            logger.info(`Would prune ${String(expired.length)} worktree(s):\n${rows.join('\n')}`)
+            const rows = toRemove.map((w) => {
+              const reason = !known.has(w.proposalHash) ? 'orphaned' : 'expired'
+              return `  ${w.proposalHash}  [${reason}]  (created: ${w.createdAt.getTime() === 0 ? 'unknown' : w.createdAt.toISOString()})`
+            })
+            logger.info(`Would prune ${String(toRemove.length)} worktree(s):\n${rows.join('\n')}`)
           }
           return
         }
-        const before = (await manager.list()).length
-        await manager.prune(maxAgeMs)
-        const after = (await manager.list()).length
-        logger.info(`Pruned ${String(before - after)} worktree(s). ${String(after)} remaining.`)
+
+        let removed = 0
+        for (const w of toRemove) {
+          await manager.remove(w.proposalHash, true).catch(() => undefined)
+          removed++
+        }
+        const remaining = (await manager.list()).length
+        logger.info(`Pruned ${String(removed)} worktree(s). ${String(remaining)} remaining.`)
       } catch (error) {
         logger.error(`Failed to prune worktrees: ${String(error)}`)
         process.exitCode = 1

@@ -66,8 +66,9 @@ export async function generateProposals(
     }
     const gateContent = await readFile(gatePrdPath)
 
-    // Parse gate objectives and requirements
+    // Parse gate objectives, type, and requirements
     const objectives = extractObjectives(gateContent)
+    const gateType = extractGateType(gateContent)
     const requirements = extractRequirements(gateContent)
 
     // Load proposal template
@@ -80,7 +81,8 @@ export async function generateProposals(
       objectives,
       requirements,
       templateContent,
-      outputDir ?? `zeno/proposals/gate-${gateNumberStr}`
+      outputDir ?? `zeno/proposals/gate-${gateNumberStr}`,
+      gateType
     )
 
     // Calculate dependencies and parallel execution sets
@@ -112,10 +114,12 @@ export async function generateProposals(
 
     // Sync newly written proposal files into the DB so that subsequent
     // proposal_show / proposal_list calls see them immediately.
-    // Validate RED/GREEN guardrails
-    const guardrailErrors = validateRedGreenGuardrails(proposals)
-    if (guardrailErrors.length > 0) {
-      logger.warn('RED/GREEN guardrail validation warnings', { guardrailErrors })
+    // Validate RED/GREEN guardrails (skip for documentation gates — no tests expected)
+    if (gateType !== 'documentation') {
+      const guardrailErrors = validateRedGreenGuardrails(proposals)
+      if (guardrailErrors.length > 0) {
+        logger.warn('RED/GREEN guardrail validation warnings', { guardrailErrors })
+      }
     }
 
     try {
@@ -139,7 +143,9 @@ export async function generateProposals(
         'IMPORTANT: The scaffold files written to disk are the FINAL proposal files.',
         'Do NOT delete, recreate, or replace them. Do NOT write scripts to modify them.',
         'Edit each file DIRECTLY using your file-editing tools (one proposal at a time).',
-        'Each file already contains the correct RED/GREEN structure, requirements, and task skeleton.',
+        gateType === 'documentation'
+          ? 'This is a documentation gate — no RED/GREEN test phases. Each file contains a documentation task skeleton.'
+          : 'Each file already contains the correct RED/GREEN structure, requirements, and task skeleton.',
         'Your job is to read the gate PRD, then edit each proposal file in sequence to replace bracketed placeholders ([...]) with concrete, gate-specific content.',
       ].join('\n'),
       nextSteps: [
@@ -207,5 +213,5 @@ function validateRedGreenGuardrails(
 }
 
 // Helper functions moved to `proposal-parser.ts` and `proposal-writer.ts`
-import { extractObjectives, extractRequirements } from './proposal-parser.js'
+import { extractObjectives, extractGateType, extractRequirements } from './proposal-parser.js'
 import { decomposeToProposals, calculateProposalDependencies } from './proposal-writer.js'

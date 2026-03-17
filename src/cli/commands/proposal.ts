@@ -287,6 +287,29 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
+      const config = await loadConfig(projectRoot)
+      const qt = config.qualityThresholds
+      const failures: string[] = []
+
+      if (qt.codeCoverage < 90) {
+        failures.push(`Code coverage ${String(qt.codeCoverage)}% is below 90% threshold`)
+      }
+      if (qt.securityVulnerabilities > 0) {
+        failures.push(`${String(qt.securityVulnerabilities)} security vulnerabilities found`)
+      }
+      if (qt.lintingErrorRate > 0.01) {
+        failures.push(`Linting error rate ${String(qt.lintingErrorRate)} exceeds 0.01 threshold`)
+      }
+      if (qt.typeCheckingErrors > 0) {
+        failures.push(`${String(qt.typeCheckingErrors)} TypeScript type errors found`)
+      }
+
+      if (failures.length > 0) {
+        for (const f of failures) logger.error(f)
+        process.exit(1)
+        return
+      }
+
       const warnings: string[] = []
       const requiresCompletion = proposal.status === 'in_progress' || proposal.status === 'completed'
 

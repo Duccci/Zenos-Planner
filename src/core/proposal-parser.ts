@@ -30,6 +30,16 @@ export function extractObjectives(content: string): string[] {
     .filter(Boolean)
 }
 
+/**
+ * Extract the gate type from the gate PRD frontmatter field `**Type**: <value>`.
+ * Returns 'feature' as the default when the field is absent.
+ * Known values: 'feature', 'chore', 'documentation', 'infrastructure', 'testing'
+ */
+export function extractGateType(content: string): string {
+  const match = /\*\*Type\*\*\s*:\s*([a-z_]+)/i.exec(content)
+  return match?.[1]?.toLowerCase() ?? 'feature'
+}
+
 export function extractRequirements(content: string): { id: string; description: string }[] {
   const reqMatch = /## Requirements\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/.exec(content)
   if (!reqMatch) return []

@@ -15,6 +15,7 @@ const mockReadFile = vi.fn()
 const mockWriteFile = vi.fn()
 const mockFsAccess = vi.fn()
 const mockExtractObjectives = vi.fn()
+const mockExtractGateType = vi.fn().mockReturnValue('feature')
 const mockExtractRequirements = vi.fn()
 const mockDecomposeToProposals = vi.fn()
 const mockCalculateProposalDependencies = vi.fn()
@@ -38,6 +39,7 @@ vi.mock('node:fs/promises', () => ({
 
 vi.mock('../../src/core/proposal-parser.js', () => ({
   extractObjectives: (...args: unknown[]) => mockExtractObjectives(...args),
+  extractGateType: (...args: unknown[]) => mockExtractGateType(...args),
   extractRequirements: (...args: unknown[]) => mockExtractRequirements(...args),
 }))
 

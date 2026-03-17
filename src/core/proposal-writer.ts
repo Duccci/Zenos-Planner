@@ -56,7 +56,8 @@ export async function decomposeToProposals(
   objectives: string[],
   requirements: { id: string; description: string }[],
   templateContent: string,
-  outputDir: string
+  outputDir: string,
+  gateType = 'feature'
 ): Promise<ProposalMetadata[]> {
   const proposals: ProposalMetadata[] = []
   let proposalIndex = 1
@@ -70,41 +71,55 @@ export async function decomposeToProposals(
     // Use default if config can't be loaded
   }
 
-  // Phase 1: RED — Single test-suite proposal covering ALL objectives (Proposal 1)
-  proposalIndex = await generateRedTestSuiteProposal(
-    gateId,
-    objectives,
-    requirements,
-    templateContent,
-    outputDir,
-    proposals,
-    proposalIndex,
-    coverageThreshold
-  )
+  if (gateType === 'documentation') {
+    // Documentation gates: no RED/GREEN test phases — only implementation proposals
+    await generateImplementationProposals(
+      gateId,
+      objectives,
+      requirements,
+      templateContent,
+      outputDir,
+      proposals,
+      proposalIndex,
+      coverageThreshold
+    )
+  } else {
+    // Phase 1: RED — Single test-suite proposal covering ALL objectives (Proposal 1)
+    proposalIndex = await generateRedTestSuiteProposal(
+      gateId,
+      objectives,
+      requirements,
+      templateContent,
+      outputDir,
+      proposals,
+      proposalIndex,
+      coverageThreshold
+    )
 
-  // Phase 2: Implementation proposals — one per objective, no RED/GREEN prefix
-  proposalIndex = await generateImplementationProposals(
-    gateId,
-    objectives,
-    requirements,
-    templateContent,
-    outputDir,
-    proposals,
-    proposalIndex,
-    coverageThreshold
-  )
+    // Phase 2: Implementation proposals — one per objective, no RED/GREEN prefix
+    proposalIndex = await generateImplementationProposals(
+      gateId,
+      objectives,
+      requirements,
+      templateContent,
+      outputDir,
+      proposals,
+      proposalIndex,
+      coverageThreshold
+    )
 
-  // Phase 3: GREEN — Single test-verification proposal (final proposal)
-  await generateGreenVerificationProposal(
-    gateId,
-    objectives,
-    requirements,
-    templateContent,
-    outputDir,
-    proposals,
-    proposalIndex,
-    coverageThreshold
-  )
+    // Phase 3: GREEN — Single test-verification proposal (final proposal)
+    await generateGreenVerificationProposal(
+      gateId,
+      objectives,
+      requirements,
+      templateContent,
+      outputDir,
+      proposals,
+      proposalIndex,
+      coverageThreshold
+    )
+  }
 
   return proposals
 }
@@ -403,11 +418,93 @@ Review test coverage reports and identify uncovered code paths. Add edge case te
 }
 
 /**
+ * Documentation/chore gate decomposition — no RED/GREEN phases.
+ *
+ * Generates one proposal per objective with `roles: ['documentation']`.
+ * Used when the gate PRD declares `**Type**: chore` or `**Type**: documentation`.
+ */
+export async function decomposeDocumentationProposals(
+  gateId: string,
+  objectives: string[],
+  requirements: { id: string; description: string }[],
+  templateContent: string,
+  outputDir: string
+): Promise<ProposalMetadata[]> {
+  const proposals: ProposalMetadata[] = []
+
+  for (let i = 0; i < objectives.length; i++) {
+    const objective = objectives[i] ?? ''
+    const index = i + 1
+
+    let proposalContent = templateContent
+      .replace(/\{\{GATE_ID\}\}/g, gateId)
+      .replace(/\{\{OBJECTIVE\}\}/g, objective)
+      .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'documentation')
+      .replace(/\{\{PHASE\}\}/g, 'documentation')
+      .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, 'N/A')
+      .replace(/\{\{COVERAGE_TARGET\}\}/g, 'N/A')
+      .replace(
+        /\{\{REQUIREMENTS\}\}/g,
+        requirements.map((r) => `- #${r.id}: ${r.description}`).join('\n')
+      )
+
+    const tasks = generateDocumentationTasks(objective)
+    proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
+
+    const hash = shortHash(proposalContent + objective + tasks).substring(0, 8)
+    const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
+    const renderedContent = proposalContent
+      .replace(/\{\{HASH\}\}/g, hash)
+      .replace(/\{\{DATE\}\}/g, today)
+    const slug = objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40)
+    const filename = `${index.toString().padStart(2, '0')}-${slug}.md`
+    const fullPath = path.join(outputDir, filename)
+
+    await ensureDir(path.dirname(fullPath))
+    await writeFile(fullPath, renderedContent)
+
+    proposals.push({
+      hash,
+      filename,
+      path: fullPath,
+      type: 'gate-tied',
+      status: 'pending',
+      summary: `Docs: ${objective}`,
+      phase: undefined,
+      roles: ['documentation'] as ProposalRole[],
+    })
+  }
+
+  return proposals
+}
+
+/**
+ * Generate tasks for a documentation proposal.
+ */
+function generateDocumentationTasks(objective: string): string {
+  return `### Task 1: ${objective}
+
+**File(s)**: \`[path/to/file-to-update]\`
+**Action**: modify
+
+Update the target file to satisfy "${objective}". Do NOT create tests — this is a documentation-only change. Verify the content accurately reflects the current implementation.
+
+**Acceptance**:
+- [ ] Content accurately reflects the current implementation
+- [ ] No references to unimplemented or removed features remain
+- [ ] Markdown renders cleanly with no broken links or formatting errors
+
+---`
+}
+
+/**
  * Calculate dependencies between proposals.
  *
  * New structure:
  *   RED (single) → all implementation proposals (parallel-eligible)
  *   All implementation proposals → GREEN (single)
+ *
+ * Documentation proposals (no RED/GREEN phases) are treated as fully parallel.
  */
 export function calculateProposalDependencies(
   proposals: { hash: string; filename?: string; path?: string; phase?: string }[]
