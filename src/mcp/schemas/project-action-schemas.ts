@@ -14,10 +14,10 @@ import { z } from 'zod'
  */
 export const ProjectActionInputSchema = z.object({
   action: z.enum(['init', 'status']).optional().describe(
-    'Action to perform. init=create new project (needs: projectName, endState). status=show project overview.'
+    'Action to perform. init=create new project (needs: projectName, projectStatement). status=show project overview.'
   ),
   projectName: z.string().min(1).max(100).optional().describe('Project name (init)'),
-  endState: z.string().min(1).optional().describe('Project end state description (init)'),
+  projectStatement: z.string().min(1).optional().describe('Project statement describing what is being built (init)'),
 }).superRefine((data, ctx) => {
   if (data.action === 'init') {
     if (!data.projectName) {
@@ -27,11 +27,11 @@ export const ProjectActionInputSchema = z.object({
         message: 'projectName is required for init action',
       })
     }
-    if (!data.endState) {
+    if (!data.projectStatement) {
       ctx.addIssue({
         code: 'custom',
-        path: ['endState'],
-        message: 'endState is required for init action',
+        path: ['projectStatement'],
+        message: 'projectStatement is required for init action',
       })
     }
   }

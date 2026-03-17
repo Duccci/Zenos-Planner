@@ -33,7 +33,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         const overview = await readProjectOverview()
         summaries = getGatesFromOverview(overview)
       } catch {
-        // project-overview.json unavailable — fall back to archive files
+        // project.json unavailable — fall back to archive files
         const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
         const archivedGateList = listArchivedGates(archivePath)
         summaries = archivedGateList.map((g, index) => ({
@@ -65,8 +65,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         for (const g of summaries) prdGeneratedMap[g.id] = true
       }
 
-      // Build phases map by scanning gate MD frontmatter (phases live only in MD files)
-      const phasesMap: Record<string, (number | string)[]> = {}
+      // Build milestones map by scanning gate MD frontmatter (milestones live only in MD files)
+      const milestonesMap: Record<string, (number | string)[]> = {}
       try {
         const { readdirSync, readFileSync } = await import('node:fs')
         const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
@@ -78,13 +78,13 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           try {
             const content = readFileSync(join(gatesDir, file), 'utf-8')
             const fm = parseGateFrontmatter(content)
-            if (fm?.id && fm.phases && fm.phases.length > 0) {
-              phasesMap[fm.id] = fm.phases
+            if (fm?.id && fm.milestones && fm.milestones.length > 0) {
+              milestonesMap[fm.id] = fm.milestones
             } else if (fm?.id) {
-              // Body-field fallback: **Phases**: MVP, 2
-              const bodyMatch = /\*\*Phases\*\*:\s*(.+)$/m.exec(content)
+              // Body-field fallback: **Milestones**: MVP, 2
+              const bodyMatch = /\*\*Milestones\*\*:\s*(.+)$/m.exec(content)
               if (bodyMatch?.[1]) {
-                phasesMap[fm.id] = bodyMatch[1]
+                milestonesMap[fm.id] = bodyMatch[1]
                   .split(',')
                   .map((s: string) => s.trim())
                   .filter((s: string) => s.length > 0)
@@ -96,7 +96,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           }
         }
       } catch {
-        // gates dir unavailable — phases simply omitted
+        // gates dir unavailable — milestones simply omitted
       }
 
       return {
@@ -107,8 +107,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           description: descriptionMap[g.id] ?? 'No description',
           sequence: g.sequence,
           status: g.status,
-          type: 'feature',
-          phases: phasesMap[g.id],
+          milestones: milestonesMap[g.id],
           lastUpdated: resolveLastUpdated(g.completedAt, now),
           prdGenerated: prdGeneratedMap[g.id] ?? true,
           proposalCount: 0,
@@ -152,7 +151,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       // Parse objectives, description, and phases from gate PRD file
       const objectives: { title: string; completed: boolean }[] = []
       let description = 'No description'
-      let phases: (number | string)[] | undefined
+      let milestones: (number | string)[] | undefined
 
       try {
         const { findGateByGateId } = await import('../utils/artifact-locator.js')
@@ -161,16 +160,16 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         if (gatePath) {
           const content = await readFile(gatePath, 'utf-8')
 
-          // Parse phases from frontmatter (authoritative), fallback to body field
+          // Parse milestones from frontmatter (authoritative), fallback to body field
           const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
           const fm = parseGateFrontmatter(content)
-          if (fm?.phases && fm.phases.length > 0) {
-            phases = fm.phases
+          if (fm?.milestones && fm.milestones.length > 0) {
+            milestones = fm.milestones
           } else {
-            // Body-field fallback: **Phases**: MVP, 2
-            const phasesBodyMatch = /\*\*Phases\*\*:\s*(.+)$/m.exec(content)
-            if (phasesBodyMatch?.[1]) {
-              phases = phasesBodyMatch[1]
+            // Body-field fallback: **Milestones**: MVP, 2
+            const milestonesBodyMatch = /\*\*Milestones\*\*:\s*(.+)$/m.exec(content)
+            if (milestonesBodyMatch?.[1]) {
+              milestones = milestonesBodyMatch[1]
                 .split(',')
                 .map((s) => s.trim())
                 .filter((s) => s.length > 0)
@@ -197,7 +196,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           }
         }
       } catch {
-        // File unavailable — fall back to empty objectives/phases
+        // File unavailable — fall back to empty objectives/milestones
       }
 
       // Query gate-level requirements from the database
@@ -274,8 +273,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         description,
         sequence: gate.sequence,
         status: effectiveStatus,
-        type: 'feature',
-        phases,
+        milestones,
         prdGenerated,
         objectives,
         requirements,
@@ -307,8 +305,15 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const normalizedId = resolveGateIdentifier(validated.gateId)
       const db = (await import('../storage/database.js')).getDatabase()
       db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(normalizedId)
-      const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
-      await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
+      // Update project.json directly — the DB is a read-only cache and must not write back to files.
+      const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
+      const overview = await readProjectOverview()
+      const gate = overview.gates.find((g) => g.id === normalizedId)
+      if (gate) {
+        gate.status = 'validated'
+        overview.lastUpdated = new Date().toISOString()
+        await saveProjectOverview(overview)
+      }
       return { gateId: normalizedId, newStatus: 'validated' as const }
     },
     {
@@ -457,19 +462,14 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           // Non-fatal: roadmap update failure must not fail the replan
         }
 
-        // Sync state.json: single-gate syncs from project-overview; multi-gate syncs
-        // upcomingGates from the suggestions returned to the caller.
+        // Sync project.json: multi-gate syncs upcomingGates from the suggestions returned to the caller.
         try {
-          const { syncProjectMetadataToState, syncUpcomingGatesToState } = await import('../utils/state-sync.js')
-          if (result.mode === 'single') {
-            const { readProjectOverview } = await import('../utils/config.js')
-            const overview = await readProjectOverview()
-            await syncProjectMetadataToState(overview)
-          } else if (result.suggestions) {
+          const { syncUpcomingGatesToState } = await import('../utils/state-sync.js')
+          if (result.suggestions) {
             await syncUpcomingGatesToState(result.suggestions.suggestedGates)
           }
         } catch {
-          // Non-fatal: state.json sync failure must not fail the replan
+          // Non-fatal: project.json sync failure must not fail the replan
         }
       }
 
@@ -515,41 +515,22 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
       const overview = await readProjectOverview()
-      let previousStatus: string
-      let gateName = ''
-      let gateHash: string | undefined
 
-      // Find and remove gate from its current section
-      const upcomingIdx = overview.upcomingGates.findIndex(
-        (g) => `gate-${g.sequence.toString().padStart(2, '0')}` === normalizedId || g.sequence === seq
+      // Find gate in unified gates array
+      const gateIdx = overview.gates.findIndex(
+        (g) => g.id === normalizedId || g.sequence === seq
       )
-      if (upcomingIdx !== -1) {
-        const gate = overview.upcomingGates[upcomingIdx]
-        gateName = gate?.name ?? gateName
-        previousStatus = 'pending'
-        overview.upcomingGates = [
-          ...overview.upcomingGates.slice(0, upcomingIdx),
-          ...overview.upcomingGates.slice(upcomingIdx + 1),
-        ]
-      } else if (
-        overview.currentGateInfo &&
-        (overview.currentGate === normalizedId ||
-          overview.currentGateInfo.sequence === seq)
-      ) {
-        gateName = overview.currentGateInfo.name
-        gateHash = overview.currentGateInfo.hash
-        previousStatus = overview.currentGate ? 'in_progress' : 'pending'
-        overview.currentGate = null
-        overview.currentGateInfo = null
-      } else {
+      const gate = overview.gates[gateIdx]
+      if (!gate || gate.status === 'completed' || gate.status === 'cancelled') {
         throw new Error(`Gate not found or already completed/cancelled: ${validated.gateId}`)
       }
 
+      const previousStatus = gate.status
       const cancelledAt = new Date().toISOString()
-      overview.cancelledGates = [
-        ...(overview.cancelledGates ?? []),
-        { sequence: seq ?? 0, name: gateName, hash: gateHash, cancelledAt },
-      ]
+
+      gate.status = 'cancelled'
+      gate.cancelledAt = cancelledAt
+
       await saveProjectOverview(overview)
 
       return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt, reason: validated.reason }
@@ -575,44 +556,23 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
       const overview = await readProjectOverview()
-      let previousStatus: string
-      let gateName = ''
-      let complexity: string | undefined
 
-      // Find and remove gate from its current section
-      const upcomingIdx = overview.upcomingGates.findIndex(
-        (g) => `gate-${g.sequence.toString().padStart(2, '0')}` === normalizedId || g.sequence === seq
+      // Find gate in unified gates array
+      const gateIdx = overview.gates.findIndex(
+        (g) => g.id === normalizedId || g.sequence === seq
       )
-      if (upcomingIdx !== -1) {
-        const gate = overview.upcomingGates[upcomingIdx]
-        gateName = gate?.name ?? gateName
-        complexity = gate?.estimatedComplexity
-        previousStatus = 'pending'
-        overview.upcomingGates = [
-          ...overview.upcomingGates.slice(0, upcomingIdx),
-          ...overview.upcomingGates.slice(upcomingIdx + 1),
-        ]
-      } else if (
-        overview.currentGateInfo &&
-        (overview.currentGate === normalizedId ||
-          overview.currentGateInfo.sequence === seq)
-      ) {
-        gateName = overview.currentGateInfo.name
-        complexity = overview.currentGateInfo.estimatedComplexity
-        previousStatus = overview.currentGate ? 'in_progress' : 'pending'
-        overview.currentGate = null
-        overview.currentGateInfo = null
-      } else {
+      const gate = overview.gates[gateIdx]
+      if (!gate || gate.status === 'completed' || gate.status === 'cancelled') {
         throw new Error(`Gate not found or already completed/cancelled: ${validated.gateId}`)
       }
 
-      const deferredAt = new Date().toISOString()
-      overview.backlogGates = [
-        ...(overview.backlogGates ?? []),
-        { sequence: seq ?? 0, name: gateName, estimatedComplexity: complexity },
-      ]
+      const previousStatus = gate.status
+
+      gate.status = 'backlog'
+
       await saveProjectOverview(overview)
 
+      const deferredAt = new Date().toISOString()
       return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt, reason: validated.reason }
     },
     {
@@ -650,36 +610,34 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       if (existing) {
         // Update name and goal without touching prd_generated_at
         db.prepare(
-          'UPDATE gates SET name = ?, description = ?, type = ?, depends_on = ? WHERE id = ?'
+          'UPDATE gates SET name = ?, description = ?, depends_on = ? WHERE id = ?'
         ).run(
           validated.name,
           validated.goal,
-          validated.type,
           validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
           normalizedId
         )
       } else {
         db.prepare(
           `INSERT INTO gates
-             (id, project_id, sequence, name, description, status, type, depends_on, hash, created_at, prd_generated_at)
-           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, ?, NULL)`
+             (id, project_id, sequence, name, description, status, depends_on, hash, created_at, prd_generated_at)
+           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, NULL)`
         ).run(
           normalizedId,
           validated.sequence,
           validated.name,
           validated.goal,
-          validated.type,
           validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
           hash,
           now
         )
       }
 
-      // Persist to state.json (git-tracked) so name + goal survive DB regeneration
+      // Persist to project.json (git-tracked) so name + goal survive DB regeneration
       const { upsertPlannedGateInState } = await import('../utils/state-sync.js')
       await upsertPlannedGateInState(normalizedId, validated.name, validated.goal, validated.sequence, hash)
 
-      // Sync to project-overview.json so the planned gate appears in gates_list
+      // Sync to project.json so the planned gate appears in gates_list
       const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
       await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
 
@@ -721,12 +679,6 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           required: true,
         },
         {
-          name: 'type',
-          type: 'string',
-          description: 'Gate type: feature, quality, or rescope (default: feature)',
-          required: false,
-        },
-        {
           name: 'dependencies',
           type: 'array',
           description: 'Array of gate IDs that must complete first',
@@ -739,7 +691,6 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         name: z.string(),
         goal: z.string(),
         sequence: z.number(),
-        type: z.string().optional(),
         dependencies: z.array(z.string()).optional(),
       }),
     }
@@ -762,14 +713,6 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const existing = db.prepare('SELECT id FROM gates WHERE id = ?').get(validated.gateId)
       if (existing) {
         errors.push(`Gate ID ${validated.gateId} already exists`)
-      }
-
-      // Validate type
-      const validTypes = ['feature', 'quality', 'rescope']
-      if (!validTypes.includes(validated.type)) {
-        errors.push(
-          `Invalid gate type: ${validated.type}. Must be one of: ${validTypes.join(', ')}`
-        )
       }
 
       // Check dependencies exist
@@ -808,7 +751,6 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       gateContent = gateContent
         .replace(/\[XX\]/g, gateNumber)
         .replace(/\[Gate Name\]/g, validated.name)
-        .replace(/\[feature \| quality \| rescope\]/g, validated.type)
         .replace(/\[YYYY-MM-DD\]/g, today)
         .replace(/\[hash\]/g, `temp-${validated.gateId}`)
 
@@ -837,11 +779,10 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       if (existingRow) {
         db.prepare(
-          'UPDATE gates SET name = ?, description = ?, type = ?, prd_generated_at = ? WHERE id = ?'
+          'UPDATE gates SET name = ?, description = ?, prd_generated_at = ? WHERE id = ?'
         ).run(
           validated.name,
           validated.description ?? null,
-          validated.type,
           now,
           normalizedCreateId
         )
@@ -853,14 +794,13 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         })
         db.prepare(
           `INSERT INTO gates
-             (id, project_id, sequence, name, description, status, type, depends_on, hash, created_at, prd_generated_at)
-           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`
+             (id, project_id, sequence, name, description, status, depends_on, hash, created_at, prd_generated_at)
+           VALUES (?, 'default-project', ?, ?, ?, 'pending', ?, ?, ?, ?)`
         ).run(
           normalizedCreateId,
           validated.sequence,
           validated.name,
           validated.description ?? null,
-          validated.type,
           validated.dependencies.length > 0 ? JSON.stringify(validated.dependencies) : null,
           gateHash,
           now,
@@ -868,11 +808,11 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         )
       }
 
-      // Sync to project-overview.json
+      // Sync to project.json
       const { syncGatesToProjectOverview } = await import('../utils/gate-sync.js')
       await syncGatesToProjectOverview().catch(() => { /* best-effort */ })
 
-      // Mark prdGenerated in state.json (git-tracked) so registry rebuild knows
+      // Mark prdGenerated in project.json (git-tracked) so registry rebuild knows
       // the MD file exists and syncGatesFromDisk can handle it from here on
       const { markPrdGeneratedInState } = await import('../utils/state-sync.js')
       await markPrdGeneratedInState(normalizedCreateId).catch(() => { /* best-effort */ })
@@ -906,12 +846,6 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           name: 'name',
           type: 'string',
           description: 'Human-readable gate name',
-          required: true,
-        },
-        {
-          name: 'type',
-          type: 'string',
-          description: 'Gate type: feature, quality, or rescope',
           required: true,
         },
         {

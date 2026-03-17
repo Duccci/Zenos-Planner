@@ -46,7 +46,7 @@ function validateCodebasePath(path: string): boolean | string {
  */
 async function runInitWorkflow(
   projectName: string,
-  endState: string,
+  projectStatement: string,
   submoduleUrl?: string
 ): Promise<void> {
   const projectRoot = process.cwd()
@@ -75,9 +75,9 @@ async function runInitWorkflow(
   logger.info(`Created ${createdPaths.length.toString()} directories/files`)
 
   // 2. Update config with project name, end state, and submodule flag
-  const config = getDefaultConfig(projectName, endState)
+  const config = getDefaultConfig(projectName, projectStatement)
   if (usingSubmodule) {
-    config.zenoSubmodule = true
+    config['zenoSubmodule'] = true
   }
   await saveConfig(config, projectRoot)
 
@@ -88,12 +88,12 @@ async function runInitWorkflow(
   // 4. Generate project requirements
   logger.info('Generating project requirements...')
   const reqGen = new RequirementGenerator()
-  const requirements = reqGen.generateFromEndState(endState)
+  const requirements = reqGen.generateFromProjectStatement(projectStatement)
   logger.info(`Generated ${requirements.length.toString()} project requirements`)
 
   // 5. Generate gates
   logger.info('Generating project gates...')
-  const gatesResult = generateGates(endState, undefined, requirements)
+  const gatesResult = generateGates(projectStatement, undefined, requirements)
   logger.info(
     `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
   )
@@ -133,8 +133,8 @@ export function registerInitCommand(program: Command): void {
             existingConfig = await loadConfig(existingRoot)
             if (!(options as { force?: boolean }).force) {
               logger.info(`Project already initialized: ${existingConfig.projectName}`)
-              if (existingConfig.endState) {
-                logger.info(`End state: ${existingConfig.endState.substring(0, 100)}...`)
+              if (existingConfig.projectStatement) {
+                logger.info(`Project statement: ${existingConfig.projectStatement.substring(0, 100)}...`)
               }
               logger.info(
                 'Use "zeno status" to see project status or "zeno gates list" to see your roadmap.'
@@ -161,9 +161,9 @@ export function registerInitCommand(program: Command): void {
         })
 
         // Prompt for end state description
-        const endState = await editor({
-          message: "Describe your project's end state (what you want to build):",
-          default: existingConfig?.endState ?? 'A complete, production-ready application that...',
+        const projectStatement = await editor({
+          message: "Describe your project (what you want to build):",
+          default: existingConfig?.projectStatement ?? 'A complete, production-ready application that...',
           validate: (text) =>
             text.trim().length > 10 ||
             'Please provide a more detailed description (at least 10 characters)',
@@ -195,7 +195,7 @@ export function registerInitCommand(program: Command): void {
           return
         }
 
-        await runInitWorkflow(projectName, endState, (options as { submodule?: string }).submodule)
+        await runInitWorkflow(projectName, projectStatement, (options as { submodule?: string }).submodule)
       } catch (error) {
         if (error instanceof Error && error.name === 'ExitPromptError') {
           logger.info('Initialization cancelled')

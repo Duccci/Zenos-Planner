@@ -24,7 +24,7 @@ export class RequirementGenerator {
    * @param description - Natural language description of the desired end state
    * @returns Promise resolving to generated requirements
    */
-  generateFromEndState = (description: string): Requirement[] => {
+  generateFromProjectStatement = (description: string): Requirement[] => {
     const startTime = Date.now()
 
     try {

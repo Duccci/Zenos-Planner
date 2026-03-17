@@ -129,6 +129,7 @@ export async function resolveGateTestFirstSiblings(
     rows.map(async (p) => {
       let role: string | undefined
       let resolvedPath: string | undefined
+      let filesAffected: string[] | undefined
       try {
         const filePath = await findProposalByHash(p.hash)
         if (filePath) {
@@ -140,6 +141,12 @@ export async function resolveGateTestFirstSiblings(
           role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
           // Fall back to filename convention when explicit role is absent
           role ??= inferRoleFromFilename(filePath)
+          // Parse Files Affected section for cross-proposal reuse validation
+          const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+          if (sectionMatch?.[1]) {
+            const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+            filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+          }
         }
       } catch {
         // role stays undefined — validator treats as unset
@@ -149,6 +156,7 @@ export async function resolveGateTestFirstSiblings(
         role,
         createdAt: p.lastUpdated ?? new Date().toISOString(),
         filePath: resolvedPath,
+        filesAffected,
       }
     })
   )

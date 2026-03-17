@@ -64,8 +64,8 @@ export interface ZenoGateFrontmatter {
   created_at?: string | null
   completed_at?: string | null
   depends_on?: string[]
-  /** Delivery phase labels (e.g. 1, 'MVP', 'Post-MVP', 'May Demo'). Multiple allowed. */
-  phases?: (number | string)[]
+  /** Delivery milestone labels (e.g. 1, 'MVP', 'Post-MVP', 'May Demo'). Multiple allowed. */
+  milestones?: (number | string)[]
 }
 
 type ZenoFrontmatter = ZenoProposalFrontmatter | ZenoGateFrontmatter
@@ -192,6 +192,6 @@ export function parseGateFrontmatter(content: string): ZenoGateFrontmatter | nul
     created_at: (raw['created_at'] as string | null | undefined) ?? null,
     completed_at: (raw['completed_at'] as string | null | undefined) ?? null,
     depends_on: Array.isArray(raw['depends_on']) ? raw['depends_on'] as string[] : [],
-    phases: Array.isArray(raw['phases']) ? raw['phases'] as (number | string)[] : undefined,
+    milestones: Array.isArray(raw['milestones']) ? raw['milestones'] as (number | string)[] : undefined,
   }
 }

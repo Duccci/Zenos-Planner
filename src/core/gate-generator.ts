@@ -6,7 +6,7 @@ import { decomposeWork } from './zeno-engine.js'
 import { sequenceGates } from './gate-sequencer.js'
 import { calculateConfidence } from './gate-scoring.js'
 import { getDatabase } from '../storage/database.js'
-import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview, getCompletedGates } from '../utils/config.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
 import { normalizeGateId } from '../utils/normalize.js'
 import type { CodeMetrics } from '../analysis/types.js'
@@ -66,14 +66,14 @@ export interface RegenerationSuggestions {
  * Takes end state description and optional analysis/requirements to generate complete gate sequence.
  */
 export function generateGates(
-  endState: string,
+  projectStatement: string,
   analysisResult?: InitialAnalysisResult,
   requirements?: Requirement[]
 ): GeneratedGates {
   // Convert inputs to WorkDescription
   const workDescription: WorkDescription = {
-    description: endState,
-    complexity: estimateInitialComplexity(endState, analysisResult, requirements),
+    description: projectStatement,
+    complexity: estimateInitialComplexity(projectStatement, analysisResult, requirements),
     requirements: requirements ? requirements.map((r) => r.description) : [],
     existingCodebase: analysisResult
       ? {
@@ -128,7 +128,7 @@ export function generateGates(
  * Estimates initial complexity of the entire project.
  */
 function estimateInitialComplexity(
-  endState: string,
+  projectStatement: string,
   analysisResult?: InitialAnalysisResult,
   requirements?: Requirement[]
 ): number {
@@ -146,7 +146,7 @@ function estimateInitialComplexity(
   }
 
   // Factor in description length (rough proxy for scope)
-  complexity += endState.length / 100
+  complexity += projectStatement.length / 100
 
   return Math.min(100, complexity)
 }
@@ -224,7 +224,6 @@ async function regenerateGatesFromAnalysis(fromGateId: string): Promise<Regenera
     dependencies: [],
     estimatedComplexity: 0,
     confidence: 0,
-    type: 'feature' as const,
     status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
@@ -355,13 +354,12 @@ export async function regenerateGatesTheoreticalFromProject(): Promise<Regenerat
     dependencies: [],
     estimatedComplexity: 0,
     confidence: 0,
-    type: 'feature' as const,
     status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
   // Regenerate using theoretical decomposition
   const workDescription: WorkDescription = {
-    description: projectOverview.endState,
+    description: projectOverview.project.projectStatement,
     complexity: BASE_COMPLEXITY,
     requirements: [],
     existingCodebase: undefined,
@@ -378,7 +376,7 @@ export async function regenerateGatesTheoreticalFromProject(): Promise<Regenerat
 
   const changes: RegenerationSuggestions['changes'] = []
   const reasoning =
-    `Using theoretical decomposition based on project end state: "${projectOverview.endState}". ` +
+    `Using theoretical decomposition based on project statement: "${projectOverview.project.projectStatement}". ` +
     `Complete gates and run analysis to enable data-driven refinements.`
 
   return {
@@ -406,7 +404,6 @@ async function regenerateGatesTheoretical(fromGateId: string): Promise<Regenerat
     dependencies: [],
     estimatedComplexity: 0,
     confidence: 0,
-    type: 'feature' as const,
     status: s.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
   }))
 
@@ -458,7 +455,7 @@ export interface ReplanOptions {
   gateId?: string
   /** Multi-gate mode: use this completed gate as the baseline (auto-detected if omitted). */
   fromGateId?: string
-  /** Rescope signal: the project PRD end-state has changed. Reads current endState for context. */
+  /** Rescope signal: the project PRD project statement has changed. Reads current projectStatement for context. */
   prdChanged?: boolean
   /** Return the plan without writing any files. */
   dryRun?: boolean
@@ -523,7 +520,7 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
     if (prdChanged) {
       try {
         const overview = await readProjectOverview()
-        rescopeNote = `\n\n> **Rescoped**: PRD end-state has changed. Previous end-state: "${overview.endState}"`
+        rescopeNote = `\n\n> **Rescoped**: PRD project statement has changed. Previous statement: "${overview.project.projectStatement}"`
       } catch {
         rescopeNote = '\n\n> **Rescoped**: PRD end-state updated (could not read current value).'
       }
@@ -573,7 +570,7 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
   if (prdChanged) {
     try {
       const overview = await readProjectOverview()
-      rescopeContext = ` PRD rescope detected — current end-state: "${overview.endState}".`
+      rescopeContext = ` PRD rescope detected — current project statement: "${overview.project.projectStatement}".`
     } catch {
       rescopeContext = ' PRD rescope signal provided but end-state could not be read.'
     }
@@ -584,8 +581,9 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
   if (!baselineGateId) {
     try {
       const overview = await readProjectOverview()
-      if (overview.completedGates.length > 0) {
-        const last = overview.completedGates[overview.completedGates.length - 1]
+      const completed = getCompletedGates(overview)
+      if (completed.length > 0) {
+        const last = completed[completed.length - 1]
         if (last) {
           baselineGateId = `gate-${last.sequence.toString().padStart(2, '0')}`
         }

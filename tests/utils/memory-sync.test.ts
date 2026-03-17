@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { syncMemoryFromProjectOverview } from '../../src/utils/memory-sync.js'
+import type { Project, ProjectGate } from '../../src/utils/config.js'
 
 const mockFileExists = vi.fn()
 const mockReadFile = vi.fn()
@@ -14,6 +15,10 @@ vi.mock('../../src/utils/file.js', () => ({
 
 vi.mock('../../src/utils/config.js', () => ({
   readProjectOverview: (...args: unknown[]) => mockReadProjectOverview(...args),
+  getCompletedGates: (p: Project) =>
+    p.gates.filter((g: ProjectGate) => g.status === 'completed').sort((a: ProjectGate, b: ProjectGate) => a.sequence - b.sequence),
+  getUpcomingGates: (p: Project) =>
+    p.gates.filter((g: ProjectGate) => g.status === 'pending' || g.status === 'validated').sort((a: ProjectGate, b: ProjectGate) => a.sequence - b.sequence),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -25,27 +30,41 @@ vi.mock('../../src/utils/logger.js', () => ({
   },
 }))
 
-type OverviewInput = Partial<{
-  totalGatesPlanned: number
-  completedGates: { name: string; completedAt: string; hash?: string; sequence?: number }[]
-  currentGateInfo: { name: string; status?: string } | null
-  upcomingGates: { name: string }[]
-}>
+type GateInput = Partial<ProjectGate>
 
-function makeOverview(overrides: OverviewInput = {}) {
+function makeGate(seq: number, overrides: GateInput = {}): ProjectGate {
   return {
-    totalGatesPlanned: 0,
-    completedGates: [] as { name: string; completedAt: string }[],
-    currentGateInfo: null as { name: string; status?: string } | null,
-    upcomingGates: [] as { name: string }[],
+    id: `gate-${String(seq).padStart(2, '0')}`,
+    sequence: seq,
+    name: `Gate ${seq}`,
+    hash: `hash${seq}`,
+    status: 'pending',
+    type: 'feature',
+    createdAt: new Date().toISOString(),
+    completedAt: null,
     ...overrides,
+  } as ProjectGate
+}
+
+function makeOverview(gates: ProjectGate[] = [], totalGatesPlanned = 0): Project {
+  return {
+    project: {
+      name: 'Test Project',
+      version: '0.1.0',
+      projectStatement: 'Done',
+
+      totalGatesPlanned,
+    },
+    gates,
+    lastUpdated: new Date().toISOString(),
+    status: 'awaiting_review',
   }
 }
 
 // Exact section that buildRoadmapSection produces for an empty overview.
 // Derived from the join logic in memory-sync.ts with all empty arrays/null values.
 const EMPTY_ROADMAP_SECTION =
-  '## Gate Roadmap (auto-updated from project-overview.json)\n\n### Completed (0/0)\n_None yet_\n\n### Current\n_None_\n\n### Upcoming\n_None_'
+  '## Gate Roadmap (auto-updated from project.json)\n\n### Completed (0/0)\n_None yet_\n\n### Current\n_None_\n\n### Upcoming\n_None_'
 
 describe('syncMemoryFromProjectOverview', () => {
   beforeEach(() => {
@@ -96,12 +115,11 @@ describe('syncMemoryFromProjectOverview', () => {
   it('replaces stale section when existing content differs', async () => {
     mockFileExists.mockReturnValue(true)
     mockReadProjectOverview.mockResolvedValue(
-      makeOverview({
-        totalGatesPlanned: 2,
-        completedGates: [{ name: 'Bootstrap', completedAt: '2026-01-10T00:00:00.000Z', sequence: 1 }],
-        currentGateInfo: { name: 'Core Feature', status: 'in_progress' },
-        upcomingGates: [{ name: 'Optimise' }],
-      })
+      makeOverview([
+        makeGate(1, { name: 'Bootstrap', status: 'completed', completedAt: '2026-01-10T00:00:00.000Z' }),
+        makeGate(2, { name: 'Core Feature', status: 'in_progress' }),
+        makeGate(3, { name: 'Optimise', status: 'pending' }),
+      ], 3)
     )
     mockReadFile.mockResolvedValue(
       '# Memory\n\n## Gate Roadmap\n_old stale data_\n\n## Notes\nsome notes'
@@ -131,15 +149,11 @@ describe('syncMemoryFromProjectOverview', () => {
   it('builds section with multiple completed gates and no current gate', async () => {
     mockFileExists.mockReturnValue(true)
     mockReadProjectOverview.mockResolvedValue(
-      makeOverview({
-        totalGatesPlanned: 3,
-        completedGates: [
-          { name: 'Gate Alpha', completedAt: '2026-01-01T00:00:00.000Z', sequence: 1 },
-          { name: 'Gate Beta', completedAt: '2026-01-15T00:00:00.000Z', sequence: 2 },
-        ],
-        currentGateInfo: null,
-        upcomingGates: [{ name: 'Gate Gamma' }],
-      })
+      makeOverview([
+        makeGate(1, { name: 'Gate Alpha', status: 'completed', completedAt: '2026-01-01T00:00:00.000Z' }),
+        makeGate(2, { name: 'Gate Beta', status: 'completed', completedAt: '2026-01-15T00:00:00.000Z' }),
+        makeGate(3, { name: 'Gate Gamma', status: 'pending' }),
+      ], 3)
     )
     mockReadFile.mockResolvedValue('# Memory') // no existing Gate Roadmap section
 
@@ -156,11 +170,9 @@ describe('syncMemoryFromProjectOverview', () => {
   it('builds section with current gate showing status', async () => {
     mockFileExists.mockReturnValue(true)
     mockReadProjectOverview.mockResolvedValue(
-      makeOverview({
-        totalGatesPlanned: 1,
-        currentGateInfo: { name: 'Active Gate', status: 'in_progress' },
-        upcomingGates: [],
-      })
+      makeOverview([
+        makeGate(1, { name: 'Active Gate', status: 'in_progress' }),
+      ], 1)
     )
     mockReadFile.mockResolvedValue('# Memory')
 
@@ -173,14 +185,12 @@ describe('syncMemoryFromProjectOverview', () => {
     expect(written).toContain('_None yet_') // no completed
   })
 
-  it('builds section with current gate having no status (defaults to "pending")', async () => {
+  it('builds section with only pending gate (no current gate)', async () => {
     mockFileExists.mockReturnValue(true)
     mockReadProjectOverview.mockResolvedValue(
-      makeOverview({
-        totalGatesPlanned: 1,
-        currentGateInfo: { name: 'Statusless Gate' }, // no status property
-        upcomingGates: [],
-      })
+      makeOverview([
+        makeGate(1, { name: 'Statusless Gate', status: 'pending' }),
+      ], 1)
     )
     mockReadFile.mockResolvedValue('# Memory')
 
@@ -188,6 +198,6 @@ describe('syncMemoryFromProjectOverview', () => {
 
     const [, written] = mockWriteFile.mock.calls[0] as [string, string]
     expect(written).toContain('Statusless Gate')
-    expect(written).toContain('pending') // status ?? 'pending' fallback
+    expect(written).toContain('_None_') // no current (pending != in_progress)
   })
 })

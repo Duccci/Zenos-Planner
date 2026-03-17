@@ -27,7 +27,7 @@ import {
   type ScopeValidationContext,
 } from '../validators/scope-validator.js'
 import { validateProposalPhases } from '../validators/proposal-phases-validator.js'
-import { validateTestFirstPattern, validateGateLevelTestFirst } from '../validators/test-first-validator.js'
+import { validateTestFirstPattern, validateGateLevelTestFirst, validateCleanupTestFileReuse } from '../validators/test-first-validator.js'
 import { validateDependencies, type DependencyNode } from '../validators/dependency-validator.js'
 import { validateArtifactFile } from '../validators/artifact-validator.js'
 import { buildQualitativeReviewWarnings } from './handler-factory.js'
@@ -38,10 +38,15 @@ import {
   PROPOSAL_GENERATION_GUARDRAILS,
   PROPOSAL_GENERATION_WORKFLOW,
   QUALITATIVE_CHECKLIST,
+  FEATURE_IMPLEMENTATION_CHECKLIST,
   DATABASE_ACCESS_GUARDRAILS,
   toNarrativeRules,
   toCompactWorkflow,
 } from '../content/index.js'
+import { inferRoleFromFilename } from '../validators/test-first-validator.js'
+import { WorktreeManager } from '../../core/worktree-manager.js'
+import { ApprovalAuditTrail } from '../../storage/approval-audit-trail.js'
+import { getDatabase } from '../../storage/database.js'
 
 /**
  * Unified proposal action tool definition.
@@ -140,9 +145,59 @@ async function resolveAndValidateTestFirst(
 }
 
 /**
- * Builds the proposal dependency allNodes map for a given gate, then runs
- * validateDependencies for the given hash and deps.
+ * Resolves a cleanup (GREEN) proposal's filesAffected and validates that all test
+ * files it declares were established by the gate's testing (RED) proposal.
  *
+ * Skips silently for solitary proposals or non-cleanup roles.
+ */
+async function resolveAndValidateCleanupReuse(
+  r: FunctionRegistry,
+  hash: string
+): Promise<ValidationResult> {
+  try {
+    const proposalResult = await r.invoke('proposal_show', { hash })
+    if (!proposalResult.success) return { allowed: true }
+
+    const proposal = proposalResult.data as Record<string, unknown>
+    const gateId = proposal['gateId'] as string | undefined
+    if (!gateId || gateId === 'solitary') return { allowed: true }
+
+    // Read role from disk — mirrors resolveAndValidateTestFirst to avoid filename fallback
+    // being used here; explicit **Roles** field is required for gate-tied proposals.
+    const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+    const { readFile } = await import('../../utils/file.js')
+
+    let role: string | undefined = (proposal['role'] as string | undefined)
+    let filesAffected = ((proposal['files'] as { path: string }[] | undefined) ?? []).map(
+      (f) => f.path
+    )
+
+    const filePath = await findProposalByHash(hash)
+    if (filePath) {
+      const content = await readFile(filePath)
+      const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
+      const rawRole = roleMatch?.[1]?.trim()
+      role = rawRole && !rawRole.startsWith('{{') ? rawRole : role
+      if (filesAffected.length === 0) {
+        const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
+        if (sectionMatch?.[1]) {
+          const backtickPaths = sectionMatch[1].match(/`([^`]+\.[a-z]{1,10})`/gi) ?? []
+          filesAffected = [...new Set(backtickPaths.map((m) => m.slice(1, -1)))]
+        }
+      }
+    }
+
+    if (role !== 'cleanup') return { allowed: true }
+
+    const gateProposals = await resolveGateTestFirstSiblings(r, gateId)
+    return validateCleanupTestFileReuse(filesAffected, gateProposals)
+  } catch {
+    return { allowed: true }
+  }
+}
+
+
+/**
  * Extracted from the generate and validate dependency validators which
  * were identical except for how they sourced gateId and hash.
  */
@@ -228,7 +283,29 @@ export function proposalHandlers(
       },
       actionHandlers: {
         list: async (payload, r) => r.invoke('proposal_list', payload),
-        show: async (payload, r) => r.invoke('proposal_show', payload),
+        show: async (payload, r) => {
+          const showResult = await r.invoke('proposal_show', payload)
+          if (showResult.success) {
+            // Enrich with approval/rejection review history (best-effort)
+            try {
+              const hash = (payload as { hash?: string }).hash ?? ''
+              if (hash) {
+                const db = getDatabase()
+                const audit = new ApprovalAuditTrail(db)
+                const reviewHistory = audit.getHistory(hash)
+                if (reviewHistory.length > 0) {
+                  return {
+                    ...showResult,
+                    data: { ...(showResult.data as Record<string, unknown>), reviewHistory },
+                  }
+                }
+              }
+            } catch {
+              // Audit enrichment is best-effort
+            }
+          }
+          return showResult
+        },
         create: async (payload, r) => r.invoke('proposal_create', payload),
         generate: async (payload, r) => {
           // Route solitary proposals to the proposal workflow (proposal_create)
@@ -304,23 +381,56 @@ export function proposalHandlers(
           const structuralPassed = Boolean(rawData['passedQuantitative'])
 
           if (structuralPassed) {
-            // Structural checks all passed: strip redundant noise.
-            // `checks` (8× true) and `guidance` both reinforce a false "all-clear" signal.
-            // Only surface what the agent must act on next.
+            // Resolve proposal role to select the appropriate qualitative checklist.
+            // Feature (GREEN) proposals get additional implementation-fidelity checks.
+            const hash = (payload as { hash?: string }).hash ?? ''
+            let resolvedRole: string | undefined
+            try {
+              const { findProposalByHash } = await import('../../utils/artifact-locator.js')
+              const { readFile } = await import('../../utils/file.js')
+              const showResult = await r.invoke('proposal_show', { hash })
+              if (showResult.success) {
+                resolvedRole = (showResult.data as Record<string, unknown>)['role'] as string | undefined
+              }
+              const filePath = await findProposalByHash(hash)
+              if (filePath) {
+                const content = await readFile(filePath)
+                const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
+                const diskRole = roleMatch?.[1]?.trim()
+                if (diskRole && !diskRole.startsWith('{{')) resolvedRole = diskRole
+                resolvedRole ??= inferRoleFromFilename(filePath)
+              }
+            } catch {
+              // best-effort role resolution; fall back to base checklist
+            }
+
+            const isFeatureRole = resolvedRole === 'feature'
+            const checklist = isFeatureRole
+              ? [...QUALITATIVE_CHECKLIST, ...FEATURE_IMPLEMENTATION_CHECKLIST]
+              : QUALITATIVE_CHECKLIST
+
+            const fidelityField = isFeatureRole
+              ? ', implementationFidelityVerified'
+              : ''
+
             return {
               success: true,
               data: {
                 hash: rawData['hash'],
                 passedQuantitative: true,
                 issues: rawData['issues'] ?? [],
+                proposalRole: resolvedRole,
                 nextRequiredStep: {
                   blocking: true,
                   action: 'submit-qualitative-review',
                   agentInstruction:
-                    'YOU (the LLM) must evaluate each item in checklist[] with your own judgment right now — do NOT present this to the user. Read the proposal tasks, acceptance criteria, filesAffected, and rollback section, set each boolean to reflect what you found, list any concerns in flaggedItems, then call proposal_action:start with both preReview and qualitativeReview filled in.',
+                    'YOU (the LLM) must evaluate each item in checklist[] with your own judgment right now — do NOT present this to the user. Read the proposal tasks, acceptance criteria, filesAffected, and rollback section, set each boolean to reflect what you found, list any concerns in flaggedItems, then call proposal_action:start with both preReview and qualitativeReview filled in.' +
+                    (isFeatureRole
+                      ? ' CRITICAL for feature proposals: open the actual implementation source files and verify they perform real I/O operations (filesystem, git, network, database) as stated in acceptance criteria — do NOT rely solely on test pass/fail since tests may mock the operations.'
+                      : ''),
                   description:
-                    'Structural checks passed. Evaluate the checklist and call proposal_action:start { hash, preReview: { phase: "apply", ... }, qualitativeReview: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems } }.',
-                  checklist: QUALITATIVE_CHECKLIST,
+                    `Structural checks passed. Evaluate the checklist and call proposal_action:start { hash, preReview: { phase: "apply", ... }, qualitativeReview: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, noUnresolvedMarkers, scopeFocused, rollbackSpecific${fidelityField}, flaggedItems } }.`,
+                  checklist,
                 },
               },
             }
@@ -371,7 +481,39 @@ export function proposalHandlers(
               }
             }
           }
-          return r.invoke('proposal_approve', payload)
+          const approveResult = await r.invoke('proposal_approve', payload)
+          if (approveResult.success) {
+            // Record approval in audit trail (best-effort)
+            try {
+              const db = getDatabase()
+              const audit = new ApprovalAuditTrail(db)
+              audit.record({
+                proposal_hash: hash,
+                decision: 'approved',
+                actor: (payload as { approvedBy?: string }).approvedBy ?? 'zeno',
+                reason: (payload as { approverNotes?: string }).approverNotes ?? null,
+                timestamp: new Date().toISOString(),
+              })
+            } catch {
+              // Audit recording is best-effort; don't fail the approve
+            }
+            try {
+              const manager = new WorktreeManager()
+              const mergeResult = await manager.merge(hash, 'main')
+              if (mergeResult.conflicts && mergeResult.conflicts.length > 0) {
+                return {
+                  success: false as const,
+                  error: {
+                    code: 'MERGE_CONFLICTS',
+                    message: `Worktree merge failed with conflicts in: ${mergeResult.conflicts.join(', ')}. Resolve conflicts manually before approving.`,
+                  },
+                }
+              }
+            } catch {
+              // Worktree may not exist; best-effort merge
+            }
+          }
+          return approveResult
         },
         reject: async (payload, r) => {
           // Idempotent: if already rejected, return success without re-invoking CLI
@@ -394,7 +536,25 @@ export function proposalHandlers(
               }
             }
           }
-          return r.invoke('proposal_reject', payload)
+          const rejectResult = await r.invoke('proposal_reject', payload)
+          // Record rejection in audit trail (best-effort)
+          if (rejectResult.success) {
+            try {
+              const db = getDatabase()
+              const audit = new ApprovalAuditTrail(db)
+              audit.record({
+                proposal_hash: hash,
+                decision: 'rejected',
+                actor: (payload as { rejectedBy?: string }).rejectedBy ?? 'zeno',
+                reason: (payload as { reason?: string }).reason ?? null,
+                rejection_category: (payload as { rejectionCategory?: string }).rejectionCategory ?? null,
+                timestamp: new Date().toISOString(),
+              })
+            } catch {
+              // Audit recording is best-effort; don't fail the reject
+            }
+          }
+          return rejectResult
         },
         start: async (payload, r) => {
           const p = payload as { hash?: string; qualitativeReview?: ProposalQualitativeReview; preReview?: PreReview; startedBy?: string }
@@ -442,11 +602,30 @@ export function proposalHandlers(
               noUnresolvedMarkers: 'noUnresolvedMarkers=false: unresolved TODO/TBD/unclear markers found in proposal content',
               scopeFocused: 'scopeFocused=false: proposal may bundle unrelated concerns that should be separate proposals',
               rollbackSpecific: 'rollbackSpecific=false: rollback section lacks specific reversible steps',
+              implementationFidelityVerified: 'implementationFidelityVerified=false: implementation may use in-memory stubs instead of performing real I/O operations stated in acceptance criteria — verify actual system calls (filesystem, git, network, database) are made',
             })
 
             // Strip qualitativeReview before delegating (unknown field to CLI handler)
             const { qualitativeReview: _qr, ...cliPayload } = p
-            const rawResult = await r.invoke('proposal_start', cliPayload)
+            let rawResult = await r.invoke('proposal_start', cliPayload)
+
+            // Create worktree for isolated development (best-effort)
+            if (rawResult.success) {
+              try {
+                const manager = new WorktreeManager()
+                const worktreeInfo = await manager.create(hash)
+                rawResult = {
+                  ...rawResult,
+                  data: {
+                    ...(rawResult.data as object),
+                    worktree: { path: worktreeInfo.path, branch: worktreeInfo.branch },
+                  },
+                }
+              } catch {
+                // Worktree creation is best-effort; don't fail the start
+              }
+            }
+
             const resultWithWarnings =
               rawResult.success && reviewWarnings.length > 0
                 ? { ...rawResult, data: { ...(rawResult.data as object), reviewWarnings } }
@@ -666,6 +845,8 @@ export function proposalHandlers(
           },
           // 6) Test-first gate pattern: role-file consistency check
           async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
+          // 7) Cleanup test file reuse: cleanup proposals must only reference test files from RED
+          async () => resolveAndValidateCleanupReuse(r, (payload as { hash?: string }).hash ?? ''),
         ],
         generate: (_payload, _r) => [
           // G5-G8 preReview + G12 markdown-only: shared with gates, delegated to factory
@@ -845,6 +1026,9 @@ export function proposalHandlers(
               return { allowed: true }
             }
           },
+          // Cleanup test file reuse: cleanup (GREEN) proposals must only reference test files
+          // established by the gate's testing (RED) proposal.
+          async () => resolveAndValidateCleanupReuse(r, (payload as { hash?: string }).hash ?? ''),
         ],
         approve: (payload, r) => [
           // 1) Enforce state transition: only in_progress proposals can be approved
@@ -873,6 +1057,8 @@ export function proposalHandlers(
           },
           // 3) Test-first gate pattern: role-file consistency at approval time
           async () => resolveAndValidateTestFirst(r, (payload as { hash?: string }).hash ?? ''),
+          // 4) Cleanup test file reuse: cleanup proposals must only reference test files from RED
+          async () => resolveAndValidateCleanupReuse(r, (payload as { hash?: string }).hash ?? ''),
         ],
         reject: (payload, r) => [
           // Enforce state transition: only in_progress proposals can be rejected

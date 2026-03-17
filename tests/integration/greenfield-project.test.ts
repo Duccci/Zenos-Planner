@@ -45,7 +45,7 @@ describe('Greenfield Project Integration', () => {
     const mockPrompts = {
       projectName: 'Test Greenfield Project',
       projectDescription: 'A test project for integration testing',
-      endState: 'Build a web application with user authentication and product catalog'
+      projectStatement: 'Build a web application with user authentication and product catalog'
     }
 
     // Since we can't easily mock interactive prompts, we'll test the components separately

@@ -32,7 +32,7 @@ vi.mock('../../../src/scaffold/index.js', () => ({
 
 vi.mock('../../../src/generation/requirement-generator.js', () => ({
   RequirementGenerator: vi.fn().mockImplementation(() => ({
-    generateFromEndState: vi.fn().mockReturnValue([
+    generateFromProjectStatement: vi.fn().mockReturnValue([
       { id: 'req1', description: 'Requirement 1' },
       { id: 'req2', description: 'Requirement 2' },
     ]),
@@ -56,7 +56,7 @@ vi.mock('../../../src/storage/database.js', () => ({
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn(),
   loadConfig: vi.fn(),
-  getDefaultConfig: vi.fn((name, endState) => ({ projectName: name, endState, version: '0.1.0' })),
+  getDefaultConfig: vi.fn((name, projectStatement) => ({ projectName: name, projectStatement, version: '0.1.0' })),
   saveConfig: vi.fn().mockResolvedValue(undefined),
 }))
 

@@ -29,11 +29,12 @@ import { normalizeGateId, normalizeHash } from '../utils/normalize.js'
 import { analyzeGateChanges } from './write-time-analyzer.js'
 import { regenerateGatesWithAnalysis, regenerateGatesTheoreticalFromProject } from './gate-generator.js'
 import { updateProjectPRDGates } from './prd-updater.js'
-import { archiveCompletedGateInState, updateCurrentGateInState, syncProjectMetadataToState } from '../utils/state-sync.js'
-import { readProjectOverview, saveProjectOverview } from '../utils/config.js'
+import { archiveCompletedGateInState, updateCurrentGateInState } from '../utils/state-sync.js'
+import { readProjectOverview, getCompletedGates } from '../utils/config.js'
 import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
 import { findGateByGateId, findProposalByHash } from '../utils/artifact-locator.js'
+import { ApprovalAuditTrail } from '../storage/approval-audit-trail.js'
 
 
 
@@ -234,6 +235,19 @@ export async function approveProposal(
     ).run(options.approver ?? null, proposalId)
   })
   tx(proposal.id)
+
+  // Record approval event in audit trail
+  try {
+    const auditTrail = new ApprovalAuditTrail(db)
+    auditTrail.record({
+      proposal_hash: proposalHash,
+      decision: 'approved',
+      actor: options.approver ?? 'zeno',
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    logger.warn(`Failed to record approval event for ${proposalHash}: ${String(error)}`)
+  }
 
   // Update proposal file metadata in place (no proposal archive directory)
   let proposalContent = ''
@@ -485,7 +499,7 @@ export async function completeGate(
     // Don't fail the completion if PRD update fails
   }
 
-  // Sync gate completion to state.json (backup/traceability archive)
+  // Sync gate completion to project.json (backup/traceability archive)
   // Use DB gate values directly — avoids brittle name-based lookup against
   // project-overview.completedGates which may not be synced yet at this point.
   try {
@@ -497,26 +511,16 @@ export async function completeGate(
       projectRoot
     )
   } catch (error) {
-    logger.warn(`Failed to archive gate in state.json: ${String(error)}`)
-    // Don't fail the completion if state sync fails
-  }
-
-  // Full state.json sync from project-overview ensures version, totalGatesPlanned,
-  // upcomingGates, and all completed gates (including any retroactive gaps) are current.
-  try {
-    const overview = await readProjectOverview(projectRoot)
-    await syncProjectMetadataToState(overview, projectRoot)
-  } catch (error) {
-    logger.warn(`Failed to full-sync state.json after gate completion: ${String(error)}`)
+    logger.warn(`Failed to archive gate in project.json: ${String(error)}`)
     // Don't fail the completion if state sync fails
   }
 
   // Refresh .serena/memories/project_overview.md Gate Roadmap section from
-  // project-overview.json so agent sessions have current context.
+  // project.json so agent sessions have current context.
   try {
     await syncMemoryFromProjectOverview(projectRoot)
   } catch (error) {
-    logger.warn(`Failed to sync memory from project-overview.json: ${String(error)}`)
+    logger.warn(`Failed to sync memory from project.json: ${String(error)}`)
     // Don't fail the completion if memory sync fails
   }
 
@@ -630,7 +634,7 @@ export interface RejectProposalOptions {
 
 export async function rejectProposal(
   hashInput: string,
-  _options: RejectProposalOptions = {}
+  options: RejectProposalOptions = {}
 ): Promise<void> {
   const projectRoot = requireProjectRoot()
   await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
@@ -662,6 +666,20 @@ export async function rejectProposal(
   db.prepare(
     `UPDATE proposals SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
   ).run(proposal.id)
+
+  // Record rejection event in audit trail
+  try {
+    const auditTrail = new ApprovalAuditTrail(db)
+    auditTrail.record({
+      proposal_hash: proposalHash,
+      decision: 'rejected',
+      actor: options.rejectedBy ?? 'zeno',
+      reason: options.rejectionReason,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    logger.warn(`Failed to record rejection event for ${proposalHash}: ${String(error)}`)
+  }
 
   // Sync status to proposal .md file
   try {
@@ -716,27 +734,18 @@ export async function startGate(
     `UPDATE gates SET status = 'in_progress' WHERE id = ?`
   ).run(gate.id)
 
-  // Sync currentGate to project-overview.json
-  try {
-    const overview = await readProjectOverview(projectRoot)
-    overview.currentGate = gateId
-    await saveProjectOverview(overview)
-  } catch (error) {
-    logger.warn(`Failed to sync gate start to project-overview.json: ${String(error)}`)
-  }
-
-  // Sync to state.json
+  // Sync currentGate to project.json
   try {
     await updateCurrentGateInState(gate.id, gate.name, gate.sequence, gate.hash)
   } catch (error) {
-    logger.warn(`Failed to sync gate start to state.json: ${String(error)}`)
+    logger.warn(`Failed to sync gate start to project.json: ${String(error)}`)
   }
 
-  // Sync gates back to project-overview.json
+  // Sync gates back to project.json
   try {
     await syncGatesToProjectOverview()
   } catch (error) {
-    logger.debug(`Failed to sync gates to project-overview: ${String(error)}`)
+    logger.debug(`Failed to sync gates to project.json: ${String(error)}`)
   }
 
   // Sync status to gate .md file
@@ -764,14 +773,15 @@ export async function regenerateGates(): Promise<void> {
 
   try {
     const overview = await readProjectOverview()
-    if (overview.completedGates.length > 0) {
-      const last = overview.completedGates[overview.completedGates.length - 1]
+    const completed = getCompletedGates(overview)
+    if (completed.length > 0) {
+      const last = completed[completed.length - 1]
       if (last) {
         recentGateId = `gate-${last.sequence.toString().padStart(2, '0')}`
       }
     }
   } catch {
-    // No project-overview.json — proceed without base gate
+    // No project.json — proceed without base gate
   }
 
   if (recentGateId) {

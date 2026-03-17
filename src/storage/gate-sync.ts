@@ -19,7 +19,7 @@
  *
  * DB status normalization:
  *   The `gates.status` column only accepts ('pending','in_progress','completed',
- *   'rejected').  Statuses that live exclusively in project-overview.json
+ *   'rejected').  Statuses that live exclusively in project.json
  *   ('validated', 'backlog', 'cancelled') are mapped to nearest DB equivalents.
  */
 
@@ -37,7 +37,6 @@ interface ParsedGateMeta {
   id: string
   name: string
   sequence: number
-  type: string
   status: string
   hash: string
   projectId: string
@@ -92,10 +91,6 @@ function parseGateBodyFields(content: string, filePath: string): ParsedGateMeta 
   const statusMatch = /\*\*Status\*\*:\s*([a-z_]+)/.exec(content)
   const status = statusMatch?.[1]?.trim() ?? 'pending'
 
-  // Type
-  const typeMatch = /\*\*Type\*\*:\s*([a-zA-Z_]+)/.exec(content)
-  const type = typeMatch?.[1]?.trim() ?? 'feature'
-
   // Sequence: "6 of 12" → 6
   const seqMatch = /\*\*Sequence\*\*:\s*(\d+)/.exec(content)
   const sequence = seqMatch?.[1] ? parseInt(seqMatch[1], 10) : 0
@@ -108,7 +103,6 @@ function parseGateBodyFields(content: string, filePath: string): ParsedGateMeta 
     id,
     name,
     sequence,
-    type,
     status,
     hash,
     projectId: 'default-project',
@@ -150,9 +144,9 @@ export function syncGatesFromDisk(
 
   const insert = db.prepare(`
     INSERT OR IGNORE INTO gates
-      (id, project_id, sequence, name, type, status, hash, created_at, depends_on)
+      (id, project_id, sequence, name, status, hash, created_at, depends_on)
     VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   const now = new Date().toISOString()
@@ -180,7 +174,6 @@ export function syncGatesFromDisk(
           id: fm.id,
           name: fm.name,
           sequence: fm.sequence,
-          type: fm.type,
           status: fm.status,
           hash: fm.hash,
           projectId: fm.project_id ?? 'default-project',
@@ -201,16 +194,12 @@ export function syncGatesFromDisk(
       }
 
       const dbStatus = normalizeStatus(meta.status)
-      const dbType = ['feature', 'quality', 'rescope'].includes(meta.type)
-        ? meta.type
-        : 'feature'
 
       insert.run(
         meta.id,
         meta.projectId,
         meta.sequence,
         meta.name,
-        dbType,
         dbStatus,
         meta.hash,
         normalizeDateTime(meta.createdAt, now),
@@ -227,7 +216,7 @@ export function syncGatesFromDisk(
 }
 
 /**
- * Seed the DB from planned gate entries in state.json.
+ * Seed the DB from planned gate entries in project.json.
  *
  * Called during `zeno registry rebuild` (and on DB init) to restore gates that
  * were registered with gate_plan but whose PRD markdown files have not been
@@ -239,30 +228,30 @@ export function syncPlannedGatesFromState(
   db: Database.Database,
   projectRoot: string = process.cwd()
 ): SyncGatesResult {
-  const statePath = path.join(projectRoot, 'zeno', '.zeno', 'state.json')
+  const projectPath = path.join(projectRoot, 'zeno', '.zeno', 'project.json')
 
-  let stateContent: string
+  let projectContent: string
   try {
-    stateContent = readFileSync(statePath, 'utf-8')
+    projectContent = readFileSync(projectPath, 'utf-8')
   } catch {
-    return { synced: 0, skipped: 0 }  // state.json not present — nothing to do
+    return { synced: 0, skipped: 0 }  // project.json not present — nothing to do
   }
 
-  let state: { upcomingGates?: unknown[] }
+  let project: { gates?: unknown[] }
   try {
-    state = JSON.parse(stateContent) as { upcomingGates?: unknown[] }
+    project = JSON.parse(projectContent) as { gates?: unknown[] }
   } catch {
     return { synced: 0, skipped: 0 }
   }
 
-  const upcomingGates = state.upcomingGates ?? []
-  if (upcomingGates.length === 0) return { synced: 0, skipped: 0 }
+  const gates = project.gates ?? []
+  if (gates.length === 0) return { synced: 0, skipped: 0 }
 
   const insert = db.prepare(`
     INSERT OR IGNORE INTO gates
-      (id, project_id, sequence, name, description, type, status, hash, created_at, prd_generated_at)
+      (id, project_id, sequence, name, description, status, hash, created_at, prd_generated_at)
     VALUES
-      (?, 'default-project', ?, ?, ?, 'feature', 'pending', ?, ?, NULL)
+      (?, 'default-project', ?, ?, ?, 'pending', ?, ?, NULL)
   `)
 
   const now = new Date().toISOString()
@@ -270,18 +259,25 @@ export function syncPlannedGatesFromState(
   let skipped = 0
 
   const runAll = db.transaction(() => {
-    for (const raw of upcomingGates) {
+    for (const raw of gates) {
       const g = raw as {
         id?: string
         sequence?: number
         name?: string
         goal?: string
         hash?: string
+        status?: string
         prdGenerated?: boolean
       }
 
-      // Skip entries without the gate_plan fields (legacy entries with only name/sequence)
+      // Only seed pending/validated gates without PRDs — completed/in_progress gates
+      // and gates with PRDs are handled by syncGatesFromDisk.
       if (!g.id || !g.name || !g.hash) {
+        skipped++
+        continue
+      }
+
+      if (g.status === 'completed' || g.status === 'in_progress') {
         skipped++
         continue
       }

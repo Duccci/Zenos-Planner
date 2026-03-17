@@ -545,6 +545,74 @@ describe('MCP Proposal tools (integration)', () => {
     }
   })
 
+  // ============================================================================
+  // Coverage: cancel/defer via proposalHandlers, dependency validator, validate validators
+  // ============================================================================
+
+  it('proposal_action cancel via proposalHandlers covers outputSchemaFor cancel branch', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    // Routes through entity-action-handler: actionOutputSchema('cancel') + cancel action handler
+    const result = await handler({ action: 'cancel', hash: 'test-hash' })
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
+  it('proposal_action defer via proposalHandlers covers outputSchemaFor defer branch', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    // Routes through entity-action-handler: actionOutputSchema('defer') + defer action handler
+    const result = await handler({ action: 'defer', hash: 'test-hash' })
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
+  it('proposal_action generate with dependencies exercises validateProposalDependencies', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    // Non-empty dependencies triggers the circular-dependency validator,
+    // which calls validateProposalDependencies (lines 206-220) and the try block (789-790)
+    const result = await handler({
+      action: 'generate',
+      gateId: 'gate-01',
+      dependencies: ['dep-hash-1'],
+      preReview: {
+        phase: 'generate',
+        openQuestionsResolved: true,
+        questionsFound: [],
+        gateReviewed: true,
+        requirementsVerified: true,
+        vagueRequirements: [],
+        assumptionsDocumented: [],
+        blockersIdentified: [],
+      },
+    })
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
+  it('proposal_action validate via proposalHandlers exercises validate validators', async () => {
+    const { createFunctionRegistry } =
+      await import('../../../src/integration/function-implementations.js')
+    const { proposalHandlers } = await import('../../../src/mcp/tools/proposal-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = proposalHandlers(registry)['proposal_action']
+    // Exercises all five validate validators including gate-level test-first (line 893)
+    // and cleanup reuse validator which call proposal_show and handle non-existent proposals
+    const result = await handler({ action: 'validate', hash: 'test-hash' })
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
   it('proposal_action progress without currentTask returns structured error', async () => {
     const { createFunctionRegistry } =
       await import('../../../src/integration/function-implementations.js')

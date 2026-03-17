@@ -88,27 +88,23 @@ src/
     config, errors, file, gate-consolidation, git, hash, logger, version
 ```
 
-## Gate Roadmap (auto-updated from project-overview.json)
+## Gate Roadmap (auto-updated from project.json)
 
-### Completed (6/14)
-- **Gate 01: Core Infrastructure** *(completed 2026-01-28)*
-- **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30)*
-- **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04)*
-- **Gate 04: Requirements & Database Layer** *(completed 2026-02-07)*
-- **Gate 05: Architecture & Diagram Generation** *(completed 2026-02-21)*
-- **Gate 06: Multi-Repo & Subproject Detection** *(completed 2026-03-06)*
+### Completed (8/9)
+- **Gate 01: Core Infrastructure** *(completed 2026-01-28T00:00:00.000Z)*
+- **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30T00:00:00.000Z)*
+- **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04T00:00:00.000Z)*
+- **Gate 04: Requirements & Database Layer** *(completed 2026-02-07T00:00:00.000Z)*
+- **Gate 05: Architecture & Diagram Generation** *(completed 2026-02-21T00:00:00.000Z)*
+- **Gate 06: Multi-Repo & Subproject Detection** *(completed 2026-03-06T00:00:00.000Z)*
+- **Gate 07: Proposal Generation & Management** *(completed 2026-03-14T00:00:00.000Z)*
+- **Gate 08: Automated Validation & Quality Gates** *(completed 2026-03-17T04:32:31.242Z)*
 
 ### Current
-- **Gate 07: Proposal Generation & Management** ← *pending*
+- **Gate 09: Human Approval & Rejection Workflow** ← *in_progress*
 
 ### Upcoming
-- Gate 08: Automated Validation & Quality Gates
-- Gate 09: Human Approval & Rejection Workflow
-- Gate 10: Git Integration & Commit Automation
-- Gate 11: Rescope & Replan Engine
-- Gate 12: Dashboard & Visualization
-- Gate 13: Subagent Orchestration & Parallel Execution
-- Gate 14: Documentation & Polish
+_None_
 ## Quality Thresholds (Non-Configurable in MVP)
 
 - Code coverage: ≥90%

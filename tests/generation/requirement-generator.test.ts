@@ -74,7 +74,7 @@ describe('RequirementGenerator', () => {
     }
   })
 
-  describe('generateFromEndState', () => {
+  describe('generateFromProjectStatement', () => {
     it('extracts functional requirements from end state description', async () => {
       const endState = `
         The system must support user authentication and authorization.
@@ -82,7 +82,7 @@ describe('RequirementGenerator', () => {
         Users must be able to create and manage their profiles.
       `
 
-      const requirements = await generator.generateFromEndState(endState)
+      const requirements = await generator.generateFromProjectStatement(endState)
 
       expect(requirements.length).toBeGreaterThan(0)
       expect(requirements.some((r) => r.type === 'functional')).toBe(true)
@@ -96,7 +96,7 @@ describe('RequirementGenerator', () => {
         It must achieve 90% test coverage.
       `
 
-      const requirements = await generator.generateFromEndState(endState)
+      const requirements = await generator.generateFromProjectStatement(endState)
 
       expect(requirements.some((r) => r.type === 'non_functional')).toBe(true)
       expect(requirements.some((r) => r.description.includes('response time'))).toBe(true)
@@ -110,7 +110,7 @@ describe('RequirementGenerator', () => {
         Platform support includes Windows, macOS, and Linux.
       `
 
-      const requirements = await generator.generateFromEndState(endState)
+      const requirements = await generator.generateFromProjectStatement(endState)
 
       expect(requirements.some((r) => r.type === 'constraint')).toBe(true)
       expect(requirements.some((r) => r.description.includes('GDPR'))).toBe(true)
@@ -123,7 +123,7 @@ describe('RequirementGenerator', () => {
         It could support multiple languages.
       `
 
-      const requirements = await generator.generateFromEndState(endState)
+      const requirements = await generator.generateFromProjectStatement(endState)
 
       expect(requirements.some((r) => r.priority === 'must')).toBe(true)
       expect(requirements.some((r) => r.priority === 'should')).toBe(true)
@@ -133,15 +133,15 @@ describe('RequirementGenerator', () => {
     it('is idempotent - same end state generates same requirements', async () => {
       const endState = 'The system must support user login.'
 
-      const requirements1 = await generator.generateFromEndState(endState)
-      const requirements2 = await generator.generateFromEndState(endState)
+      const requirements1 = await generator.generateFromProjectStatement(endState)
+      const requirements2 = await generator.generateFromProjectStatement(endState)
 
       expect(requirements1.length).toBe(requirements2.length)
       expect(requirements1[0]?.hash).toBe(requirements2[0]?.hash)
     })
 
     it('handles empty or minimal descriptions', async () => {
-      const requirements = await generator.generateFromEndState('')
+      const requirements = await generator.generateFromProjectStatement('')
 
       expect(requirements).toEqual([])
     })
@@ -149,7 +149,7 @@ describe('RequirementGenerator', () => {
     it('sets correct metadata for project-level requirements', async () => {
       const endState = 'System must be fast.'
 
-      const requirements = await generator.generateFromEndState(endState)
+      const requirements = await generator.generateFromProjectStatement(endState)
 
       for (const req of requirements) {
         // Project-level requirements have no gateId
@@ -190,7 +190,7 @@ describe('RequirementGenerator', () => {
   describe('getProjectRequirements', () => {
     it('returns all project-level requirements', async () => {
       const endState = 'System must be secure and fast.'
-      await generator.generateFromEndState(endState)
+      await generator.generateFromProjectStatement(endState)
 
       const allRequirements = generator.getProjectRequirements()
 
@@ -264,11 +264,11 @@ describe('RequirementGenerator', () => {
     })
   })
 
-  describe('generateFromEndState - error handling', () => {
+  describe('generateFromProjectStatement - error handling', () => {
     it('should throw on null input', () => {
       const invalidDescription = null as any
       expect(() => {
-        generator.generateFromEndState(invalidDescription)
+        generator.generateFromProjectStatement(invalidDescription)
       }).toThrow()
     })
   })

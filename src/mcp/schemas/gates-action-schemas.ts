@@ -9,7 +9,7 @@
 
 import { z } from 'zod'
 import { PreReviewSchema } from './pre-review-schemas.js'
-import { GateTypeEnum, GateStatusEnum } from './common-schemas.js'
+import { GateStatusEnum } from './common-schemas.js'
 import {
   GatesListOutputSchema,
   GateDetailSchema,
@@ -47,7 +47,7 @@ export const GatesActionInputSchema = z.object({
       'Action to perform. ' +
         'list=show all gates (optional: status filter). ' +
         'show=get gate details (needs: gateId). ' +
-        'create=new gate (needs: gateId, name, type, sequence, objectives). ' +
+        'create=new gate (needs: gateId, name, sequence, objectives). ' +
         'generate=generate from requirements (optional: mode, anchorGateId; required: preReview with phase=generate). ' +
         'validate=dry-run quality/structural checks without completing (needs: gateId). ' +
         'start=begin gate work, validated→in_progress (needs: gateId; required: qualitativeReview with all six booleans + flaggedItems). ' +
@@ -63,7 +63,7 @@ export const GatesActionInputSchema = z.object({
   gateId: z
     .string()
     .optional()
-    .describe('Gate hash (from gates_action:list) — preferred over the textual gate-XX ID (show/create/start/complete/validate/cancel/defer/regenerate)'),
+    .describe('Gate hash from gates_action:list. Always resolve via list first — never pass plaintext IDs like "gate-08".'),
 
   // --- list filters ---
   status: GateStatusEnum
@@ -72,7 +72,6 @@ export const GatesActionInputSchema = z.object({
 
   // --- create fields ---
   name: z.string().optional().describe('Human-readable gate name (create)'),
-  type: GateTypeEnum.optional().describe('Gate type (create)'),
   sequence: z.number().int().min(1).optional().describe('Gate sequence number (create)'),
   dependencies: z
     .array(z.string())
@@ -139,6 +138,13 @@ export const GatesActionInputSchema = z.object({
     .describe(
       'Return the replan result without writing any files to disk (regenerate). ' +
       'Useful for previewing changes before committing.'
+    ),
+  force: z
+    .boolean()
+    .optional()
+    .describe(
+      'Override the in-progress gate safety guard (regenerate). ' +
+      'Required when regenerating while a gate is in_progress.'
     ),
 
   // --- qualitativeReview field (start) ---

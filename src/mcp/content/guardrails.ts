@@ -496,6 +496,20 @@ export const QUALITATIVE_CHECKLIST: string[] = [
 ]
 
 /**
+ * Additional qualitative checks for feature/implementation (GREEN) proposals.
+ * Appended to QUALITATIVE_CHECKLIST when the proposal role is "feature".
+ *
+ * These catch the class of bug where a RED test suite mocks external I/O
+ * (filesystem, git, network, database) and the GREEN implementation satisfies
+ * those mocked tests without actually performing the stated operations.
+ */
+export const FEATURE_IMPLEMENTATION_CHECKLIST: string[] = [
+  'For each acceptance criterion that describes an observable side effect (file created, git operation, network call, database write), open the implementation source and verify the code actually performs that operation — flag any method that returns hardcoded or in-memory-only results instead of invoking the real system API',
+  'Identify every vi.mock(), jest.mock(), or equivalent test mock in the RED test suite for this proposal. For each mocked dependency, verify the implementation under test actually calls the real dependency when the mock is removed — flag if the implementation uses the same in-memory stub pattern the tests expect, meaning both sides are faking the same thing',
+  'Check that the implementation\'s return types and data structures are populated from actual operations, not from static Map/Set/Array stores that lose state across process restarts — flag any state container that exists only in memory when the acceptance criteria imply persistence or real I/O',
+]
+
+/**
  * Gate-level qualitative checks that no automated validator can machine-check.
  * Surfaced as `nextRequiredStep.checklist` in gates_action:validate when all structural checks pass.
  */

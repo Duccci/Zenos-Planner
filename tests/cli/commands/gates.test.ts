@@ -47,6 +47,16 @@ vi.mock('../../../src/utils/config.js', () => ({
   getGatesFromOverview: vi.fn().mockReturnValue([]),
 }))
 
+vi.mock('../../../src/utils/state-sync.js', () => ({
+  updateCurrentGateInState: vi.fn().mockResolvedValue(undefined),
+  syncProjectMetadataToState: vi.fn().mockResolvedValue(undefined),
+  syncUpcomingGatesToState: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('../../../src/utils/gate-sync.js', () => ({
+  syncGatesToProjectOverview: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
@@ -199,8 +209,10 @@ describe('Gates Commands', () => {
 
   describe('gates start', () => {
     it('should transition gate from validated to in_progress', async () => {
-      const { readProjectOverview, saveProjectOverview, getGatesFromOverview } =
+      const { readProjectOverview, getGatesFromOverview } =
         await import('../../../src/utils/config.js')
+      const { updateCurrentGateInState } =
+        await import('../../../src/utils/state-sync.js')
       const { confirm } = await import('@inquirer/prompts')
       const { logger } = await import('../../../src/utils/logger.js')
 
@@ -213,10 +225,10 @@ describe('Gates Commands', () => {
       }
 
       const mockOverview = {
-        completedGates: [],
-        currentGateInfo: null,
-        upcomingGates: [],
-        currentGate: null,
+        project: { name: 'Test', version: '1.0.0', projectStatement: 'Done', totalGatesPlanned: 1 },
+        gates: [],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       } as any
       vi.mocked(readProjectOverview).mockResolvedValue(mockOverview)
       vi.mocked(getGatesFromOverview).mockReturnValue([mockGateSummary] as any)
@@ -229,7 +241,7 @@ describe('Gates Commands', () => {
       await program.parseAsync(['node', 'test', 'gates', 'start', 'gate-01'])
 
       expect(confirm).toHaveBeenCalled()
-      expect(saveProjectOverview).toHaveBeenCalled()
+      expect(updateCurrentGateInState).toHaveBeenCalled()
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('started successfully'))
     })
 

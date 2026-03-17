@@ -78,11 +78,10 @@ describe('gate-sync', () => {
     expect(result.synced).toBe(1)
     expect(result.skipped).toBe(0)
     const row = db.prepare('SELECT * FROM gates WHERE id = ?').get('gate-01') as {
-      id: string; name: string; status: string; type: string; sequence: number
+      id: string; name: string; status: string; sequence: number
     } | undefined
     expect(row?.id).toBe('gate-01')
     expect(row?.name).toBe('Infrastructure Setup')
-    expect(row?.type).toBe('feature')
     expect(row?.status).toBe('pending')
   })
 
@@ -145,14 +144,13 @@ describe('gate-sync', () => {
     expect(row?.status).toBe('pending')
   })
 
-  it('normalizes unknown type to feature', async () => {
+  it('normalizes unknown type in frontmatter (type field removed from DB)', async () => {
     const unknownType = GATE_WITH_FM.replace('type: feature', 'type: unknown-type')
     await writeFile(join(GATES_DIR, 'gate-01-infrastructure.md'), unknownType)
     const db = getDatabase(TEST_DIR)
-    syncGatesFromDisk(db, TEST_DIR)
-    const row = db.prepare('SELECT type FROM gates WHERE id = ?').get('gate-01') as
-      { type: string } | undefined
-    expect(row?.type).toBe('feature')
+    const result = syncGatesFromDisk(db, TEST_DIR)
+    // Gate still syncs successfully; type field is not stored in DB
+    expect(result.synced).toBe(1)
   })
 
   it('does not overwrite existing rows (INSERT OR IGNORE semantics)', async () => {
@@ -175,23 +173,21 @@ describe('gate-sync', () => {
     expect(result.synced).toBe(2)
   })
 
-  it('uses fallback name/status/type/sequence from body when optional fields absent', async () => {
-    // Minimal body: only hash field — no H1, no Status, no Type, no Sequence
+  it('uses fallback name/status/sequence from body when optional fields absent', async () => {
+    // Minimal body: only hash field — no H1, no Status, no Sequence
     // This triggers all the ?.(1].trim() ?? fallback branches in parseGateBodyFields
     const minimalBody = '**Hash**: #minbody1\n\nSome description.\n'
     await writeFile(join(GATES_DIR, 'gate-03-minimal.md'), minimalBody)
     const db = getDatabase(TEST_DIR)
     const result = syncGatesFromDisk(db, TEST_DIR)
     expect(result.synced).toBe(1)
-    const row = db.prepare('SELECT id, name, status, type, sequence FROM gates WHERE id = ?').get('gate-03') as {
-      id: string; name: string; status: string; type: string; sequence: number
+    const row = db.prepare('SELECT id, name, status, sequence FROM gates WHERE id = ?').get('gate-03') as {
+      id: string; name: string; status: string; sequence: number
     } | undefined
     // name falls back to fileBase (gate-03-minimal)
     expect(row?.name).toBe('gate-03-minimal')
     // status falls back to 'pending'
     expect(row?.status).toBe('pending')
-    // type falls back to 'feature'
-    expect(row?.type).toBe('feature')
     // sequence falls back to 0
     expect(row?.sequence).toBe(0)
   })

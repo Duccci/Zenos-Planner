@@ -29,8 +29,8 @@ describe('metrics-capture', () => {
     // Create a gate row for FK constraint
     const db = getDatabase(TEST_DIR)
     db.exec(`
-      INSERT OR IGNORE INTO gates (id, sequence, name, status, type, hash)
-      VALUES ('gate-01', 1, 'Test Gate', 'completed', 'feature', 'hash-gate-01')
+      INSERT OR IGNORE INTO gates (id, sequence, name, status, hash)
+      VALUES ('gate-01', 1, 'Test Gate', 'completed', 'hash-gate-01')
     `)
   })
 

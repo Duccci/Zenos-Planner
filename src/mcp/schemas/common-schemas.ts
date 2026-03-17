@@ -39,12 +39,6 @@ export const RepositoryTypeEnum = z.enum(['main', 'service', 'library', 'tool'])
 export type RepositoryType = z.infer<typeof RepositoryTypeEnum>
 
 /**
- * Gate types for different purposes
- */
-export const GateTypeEnum = z.enum(['feature', 'quality', 'rescope'])
-export type GateType = z.infer<typeof GateTypeEnum>
-
-/**
  * Gate phase — groups gates into delivery milestones.
  *
  * Well-known string values:
@@ -53,17 +47,17 @@ export type GateType = z.infer<typeof GateTypeEnum>
  *   'Deferred'  — explicitly pushed to a later decision point
  *   'Backup'    — contingency / nice-to-have scope
  *
- * Numeric phases (1, 2, 3 …) allow simple sequential grouping.
+ * Numeric milestones (1, 2, 3 …) allow simple sequential grouping.
  * Any other string (e.g. 'May Demo', 'Beta', 'GA') is accepted for
  * project-specific milestones.
  *
- * A gate may carry multiple phases at once, e.g. [2, 'Post-MVP'].
+ * A gate may carry multiple milestones at once, e.g. [2, 'Post-MVP'].
  */
-export const GatePhaseSchema = z.union([
+export const GateMilestoneSchema = z.union([
   z.number().int().min(1),
   z.string().min(1),
 ])
-export type GatePhase = z.infer<typeof GatePhaseSchema>
+export type GateMilestone = z.infer<typeof GateMilestoneSchema>
 
 /**
  * Requirement types for categorization

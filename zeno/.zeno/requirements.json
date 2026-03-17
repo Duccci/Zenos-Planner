@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-03-15T21:42:24.177Z",
+  "updatedAt": "2026-03-17T04:33:31.635Z",
   "requirements": [
     {
       "id": "e1c0bf4e09c47b85",
@@ -133,7 +133,7 @@
     {
       "id": "cb19655eee60ab38",
       "projectId": "default-project",
-      "gateId": null,
+      "gateId": "gate-09",
       "parentId": null,
       "projectRequirementId": null,
       "level": "project",
@@ -149,7 +149,7 @@
     {
       "id": "10a621a3715172ae",
       "projectId": "default-project",
-      "gateId": null,
+      "gateId": "gate-09",
       "parentId": null,
       "projectRequirementId": null,
       "level": "project",
@@ -213,7 +213,7 @@
     {
       "id": "d4820760c1f41260",
       "projectId": "default-project",
-      "gateId": null,
+      "gateId": "gate-09",
       "parentId": null,
       "projectRequirementId": null,
       "level": "project",

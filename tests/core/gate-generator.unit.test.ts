@@ -35,10 +35,10 @@ describe('gate-generator (unit)', () => {
     // Overview returns no matching gate
     const configMod = await import('../../src/utils/config.ts')
     vi.spyOn(configMod, 'readProjectOverview' as any).mockResolvedValue({
-      completedGates: [],
-      currentGateInfo: null,
-      upcomingGates: [],
-      currentGate: null,
+      project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 0 },
+      gates: [],
+      lastUpdated: new Date().toISOString(),
+      status: 'awaiting_review',
     })
     vi.spyOn(configMod, 'getGatesFromOverview' as any).mockReturnValue([])
 
@@ -68,10 +68,13 @@ describe('gate-generator (unit)', () => {
     // Overview contains gate g1
     const configMod = await import('../../src/utils/config.ts')
     vi.spyOn(configMod, 'readProjectOverview' as any).mockResolvedValue({
-      completedGates: [],
-      currentGateInfo: { sequence: 1, name: 'G1', hash: 'h1', estimatedComplexity: 3 },
-      upcomingGates: [],
-      currentGate: 'g1',
+      project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 2 },
+      gates: [
+        { id: 'g1', sequence: 1, name: 'G1', status: 'in_progress', hash: 'h1', estimatedComplexity: 3 },
+        { id: 'g2', sequence: 2, name: 'G2', status: 'pending', hash: 'h2' },
+      ],
+      lastUpdated: new Date().toISOString(),
+      status: 'in_progress',
     })
     vi.spyOn(configMod, 'getGatesFromOverview' as any).mockReturnValue([
       { id: 'g1', sequence: 1, name: 'G1', status: 'in_progress', hash: 'h1' },
@@ -110,17 +113,16 @@ describe('gate-generator (unit)', () => {
   it('regenerateGatesTheoreticalFromProject: uses project overview and decomposition', async () => {
     // No DB needed — this function reads entirely from project overview
 
-    // Spy on config to return overview with 2 completed gates and endState
+    // Spy on config to return overview with 2 completed gates and projectStatement
     const configMod = await import('../../src/utils/config.ts')
     vi.spyOn(configMod, 'readProjectOverview' as any).mockResolvedValue({
-      endState: 'Ship it',
-      completedGates: [
-        { sequence: 1, name: 'G1', hash: 'h1', completedAt: '2026-01-01' },
-        { sequence: 2, name: 'G2', hash: 'h2', completedAt: '2026-01-02' },
+      project: { name: 'Test', version: '1.0.0', projectStatement: 'Ship it', totalGatesPlanned: 2 },
+      gates: [
+        { id: 'gate-01', sequence: 1, name: 'G1', status: 'completed', hash: 'h1', completedAt: '2026-01-01' },
+        { id: 'gate-02', sequence: 2, name: 'G2', status: 'completed', hash: 'h2', completedAt: '2026-01-02' },
       ],
-      upcomingGates: [],
-      currentGateInfo: null,
-      currentGate: null,
+      lastUpdated: new Date().toISOString(),
+      status: 'in_progress',
     })
     vi.spyOn(configMod, 'getGatesFromOverview' as any).mockReturnValue([
       { id: 'gate-01', sequence: 1, name: 'G1', status: 'completed', hash: 'h1' },

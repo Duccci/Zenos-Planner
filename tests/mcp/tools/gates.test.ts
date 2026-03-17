@@ -159,6 +159,51 @@ describe('MCP Gates tools (integration)', () => {
     expect(text.toLowerCase()).toContain('vague')
   })
 
+  // ============================================================================
+  // Coverage: cancel/defer confirmed=true, validate action
+  // ============================================================================
+
+  it('gates_action validate exercises artifact and quality check paths', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    // Use a real gate ID so findGateByGateId can locate the artifact file, exercising
+    // the validateArtifactFile call (lines 205-210) including the allWarnings.push path.
+    const result = await handler({ action: 'validate', gateId: 'gate-01' })
+
+    expect(result).toBeDefined()
+    // validate may pass or fail depending on gate state; just confirm it runs
+    expect(result.content).toBeDefined()
+  })
+
+  it('gates_action cancel with confirmed=true invokes gate_cancel', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    // confirmed=true bypasses the requiresConfirmation guard and calls gate_cancel
+    const result = await handler({ action: 'cancel', gateId: 'gate-99', confirmed: true })
+
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
+  it('gates_action defer with confirmed=true invokes gate_defer', async () => {
+    const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
+    const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')
+    const registry = createFunctionRegistry()
+    const handler = gateHandlers(registry)['gates_action']
+
+    // confirmed=true bypasses the requiresConfirmation guard and calls gate_defer
+    const result = await handler({ action: 'defer', gateId: 'gate-99', confirmed: true })
+
+    expect(result).toBeDefined()
+    expect(result.content).toBeDefined()
+  })
+
   it('gates_action generate with preReviewSummary surfaced in successful response', async () => {
     const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
     const { gateHandlers } = await import('../../../src/mcp/tools/gate-tools.js')

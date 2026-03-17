@@ -19,6 +19,7 @@ import { registerMcpCommands } from './mcp.js'
 import { registerTraceCommand } from './trace.js'
 import { registerDbCommands } from './db.js'
 import { registerRegistryCommands } from './registry.js'
+import { registerWorktreeCommands } from './worktree.js'
 
 /**
  * Register all commands with the CLI program
@@ -41,4 +42,5 @@ export function registerCommands(program: Command): void {
   registerMcpCommands(program)
   registerDbCommands(program)
   registerRegistryCommands(program)
+  registerWorktreeCommands(program)
 }

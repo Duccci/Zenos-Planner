@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { FunctionRegistry } from '../../src/integration/function-registry.js'
 import { registerGatesOps } from '../../src/integration/gates-registry.js'
 
@@ -289,7 +289,6 @@ describe('gates-registry coverage', () => {
       expect(data).toHaveProperty('description')
       expect(data).toHaveProperty('sequence')
       expect(data).toHaveProperty('status')
-      expect(data).toHaveProperty('type')
       expect(data).toHaveProperty('objectives')
       expect(data).toHaveProperty('requirements')
       expect(data).toHaveProperty('proposals')
@@ -394,13 +393,10 @@ describe('gates-registry coverage', () => {
 
     it('cancels an upcoming gate', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [{ sequence: 1, name: 'Setup', hash: 'h1', estimatedComplexity: 'medium' }],
-        currentGate: null,
-        currentGateInfo: null,
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 1,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 1 },
+        gates: [{ id: 'gate-01', sequence: 1, name: 'Setup', status: 'pending', hash: 'h1', estimatedComplexity: 'medium' }],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       })
 
       const result = (await registry.invoke('gate_cancel', { gateId: 'gate-01' })) as {
@@ -416,13 +412,10 @@ describe('gates-registry coverage', () => {
 
     it('cancels the current in-progress gate', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [],
-        currentGate: 'gate-02',
-        currentGateInfo: { sequence: 2, name: 'Core Feature', hash: 'h2', status: 'in_progress' },
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 2,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 2 },
+        gates: [{ id: 'gate-02', sequence: 2, name: 'Core Feature', status: 'in_progress', hash: 'h2' }],
+        lastUpdated: new Date().toISOString(),
+        status: 'in_progress',
       })
 
       const result = (await registry.invoke('gate_cancel', {
@@ -437,13 +430,10 @@ describe('gates-registry coverage', () => {
 
     it('returns error when gate is not found', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [],
-        currentGate: null,
-        currentGateInfo: null,
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 0,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 0 },
+        gates: [],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       })
 
       const result = (await registry.invoke('gate_cancel', { gateId: 'gate-99' })) as {
@@ -461,13 +451,10 @@ describe('gates-registry coverage', () => {
 
     it('defers an upcoming gate to backlog', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [{ sequence: 3, name: 'Optimisation', hash: 'h3', estimatedComplexity: 'low' }],
-        currentGate: null,
-        currentGateInfo: null,
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 3,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 3 },
+        gates: [{ id: 'gate-03', sequence: 3, name: 'Optimisation', status: 'pending', hash: 'h3', estimatedComplexity: 'low' }],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       })
 
       const result = (await registry.invoke('gate_defer', { gateId: 'gate-03' })) as {
@@ -483,19 +470,10 @@ describe('gates-registry coverage', () => {
 
     it('defers the current in-progress gate to backlog', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [],
-        currentGate: 'gate-02',
-        currentGateInfo: {
-          sequence: 2,
-          name: 'Core Feature',
-          hash: 'h2',
-          status: 'in_progress',
-          estimatedComplexity: 'high',
-        },
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 2,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 2 },
+        gates: [{ id: 'gate-02', sequence: 2, name: 'Core Feature', status: 'in_progress', hash: 'h2', estimatedComplexity: 'high' }],
+        lastUpdated: new Date().toISOString(),
+        status: 'in_progress',
       })
 
       const result = (await registry.invoke('gate_defer', { gateId: 'gate-02' })) as {
@@ -509,13 +487,10 @@ describe('gates-registry coverage', () => {
 
     it('returns error when gate is not found', async () => {
       mockReadProjectOverview.mockResolvedValue({
-        upcomingGates: [],
-        currentGate: null,
-        currentGateInfo: null,
-        completedGates: [],
-        cancelledGates: [],
-        backlogGates: [],
-        totalGatesPlanned: 0,
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 0 },
+        gates: [],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       })
 
       const result = (await registry.invoke('gate_defer', { gateId: 'gate-88' })) as {

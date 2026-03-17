@@ -75,9 +75,9 @@ describe('config - getComplexityThresholds', () => {
 })
 
 describe('config - getProjectOverviewPath', () => {
-  it('returns path ending with project-overview.json', () => {
+  it('returns path ending with project.json', () => {
     const result = getProjectOverviewPath('/some/project')
-    expect(result).toContain('project-overview.json')
+    expect(result).toContain('project.json')
     expect(result).toContain('.zeno')
   })
 })
@@ -106,7 +106,7 @@ describe('config - readProjectOverview', () => {
     const zenoDir = join(testDir, 'zeno', '.zeno')
     await mkdir(zenoDir, { recursive: true })
 
-    await writeFile(join(zenoDir, 'project-overview.json'), '{"bad": true}', 'utf-8')
+    await writeFile(join(zenoDir, 'project.json'), '{}', 'utf-8')
 
     await expect(readProjectOverview(testDir)).rejects.toThrow()
   })
@@ -115,7 +115,7 @@ describe('config - readProjectOverview', () => {
     const zenoDir = join(testDir, 'zeno', '.zeno')
     await mkdir(zenoDir, { recursive: true })
 
-    await writeFile(join(zenoDir, 'project-overview.json'), 'not json', 'utf-8')
+    await writeFile(join(zenoDir, 'project.json'), 'not json', 'utf-8')
 
     await expect(readProjectOverview(testDir)).rejects.toThrow()
   })
@@ -125,22 +125,16 @@ describe('config - readProjectOverview', () => {
     await mkdir(zenoDir, { recursive: true })
 
     const overview = {
-      projectName: 'Test',
-      projectVersion: '1.0.0',
-      currentGate: null,
-      totalGatesPlanned: 5,
-      endState: 'Done',
-      startState: null,
-      completedGates: [],
-      currentGateInfo: null,
-      upcomingGates: [],
-      architecture: { layers: [], keyDependencies: {} },
+      project: { name: 'Test', version: '1.0.0', projectStatement: 'Done', totalGatesPlanned: 5 },
+      gates: [],
+      lastUpdated: new Date().toISOString(),
+      status: 'awaiting_review',
     }
-    await writeFile(join(zenoDir, 'project-overview.json'), JSON.stringify(overview), 'utf-8')
+    await writeFile(join(zenoDir, 'project.json'), JSON.stringify(overview), 'utf-8')
 
     const result = await readProjectOverview(testDir)
-    expect(result.projectName).toBe('Test')
-    expect(result.totalGatesPlanned).toBe(5)
+    expect(result.project.name).toBe('Test')
+    expect(result.project.totalGatesPlanned).toBe(5)
   })
 })
 

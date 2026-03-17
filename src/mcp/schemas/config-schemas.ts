@@ -14,8 +14,8 @@ export const ConfigGetOutputSchema = z.object({
   /** Project name */
   projectName: z.string(),
 
-  /** Project end state description */
-  endState: z.string().optional(),
+  /** Project statement describing what is being built */
+  projectStatement: z.string().optional(),
 
   /** Project version (semver format) */
   version: z.string(),

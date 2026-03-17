@@ -15,6 +15,8 @@ import {
   toCompactWorkflow,
 } from '../content/index.js'
 import { validateArtifactFile } from '../validators/artifact-validator.js'
+import { RescopeEventStore } from '../../storage/rescope-event-store.js'
+import { getDatabase } from '../../storage/database.js'
 
 /**
  * Unified gate action tool definition.
@@ -25,7 +27,7 @@ import { validateArtifactFile } from '../validators/artifact-validator.js'
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    description: `Gate lifecycle: list, show, create, generate, validate, start, complete, regenerate, cancel, defer. Use for all gate operations.`,
+    description: `Gate lifecycle: list, show, create, generate, validate, start, complete, regenerate, cancel, defer. Always call list first to get the gate hash; pass that hash as gateId — never use plaintext IDs like "gate-08".`,
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -181,7 +183,54 @@ export function gateHandlers(
           }
           return r.invoke('gates_complete', payload)
         },
-        regenerate: async (payload, r) => r.invoke('gates_regenerate', payload),
+        regenerate: async (payload, r) => {
+          const p = payload as { gateId?: string; force?: boolean }
+          // Safety guard: block regeneration when a gate is in_progress unless force:true
+          try {
+            const db = getDatabase()
+            const store = new RescopeEventStore(db)
+            const gatesResult = await r.invoke('gates_list', {})
+            if (gatesResult.success) {
+              const gates = gatesResult.data as { id: string; status: string; name?: string }[]
+              const inProgressGate = gates.find((g) => g.status === 'in_progress')
+              if (inProgressGate) {
+                const warning = store.guardRescope('in_progress', p.force)
+                if (warning) {
+                  return {
+                    success: false as const,
+                    error: {
+                      code: 'IN_PROGRESS_GATE_GUARD',
+                      message: `${warning.message} Gate "${inProgressGate.name ?? inProgressGate.id}" is in_progress.`,
+                    },
+                  }
+                }
+              }
+            }
+            // Capture snapshot before regeneration
+            const snapshotBefore = JSON.stringify(gatesResult.success ? gatesResult.data : [])
+            const regenerateResult = await r.invoke('gates_regenerate', payload)
+            // Record rescope event (best-effort)
+            if (regenerateResult.success) {
+              try {
+                const afterResult = await r.invoke('gates_list', {})
+                const snapshotAfter = JSON.stringify(afterResult.success ? afterResult.data : [])
+                store.record({
+                  gate_id: p.gateId ?? 'all',
+                  snapshot_before: snapshotBefore,
+                  snapshot_after: snapshotAfter,
+                  actor: 'zeno',
+                  created_at: new Date().toISOString(),
+                })
+              } catch {
+                // Rescope event recording is best-effort
+              }
+            }
+            return regenerateResult
+          } catch {
+            // If database is unavailable, fall through to direct invocation
+            return r.invoke('gates_regenerate', payload)
+          }
+        },
         validate: async (payload, r) => {
           // Dry-run: run quality + structural checks against the gate without completing it.
           // Gates are held to a higher standard than proposals: they drive proposal creation,

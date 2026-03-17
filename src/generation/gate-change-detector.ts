@@ -14,7 +14,6 @@ export interface GateMetadata {
   name: string;
   sequence: number;
   status: 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected';
-  type: 'feature' | 'quality' | 'rescope';
 }
 
 /**
@@ -56,17 +55,7 @@ export class GateChangeDetector {
           details: `Gate "${prevGate.name}" (${prevGate.id}) was removed from the project.`,
         });
       } else {
-        // Gate still exists - check if rescoped (type changed)
-        const currGate = currMap.get(prevGate.hash);
-        if (!currGate) continue;
-        if (prevGate.type !== currGate.type) {
-          events.push({
-            type: 'gate_rescoped',
-            gateHash: currGate.hash,
-            gateName: currGate.name,
-            details: `Gate "${currGate.name}" (${currGate.id}) was rescoped: type changed from "${prevGate.type}" to "${currGate.type}".`,
-          });
-        }
+        // Gate still exists — no type-based rescope detection
       }
     }
 

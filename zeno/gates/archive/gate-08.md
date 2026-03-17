@@ -4,11 +4,11 @@ zeno:
   name: MVP Hardening
   sequence: 8
   type: feature
-  status: validated
+  status: in_progress
   hash: g08harden
   created_at: '2026-03-14'
   depends_on: [gate-07]
-  phases:
+  milestones:
     - MVP
 ---
 
@@ -19,9 +19,9 @@ zeno:
 > are already implemented. This gate delivers the gaps: shell-based validation runner, audit trail,
 > git worktrees, requirement transfer, and E2E integration tests across all four subsystems.
 
-**Status**: pending
+**Status**: in_progress
 **Type**: feature
-**Phases**: MVP
+**Milestones**: MVP
 **Created**: 2026-03-14
 **Sequence**: 8 of 10
 **Hash**: #g08harden
@@ -53,36 +53,36 @@ Four subsystems — validation, approval, git integration, and rescope/replan �
 
 ### Validation Runner
 
-- [ ] Implement ShellValidationRunner: spawn ESLint, tsc, Vitest, c8, npm audit as child processes and parse output
-- [ ] Add structured validation reports (JSON + human-readable) aggregating all check results
-- [ ] Wire shell runner into existing `proposal_action:validate` pipeline
+- [x] Implement ShellValidationRunner: spawn ESLint, tsc, Vitest, c8, npm audit as child processes and parse output
+- [x] Add structured validation reports (JSON + human-readable) aggregating all check results
+- [x] Wire shell runner into existing `proposal_action:validate` pipeline
 
 ### Approval Audit Trail
 
-- [ ] Implement SQLite `approval_events` table for approval decisions (approver, timestamp, action, reason)
-- [ ] Add rejection category taxonomy (quality, requirement-mismatch, scope-creep, incomplete, other)
-- [ ] Expose rejection feedback via MCP for LLM iteration context
+- [x] Implement SQLite `approval_events` table for approval decisions (approver, timestamp, action, reason)
+- [x] Add rejection category taxonomy (quality, requirement-mismatch, scope-creep, incomplete, other)
+- [x] Expose rejection feedback via MCP for LLM iteration context
 
 ### Git Worktrees
 
-- [ ] Implement WorktreeManager: create, remove, list, prune, merge using `simple-git` worktree APIs
-- [ ] Integrate worktrees into proposal lifecycle: create on start, merge on approve, cleanup on completion
-- [ ] Implement structured commit message generator using `commitFormat` from `.zeno/config.json`
-- [ ] Implement gate release tagging on `gates_action:complete`
-- [ ] Expose worktree operations via MCP tools and `zeno worktree` CLI commands
+- [x] Implement WorktreeManager: create, remove, list, prune, merge using `simple-git` worktree APIs
+- [x] Integrate worktrees into proposal lifecycle: create on start, merge on approve, cleanup on completion
+- [x] Implement structured commit message generator using `commitFormat` from `.zeno/config.json`
+- [x] Implement gate release tagging on `gates_action:complete`
+- [x] Expose worktree operations via MCP tools and `zeno worktree` CLI commands
 
 ### Rescope Hardening
 
-- [ ] Implement requirement transfer: `zeno req transfer <hash> <gate-id>` moves requirements between gates
-- [ ] Implement rescope history tracking: SQLite `rescope_events` table with before/after snapshots
-- [ ] Handle mid-gate rescope safety (warn + `--force` for in-progress gates)
+- [x] Implement requirement transfer: `zeno req transfer <hash> <gate-id>` moves requirements between gates
+- [x] Implement rescope history tracking: SQLite `rescope_events` table with before/after snapshots
+- [x] Handle mid-gate rescope safety (warn + `--force` for in-progress gates)
 
 ### Integration Tests
 
-- [ ] E2E test: full validation pipeline (all 11 validators + shell runner)
-- [ ] E2E test: approve → complete and reject → rework → revalidate cycles
-- [ ] E2E test: proposal start → worktree create → merge → cleanup
-- [ ] E2E test: replan → gates regenerated → requirements transferred → history recorded
+- [x] E2E test: full validation pipeline (all 11 validators + shell runner)
+- [x] E2E test: approve → complete and reject → rework → revalidate cycles
+- [x] E2E test: proposal start → worktree create → merge → cleanup
+- [x] E2E test: replan → gates regenerated → requirements transferred → history recorded
 
 ## Context
 
@@ -530,3 +530,47 @@ Gate 09 (Documentation & Polish) cleans up README, CLI/MCP references, and AGENT
 - Previous Gate: `zeno/gates/archive/` (gates 01-07)
 - Next Gate: `zeno/gates/gate-09-documentation-polish.md`
 - Architecture: `zeno/architecture/`
+
+## Consolidated Proposals Summary
+
+*This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
+
+### Requirements Fulfilled
+
+| Requirement | Proposal |
+|-------------|----------|
+| #e1c0bf4e09c47b85 | #047dd7b1 |
+| #1896540582268f73 | #3fd52f1b |
+| #4bc74e36854c4221 | #354dbbc4 |
+| #cefa008f80de78d8 | #26440a9f |
+
+### Lessons Learned
+
+- This is the RED phase. All four test files must import from modules that do not exist yet, causing failures on import. Do not create any source files in this proposal — the implementations arrive in proposals 02-05. The test files must be syntactically valid TypeScript so the suite fails on missing module, not on a parse error.
+- Follow the `spawn()` pattern from `src/generation/graphviz-renderer.ts` (lines 61–119) for process lifecycle: chunk accumulation via `data` events, resolve on `close`, reject on `error`. For c8 coverage output, pass `--reporter=json-summary`; read the generated `coverage/coverage-summary.json` and extract `total.lines.pct`. Fall back to 0 if the file is absent.
+- Use the existing `better-sqlite3` database instance already open in the proposal tools handler — check how other storage classes (e.g., `src/storage/`) obtain the `db` reference and follow the same pattern. Do not open a second connection.
+- Use `git.raw(['worktree', 'list', '--porcelain'])` from simple-git to get worktree state. Parse the porcelain output: blank-line-separated blocks, each block contains `worktree <path>`, `HEAD <sha>`, `branch refs/heads/<name>`. An entry is "orphaned" when `<name>` matches `proposal/*` but the proposal hash does not exist in the registry.
+- The in-progress guard in Task 4 should use the same database query pattern as existing gate status checks in `gate-tools.ts`. Retrieve `SELECT id FROM gates WHERE status = 'in_progress'` and format the list for the error message.
+- For the in-memory SQLite tests (Tasks 2 and 4), read `src/storage/migrations/schema.sql` at test setup time and execute it via `db.exec(schemaSql)`. This ensures the schema stays in sync rather than duplicating table DDL in test fixtures.
+- For the WorktreeManager tests (Task 3), use `simpleGit(tmpDir)` to initialize the repo and create the required initial commit: `git init && git add -A && git commit -m "init"`. The worktree operations require at least one commit to exist.
+- This proposal contains no new source code. Its purpose is to execute verification commands and update test files when gaps are found. All acceptance criteria must be confirmed by actually running the commands — no assumptions about passing state.
+
+### Next Dependencies
+
+*Proposals that are unblocked by this gate (identified from proposal dependency tables):*
+
+*No downstream dependencies identified.*
+
+### High-Level Delta
+
+**Summary**:
+Establishes the failing test baseline (RED phase) for all four Gate 08 subsystems: ShellValidationRunner, ApprovalAuditTrail, WorktreeManager, and RescopeEventStore. Each test file imports the not-yet-existing module and asserts against its expected public API, ensuring every implementation proposal has a specific failing test target to turn green. Implements `ShellValidationRunner`, a new module that spawns real quality-check processes (ESLint, TypeScript compiler, Vitest with c8 coverage, and npm audit) and aggregates their results into a structured `ValidationReport`. The report is wired into `proposal_action:validate` so quality thresholds in `quality-validator.ts` are measured against real tool output rather than the `DEFAULT_QUALITY_STUB_METRICS` stub that currently passes unconditionally. Adds an `approval_events` table to the SQLite schema and implements `ApprovalAuditTrail`, a storage class that records every approve and reject decision with metadata (proposal hash, decision, actor, reason, timestamp, rejection category). The trail is populated by `proposal_action:approve` and `proposal_action:reject`, and exposed read-only through a new `getHistory` field in the `proposal_action:show` response. Implements `WorktreeManager`, a class that wraps `simple-git` worktree APIs to create, list, remove, prune, and merge isolated git worktrees per proposal. Worktrees are created in `.local/worktrees/{proposalHash}/` when `proposal_action:start` is called, and merged back to the main branch when the proposal is approved. CLI commands `zeno worktree list|remove|prune|merge` are added. The schemas in `src/mcp/schemas/worktree-schemas.ts` already exist; this proposal implements the backing logic. Adds a `rescope_events` table to the SQLite schema and implements `RescopeEventStore`, a storage class that records every rescope invocation with its trigger (user prompt, blocked gate, dependency conflict), the old and new end-state descriptions, and a diff of regenerated gates. Also adds an in-progress gate safety check to `gates_action:regenerate`: if any gate is currently in_progress, the command returns a structured warning and requires a `--force` flag to proceed. Adds integration tests that exercise the four gate-08 subsystems end-to-end: ShellValidationRunner spawning real and mocked processes, ApprovalAuditTrail recording and querying events against a live in-memory SQLite database, WorktreeManager creating and cleaning up real git worktrees in a temp directory, and RescopeEventStore persisting rescope history. Tests run with `ZENO_SKIP_SHELL_CHECKS=1` to prevent CI from spawning actual build tools while still exercising the wiring code. Verifies that every failing test planted by proposal 01 (RED phase) now passes after proposals 02–05 are implemented, and that the integration tests from proposal 06 also pass. Runs the full Vitest suite and confirms: zero failing tests, TypeScript strict mode with zero errors, ESLint with zero errors, and coverage at or above 90% for all gate-08 source files.
+
+**Artifacts Created**:
+*No artifacts tracked.*
+
+**Quality Metrics**:
+
+- Total Coverage: 0%
+- Total Files Modified: 0
+- Total Tasks Completed: 16

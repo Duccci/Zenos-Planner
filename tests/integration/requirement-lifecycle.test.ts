@@ -80,7 +80,7 @@ describe('Requirement Lifecycle Integration', () => {
     it('testCompleteRequirementLifecycleForFunctionalRequirement', async () => {
       // Step 1: Generate from end state
       const endState = 'System must support user authentication'
-      const generated = await generator.generateFromEndState(endState)
+      const generated = await generator.generateFromProjectStatement(endState)
 
       expect(generated.length).toBeGreaterThan(0)
 
@@ -302,7 +302,7 @@ describe('Requirement Lifecycle Integration', () => {
   })
 
   describe('Full Workflow: Generation → Storage → Hierarchy → Graph → Validation', () => {
-    it('testFull WorkflowFromEndStateToValidatedGraph', async () => {
+    it('testFullWorkflowFromProjectStatementToValidatedGraph', async () => {
       const endState = `
         System must support user authentication.
         It should provide REST endpoints.
@@ -311,7 +311,7 @@ describe('Requirement Lifecycle Integration', () => {
       `
 
       // 1. Generate requirements from end state
-      const generated = await generator.generateFromEndState(endState)
+      const generated = await generator.generateFromProjectStatement(endState)
       expect(generated.length).toBeGreaterThan(0)
 
       // 2. All requirements should be stored and retrievable

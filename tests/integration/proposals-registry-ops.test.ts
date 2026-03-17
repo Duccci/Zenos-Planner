@@ -83,6 +83,7 @@ vi.mock('../../src/mcp/validators/proposal-phases-validator.js', () => ({
 
 vi.mock('../../src/utils/artifact-locator.js', () => ({
   findProposalByHash: (...args: unknown[]) => mockFindProposalByHash(...args),
+  findGateByGateId: vi.fn().mockResolvedValue(null),
 }))
 
 vi.mock('../../src/utils/file.js', () => ({
@@ -110,6 +111,20 @@ vi.mock('../../src/core/completions.js', () => ({
   approveProposal: (...args: unknown[]) => mockApproveProposal(...args),
   rejectProposal: (...args: unknown[]) => mockRejectProposal(...args),
   startProposal: (...args: unknown[]) => mockStartProposal(...args),
+}))
+
+vi.mock('../../src/core/shell-validation-runner.js', () => ({
+  ShellValidationRunner: vi.fn().mockImplementation(() => ({
+    run: vi.fn().mockResolvedValue({
+      results: [],
+      passed: true,
+      timestamp: new Date().toISOString(),
+    }),
+  })),
+}))
+
+vi.mock('../../src/mcp/validators/requirement-relevance-validator.js', () => ({
+  validateRequirementRelevance: vi.fn().mockReturnValue({ allowed: true, errors: [], warnings: [] }),
 }))
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,6 @@ import { z } from 'zod'
 import {
   GateIdSchema,
   GateStatusEnum,
-  GateTypeEnum,
   ProposalStatusEnum,
   RequirementStatusEnum,
   TimestampSchema,
@@ -27,8 +26,7 @@ export const GateSummarySchema = z.object({
   description: z.string().optional(),
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
-  type: GateTypeEnum,
-  phases: z.array(z.union([z.number().int().min(1), z.string().min(1)])).optional(),
+  milestones: z.array(z.union([z.number().int().min(1), z.string().min(1)])).optional(),
   lastUpdated: TimestampSchema,
   proposalCount: z.number().int().min(0),
   completedProposalCount: z.number().int().min(0),
@@ -57,8 +55,7 @@ export const GateDetailSchema = z.object({
   description: z.string().optional(),
   sequence: z.number().int().min(1),
   status: GateStatusEnum,
-  type: GateTypeEnum,
-  phases: z.array(z.union([z.number().int().min(1), z.string().min(1)])).optional(),
+  milestones: z.array(z.union([z.number().int().min(1), z.string().min(1)])).optional(),
   objectives: z.array(
     z.object({
       title: z.string(),

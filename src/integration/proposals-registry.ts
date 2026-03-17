@@ -86,7 +86,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .sort((a, b) => a[0] - b[0])
         .map(([, hashes]) => hashes)
 
-      return {
+        return {
         proposals: validRows.map((row) => ({
           hash: row['hash'] as string,
           title: (row['title'] as string) ?? '',
@@ -95,7 +95,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           gateId: (row['gate_id'] as string | null) ?? 'solitary',
           tasksCompleted: 0,
           totalTasks: 0,
-          parallelSetIndex: row['parallel_set_index'] as number | undefined,
+            parallelSetIndex:
+              row['parallel_set_index'] == null
+                ? undefined
+                : (row['parallel_set_index'] as number),
           lastUpdated: resolveLastUpdated(row['approved_at'] as string | null, row['created_at'] as string | null),
         })),
         parallelSets,
@@ -254,6 +257,23 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         // File read failure is non-critical; tasks defaults to []
       }
 
+      // Fetch review history from audit trail
+      let reviewHistory: {
+        proposal_hash: string
+        decision: 'approved' | 'rejected'
+        actor: string
+        reason?: string | null
+        rejection_category?: string | null
+        timestamp: string
+      }[] = []
+      try {
+        const { ApprovalAuditTrail } = await import('../storage/approval-audit-trail.js')
+        const auditTrail = new ApprovalAuditTrail(db)
+        reviewHistory = auditTrail.getHistory(normalizedHash)
+      } catch {
+        // Audit trail might not be initialized — gracefully return empty history
+      }
+
       return {
         hash: (proposal['hash'] as string) || 'unknown00',
         title: (proposal['title'] as string) ?? '',
@@ -270,6 +290,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           filesAffected.length > 0
             ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
             : undefined,
+        reviewHistory,
         lastUpdated: resolveLastUpdated(proposal['approved_at'] as string | null, proposal['created_at'] as string | null),
       }
     },
@@ -318,7 +339,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const fullHashValue = shortHash(hashContent) // 16 chars
       const hash = fullHashValue.substring(0, 8) // 8 chars
 
-      // Check if gate exists in project-overview.json (gates are no longer stored in DB)
+      // Check if gate exists in project.json (gates are no longer stored in DB)
       if (validated.gateId) {
         const resolvedGateIdForCreate = resolveGateIdentifier(validated.gateId)
         validated.gateId = resolvedGateIdForCreate
@@ -748,6 +769,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       // Load proposal from database
+      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string
@@ -762,12 +784,12 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         created_at?: string
         status?: string
       }
-      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
+      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as
         | ProposalRow
         | undefined
 
       if (!proposal) {
-        throw new Error(`Proposal ${validated.hash} not found`)
+        throw new Error(`Proposal #${normalizedHash} not found`)
       }
 
       const gateId = proposal.gate_id ?? undefined
@@ -930,9 +952,67 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // ── 6) Quality: coverage ≥90%, 0 CVEs, <0.01% lint errors ─────────────
       try {
-        const qualityMetrics: Record<string, unknown> = proposal.quality_metrics
+        let qualityMetrics: Record<string, unknown> = proposal.quality_metrics
           ? (JSON.parse(proposal.quality_metrics) as Record<string, unknown>)
           : { ...DEFAULT_QUALITY_STUB_METRICS }
+
+        // Run real quality checks unless skipped via environment (test mode)
+        if (process.env['ZENO_SKIP_SHELL_CHECKS'] !== '1') {
+          try {
+            const { ShellValidationRunner } = await import('../core/shell-validation-runner.js')
+            const runner = new ShellValidationRunner(process.cwd())
+            const report = await runner.run()
+
+            // Extract metrics from validation report
+            let lintErrors = 0
+            let securityIssues = 0
+
+            // Parse check results
+            for (const check of report.results) {
+              if (check.tool === 'eslint' && !check.passed) {
+                // Try to count linting errors from output
+                const errorMatch = check.stdout.match(/"ruleId":"(.*?)"/g)
+                lintErrors += errorMatch?.length ?? 1
+              }
+              if (check.tool === 'npm-audit' && !check.passed) {
+                // Parse npm audit JSON output. Only count if stdout has audit data.
+                // Empty stdout means the tool failed to spawn (e.g. ENOENT on Windows)
+                // — do not treat that as a security vulnerability.
+                if (check.stdout.trim().length > 0) {
+                  try {
+                    const auditData = JSON.parse(check.stdout) as Record<string, unknown>
+                    const metadata = auditData['metadata'] as Record<string, unknown> | undefined
+                    const vulns = metadata?.['vulnerabilities'] as Record<string, unknown> | undefined
+                    const totalVulns = vulns?.['total'] as number | undefined
+                    if (totalVulns !== undefined && totalVulns > 0) {
+                      securityIssues = totalVulns
+                    }
+                  } catch {
+                    // Non-parseable audit output — leave securityIssues at 0
+                  }
+                }
+              }
+            }
+
+            // Update qualityMetrics with real values
+            qualityMetrics = {
+              ...qualityMetrics,
+              ...(lintErrors > 0 ? { lintErrors } : {}),
+              ...(securityIssues > 0 ? { securityIssues } : {}),
+            }
+
+            // Append failed check names to warnings
+            const failedChecks = report.results.filter((r) => !r.passed)
+            for (const fail of failedChecks) {
+              warnings.push(`Quality check failed: ${fail.tool} (exit code ${String(fail.exitCode)})`)
+            }
+          } catch (runnerError) {
+            // Runner error: fall back to stub metrics
+            warnings.push(
+              `Shell validation runner failed: ${runnerError instanceof Error ? runnerError.message : String(runnerError)}`
+            )
+          }
+        }
 
         const qualityResult = await validateQuality({ metrics: qualityMetrics })
         if (!qualityResult.allowed) checks.quality = false
@@ -1023,7 +1103,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
               .prepare(
                 "SELECT hash, files_affected FROM proposals WHERE gate_id = ? AND hash != ?"
               )
-              .all(gateId, validated.hash) as {
+              .all(gateId, normalizedHash) as {
               hash: string
               files_affected?: string | null
             }[]
@@ -1203,18 +1283,18 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       let newStatus = previousStatus as ProposalStatus
       if (passedQuantitative && previousStatus !== 'validated' && previousStatus !== 'in_progress' && previousStatus !== 'completed') {
         try {
-          db.prepare(`UPDATE proposals SET status = 'validated', updated_at = CURRENT_TIMESTAMP WHERE hash = ?`).run(validated.hash)
+          db.prepare(`UPDATE proposals SET status = 'validated', updated_at = CURRENT_TIMESTAMP WHERE hash = ?`).run(normalizedHash)
           newStatus = 'validated'
         } catch (err) {
           // Status update failure is a fatal error—the LLM must know
-          const statusErr = `Failed to advance proposal ${validated.hash} to validated status: ${err instanceof Error ? err.message : String(err)}`
+          const statusErr = `Failed to advance proposal ${normalizedHash} to validated status: ${err instanceof Error ? err.message : String(err)}`
           errors.push(statusErr)
           throw new Error(statusErr, { cause: err })
         }
       }
 
       return {
-        hash: validated.hash,
+        hash: normalizedHash,
         passedQuantitative,
         ...(newStatus !== previousStatus
           ? { previousStatus, newStatus }
@@ -1292,6 +1372,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { getGitUserInfo } = await import('../utils/git.js')
 
       // Load proposal from database
+      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string
@@ -1300,12 +1381,12 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         quality_metrics?: string | null
         files_affected?: string | null
       }
-      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ?').get(validated.hash) as
+      const proposal = db.prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as
         | ProposalRow
         | undefined
 
       if (!proposal) {
-        throw new Error(`Proposal ${validated.hash} not found`)
+        throw new Error(`Proposal #${normalizedHash} not found`)
       }
 
       // Parse JSON fields
@@ -1321,7 +1402,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Run apply-phase validation (no git operations, files in scope)
       const applyValidation = validateApplyPhase({
-        proposalHash: validated.hash,
+        proposalHash: normalizedHash,
         filesAffected: filesAffectedParsed,
         filesModified: filesAffectedParsed, // Assume all declared files were modified
         gitOperations: [], // TODO: detect actual git operations during apply
@@ -1359,7 +1440,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       // Proceed with approval — call approveProposal directly to avoid invokeCommand recursion
       const { approveProposal } = await import('../core/completions.js')
-      await approveProposal(validated.hash, { approver: approvedBy })
+      await approveProposal(normalizedHash, { approver: approvedBy })
 
       // Option 5: writeback — patch **Status**: completed into the .md source file when
       // the caller explicitly opts in.  The .md is the user's source of truth; we never
@@ -1369,7 +1450,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         try {
           const { findProposalByHash } = await import('../utils/artifact-locator.js')
           const { readFileSync, writeFileSync } = await import('node:fs')
-          const filePath = await findProposalByHash(validated.hash)
+          const filePath = await findProposalByHash(normalizedHash)
           if (filePath) {
             const content = readFileSync(filePath, 'utf-8')
             const updated = content.replace(/(\*\*Status\*\*:\s*)[a-z_]+/, '$1completed')
@@ -1382,7 +1463,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       return {
-        hash: validated.hash,
+        hash: normalizedHash,
         previousStatus: currentStatus,
         newStatus: 'completed' as const,
         approvedAt: new Date().toISOString(),

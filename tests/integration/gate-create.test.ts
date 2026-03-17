@@ -129,25 +129,6 @@ describe('gates-registry: gate_create', () => {
     expect(data.validation.errors).toContain('Gate ID gate-01 already exists')
   })
 
-  it('returns validation error for invalid gate type', async () => {
-    mockGet.mockReturnValue(undefined) // No duplicate
-
-    // The vi.mock passthrough returns the type field as-is from params,
-    // so passing 'invalid_type' will trigger the type validation error in gate_create.
-    const result = (await registry.invoke('gate_create', {
-      gateId: 'gate-05',
-      name: 'Gate',
-      type: 'invalid_type',
-      sequence: 1,
-      objectives: ['Obj'],
-    })) as { success: boolean; data: unknown }
-
-    expect(result.success).toBe(true)
-    const data = result.data as { validation: { passed: boolean; errors: string[] } }
-    expect(data.validation.passed).toBe(false)
-    expect(data.validation.errors.some((e) => e.includes('Invalid gate type'))).toBe(true)
-  })
-
   it('adds warning for non-existent dependency but still succeeds', async () => {
     mockGet
       .mockReturnValueOnce(undefined) // gate-03 doesn't exist => no duplicate

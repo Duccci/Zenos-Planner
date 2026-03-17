@@ -44,7 +44,6 @@ export interface GateGenerateOutput {
   gates: {
     id: string
     name: string
-    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -96,7 +95,6 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     let gates: {
       id: string
       name: string
-      type: string
       status: string
       requirementsCount: number
       dependencies: string[]
@@ -159,7 +157,6 @@ async function detectGateChangesAndNotify(
   currentGates: {
     id: string
     name: string
-    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -178,7 +175,6 @@ async function detectGateChangesAndNotify(
     name: g.name,
     sequence: g.sequence,
     status: g.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
-    type: 'feature' as const,
   }))
 
   // Build a lookup so existing gates keep their real hash. Only genuinely new
@@ -191,7 +187,6 @@ async function detectGateChangesAndNotify(
     name: g.name,
     sequence: index + 1,
     status: g.status as 'pending' | 'in_progress' | 'completed' | 'rejected',
-    type: g.type as 'feature' | 'quality' | 'rescope',
   }))
 
   const changeEvents = detector.detectChanges(previousGatesMetadata, currentGatesMetadata)

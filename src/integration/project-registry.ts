@@ -29,7 +29,7 @@ import { join } from 'node:path'
  */
 const ProjectInitInputSchema = z.object({
   projectName: z.string().min(1).max(100),
-  endState: z.string().min(1),
+  projectStatement: z.string().min(1),
 })
 
 /**
@@ -78,7 +78,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
         logger.info(`Created ${createdPaths.length.toString()} directories/files`)
 
         // 2. Update config with project name and end state
-        const config = getDefaultConfig(input.projectName, input.endState)
+        const config = getDefaultConfig(input.projectName, input.projectStatement)
         await saveConfig(config, projectRoot)
 
         // 3. Initialize database
@@ -88,12 +88,12 @@ export function registerProjectOps(registry: FunctionRegistry): void {
         // 4. Generate project requirements
         logger.info('Generating project requirements...')
         const reqGen = new RequirementGenerator()
-        const requirements = reqGen.generateFromEndState(input.endState)
+        const requirements = reqGen.generateFromProjectStatement(input.projectStatement)
         logger.info(`Generated ${requirements.length.toString()} project requirements`)
 
         // 5. Generate gates
         logger.info('Generating project gates...')
-        const gatesResult = generateGates(input.endState, undefined, requirements)
+        const gatesResult = generateGates(input.projectStatement, undefined, requirements)
         logger.info(
           `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
         )
@@ -128,7 +128,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
       description: 'Initialize a new Zeno project',
       parameters: [
         { name: 'projectName', type: 'string', description: 'Project name', required: true },
-        { name: 'endState', type: 'string', description: 'Project end state description', required: true },
+        { name: 'projectStatement', type: 'string', description: 'Project statement describing what is being built', required: true },
       ],
       returnType: 'ProjectInitOutput',
       schema: ProjectInitInputSchema,

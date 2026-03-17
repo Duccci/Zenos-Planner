@@ -185,7 +185,7 @@ export interface SchemaValidationResult {
  * - metrics_snapshots: Lightweight aggregate metrics at gate archive time
  *
  * NOT IN DATABASE (file-based per Technical Decision 4):
- * - gates: Stored in project-overview.json (version-controlled, single source of truth)
+ * - gates: Stored in project.json (version-controlled, single source of truth)
  * - proposal_dependencies: Derived from proposal references (no separate source of truth)
  */
 const REQUIRED_TABLES = ['requirements', 'repositories', 'repo_dependencies', 'proposals', 'metrics_snapshots']

@@ -2,7 +2,7 @@
  * Memory Sync Utility
  *
  * Refreshes the Gate Roadmap section of .serena/memories/project_overview.md
- * by parsing project-overview.json. This keeps agent-session context current
+ * by parsing project.json. This keeps agent-session context current
  * without touching PROJECT_PRD.md (design rationale, not state).
  *
  * Trigger points:
@@ -12,10 +12,10 @@
  */
 
 import path from 'path'
-import { readProjectOverview } from './config.js'
+import { readProjectOverview, getCompletedGates, getUpcomingGates } from './config.js'
 import { fileExists, readFile, writeFile } from './file.js'
 import { logger } from './logger.js'
-import type { ProjectOverview } from './config.js'
+import type { Project } from './config.js'
 
 const MEMORY_PATH_SEGMENTS = ['.serena', 'memories', 'project_overview.md']
 
@@ -23,30 +23,33 @@ const MEMORY_PATH_SEGMENTS = ['.serena', 'memories', 'project_overview.md']
 const ROADMAP_HEADING = '## Gate Roadmap'
 
 /**
- * Generate the Gate Roadmap markdown section from a ProjectOverview.
+ * Generate the Gate Roadmap markdown section from a Project.
  */
-function buildRoadmapSection(overview: ProjectOverview): string {
-  const total = overview.totalGatesPlanned
-  const completedCount = overview.completedGates.length
+function buildRoadmapSection(overview: Project): string {
+  const total = overview.project.totalGatesPlanned
+  const completed = getCompletedGates(overview)
+  const completedCount = completed.length
+  const currentGate = overview.gates.find((g) => g.status === 'in_progress')
+  const upcoming = getUpcomingGates(overview)
 
   const completedLines =
     completedCount > 0
-      ? overview.completedGates
-          .map((g) => `- **${g.name}** *(completed ${g.completedAt})*`)
+      ? completed
+          .map((g) => `- **${g.name}** *(completed ${g.completedAt ?? 'N/A'})*`)
           .join('\n')
       : '_None yet_'
 
-  const currentLine = overview.currentGateInfo
-    ? `- **${overview.currentGateInfo.name}** ← *${overview.currentGateInfo.status ?? 'pending'}*`
+  const currentLine = currentGate
+    ? `- **${currentGate.name}** ← *${currentGate.status}*`
     : '_None_'
 
   const upcomingLines =
-    overview.upcomingGates.length > 0
-      ? overview.upcomingGates.map((g) => `- ${g.name}`).join('\n')
+    upcoming.length > 0
+      ? upcoming.map((g) => `- ${g.name}`).join('\n')
       : '_None_'
 
   return [
-    `## Gate Roadmap (auto-updated from project-overview.json)`,
+    `## Gate Roadmap (auto-updated from project.json)`,
     ``,
     `### Completed (${String(completedCount)}/${String(total)})`,
     completedLines,
@@ -61,7 +64,7 @@ function buildRoadmapSection(overview: ProjectOverview): string {
 
 /**
  * Refreshes the Gate Roadmap section of .serena/memories/project_overview.md
- * by parsing project-overview.json.
+ * by parsing project.json.
  *
  * - If the memory file does not exist, this is a no-op (graceful skip).
  * - Only the `## Gate Roadmap` section is replaced; all other content is preserved.
@@ -77,11 +80,11 @@ export async function syncMemoryFromProjectOverview(projectRoot: string): Promis
     return
   }
 
-  let overview: ProjectOverview
+  let overview: Project
   try {
     overview = await readProjectOverview(projectRoot)
   } catch (error) {
-    logger.debug(`memory-sync: could not read project-overview.json — ${String(error)}`)
+    logger.debug(`memory-sync: could not read project.json — ${String(error)}`)
     return
   }
 

@@ -12,15 +12,38 @@
  *   2. Gate-level: gate has exactly one test-suite (first) and one test-cleanup (last)
  */
 
-/** Identifies test-related file paths */
+/** Identifies test-related file paths (language-agnostic). */
 function isTestFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/')
+  const filename = normalized.slice(normalized.lastIndexOf('/') + 1)
+
   return (
-    /\.test\.[a-z]+$/.test(normalized) ||
-    /\.spec\.[a-z]+$/.test(normalized) ||
+    // ── Infix/suffix patterns (any extension) ──────────────────────────────
+    // JS/TS:     foo.test.ts, foo.spec.ts
+    /\.test\.[a-z0-9]+$/i.test(normalized) ||
+    /\.spec\.[a-z0-9]+$/i.test(normalized) ||
+    // Python:    test_foo.py, foo_test.py
+    /^test_/i.test(filename) ||
+    /_test\.[a-z0-9]+$/i.test(normalized) ||
+    // Go:        foo_test.go
+    /_test\.go$/i.test(normalized) ||
+    // Java/Kotlin/C#: FooTest.java, FooTests.kt, FooSpec.cs
+    /Test[s]?\.[a-z0-9]+$/i.test(normalized) ||
+    /Spec\.[a-z0-9]+$/i.test(filename) ||
+    // Ruby:      foo_spec.rb
+    /_spec\.[a-z0-9]+$/i.test(normalized) ||
+
+    // ── Directory conventions ───────────────────────────────────────────────
+    // JS/TS:     __tests__/
     normalized.includes('/__tests__/') ||
-    normalized.includes('/tests/') ||
-    normalized.startsWith('tests/')
+    // Broad:     /tests/, /test/, /spec/, /specs/  (Go, Rust, Java, Ruby…)
+    /\/tests?\//.test(normalized) ||
+    /\/specs?\//.test(normalized) ||
+    // Java/Maven: src/test/
+    normalized.includes('/src/test/') ||
+    // Root-level test/spec directories (project-local convention, no leading slash)
+    /^tests?\//.test(normalized) ||
+    /^specs?\//.test(normalized)
   )
 }
 
@@ -63,6 +86,12 @@ export interface ProposalGateSibling {
    * cannot alter its position in the gate sequence.
    */
   filePath?: string
+  /**
+   * Files declared in this proposal's "Files Affected" table.
+   * Populated by resolveGateTestFirstSiblings when reading from disk.
+   * Used by cleanup proposals to verify they reuse test files from the testing proposal.
+   */
+  filesAffected?: string[]
 }
 
 export interface TestFirstValidationContext {
@@ -447,4 +476,52 @@ export function validateRedTestCoverage(context: RedTestCoverageContext): Valida
     allowed: errors.length === 0,
     errors: errors.length > 0 ? errors : undefined,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup test file reuse check
+// ---------------------------------------------------------------------------
+
+/**
+ * Validates that a cleanup (GREEN) proposal only references test files that were
+ * already established by the gate's testing (RED) proposal.
+ *
+ * The GREEN phase must not introduce new test files — it only removes `.skip` markers
+ * from the test files created in the RED phase. Any new test file declared in a cleanup
+ * proposal should instead be moved to the testing proposal.
+ */
+export function validateCleanupTestFileReuse(
+  cleanupFilesAffected: string[],
+  gateProposals: ProposalGateSibling[]
+): ValidationResult {
+  // Find the gate's testing (RED) proposal
+  const testingProposal = gateProposals.find((p) => p.role === 'testing')
+  if (!testingProposal?.filesAffected) {
+    // Cannot validate without testing proposal file data — skip gracefully
+    return { allowed: true }
+  }
+
+  const redTestFiles = testingProposal.filesAffected.filter(isTestFile)
+  if (redTestFiles.length === 0) {
+    // Testing proposal has no test files listed — skip (unusual state)
+    return { allowed: true }
+  }
+
+  const cleanupTestFiles = cleanupFilesAffected.filter(isTestFile)
+  const unrecognizedFiles = cleanupTestFiles.filter((f) => !redTestFiles.includes(f))
+
+  if (unrecognizedFiles.length > 0) {
+    return {
+      allowed: false,
+      errors: [
+        `cleanup proposal declares test files not established by the gate's testing proposal: ` +
+          `${unrecognizedFiles.join(', ')}. ` +
+          `The cleanup (GREEN) phase must only modify test files created in the testing (RED) proposal — ` +
+          `removing \`skip\` markers, not introducing new test files. ` +
+          `Move new test file declarations to the testing proposal instead.`,
+      ],
+    }
+  }
+
+  return { allowed: true }
 }

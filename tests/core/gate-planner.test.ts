@@ -50,11 +50,10 @@ describe('gate-planner', () => {
       expect(gates).toHaveLength(1) // At least 1 gate
     })
 
-    it('should set correct status and type', async () => {
+    it('should set correct status', async () => {
       const gates = await generateNewGates('PRD', [{ id: 'r1', description: 'test' }], 1)
 
       expect(gates[0]!.status).toBe('pending')
-      expect(gates[0]!.type).toBe('feature')
     })
   })
 

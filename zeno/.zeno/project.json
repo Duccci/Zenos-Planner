@@ -1,0 +1,109 @@
+{
+  "project": {
+    "name": "Zeno's Planner",
+    "version": "0.3.0",
+    "projectStatement": "Zeno's Planner is a lightweight, LLM-friendly project planning and orchestration tool that enhances human 'vibe coding' by maintaining long-term project memory, reducing context size, and ensuring consistency from vision through implementation. Conceptually inspired by Zeno's dichotomy paradox, the tool generates iterative gates (milestones) that progressively approach project completion, with each gate requiring human approval and automated quality checks.",
+    "totalGatesPlanned": 9,
+    "gitHistory": {
+      "repository": "https://github.com/owner/Zenos-Planner",
+      "remote": "origin",
+      "branch": "main"
+    }
+  },
+  "gates": [
+    {
+      "id": "gate-01",
+      "sequence": 1,
+      "name": "Gate 01: Core Infrastructure",
+      "hash": "g01c0re1nfra",
+      "status": "completed",
+      "createdAt": "2026-01-25T00:00:00.000Z",
+      "completedAt": "2026-01-28T00:00:00.000Z",
+      "goal": "Establish TypeScript project, CLI framework, SQLite schema, core utilities"
+    },
+    {
+      "id": "gate-02",
+      "sequence": 2,
+      "name": "Gate 02: Zeno Engine & Gate Generation",
+      "hash": "g02zenoeng",
+      "status": "completed",
+      "createdAt": "2026-01-28T00:00:00.000Z",
+      "completedAt": "2026-01-30T00:00:00.000Z",
+      "goal": "Implement core gate decomposition, code analysis, zeno init, write-time analysis"
+    },
+    {
+      "id": "gate-03",
+      "sequence": 3,
+      "name": "Gate 03: MCP Server & LLM Tool Integration",
+      "hash": "g03mcpserver",
+      "status": "completed",
+      "createdAt": "2026-01-30T00:00:00.000Z",
+      "completedAt": "2026-02-04T00:00:00.000Z",
+      "goal": "Build MCP server, tool registry, and LLM interaction layer"
+    },
+    {
+      "id": "gate-04",
+      "sequence": 4,
+      "name": "Gate 04: Requirements & Database Layer",
+      "hash": "g04reqdb01",
+      "status": "completed",
+      "createdAt": "2026-02-04T00:00:00.000Z",
+      "completedAt": "2026-02-07T00:00:00.000Z",
+      "goal": "Implement requirements management, dependency tracking, and database layer"
+    },
+    {
+      "id": "gate-05",
+      "sequence": 5,
+      "name": "Gate 05: Architecture & Diagram Generation",
+      "hash": "g05archdiag",
+      "status": "completed",
+      "createdAt": "2026-02-07T00:00:00.000Z",
+      "completedAt": "2026-02-21T00:00:00.000Z",
+      "goal": "Generate architecture diagrams (Mermaid/DOT), system overview, data flow"
+    },
+    {
+      "id": "gate-06",
+      "sequence": 6,
+      "name": "Gate 06: Multi-Repo & Subproject Detection",
+      "hash": "g06multirepo",
+      "status": "completed",
+      "createdAt": "2026-02-21T00:00:00.000Z",
+      "completedAt": "2026-03-06T00:00:00.000Z",
+      "goal": "Detect repository boundaries, coupling metrics, multi-repo orchestration"
+    },
+    {
+      "id": "gate-07",
+      "sequence": 7,
+      "name": "Gate 07: Proposal Generation & Management",
+      "hash": "g07proposal",
+      "status": "completed",
+      "createdAt": "2026-03-06T00:00:00.000Z",
+      "completedAt": "2026-03-14T00:00:00.000Z",
+      "goal": "Proposal lifecycle: generation, validation, approval workflow, phase enforcement"
+    },
+    {
+      "id": "gate-08",
+      "sequence": 8,
+      "name": "Gate 08: Automated Validation & Quality Gates",
+      "hash": "g08harden",
+      "status": "completed",
+      "createdAt": "2026-03-14T00:00:00.000Z",
+      "completedAt": "2026-03-17T04:32:31.242Z",
+      "goal": "Shell validation runner, audit trail, git worktrees, requirement transfer, E2E tests",
+      "prdGenerated": true
+    },
+    {
+      "id": "gate-09",
+      "sequence": 9,
+      "name": "Gate 09: Human Approval & Rejection Workflow",
+      "hash": "g09approval",
+      "status": "in_progress",
+      "createdAt": "2026-03-14T00:00:00.000Z",
+      "completedAt": null,
+      "goal": "Human approval gates, rejection with feedback, replan triggers",
+      "prdGenerated": true
+    }
+  ],
+  "lastUpdated": "2026-03-17T04:32:31.242Z",
+  "status": "gate_completed"
+}

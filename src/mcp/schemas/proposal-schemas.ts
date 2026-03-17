@@ -63,6 +63,17 @@ export const ProposalTaskSchema = z.object({
 })
 export type ProposalTask = z.infer<typeof ProposalTaskSchema>
 
+export const ApprovalEventSchema = z.object({
+  id: z.number().int().optional(),
+  proposal_hash: z.string(),
+  decision: z.enum(['approved', 'rejected']),
+  actor: z.string(),
+  reason: z.string().nullable().optional(),
+  rejection_category: z.enum(['quality', 'scope', 'design', 'incomplete']).nullable().optional(),
+  timestamp: TimestampSchema,
+})
+export type ApprovalEvent = z.infer<typeof ApprovalEventSchema>
+
 export const ProposalDetailSchema = z.object({
   hash: ProposalHashSchema,
   title: z.string(),
@@ -91,6 +102,7 @@ export const ProposalDetailSchema = z.object({
       })
     )
     .optional(),
+  reviewHistory: z.array(ApprovalEventSchema).optional(),
   lastUpdated: TimestampSchema,
 })
 export type ProposalDetail = z.infer<typeof ProposalDetailSchema>
@@ -225,6 +237,12 @@ export const ProposalQualitativeReviewSchema = z.object({
   scopeFocused: z.boolean(),
   /** Rollback section describes specific, reversible steps (not just "revert the changes") */
   rollbackSpecific: z.boolean(),
+  /**
+   * For feature/implementation proposals: implementation performs real I/O operations
+   * stated in acceptance criteria, not just in-memory stubs that satisfy mocked tests.
+   * Optional — only required for proposals with role 'feature'.
+   */
+  implementationFidelityVerified: z.boolean().optional(),
   /** Items flagged during review; empty array if nothing was flagged */
   flaggedItems: z.array(z.string()),
 })

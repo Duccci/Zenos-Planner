@@ -52,8 +52,8 @@ describe('proposal-sync', () => {
 
     // Create gate (required by foreign key constraint)
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-01', 1, 'Test Gate', 'pending', 'feature', 'gate01hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-01', 1, 'Test Gate', 'pending', 'gate01hash')
 
     // Create proposal markdown file
     const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-01')
@@ -96,8 +96,8 @@ Test content.
 
     // Create gate
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-02', 2, 'Dup Test', 'pending', 'feature', 'gate02hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-02', 2, 'Dup Test', 'pending', 'gate02hash')
 
     // Create proposal file
     const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-02')
@@ -152,8 +152,8 @@ Original content.
 
     // Create gate
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-03', 3, 'Lifecycle', 'pending', 'feature', 'gate03hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-03', 3, 'Lifecycle', 'pending', 'gate03hash')
 
     // Create initial proposal
     const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-03')
@@ -223,8 +223,8 @@ Updated content.
 
     // Create gate
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-04', 4, 'Archive Test', 'pending', 'feature', 'gate04hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-04', 4, 'Archive Test', 'pending', 'gate04hash')
 
     // Create a normal proposal
     const normalDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-04')
@@ -291,8 +291,8 @@ Archived proposal.
 
     // Create gate and a matching requirement
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-05', 5, 'Req Link Test', 'pending', 'feature', 'gate05hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-05', 5, 'Req Link Test', 'pending', 'gate05hash')
     db.prepare(
       'INSERT INTO requirements (id, hash, type, priority, level, source, description, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run('req1234567890abcd', 'req1234567890abcd', 'functional', 'must', 'gate', 'generated', 'Test requirement', 'default-project')
@@ -325,8 +325,8 @@ Content.
     const db = getDatabase(TEST_DIR)
 
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-06', 6, 'FK Guard Test', 'pending', 'feature', 'gate06hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-06', 6, 'FK Guard Test', 'pending', 'gate06hash')
 
     const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-06')
     await mkdir(proposalsDir, { recursive: true })
@@ -357,8 +357,8 @@ Content.
     const db = getDatabase(TEST_DIR)
 
     db.prepare(
-      'INSERT INTO gates (id, sequence, name, status, type, hash) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run('gate-07', 7, 'Preserve Req', 'pending', 'feature', 'gate07hash')
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-07', 7, 'Preserve Req', 'pending', 'gate07hash')
     db.prepare(
       'INSERT INTO requirements (id, hash, type, priority, level, source, description, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run('preserved00000000', 'preserved00000000', 'functional', 'must', 'gate', 'generated', 'Preserved req', 'default-project')

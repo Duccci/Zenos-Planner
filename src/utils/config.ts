@@ -19,8 +19,8 @@ export const ZenoConfigSchema = z
     /** Project name (human-readable) */
     projectName: z.string().min(1, 'Project name is required'),
 
-    /** Project end state description */
-    endState: z.string().optional(),
+    /** Project statement describing what is being built */
+    projectStatement: z.string().optional(),
 
     /** Project version (semver format) */
     version: z.string().default('0.1.0'),
@@ -128,82 +128,89 @@ export const ZenoConfigSchema = z
         model: z.string().optional(),
       })
       .default({ cli: 'copilot', invocationMode: 'cli' }),
-
-    /**
-     * Whether the zeno/ directory is managed as a git submodule with its own remote.
-     * When true, artifact commits are first written to the submodule's git repo
-     * (zeno/), then the parent repo's submodule pointer is updated in a follow-up commit.
-     * Set to true after running: git submodule add <url> zeno
-     */
-    zenoSubmodule: z.boolean().default(false),
   })
   .loose()
 
 /** TypeScript type inferred from schema */
 export type ZenoConfig = z.infer<typeof ZenoConfigSchema>
 
-/** Project overview schema (single source of truth for project metadata) */
-export const ProjectOverviewSchema = z.object({
-  projectName: z.string(),
-  projectVersion: z.string(),
-  currentGate: z.string().nullable(),
-  totalGatesPlanned: z.number(),
-  endState: z.string(),
-  startState: z.string().nullable(),
-  completedGates: z.array(
-    z.object({
-      sequence: z.number(),
-      name: z.string(),
-      hash: z.string(),
-      completedAt: z.string(),
-      status: z.string().optional(),
-    })
-  ),
-  currentGateInfo: z
-    .object({
-      sequence: z.number(),
-      name: z.string(),
-      hash: z.string(),
-      estimatedComplexity: z.string(),
-      status: z.string().optional(),
-    })
-    .nullable(),
-  upcomingGates: z.array(
-    z.object({
-      sequence: z.number(),
-      name: z.string(),
-      estimatedComplexity: z.string(),
-    })
-  ),
-  cancelledGates: z
-    .array(
-      z.object({
-        sequence: z.number(),
-        name: z.string(),
-        hash: z.string().optional(),
-        cancelledAt: z.string().optional(),
-      })
-    )
-    .optional(),
-  backlogGates: z
-    .array(
-      z.object({
-        sequence: z.number(),
-        name: z.string(),
-        estimatedComplexity: z.string().optional(),
-      })
-    )
-    .optional(),
-  architecture: z.object({
-    layers: z.array(z.string()),
-    keyDependencies: z.record(z.string(), z.string()),
-  }),
+/** Unified gate entry schema — all gates in one array, status is the discriminator */
+export const ProjectGateSchema = z.object({
+  id: z.string(),
+  sequence: z.number(),
+  name: z.string(),
+  hash: z.string(),
+  status: z.enum(['pending', 'validated', 'in_progress', 'completed', 'cancelled', 'backlog']),
+  /** Delivery milestone labels parsed from the gate .md frontmatter (e.g. ['MVP', 'Post-MVP']). */
+  milestones: z.array(z.union([z.number(), z.string()])).optional(),
+  createdAt: z.string(),
+  completedAt: z.string().nullable().default(null),
+  cancelledAt: z.string().nullable().optional(),
+  // Brief project-level statement — detail lives in the gate .md
+  goal: z.string().optional(),
+  prdGenerated: z.boolean().optional(),
+  estimatedComplexity: z.string().optional(),
 })
 
-export type ProjectOverview = z.infer<typeof ProjectOverviewSchema>
+export type ProjectGate = z.infer<typeof ProjectGateSchema>
 
 /**
- * Unified gate summary derived from project-overview.json.
+ * Consolidated project schema — single source of truth.
+ * File: zeno/.zeno/project.json
+ */
+export const ProjectSchema = z.object({
+  project: z.object({
+    name: z.string(),
+    version: z.string(),
+    projectStatement: z.string(),
+    totalGatesPlanned: z.number(),
+    gitHistory: z
+      .object({
+        repository: z.string(),
+        remote: z.string(),
+        branch: z.string(),
+      })
+      .optional(),
+  }),
+  /** All gates in a single array — query by status instead of separate arrays */
+  gates: z.array(ProjectGateSchema),
+  lastUpdated: z.string(),
+  status: z.enum(['gate_in_progress', 'gate_completed', 'awaiting_review']),
+})
+
+export type Project = z.infer<typeof ProjectSchema>
+
+/** Backwards-compat alias */
+export type ProjectOverview = Project
+
+// ─── Project query helpers ────────────────────────────────────────────────────
+
+/** ID of the currently in-progress gate, or null */
+export function getCurrentGateId(project: Project): string | null {
+  return project.gates.find((g) => g.status === 'in_progress')?.id ?? null
+}
+
+/** All completed gates sorted by sequence */
+export function getCompletedGates(project: Project): ProjectGate[] {
+  return project.gates
+    .filter((g) => g.status === 'completed')
+    .sort((a, b) => a.sequence - b.sequence)
+}
+
+/** All upcoming (pending/validated) gates sorted by sequence */
+export function getUpcomingGates(project: Project): ProjectGate[] {
+  return project.gates
+    .filter((g) => g.status === 'pending' || g.status === 'validated')
+    .sort((a, b) => a.sequence - b.sequence)
+}
+
+/** Find a gate by its ID */
+export function getGateById(project: Project, id: string): ProjectGate | undefined {
+  return project.gates.find((g) => g.id === id)
+}
+
+/**
+ * Unified gate summary derived from project.json.
  * Provides a consistent view regardless of gate lifecycle stage.
  */
 export interface GateSummary {
@@ -247,18 +254,14 @@ export function getZenoDir(projectRoot: string = process.cwd()): string {
 }
 
 /**
- * Get the git working directory for zeno artifact commits.
- *
- * When zenoSubmodule is true the zeno/ directory is its own git repo;
- * commits for planning files must target that directory so that they land
- * in the submodule's history rather than the parent repo's.
- *
- * @param projectRoot - Project root directory
- * @param config - Loaded Zeno config
- * @returns Absolute path to the directory that owns the zeno git history
+ * Get the git working directory root for the zeno submodule.
+ * When zeno is used as a git submodule, git operations must run from the
+ * submodule root (i.e. the 'zeno' directory), not the parent project root.
+ * @param projectRoot - Parent project root directory (default: process.cwd())
+ * @returns Absolute path to the zeno submodule root
  */
-export function getZenoGitDir(projectRoot: string, config: ZenoConfig): string {
-  return config.zenoSubmodule ? normalizePath(join(projectRoot, 'zeno')) : normalizePath(projectRoot)
+export function getZenoGitDir(projectRoot: string = process.cwd(), _config?: ZenoConfig): string {
+  return normalizePath(join(projectRoot, 'zeno'))
 }
 
 /**
@@ -301,10 +304,10 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
  * Note: This schema intentionally matches zeno/.zeno/config.json and does not
  * require an end state string (that data lives in PRDs / DB in later gates).
  */
-export function getDefaultConfig(projectName: string, endState?: string): ZenoConfig {
+export function getDefaultConfig(projectName: string, projectStatement?: string): ZenoConfig {
   return {
     projectName,
-    endState,
+    projectStatement,
     version: '0.1.0',
     qualityThresholds: {
       codeCoverage: 90,
@@ -340,7 +343,6 @@ export function getDefaultConfig(projectName: string, endState?: string): ZenoCo
       cli: 'copilot',
       invocationMode: 'acp',
     },
-    zenoSubmodule: false,
   }
 }
 
@@ -445,42 +447,44 @@ export function isZenoProject(projectRoot: string = process.cwd()): boolean {
 }
 
 /**
- * Get the path to the project-overview.json file.
+ * Get the path to the project.json file.
  * @param projectRoot - Project root directory (default: process.cwd())
- * @returns Absolute path to project-overview.json
+ * @returns Absolute path to project.json
  */
-export function getProjectOverviewPath(projectRoot: string = process.cwd()): string {
-  return normalizePath(join(getZenoDir(projectRoot), 'project-overview.json'))
+export function getProjectPath(projectRoot: string = process.cwd()): string {
+  return normalizePath(join(getZenoDir(projectRoot), 'project.json'))
 }
 
+/** Backwards-compat alias */
+export const getProjectOverviewPath = getProjectPath
+
 /**
- * Read project overview from zeno/.zeno/project-overview.json.
- * This is the single source of truth for project metadata.
+ * Read project from zeno/.zeno/project.json — the single source of truth.
  * @param projectRoot - Project root directory (default: process.cwd())
- * @returns Project overview data
+ * @returns Project data
  * @throws ConfigError if file doesn't exist or is invalid
  */
-export async function readProjectOverview(
+export async function readProject(
   projectRoot: string = process.cwd()
-): Promise<ProjectOverview> {
-  const overviewPath = getProjectOverviewPath(projectRoot)
+): Promise<Project> {
+  const projectPath = getProjectPath(projectRoot)
 
-  if (!fileExists(overviewPath)) {
+  if (!fileExists(projectPath)) {
     throw new ConfigError(
-      `Project overview not found: ${overviewPath}`,
+      `Project overview not found: ${projectPath}`,
       'PROJECT_OVERVIEW_NOT_FOUND',
-      { path: overviewPath }
+      { path: projectPath }
     )
   }
 
   try {
-    const data = await readJsonFile(overviewPath)
+    const data = await readJsonFile(projectPath)
 
-    const result = ProjectOverviewSchema.safeParse(data)
+    const result = ProjectSchema.safeParse(data)
     if (!result.success) {
       throw new ConfigError('Invalid project overview format', 'PROJECT_OVERVIEW_INVALID', {
         errors: result.error.issues,
-        path: overviewPath,
+        path: projectPath,
       })
     }
 
@@ -490,110 +494,61 @@ export async function readProjectOverview(
       throw error
     }
     throw new ConfigError(
-      `Failed to read project overview: ${overviewPath}`,
+      `Failed to read project overview: ${projectPath}`,
       'PROJECT_OVERVIEW_READ_FAILED',
-      { path: overviewPath },
+      { path: projectPath },
       error instanceof Error ? error : undefined
     )
   }
 }
 
+/** Backwards-compat alias */
+export const readProjectOverview = readProject
+
 /**
- * Save project overview to zeno/.zeno/project-overview.json.
- * @param overview - Project overview data to save
+ * Save project to zeno/.zeno/project.json.
+ * @param project - Project data to save
  * @param projectRoot - Project root directory (default: process.cwd())
  * @throws ConfigError if save fails
  */
-export async function saveProjectOverview(
-  overview: ProjectOverview,
+export async function saveProject(
+  project: Project,
   projectRoot: string = process.cwd()
 ): Promise<void> {
-  const overviewPath = getProjectOverviewPath(projectRoot)
+  const projectPath = getProjectPath(projectRoot)
   try {
-    await writeJsonFile(overviewPath, overview)
+    await writeJsonFile(projectPath, project)
   } catch (error) {
     throw new ConfigError(
-      `Failed to save project overview: ${overviewPath}`,
+      `Failed to save project overview: ${projectPath}`,
       'PROJECT_OVERVIEW_WRITE_FAILED',
-      { path: overviewPath },
+      { path: projectPath },
       error instanceof Error ? error : undefined
     )
   }
 }
 
+/** Backwards-compat alias */
+export const saveProjectOverview = saveProject
+
 /**
- * Derive the full gate list from a ProjectOverview.
- * Returns completed, current (active/pending), and upcoming gates in sequence order.
- * Status is derived:
- *   - completedGates → 'completed'
- *   - currentGateInfo where overview.currentGate is set → 'in_progress'
- *   - currentGateInfo where overview.currentGate is null → 'pending'
- *   - upcomingGates → 'pending'
+ * Derive the full gate list from a Project.
+ * Returns all gates sorted by sequence, preserving their status.
  */
-export function getGatesFromOverview(overview: ProjectOverview): GateSummary[] {
-  const gates: GateSummary[] = []
-
-  for (const g of overview.completedGates) {
-    gates.push({
-      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
+export function getGatesFromProject(project: Project): GateSummary[] {
+  return project.gates
+    .slice()
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((g) => ({
+      id: g.id,
       sequence: g.sequence,
       name: g.name,
-      status: 'completed',
+      status: g.status,
       hash: g.hash,
-      completedAt: g.completedAt,
-    })
-  }
-
-  for (const g of overview.cancelledGates ?? []) {
-    gates.push({
-      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
-      sequence: g.sequence,
-      name: g.name,
-      status: 'cancelled',
-      hash: g.hash ?? '',
-      completedAt: null,
-    })
-  }
-
-  for (const g of overview.backlogGates ?? []) {
-    gates.push({
-      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
-      sequence: g.sequence,
-      name: g.name,
-      status: 'backlog',
-      hash: '',
-      completedAt: null,
+      completedAt: g.completedAt ?? null,
       estimatedComplexity: g.estimatedComplexity,
-    })
-  }
-
-  if (overview.currentGateInfo) {
-    const isActive = overview.currentGate !== null
-    const gateId =
-      overview.currentGate ??
-      `gate-${overview.currentGateInfo.sequence.toString().padStart(2, '0')}`
-    gates.push({
-      id: gateId,
-      sequence: overview.currentGateInfo.sequence,
-      name: overview.currentGateInfo.name,
-      status: isActive ? 'in_progress' : 'pending',
-      hash: overview.currentGateInfo.hash,
-      completedAt: null,
-      estimatedComplexity: overview.currentGateInfo.estimatedComplexity,
-    })
-  }
-
-  for (const g of overview.upcomingGates) {
-    gates.push({
-      id: `gate-${g.sequence.toString().padStart(2, '0')}`,
-      sequence: g.sequence,
-      name: g.name,
-      status: 'pending',
-      hash: '',
-      completedAt: null,
-      estimatedComplexity: g.estimatedComplexity,
-    })
-  }
-
-  return gates.sort((a, b) => a.sequence - b.sequence)
+    }))
 }
+
+/** Backwards-compat alias */
+export const getGatesFromOverview = getGatesFromProject

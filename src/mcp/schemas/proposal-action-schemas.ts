@@ -91,7 +91,7 @@ export const ProposalActionInputSchema = z.object({
     .string()
     .optional()
     .describe('Proposal hash (show/validate/approve/reject/start/progress)'),
-  gateId: z.string().optional().describe('Gate hash (preferred) or gate ID e.g. "gate-01" — use the hash from gates_action:list (list filter, create, generate)'),
+  gateId: z.string().optional().describe('Gate hash from gates_action:list — never pass plaintext IDs like "gate-01" (list filter, create, generate)'),
 
   // --- create fields ---
   title: z.string().optional().describe('Proposal title (create)'),

@@ -7,6 +7,7 @@ import { configHandlers, configToolDefinitions } from './config-tools.js'
 import { gitTraceHandlers, gitTraceToolDefinitions } from './git-trace-tools.js'
 import { validationHandlers, validationToolDefinitions } from './validation-tools.js'
 import { repositoryHandlers, repositoryToolDefinitions } from './repository-tools.js'
+import { worktreeHandlers, worktreeToolDefinitions } from './worktree-tools.js'
 import { analysisHandlers, analysisToolDefinitions } from './analysis-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
 import { projectHandlers, projectToolDefinitions } from './project-tools.js'
@@ -35,6 +36,7 @@ const handlerToolDefs = [
   ...projectToolDefinitions,
   ...contextToolDefinitions,
   ...gitTraceToolDefinitions,
+  ...worktreeToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -82,6 +84,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     projectHandlers,
     contextHandlers,
     gitTraceHandlers,
+    worktreeHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)

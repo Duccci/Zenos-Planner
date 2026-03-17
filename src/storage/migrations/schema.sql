@@ -16,8 +16,6 @@ CREATE TABLE IF NOT EXISTS gates (
   description            TEXT,
   status                 TEXT      NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'validated', 'in_progress', 'completed', 'rejected')),
-  type                   TEXT      NOT NULL DEFAULT 'feature'
-    CHECK (type IN ('feature', 'quality', 'rescope')),
   completion_description TEXT,
   proposal_hashes        TEXT,
   depends_on             TEXT,
@@ -183,3 +181,32 @@ CREATE INDEX IF NOT EXISTS idx_proposal_deps_target ON proposal_dependencies(tar
 CREATE INDEX IF NOT EXISTS idx_proposal_deps_type   ON proposal_dependencies(dependency_type);
 
 CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_gate_id ON metrics_snapshots(gate_id);
+
+-- Approval audit trail — records every approve and reject decision
+CREATE TABLE IF NOT EXISTS approval_events (
+  id                    INTEGER   PRIMARY KEY AUTOINCREMENT,
+  proposal_hash         TEXT      NOT NULL,
+  decision              TEXT      NOT NULL 
+    CHECK (decision IN ('approved', 'rejected')),
+  actor                 TEXT      NOT NULL DEFAULT 'zeno',
+  reason                TEXT,
+  rejection_category    TEXT      
+    CHECK (rejection_category IN ('quality', 'scope', 'design', 'incomplete', NULL)),
+  timestamp             TEXT      NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_approval_events_proposal_hash ON approval_events(proposal_hash);
+CREATE INDEX IF NOT EXISTS idx_approval_events_decision_ts ON approval_events(decision, timestamp);
+
+-- Rescope history — records every rescope/replan invocation with before/after snapshots
+CREATE TABLE IF NOT EXISTS rescope_events (
+  id               INTEGER   PRIMARY KEY AUTOINCREMENT,
+  gate_id          TEXT      NOT NULL,
+  snapshot_before  TEXT      NOT NULL,
+  snapshot_after   TEXT      NOT NULL,
+  actor            TEXT      NOT NULL,
+  created_at       TEXT      NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rescope_events_gate_id    ON rescope_events(gate_id);
+CREATE INDEX IF NOT EXISTS idx_rescope_events_created_at ON rescope_events(created_at DESC);

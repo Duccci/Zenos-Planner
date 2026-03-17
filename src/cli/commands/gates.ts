@@ -15,12 +15,11 @@ import { join } from 'node:path'
 import {
   getZenoDir,
   readProjectOverview,
-  saveProjectOverview,
   getGatesFromOverview,
 } from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
 import { replanGates } from '../../core/gate-generator.js'
-import { updateCurrentGateInState, syncProjectMetadataToState, syncUpcomingGatesToState } from '../../utils/state-sync.js'
+import { updateCurrentGateInState, syncUpcomingGatesToState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 import { invokeGatesAction } from '../cli-tool-invoker.js'
 import { type GateStatus, GATE_TRANSITIONS, validateTransition } from '../../core/transitions.js'
@@ -35,14 +34,13 @@ interface GateRecord {
   name: string
   description: string | null
   status: GateStatus
-  type: string
   hash: string
   created_at: string
   completed_at: string | null
 }
 
 /**
- * Get gate by ID or name from project-overview.json
+ * Get gate by ID or name from project.json
  */
 async function getGate(
   gateId: string,
@@ -63,7 +61,6 @@ async function getGate(
       name: match.name,
       description: null,
       status: match.status as GateStatus,
-      type: 'feature',
       hash: match.hash,
       created_at: match.completedAt ?? '',
       completed_at: match.completedAt,
@@ -104,7 +101,7 @@ export function registerGatesCommands(program: Command): void {
     .option('--status <status>', 'Filter by status (pending, validated, in_progress, completed)')
     .action(async (options: { verbose?: boolean; status?: string }) => {
       try {
-        // Sync database gates to project-overview.json first
+        // Sync database gates to project.json first
         try {
           await syncGatesToProjectOverview()
         } catch (error) {
@@ -128,13 +125,12 @@ export function registerGatesCommands(program: Command): void {
             name: s.name,
             description: null,
             status: s.status as GateStatus,
-            type: 'feature',
             hash: s.hash,
             created_at: s.completedAt ?? '',
             completed_at: s.completedAt,
           }))
         } catch {
-          // project-overview.json unavailable — fall through to archive fallback
+          // project.json unavailable — fall through to archive fallback
         }
 
         // Archive fallback if no gates from overview
@@ -151,7 +147,6 @@ export function registerGatesCommands(program: Command): void {
               name: g.name,
               description: null,
               status: 'completed' as GateStatus,
-              type: 'feature',
               hash: `archived-${g.id}`,
               created_at: '',
               completed_at: '',
@@ -217,7 +212,7 @@ export function registerGatesCommands(program: Command): void {
     .description('Show gate details')
     .action(async (gateId: string) => {
       try {
-        // Sync database gates to project-overview.json first
+        // Sync database gates to project.json first
         try {
           await syncGatesToProjectOverview()
         } catch (error) {
@@ -256,7 +251,6 @@ export function registerGatesCommands(program: Command): void {
         logger.info(`Sequence:    #${gate.sequence.toString().padStart(2, '0')}`)
         logger.info(`Requirements: ${String(reqCount)}`)
         logger.info(`Proposals:    ${String(proposalCount)}`)
-        logger.info(`Type:        ${gate.type}`)
         logger.info(`Hash:        ${gate.hash}`)
         if (gate.description) {
           logger.info(`Description: ${gate.description}`)
@@ -331,22 +325,17 @@ export function registerGatesCommands(program: Command): void {
           return
         }
 
-        // Mark gate as in-progress in project-overview.json
-        const overview = await readProjectOverview()
-        overview.currentGate = gate.id
-        await saveProjectOverview(overview)
-
-        // Sync gate start to state.json
+        // Mark gate as in-progress in project.json
         try {
           await updateCurrentGateInState(gate.id, gate.name, gate.sequence, gate.hash)
         } catch (error) {
           logger.warn(
-            `Failed to sync gate start to state.json: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to update gate start in project.json: ${error instanceof Error ? error.message : String(error)}`
           )
-          // Don't fail the start if state sync fails
+          // Don't fail the start if project.json update fails
         }
 
-        // Sync gate change back to project-overview.json
+        // Sync gate change back to project.json
         try {
           await syncGatesToProjectOverview()
         } catch (error) {
@@ -427,7 +416,7 @@ export function registerGatesCommands(program: Command): void {
 
       logger.info('Gate completion summary: All requirements implemented and tested')
 
-      // Sync completed gate back to project-overview.json
+      // Sync completed gate back to project.json
       try {
         await syncGatesToProjectOverview()
       } catch (error) {
@@ -566,12 +555,6 @@ export function registerGatesCommands(program: Command): void {
           } else {
             logger.info(`Wrote: ${result.filesWritten[0] ?? result.gatesAffected[0] ?? ''}`)
             logger.info('Gate MD cleared and re-rendered from template. Status reset to pending.')
-            try {
-              const overview = await readProjectOverview()
-              await syncProjectMetadataToState(overview)
-            } catch {
-              logger.debug('state.json sync skipped after single-gate replan (non-fatal).')
-            }
           }
           return
         }
@@ -615,7 +598,7 @@ export function registerGatesCommands(program: Command): void {
           try {
             await syncUpcomingGatesToState(suggestions.suggestedGates)
           } catch {
-            logger.debug('state.json sync skipped after multi-gate replan (non-fatal).')
+            logger.debug('project.json sync skipped after multi-gate replan (non-fatal).')
           }
           logger.info('Gates regenerated successfully')
           logger.info('Run "zeno gates list" to view updated gates')

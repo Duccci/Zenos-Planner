@@ -127,9 +127,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
         }
 
         if (!gate) {
-          return {
-            error: { code: 'GATE_NOT_FOUND', message: `Gate not found: ${(gateId ?? hash) ?? 'unknown'}` },
-          }
+          throw new Error(`Gate not found: ${(gateId ?? hash) ?? 'unknown'}`)
         }
 
         // Proposals for this gate
@@ -213,9 +211,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
           .get(hash) as ProposalRow | undefined
 
         if (!proposal) {
-          return {
-            error: { code: 'PROPOSAL_NOT_FOUND', message: `Proposal not found: ${hash}` },
-          }
+          throw new Error(`Proposal not found: ${hash}`)
         }
 
         // Parent gate context (if gate-tied)
@@ -304,9 +300,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
           .get(hash) as RequirementDetailRow | undefined
 
         if (!req) {
-          return {
-            error: { code: 'REQUIREMENT_NOT_FOUND', message: `Requirement not found: ${hash}` },
-          }
+          throw new Error(`Requirement not found: ${hash}`)
         }
 
         return {
@@ -363,9 +357,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
         }
 
         if (!repo) {
-          return {
-            error: { code: 'REPOSITORY_NOT_FOUND', message: `Repository not found: ${(hash ?? name) ?? 'unknown'}` },
-          }
+          throw new Error(`Repository not found: ${(hash ?? name) ?? 'unknown'}`)
         }
 
         let metadata: Record<string, unknown> | null = null

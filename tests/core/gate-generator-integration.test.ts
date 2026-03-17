@@ -321,17 +321,17 @@ describe('Gate Generator - Integration Tests', () => {
   describe('regenerateGatesWithAnalysis', () => {
     beforeEach(() => {
       vi.mocked(config.readProjectOverview).mockResolvedValue({
-        projectName: 'Test Project',
-        projectVersion: '1.0.0',
-        currentGate: null,
-        totalGatesPlanned: 2,
-        endState: 'Build a complete service',
-        startState: null,
-        completedGates: [],
-        currentGateInfo: null,
-        upcomingGates: [],
-        architecture: { layers: [], keyDependencies: {} },
-      })
+        project: {
+          name: 'Test Project',
+          version: '1.0.0',
+          projectStatement: 'Build a complete service',
+
+          totalGatesPlanned: 2,
+        },
+        gates: [],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
+      } as any)
 
       vi.mocked(config.getGatesFromOverview).mockReturnValue([
         makeGateSummary({
@@ -419,17 +419,16 @@ describe('Gate Generator - Integration Tests', () => {
   describe('regenerateGatesTheoreticalFromProject', () => {
     beforeEach(() => {
       vi.mocked(config.readProjectOverview).mockResolvedValue({
-        projectName: 'Test Project',
-        projectVersion: '1.0.0',
-        endState: 'Implement complete feature',
+        project: {
+          name: 'Test Project',
+          version: '1.0.0',
+          projectStatement: 'Implement complete feature',
+
+          totalGatesPlanned: 0,
+        },
         gates: [],
-        currentGate: null,
-        totalGatesPlanned: 0,
-        startState: null,
-        completedGates: [],
-        currentGateInfo: null,
-        upcomingGates: [],
-        architecture: { layers: [], keyDependencies: {} },
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
       } as any)
 
       vi.mocked(config.getGatesFromOverview).mockReturnValue([

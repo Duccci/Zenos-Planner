@@ -2135,7 +2135,7 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | ----- | ---- | -------- | ----------- |
 | `action` | `"init"` | Yes | Action discriminator |
 | `projectName` | `string` | Yes | Project name (1-100 chars) |
-| `endState` | `string` | Yes | Project end state description |
+| `projectStatement` | `string` | Yes | Project statement describing what is being built |
 
 #### project_action: status
 

@@ -57,10 +57,10 @@ describe('metrics-storage', () => {
     // Create a gate row so the FK constraint is satisfied
     const db = getDatabase(TEST_DIR)
     db.exec(`
-      INSERT OR IGNORE INTO gates (id, sequence, name, status, type, hash)
-      VALUES ('gate-01', 1, 'Test Gate 1', 'completed', 'feature', 'hash-gate-01'),
-             ('gate-02', 2, 'Test Gate 2', 'completed', 'feature', 'hash-gate-02'),
-             ('gate-03', 3, 'Test Gate 3', 'completed', 'feature', 'hash-gate-03')
+      INSERT OR IGNORE INTO gates (id, sequence, name, status, hash)
+      VALUES ('gate-01', 1, 'Test Gate 1', 'completed', 'hash-gate-01'),
+             ('gate-02', 2, 'Test Gate 2', 'completed', 'hash-gate-02'),
+             ('gate-03', 3, 'Test Gate 3', 'completed', 'hash-gate-03')
     `)
   })
 

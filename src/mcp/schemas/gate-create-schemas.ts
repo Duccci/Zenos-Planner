@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod'
-import { GateIdSchema, GateTypeEnum, TimestampSchema } from './common-schemas.js'
+import { GateIdSchema, TimestampSchema } from './common-schemas.js'
 
 /**
  * Schema for gate_create input
@@ -17,9 +17,6 @@ export const GateCreateInputSchema = z.object({
 
   /** Human-readable gate name */
   name: z.string().min(1, 'Gate name is required'),
-
-  /** Gate type */
-  type: GateTypeEnum,
 
   /** Gate sequence number */
   sequence: z.number().int().min(1),
@@ -53,9 +50,6 @@ export const GatePlanInputSchema = z.object({
 
   /** Gate sequence number */
   sequence: z.number().int().min(1),
-
-  /** Gate type */
-  type: GateTypeEnum.default('feature'),
 
   /** Gate dependencies (gate IDs that must complete first) */
   dependencies: z.array(GateIdSchema).default([]),

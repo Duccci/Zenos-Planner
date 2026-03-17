@@ -14,12 +14,12 @@ describe('GateChangeDetector', () => {
   describe('detectChanges', () => {
     it('returns empty changes for identical gate lists', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       expect(changes).toHaveLength(0)
@@ -27,13 +27,13 @@ describe('GateChangeDetector', () => {
 
     it('detects gate addition', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
-        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
+        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const additions = changes.filter((c) => c.type === 'gate_added')
@@ -43,13 +43,13 @@ describe('GateChangeDetector', () => {
 
     it('detects gate removal', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
-        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
+        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const removals = changes.filter((c) => c.type === 'gate_removed')
@@ -59,36 +59,24 @@ describe('GateChangeDetector', () => {
 
     it('detects gate reordering', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
-        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
+        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 3, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 2, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 3, status: 'pending', type: 'feature' },
+        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 1, status: 'pending' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 2, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 3, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const reordered = changes.filter((c) => c.type === 'gate_reordered')
       expect(reordered.length).toBeGreaterThan(0)
     })
 
-    it('detects gate rescoping (type change)', () => {
-      const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-      ]
-      const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'rescope' },
-      ]
-      const changes = detector.detectChanges(before, after)
-      const rescoped = changes.filter((c) => c.type === 'gate_rescoped')
-      expect(rescoped).toHaveLength(1)
-    })
-
     it('handles empty before list', () => {
       const before: GateMetadata[] = []
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       expect(changes.length).toBeGreaterThan(0)
@@ -96,7 +84,7 @@ describe('GateChangeDetector', () => {
 
     it('handles empty after list', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
       ]
       const after: GateMetadata[] = []
       const changes = detector.detectChanges(before, after)
@@ -105,12 +93,12 @@ describe('GateChangeDetector', () => {
 
     it('handles multiple changes', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 1, status: 'pending' },
+        { id: 'gate-03', hash: 'h3', name: 'Frontend', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       expect(changes.length).toBeGreaterThanOrEqual(2)
@@ -126,11 +114,11 @@ describe('GateChangeDetector', () => {
 
     it('returns true for gate additions', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const shouldReview = detector.shouldTriggerArchReview(changes)
@@ -139,11 +127,11 @@ describe('GateChangeDetector', () => {
 
     it('returns true for gate removals', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const shouldReview = detector.shouldTriggerArchReview(changes)
@@ -152,12 +140,12 @@ describe('GateChangeDetector', () => {
 
     it('returns true for gate reordering', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 1, status: 'pending' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const shouldReview = detector.shouldTriggerArchReview(changes)
@@ -166,12 +154,12 @@ describe('GateChangeDetector', () => {
 
     it('returns false for no structural changes', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       const shouldReview = detector.shouldTriggerArchReview(changes)
@@ -195,11 +183,11 @@ describe('GateChangeDetector', () => {
   describe('change event details', () => {
     it('provides descriptive details for each change', () => {
       const before: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
       ]
       const after: GateMetadata[] = [
-        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending', type: 'feature' },
-        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending', type: 'feature' },
+        { id: 'gate-01', hash: 'h1', name: 'Foundation', sequence: 1, status: 'pending' },
+        { id: 'gate-02', hash: 'h2', name: 'Core API', sequence: 2, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       expect(changes[0].details).toBeTruthy()
@@ -209,7 +197,7 @@ describe('GateChangeDetector', () => {
     it('includes gate name and id in details', () => {
       const before: GateMetadata[] = []
       const after: GateMetadata[] = [
-        { id: 'gate-05', hash: 'h5', name: 'TestGate', sequence: 1, status: 'pending', type: 'feature' },
+        { id: 'gate-05', hash: 'h5', name: 'TestGate', sequence: 1, status: 'pending' },
       ]
       const changes = detector.detectChanges(before, after)
       expect(changes[0].gateName).toBe('TestGate')

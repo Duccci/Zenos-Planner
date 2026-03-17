@@ -13,6 +13,7 @@ import {
   validateTestFirstPattern,
   validateGateLevelTestFirst,
   validateRedTestCoverage,
+  validateCleanupTestFileReuse,
   inferRoleFromFilename,
   type TestFirstValidationContext,
   type ProposalGateSibling,
@@ -694,6 +695,124 @@ describe('test-first-validator', () => {
       const result = validateTestFirstPattern(context)
       expect(result.allowed).toBe(true)
     })
+
+    // Python conventions
+    it('should recognize test_foo.py (Python prefix)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['tests/test_feature.py'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    it('should recognize foo_test.py (Python suffix)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['src/feature_test.py'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // Go conventions
+    it('should recognize foo_test.go (Go)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['pkg/feature_test.go'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // Java/Kotlin conventions
+    it('should recognize FooTest.java (Java)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['src/test/java/FeatureTest.java'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    it('should recognize FooTests.kt (Kotlin plural)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['src/test/kotlin/FeatureTests.kt'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    it('should recognize src/test/ directory (Maven)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['src/test/java/com/example/Feature.java'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // Ruby conventions
+    it('should recognize foo_spec.rb (Ruby)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['spec/feature_spec.rb'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    it('should recognize spec/ directory (Ruby)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['spec/models/user.rb'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // Rust conventions
+    it('should recognize tests/ directory (Rust integration tests)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['tests/integration.rs'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // C# conventions
+    it('should recognize FooSpec.cs (C# spec)', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'testing',
+        isGateTied: true,
+        filesAffected: ['src/FeatureSpec.cs'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+    })
+
+    // Non-test files should not be classified as test files
+    it('should not classify normal source files as test files', () => {
+      const context: TestFirstValidationContext = {
+        proposalHash: '#abc123',
+        role: 'feature',
+        isGateTied: true,
+        filesAffected: ['src/feature.ts', 'src/utils/helper.py', 'pkg/service.go'],
+      }
+      expect(validateTestFirstPattern(context).allowed).toBe(true)
+      expect(validateTestFirstPattern(context).errors).toBeUndefined()
+    })
   })
 })
 
@@ -828,5 +947,104 @@ describe('inferRoleFromFilename', () => {
 
   it('handles Windows-style paths', () => {
     expect(inferRoleFromFilename('zeno\\proposals\\gate-07\\01-red--test.md')).toBe('testing')
+  })
+})
+
+describe('validateCleanupTestFileReuse', () => {
+  const makeSibling = (hash: string, role: string, filesAffected?: string[]): ProposalGateSibling => ({
+    hash,
+    role,
+    createdAt: new Date().toISOString(),
+    filesAffected,
+  })
+
+  it('allows cleanup that only references test files from the testing proposal', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/my-module.test.ts', 'tests/core/other.test.ts']),
+      makeSibling('feat001', 'feature', ['src/core/my-module.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(
+      ['tests/core/my-module.test.ts', 'tests/core/other.test.ts'],
+      gateProposals
+    )
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('allows cleanup that is a subset of RED test files', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/a.test.ts', 'tests/core/b.test.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(['tests/core/a.test.ts'], gateProposals)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('rejects cleanup that introduces a new test file not in RED proposal', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/my-module.test.ts']),
+      makeSibling('feat001', 'feature', ['src/core/my-module.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(
+      ['tests/core/my-module.test.ts', 'tests/core/new-extra.test.ts'],
+      gateProposals
+    )
+    expect(result.allowed).toBe(false)
+    expect(result.errors).toBeDefined()
+    expect(result.errors?.[0]).toMatch(/not established by the gate.*testing proposal/)
+    expect(result.errors?.[0]).toMatch(/new-extra.test.ts/)
+  })
+
+  it('rejects cleanup with entirely new test files (none from RED)', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/old.test.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(['tests/core/brand-new.test.ts'], gateProposals)
+    expect(result.allowed).toBe(false)
+    expect(result.errors?.[0]).toMatch(/brand-new.test.ts/)
+  })
+
+  it('skips check when no testing sibling exists', () => {
+    const gateProposals = [
+      makeSibling('feat001', 'feature', ['src/core/my-module.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(['tests/core/any.test.ts'], gateProposals)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('skips check when testing sibling has no filesAffected', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', undefined),
+    ]
+    const result = validateCleanupTestFileReuse(['tests/core/any.test.ts'], gateProposals)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('skips check when testing sibling has empty filesAffected', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', []),
+    ]
+    const result = validateCleanupTestFileReuse(['tests/core/any.test.ts'], gateProposals)
+    expect(result.allowed).toBe(true)
+  })
+
+  it('ignores impl files in cleanup filesAffected (only test files are checked)', () => {
+    // This scenario should not happen (cleanup must not have impl files, caught elsewhere),
+    // but the reuse check should only care about test files.
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/my.test.ts']),
+    ]
+    const result = validateCleanupTestFileReuse(
+      ['tests/core/my.test.ts', 'src/core/some-impl.ts'],
+      gateProposals
+    )
+    expect(result.allowed).toBe(true)
+  })
+
+  it('allows empty cleanup filesAffected', () => {
+    const gateProposals = [
+      makeSibling('red001', 'testing', ['tests/core/my.test.ts']),
+    ]
+    const result = validateCleanupTestFileReuse([], gateProposals)
+    expect(result.allowed).toBe(true)
   })
 })

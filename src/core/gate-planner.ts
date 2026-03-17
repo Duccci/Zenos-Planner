@@ -20,7 +20,6 @@ export async function generateNewGates(
   {
     id: string
     name: string
-    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -37,7 +36,6 @@ export async function generateNewGates(
     gates.push({
       id: `gate-${(i + 1).toString().padStart(2, '0')}`,
       name: `Gate ${(i + 1).toString().padStart(2, '0')}`,
-      type: 'feature',
       status: 'pending',
       requirementsCount: gateRequirements.length,
       dependencies: i > 0 ? [`gate-${i.toString().padStart(2, '0')}`] : [],
@@ -56,7 +54,6 @@ export async function rebaselineGates(
   {
     id: string
     name: string
-    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -75,7 +72,6 @@ export async function generateSingleGate(
   {
     id: string
     name: string
-    type: string
     status: string
     requirementsCount: number
     dependencies: string[]

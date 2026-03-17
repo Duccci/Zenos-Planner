@@ -141,7 +141,9 @@ async function generateRedTestSuiteProposal(
   const tasks = generateRedSuiteTasks(objectives, totalCoverageTarget)
   proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
 
-  const hash = shortHash(proposalContent).substring(0, 8)
+  // Include objectives and generated tasks in hash input so each proposal gets a unique
+  // hash even when the template doesn't contain {{OBJECTIVE}} / {{TASKS}} placeholders.
+  const hash = shortHash(proposalContent + objectives.join('|') + tasks).substring(0, 8)
   const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
   const renderedContent = proposalContent
     .replace(/\{\{HASH\}\}/g, hash)
@@ -202,7 +204,8 @@ async function generateImplementationProposals(
     const tasks = generateImplementationTasks(objective)
     proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
 
-    const hash = shortHash(proposalContent).substring(0, 8)
+    // Include objective and tasks so each proposal in the same gate gets a distinct hash.
+    const hash = shortHash(proposalContent + objective + tasks).substring(0, 8)
     const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
     const renderedContent = proposalContent
       .replace(/\{\{HASH\}\}/g, hash)
@@ -266,7 +269,8 @@ async function generateGreenVerificationProposal(
   const tasks = generateGreenVerificationTasks(objectives, coverageThreshold)
   proposalContent = proposalContent.replace(/\{\{TASKS\}\}/g, tasks)
 
-  const hash = shortHash(proposalContent).substring(0, 8)
+  // Include objectives and tasks in hash input for uniqueness across gates.
+  const hash = shortHash(proposalContent + objectives.join('|') + tasks).substring(0, 8)
   const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
   const renderedContent = proposalContent
     .replace(/\{\{HASH\}\}/g, hash)

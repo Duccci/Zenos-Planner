@@ -3,7 +3,7 @@
 > Post-MVP documentation accuracy pass. Ensure README, CLI/MCP references, and AGENTS.md
 > reflect the actual implementation. Add JSDoc to public APIs.
 
-**Status**: pending
+**Status**: in_progress
 **Type**: chore
 **Created**: 2026-03-14
 **Sequence**: 9 of 10
@@ -74,11 +74,11 @@ Gates 01-08 (MVP) established:
 
 ### Project Requirements (Attributed to This Gate)
 
-| Hash    | Name                   | Type         | Priority | How This Gate Addresses It                    |
-| ------- | ---------------------- | ------------ | -------- | --------------------------------------------- |
-| #[hash] | Accurate Documentation | functional   | must     | README and CLI reference match implementation |
-| #[hash] | API Discoverability    | functional   | should   | JSDoc on public APIs improves IDE support     |
-| #[hash] | Clear Error Messages   | non_functional | should | Error messages reviewed for clarity           |
+| Hash                  | Name                                                             | Type       | Priority | How This Gate Addresses It                                                       |
+| --------------------- | ---------------------------------------------------------------- | ---------- | -------- | -------------------------------------------------------------------------------- |
+| #d4820760c1f41260    | Generate AGENTS.md files for AI context and tool usage guidance  | functional | must     | Update root and `zeno/` AGENTS.md to reflect actual MVP workflows                |
+| #cb19655eee60ab38    | Provide CLI interface for all Zeno operations via Commander.js   | functional | must     | CLI command reference audited against implemented commands and corrected          |
+| #10a621a3715172ae    | Expose all operations as MCP tools for LLM invocation            | functional | must     | MCP tool reference audited against registered tool schemas and corrected          |
 
 ### Gate-Specific Requirements
 
@@ -100,9 +100,11 @@ Individual tasks are created during proposal generation.
 
 ### Proposal Status
 
-| Proposal        | Hash    | Status  | Notes            |
-| --------------- | ------- | ------- | ---------------- |
-| [proposal-name] | #[hash] | pending | [Optional notes] |
+| Proposal                  | Hash    | Status  | Notes                               |
+| ------------------------- | ------- | ------- | ----------------------------------- |
+| 01-readme-cli-audit       | pending | pending | Generated when gate is started      |
+| 02-agents-md-updates      | pending | pending | Depends on 01 (README & CLI audit)  |
+| 03-jsdoc-error-messages   | pending | pending | Generated when gate is started      |
 
 ### Proposal Dependency Graph
 
@@ -116,7 +118,7 @@ graph LR
 
 ### High-Level Delta (Gate Completion Summary)
 
-[To be populated on gate completion.]
+To be populated after gate completion. Will summarise documentation accuracy improvements: README accuracy pass, CLI/MCP reference audit results, AGENTS.md updates, JSDoc additions to public APIs, and error message review outcomes.
 
 ---
 
@@ -220,6 +222,20 @@ No infrastructure changes required.
 5. **Test Cleanup**
    - Verify all documented commands work as described
    - Ensure no references to unimplemented features remain
+
+## Risks & Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+| ---- | ---------- | ------ | ---------- |
+| README or CLI reference diverges from implementation during gate-08 late commits | Medium | Medium | Audit performed against final gate-08 tag; re-verify any gate-08 changes merged after gate-09 starts |
+| JSDoc additions cause TypeScript strict-mode errors | Low | Low | Only add comments, no type changes; run `tsc --noEmit` as part of task verification |
+| AGENTS.md updates conflict with AI agent workflows in flight | Low | Medium | Review current active agent sessions before updating AGENTS.md; document migration note in change log |
+
+## Known Issues & Limitations
+
+- **No automated doc drift detection**: README and CLI reference accuracy is validated manually during this gate; no tooling enforces ongoing sync.
+- **JSDoc coverage is best-effort**: Only public API functions exported from `src/index.ts` are in scope; internal utilities are not documented.
+- **MCP tool reference is static markdown**: The MCP tool list in docs is hand-maintained; no auto-generation from registered schemas in this gate.
 
 ## Gate Completion Criteria
 

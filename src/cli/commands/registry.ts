@@ -42,8 +42,8 @@ export function registerRegistryCommands(program: Command): void {
           `  gates: ${String(gateResult.synced)} inserted, ${String(gateResult.skipped)} skipped`
         )
 
-        // 2b. Planned gates (no MD file yet) — seeded from git-tracked state.json
-        logger.info('Syncing planned gates from state.json…')
+        // 2b. Planned gates (no MD file yet) — seeded from git-tracked project.json
+        logger.info('Syncing planned gates from project.json…')
         const plannedResult = syncPlannedGatesFromState(db, projectRoot)
         logger.info(
           `  planned gates: ${String(plannedResult.synced)} inserted, ${String(plannedResult.skipped)} skipped`

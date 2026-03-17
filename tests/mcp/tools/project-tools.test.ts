@@ -27,7 +27,7 @@ describe('Project Action Handlers', () => {
     const result = ProjectActionInputSchema.safeParse({
       action: 'init',
       projectName: 'My Project',
-      endState: 'A complete application',
+      projectStatement: 'A complete application',
     })
     expect(result.success).toBe(true)
   })
@@ -58,12 +58,12 @@ describe('Project Action Handlers', () => {
     )
     const result = ProjectActionInputSchema.safeParse({
       action: 'init',
-      endState: 'A complete application',
+      projectStatement: 'A complete application',
     })
     expect(result.success).toBe(false)
   })
 
-  it('project_action input schema requires endState for init', async () => {
+  it('project_action input schema requires projectStatement for init', async () => {
     const { ProjectActionInputSchema } = await import(
       '../../../src/mcp/schemas/project-action-schemas.js'
     )

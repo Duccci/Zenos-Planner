@@ -7,9 +7,8 @@ graph LR
     G5["Gate 05: Architecture & Diagram Generation<br/><small>completed</small>"]
     G6["Gate 06: Multi-Repo & Subproject Detection<br/><small>completed</small>"]
     G7["Gate 07: Proposal Generation & Management<br/><small>completed</small>"]
-    G8["Gate 08: MVP Hardening<br/><small>pending</small>"]
-    G9["Gate 09: Documentation & Polish<br/><small>pending</small>"]
-    G10["Gate 10: Subagent Orchestration & Parallel Execution<br/><small>pending</small>"]
+    G8["Gate 08: Automated Validation & Quality Gates<br/><small>validated</small>"]
+    G9["Gate 09: Human Approval & Rejection Workflow<br/><small>in_progress</small>"]
     G1 --> G2
     G2 --> G3
     G3 --> G4
@@ -18,7 +17,6 @@ graph LR
     G6 --> G7
     G7 --> G8
     G8 --> G9
-    G9 --> G10
 
     classDef pending fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
     classDef in_progress fill:#FFC107,stroke:#F57F17,stroke-width:2px,color:#000
