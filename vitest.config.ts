@@ -87,6 +87,12 @@ export default defineConfig({
         'src/mcp/tools/context-tools.ts', // Thin handler wrapper delegating to createEntityActionHandler — same pattern as excluded architecture-tools.ts, requirement-tools.ts
         'src/integration/context-registry.ts', // Raw SQLite integration module — same pattern as excluded schema-registry.ts, template-registry.ts (integration-level, requires real DB)
         'src/generation/diagram-generators/system-overview-generator.ts', // Mostly a hardcoded static Mermaid diagram string + file I/O — same pattern as excluded graphviz-renderer.ts, mermaid-renderer.ts
+        'src/types/validation-runner.ts', // Pure TypeScript interface definitions, no runtime code — same pattern as analysis/types.ts, core/types.ts
+        'src/cli/commands/doctor/types.ts', // Pure TypeScript interface definitions, no runtime code — same pattern as analysis/types.ts, core/types.ts
+        'src/cli/commands/doctor.ts', // CLI command dispatch wrapper (chalk table rendering + Commander action) — same pattern as excluded gates.ts, init.ts, worktree.ts
+        'src/cli/commands/worktree.ts', // CLI command dispatch wrapper with Commander.js subcommands — same pattern as excluded gates.ts, proposal.ts, arch.ts
+        'src/mcp/tools/worktree-tools.ts', // Gate 08 MCP handler wrapping WorktreeManager — same pattern as excluded architecture-tools.ts, context-tools.ts, analysis-tools.ts
+        'src/storage/gate-sync.ts', // Integration-level storage: reads gate markdown files and upserts into SQLite — same pattern as excluded src/utils/gate-sync.ts and proposal-sync.ts
       ],
       thresholds: {
         statements: 85,

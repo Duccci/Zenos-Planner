@@ -97,6 +97,7 @@ beforeEach(() => {
   vi.mocked(validateProposalReady).mockResolvedValue({
     type: 'solitary',
     title: 'Test Proposal',
+    filePath: '/project/zeno/proposals/solitary/test-proposal.md',
   } as any);
   vi.mocked(performGitCommitAndPush).mockResolvedValue(undefined);
 });
@@ -308,6 +309,7 @@ describe('archiveBatch', () => {
     vi.mocked(validateProposalReady).mockResolvedValue({
       type: 'solitary',
       title: 'Test Proposal',
+      filePath: '/project/zeno/proposals/solitary/p-test-hash.md',
     });
 
     const artifacts = [
@@ -377,6 +379,7 @@ describe('archiveProposal', () => {
     vi.mocked(validateProposalReady).mockResolvedValue({
       type: 'solitary',
       title: 'Proposal',
+      filePath: '/project/zeno/proposals/solitary/p-hash.md',
     });
     vi.mocked(readdir).mockResolvedValue(['p-hash.md', 'p-hash-old.md'] as any);
     vi.mocked(existsSync).mockReturnValue(true);

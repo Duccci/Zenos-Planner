@@ -3,7 +3,7 @@
  *
  * Central helpers for resolving Zeno artifact files on disk.
  * Artifact files are NOT named by their identifier:
- *  - Proposal files: date-named (`YYYY-MM-DD-NN-title.md`), hash embedded in frontmatter
+ *  - Proposal files: numbered (`NN-title.md` or `NN-CC-title.md` for solitary, `NN-title.md` for gate-tied), hash embedded in frontmatter
  *  - Gate files:     `gate-NN-full-name.md`, gate ID is the short prefix (`gate-NN`)
  *
  * All MCP tools and core modules should import from here instead of

@@ -49,6 +49,7 @@ vi.mock('../../src/mcp/schemas/proposal-create-schemas.js', () => ({
         filesAffected: (p.filesAffected as string[]) ?? [],
         dependencies: (p.dependencies as string[]) ?? [],
         context: p.context as string | undefined,
+        parentHash: (p.parentHash as string | undefined) ?? undefined,
       }
     },
   },
@@ -115,6 +116,18 @@ vi.mock('../../src/utils/file.js', () => ({
 vi.mock('node:fs', () => ({
   existsSync: vi.fn().mockReturnValue(false),
   readdirSync: vi.fn().mockReturnValue([]),
+}))
+
+const mockNextSolitaryNumber = vi.fn().mockReturnValue(1)
+const mockNextChainedNumber = vi.fn().mockReturnValue(1)
+const mockFindSolitaryNumberForHash = vi.fn().mockResolvedValue(null)
+const mockPadSeq = vi.fn((n: number) => String(n).padStart(2, '0'))
+
+vi.mock('../../src/utils/solitary-numbering.js', () => ({
+  nextSolitaryNumber: (...args: unknown[]) => mockNextSolitaryNumber(...args),
+  nextChainedNumber: (...args: unknown[]) => mockNextChainedNumber(...args),
+  findSolitaryNumberForHash: (...args: unknown[]) => mockFindSolitaryNumberForHash(...args),
+  padSeq: (n: unknown) => mockPadSeq(n as number),
 }))
 
 // ---------------------------------------------------------------------------
@@ -188,6 +201,10 @@ describe('proposals-registry: proposal_create', () => {
     mockAll.mockReturnValue([])
     mockValidateDependencies.mockReturnValue({ errors: [], warnings: [] })
     mockSyncProposalsFromDisk.mockImplementation(() => undefined)
+    mockNextSolitaryNumber.mockReturnValue(1)
+    mockNextChainedNumber.mockReturnValue(1)
+    mockFindSolitaryNumberForHash.mockResolvedValue(null)
+    mockPadSeq.mockImplementation((n: number) => String(n).padStart(2, '0'))
 
     registerProposalsOps(registry)
   })
@@ -395,5 +412,73 @@ describe('proposals-registry: proposal_create', () => {
     expect(data.status).toBe('pending')
     expect(data.createdAt).toBeDefined()
     expect(data.validation.passed).toBe(true)
+  })
+
+  it('auto-increments sequence number for the second solitary proposal', async () => {
+    // Simulate two existing proposals at numbers 01 and 02 → next should be 03
+    mockNextSolitaryNumber.mockReturnValueOnce(3)
+
+    const result = (await registry.invoke('proposal_create', {
+      title: 'Third Solo Feature',
+      summary: 'Summary',
+      solitary: true,
+      tasks: [{ description: 'task', acceptanceCriteria: ['done'] }],
+    })) as { success: boolean; data: unknown }
+
+    expect(result.success).toBe(true)
+    const data = result.data as { filePath: string; validation: { passed: boolean } }
+    expect(data.validation.passed).toBe(true)
+    expect(data.filePath).toMatch(/\/03-third-solo-feature\.md$/)
+  })
+
+  it('creates chained proposal with parent-child numbering', async () => {
+    // Parent proposal 02 exists; its first child should be 02-01
+    mockFindSolitaryNumberForHash.mockResolvedValueOnce(2) // parent number = 2
+    mockNextChainedNumber.mockReturnValueOnce(1)           // first child = 1
+
+    const result = (await registry.invoke('proposal_create', {
+      title: 'Child Proposal',
+      summary: 'Summary',
+      solitary: true,
+      parentHash: 'abc12345',
+      tasks: [{ description: 'task', acceptanceCriteria: ['done'] }],
+    })) as { success: boolean; data: unknown }
+
+    expect(result.success).toBe(true)
+    const data = result.data as { filePath: string; validation: { passed: boolean } }
+    expect(data.validation.passed).toBe(true)
+    expect(data.filePath).toMatch(/\/02-01-child-proposal\.md$/)
+  })
+
+  it('returns error when parentHash is not found in solitary proposals', async () => {
+    mockFindSolitaryNumberForHash.mockResolvedValueOnce(null) // parent not found
+
+    const result = (await registry.invoke('proposal_create', {
+      title: 'Orphan Child',
+      summary: 'Summary',
+      solitary: true,
+      parentHash: 'nonexistent',
+      tasks: [{ description: 'task', acceptanceCriteria: [] }],
+    })) as { success: boolean; data: unknown }
+
+    expect(result.success).toBe(true)
+    const data = result.data as { validation: { passed: boolean; errors: string[] } }
+    expect(data.validation.passed).toBe(false)
+    expect(data.validation.errors.some((e) => e.includes('nonexistent'))).toBe(true)
+  })
+
+  it('returns error when parentHash is used with a gate-tied proposal', async () => {
+    const result = (await registry.invoke('proposal_create', {
+      title: 'Bad Chain',
+      summary: 'Summary',
+      gateId: 'gate-01',
+      parentHash: 'abc12345',
+      tasks: [{ description: 'task', acceptanceCriteria: [] }],
+    })) as { success: boolean; data: unknown }
+
+    expect(result.success).toBe(true)
+    const data = result.data as { validation: { passed: boolean; errors: string[] } }
+    expect(data.validation.passed).toBe(false)
+    expect(data.validation.errors.some((e) => e.includes('parentHash'))).toBe(true)
   })
 })

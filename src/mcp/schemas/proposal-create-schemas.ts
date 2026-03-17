@@ -62,6 +62,13 @@ export const ProposalCreateInputSchema = z.object({
 
   /** Optional dependencies */
   dependencies: z.array(z.string()).default([]),
+
+  /**
+   * Hash of an existing standalone solitary proposal to chain from.
+   * When provided (with `solitary: true`), the new proposal filename uses
+   * `parentNN-CC` numbering (e.g. 02-01, 02-02).
+   */
+  parentHash: z.string().optional(),
 })
 
 export type ProposalCreateInput = z.infer<typeof ProposalCreateInputSchema>

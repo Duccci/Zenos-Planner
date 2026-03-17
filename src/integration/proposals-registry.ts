@@ -366,7 +366,29 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       if (!hasGateId && !isSolitary) {
         errors.push('Proposal must either be solitary or have a gateId')
       }
+      // parentHash is only valid for solitary proposals
+      if (validated.parentHash && !isSolitary) {
+        errors.push('parentHash is only supported for solitary proposals')
+      }
       /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion */
+
+      // Resolve parent sequence number for chained solitary proposals
+      let resolvedParentNumber: number | null = null
+      if (validated.parentHash && isSolitary && !errors.length) {
+        const solitaryDirForParent = normalizePath(
+          join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary')
+        )
+        const { findSolitaryNumberForHash } = await import('../utils/solitary-numbering.js')
+        resolvedParentNumber = await findSolitaryNumberForHash(
+          solitaryDirForParent,
+          validated.parentHash
+        )
+        if (resolvedParentNumber === null) {
+          errors.push(
+            `Parent proposal not found in solitary proposals: ${validated.parentHash}`
+          )
+        }
+      }
 
       // Run dependency validator if dependencies provided
       if (validated.dependencies && validated.dependencies.length > 0) {
@@ -507,14 +529,31 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Determine file path based on gate-tied vs solitary
       let filePath: string
       if (validated.solitary) {
-        // Solitary: zeno/proposals/solitary/YYYY-MM-DD-NN-name.md
-        const date = createdDate
+        // Solitary: zeno/proposals/solitary/NN-name.md   (standalone)
+        //        or NN-CC-name.md                        (chained, parent=NN child=CC)
+        const solitaryDir = normalizePath(
+          join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary')
+        )
         const slug = validated.title
           .toLowerCase()
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
-        const fileName = `${date}-01-${slug}.md`
-        filePath = normalizePath(join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary', fileName))
+
+        const { nextSolitaryNumber, nextChainedNumber, padSeq } = await import(
+          '../utils/solitary-numbering.js'
+        )
+        let seqPart: string
+        if (resolvedParentNumber !== null) {
+          // Chained proposal: NN-CC
+          const childNum = nextChainedNumber(solitaryDir, resolvedParentNumber)
+          seqPart = `${padSeq(resolvedParentNumber)}-${padSeq(childNum)}`
+        } else {
+          // Standalone: next global sequence number
+          seqPart = padSeq(nextSolitaryNumber(solitaryDir))
+        }
+
+        const fileName = `${seqPart}-${slug}.md`
+        filePath = normalizePath(join(solitaryDir, fileName))
       } else {
         // Gate-tied: zeno/proposals/gate-XX/NN-name.md
         const gateNumMatch = validated.gateId ? /\d+/.exec(validated.gateId)?.[0] : undefined
@@ -610,6 +649,14 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           description: 'Optional array of dependency hashes',
           required: false,
         },
+        {
+          name: 'parentHash',
+          type: 'string',
+          description:
+            'Hash of an existing standalone solitary proposal to chain from. ' +
+            'Generates a chained filename (e.g. 02-01, 02-02). Only valid with solitary: true.',
+          required: false,
+        },
       ],
       returnType: 'ProposalCreateOutput',
       schema: z.object({
@@ -623,6 +670,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         filesAffected: z.array(z.string()).optional(),
         context: z.string().optional(),
         dependencies: z.array(z.string()).optional(),
+        parentHash: z.string().optional(),
       }),
     }
   )
