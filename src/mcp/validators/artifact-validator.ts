@@ -193,7 +193,7 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
     const sectionResult = validateTemplateSections(
       content,
       context.templateSections,
-      !!context.gateId // Gate-tied proposals skip solitary-only sections
+      !!(context.gateId && context.gateId !== 'solitary') // Gate-tied proposals skip solitary-only sections
     )
     errors.push(...(sectionResult.errors ?? []))
     warnings.push(...(sectionResult.warnings ?? []))
@@ -237,12 +237,12 @@ function validateProposalArtifact(context: ArtifactValidationContext): Validatio
   // are independent of earlier checks and must not be suppressed by them.
   // gateProposals is optional: per-proposal role checks (incl. missing-role error)
   // run whenever gateId is set; gate-level structure checks require sibling data.
-  if (context.gateId) {
+  if (context.gateId && context.gateId !== 'solitary') {
     const filesAffected = extractFilesAffected(content)
     const testFirstContext: TestFirstValidationContext = {
       proposalHash: context.hash ?? 'unknown',
       role: context.role,
-      isGateTied: !!context.gateId,
+      isGateTied: !!(context.gateId && context.gateId !== 'solitary'),
       filesAffected,
       content,
       gateProposals: context.gateProposals?.map((p) => ({

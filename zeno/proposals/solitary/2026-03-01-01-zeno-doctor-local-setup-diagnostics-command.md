@@ -13,26 +13,6 @@ Implements a `zeno doctor` CLI command that audits the local environment for all
 
 ---
 
-## Proposal Type
-
-**RED** | **GREEN** | **Test Refinement**
-
-- **RED**: Test-first phase defining acceptance criteria. Focuses on coverage target (from `config.qualityThresholds.codeCoverage`). No implementation code.
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
-- **Test Refinement**: Final proposal refining coverage gaps and validating all tests pass.
-
----
-
-## Coverage & Estimates
-
-### Target Coverage
-
-- **Coverage Threshold**: [Inherited from config, e.g., 90%]
-- **Lines to Cover**: [Estimated count of lines in affected modules]
-- **Target Coverage**: (lines × threshold) ÷ 100 = [number] lines must be tested
-
----
-
 ## Context
 
 ### Why This Change
@@ -46,75 +26,16 @@ The command should be a read-only, side-effect-free diagnostic that a user can r
 
 ### Dependencies
 
-List only valid hash references. It is acceptable to have no dependencies if this proposal is self-contained or first in a gate.
-
-**Hash Usage Rules**:
-
-- Proposal hashes (#xxxxx) should only appear in: the proposal's own header, the associated gate's proposal table, and dependency tables
-- Do not reference proposal hashes in body text, task descriptions, or other sections
-- Use descriptive names instead of hashes for readability in all other contexts
-- **Performance**: This restriction prevents excessive file searches and context window bloat when LLMs need to find proposal references
-
-| Hash    | Type     | Description                        |
-| ------- | -------- | ---------------------------------- |
-| #[hash] | requires | [What this proposal depends on]    |
-| #[hash] | blocks   | [What this unblocks when complete] |
-
-**Rules**:
-
-- Omit rows for dependency types that do not apply
-- Never use placeholder values like "None" or "N/A" as hash references
-- If no dependencies exist, replace the entire Dependencies section (header through table) with: `*No dependencies.*`
-- The Description column must be self-contained — the apply agent reads only this table, not the dependency files
+*No dependencies.*
 
 ---
 
 ## Tasks
 
-Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
-
-**RED Phase Tasks** (test-first, defining acceptance criteria):
-
-- Write tests covering happy path and error cases
-- Tests should fail before implementation (RED)
-- Use fixtures and mocks to isolate units
-- No implementation code in RED phase
-
-**GREEN Phase Tasks** (implementation following tests):
-
-- Implement only functions/methods covered by RED tests
-- Make RED tests pass (GREEN)
-- Do not add new tests beyond what RED defined
-- Verify all RED tests pass before marking complete
-
-**GREEN Phase Guardrails** (verification rules):
-
-- [ ] All changes implement only code specified in RED phase tests
-- [ ] No new test files created beyond those in RED phase
-- [ ] No new test cases added to existing test files
-- [ ] All RED tests pass with implementation
-- [ ] Coverage meets or exceeds target threshold
-
-**File Scoping Rules**:
-
-- Every `File(s)` entry MUST be an explicit file path (e.g., `src/core/archive-logic.ts`)
-- NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
-- NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
-- If a refactoring touches many files, list each one explicitly — this is the cost signal that justifies splitting the proposal
-- Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
-
-**Test Scoping Rules**:
-
-- **Gate-tied proposals**: RED phase creates test proposals as early proposals in the gate; GREEN phase implementation proposals omit new test files; final proposal refines coverage
-- **Solitary proposals**: MUST include test tasks inline. Solitary proposals are self-contained and combine RED and GREEN.
-
 ### Task 1: Write failing tests for the doctor check functions
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
-
-Write failing tests for the doctor check functions
+**File(s)**: `tests/cli/doctor.test.ts`
+**Action**: create
 
 **Acceptance**:
 
@@ -124,11 +45,10 @@ Write failing tests for the doctor check functions
 
 ---
 
-### Task 2: Implement doctor check modules in src/cli/commands/doctor/
+### Task 2: Implement doctor check modules
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
+**File(s)**: `src/cli/commands/doctor/types.ts`, `src/cli/commands/doctor/checks/node-version.ts`, `src/cli/commands/doctor/checks/git-version.ts`, `src/cli/commands/doctor/checks/graphviz.ts`, `src/cli/commands/doctor/checks/sqlite-binding.ts`, `src/cli/commands/doctor/runner.ts`
+**Action**: create
 
 Implement doctor check modules in src/cli/commands/doctor/
 
@@ -145,11 +65,8 @@ Implement doctor check modules in src/cli/commands/doctor/
 
 ### Task 3: Wire doctor command into the CLI and implement formatted output
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
-
-Wire doctor command into the CLI and implement formatted output
+**File(s)**: `src/cli/commands/doctor.ts`, `src/cli/index.ts`
+**Action**: create, modify
 
 **Acceptance**:
 
@@ -162,11 +79,10 @@ Wire doctor command into the CLI and implement formatted output
 
 ---
 
-### Task 4: Integration smoke test and CI matrix validation
+### Task 4: Integration smoke test
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
+**File(s)**: `tests/cli/doctor-integration.test.ts`
+**Action**: create
 
 Integration smoke test and CI matrix validation
 
@@ -181,50 +97,47 @@ Integration smoke test and CI matrix validation
 
 ## Files Affected
 
-**Rules**:
-
-- Every entry MUST be a fully-qualified file path — no directories, no globs, no wildcards
-- This table is the authoritative scope boundary; the scope validator rejects modifications to unlisted files
-- Each file path must match exactly one file in the repository
-- RED phase entries: test files only
-- GREEN phase entries: implementation files (no new test files)
-- Test Refinement entries: refinement and validation of test files only
-
-| File | Phase | Action | Description |
-| ---- | ----- | ------ | ----------- |
-| `src/cli/commands/doctor/types.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor/checks/node-version.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor/checks/git-version.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor/checks/graphviz.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor/checks/sqlite-binding.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor/runner.ts` | - | modify | Implementation file |
-| `src/cli/commands/doctor.ts` | - | modify | Implementation file |
-| `src/cli/index.ts` | - | modify | Implementation file |
-| `tests/cli/doctor.test.ts` | - | modify | Implementation file |
-| `tests/cli/doctor-integration.test.ts` | - | modify | Implementation file |
+| File | Action | Description |
+| ---- | ------ | ----------- |
+| `src/cli/commands/doctor/types.ts` | create | DoctorCheck interface and result types |
+| `src/cli/commands/doctor/checks/node-version.ts` | create | Node.js version check (pass >=24, warn >=20, fail <20) |
+| `src/cli/commands/doctor/checks/git-version.ts` | create | Git version check (pass >=2.0, fail if not found) |
+| `src/cli/commands/doctor/checks/graphviz.ts` | create | Graphviz dot binary check with per-platform install hints |
+| `src/cli/commands/doctor/checks/sqlite-binding.ts` | create | better-sqlite3 native binding check with rebuild hint |
+| `src/cli/commands/doctor/runner.ts` | create | Aggregates all checks, returns { passed, warned, failed, checks[] } |
+| `src/cli/commands/doctor.ts` | create | CLI command handler with table output and --json flag |
+| `src/cli/index.ts` | modify | Register `zeno doctor` subcommand |
+| `tests/cli/doctor.test.ts` | create | Unit tests for all check modules and runner |
+| `tests/cli/doctor-integration.test.ts` | create | Integration smoke test running `zeno doctor --json` as child process |
 
 ---
 
 ## Implementation Notes
 
-[Optional: Technical approach, edge cases to handle, patterns to use. Keep brief - this is guidance, not specification. Omit if straightforward.]
+All check functions should spawn child processes with a timeout (default 3s) to avoid hanging on slow systems. Use `spawnSync` from Node.js `child_process` with `{ encoding: 'utf8', timeout: 3000 }`. The sqlite-binding check should use a dynamic `require` wrapped in try/catch rather than spawning a process. Colored output requires the `chalk` package already present in the project dependencies.
+
+---
+
+## Open Questions
+
+N/A
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: [Brief description of how to revert changes, or "No rollback needed - isolated change"]
+**If rejected or failed**: No rollback needed — all changes are new files (`src/cli/commands/doctor/`) and a new CLI subcommand registration. Delete the new files and revert the `src/cli/index.ts` registration line.
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
-**Reviewers**: [git.user.name]
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: Duccci
+**Reviewers**: Duccci
 
 ### Change Log
 
-| Version | Date         | Summary         | Author          |
-| ------- | ------------ | --------------- | --------------- |
-| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date       | Summary         | Author |
+| ------- | ---------- | --------------- | ------ |
+| 1.0.0   | 2026-03-01 | Initial version | Duccci |

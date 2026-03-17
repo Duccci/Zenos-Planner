@@ -18,7 +18,8 @@ import { getRepoDependencyGraph, detectCircularDependencies } from '../storage/r
 import { listRepositories } from '../storage/repository-storage.js'
 import { detectRepositoryBoundaries } from '../core/boundary-detection.js'
 import { shortHash } from '../utils/hash.js'
-import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
+import { GitTraceInputSchema, GitTraceOutputSchema, GitGetUserInputSchema, GitGetUserOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
+import { getGitUserInfo } from '../utils/git.js'
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
 import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
@@ -699,5 +700,24 @@ export function registerAnalysisOps(registry: FunctionRegistry): void {
     ],
     returnType: 'GitTraceOutput',
     schema: GitTraceInputSchema
+  })
+
+  registry.register('git_get_user', async (params) => {
+    const validated = GitGetUserInputSchema.parse(params)
+    const dir = validated.dir ?? getWorkspaceRoot()
+    const userInfo = await getGitUserInfo(dir)
+    return GitGetUserOutputSchema.parse(userInfo)
+  }, {
+    description: 'Get git user name and email from git config user.name / user.email',
+    parameters: [
+      {
+        name: 'dir',
+        type: 'string',
+        description: 'Directory to resolve git user from (defaults to workspace root)',
+        required: false
+      }
+    ],
+    returnType: 'GitGetUserOutput',
+    schema: GitGetUserInputSchema
   })
 }

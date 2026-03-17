@@ -3,33 +3,14 @@
 **Hash**: #b5553461  
 **Gate**: Solitary  
 **Status**: pending  
-**Created**: 2026-03-01
+**Created**: 2026-03-01  
+**Roles**: feature
 
 ---
 
 ## Summary
 
 Introduces Tree-sitter as an optional second parser backend in the code-analysis pipeline. The Babel parser continues to own TypeScript/JavaScript; Tree-sitter handles Python, Rust, Go, and C++ by producing normalized LOC, dependency, and complexity metrics through a shared analyzer interface. The feature is opt-in (controlled by an AnalysisOptions flag) and carries no breaking changes to existing consumers.
-
----
-
-## Proposal Type
-
-**RED** | **GREEN** | **Test Refinement**
-
-- **RED**: Test-first phase defining acceptance criteria. Focuses on coverage target (from `config.qualityThresholds.codeCoverage`). No implementation code.
-- **GREEN**: Implementation phase following RED tests. Includes guardrails to verify no new tests added.
-- **Test Refinement**: Final proposal refining coverage gaps and validating all tests pass.
-
----
-
-## Coverage & Estimates
-
-### Target Coverage
-
-- **Coverage Threshold**: [Inherited from config, e.g., 90%]
-- **Lines to Cover**: [Estimated count of lines in affected modules]
-- **Target Coverage**: (lines × threshold) ÷ 100 = [number] lines must be tested
 
 ---
 
@@ -41,72 +22,16 @@ O-05 (RO-matrix): "Replacing Babel AST with Tree-sitter would support Python, Ru
 
 ### Dependencies
 
-List only valid hash references. It is acceptable to have no dependencies if this proposal is self-contained or first in a gate.
-
-**Hash Usage Rules**:
-
-- Proposal hashes (#xxxxx) should only appear in: the proposal's own header, the associated gate's proposal table, and dependency tables
-- Do not reference proposal hashes in body text, task descriptions, or other sections
-- Use descriptive names instead of hashes for readability in all other contexts
-- **Performance**: This restriction prevents excessive file searches and context window bloat when LLMs need to find proposal references
-
-| Hash    | Type     | Description                        |
-| ------- | -------- | ---------------------------------- |
-| #[hash] | requires | [What this proposal depends on]    |
-| #[hash] | blocks   | [What this unblocks when complete] |
-
-**Rules**:
-
-- Omit rows for dependency types that do not apply
-- Never use placeholder values like "None" or "N/A" as hash references
-- If no dependencies exist, replace the entire Dependencies section (header through table) with: `*No dependencies.*`
-- The Description column must be self-contained — the apply agent reads only this table, not the dependency files
+*No dependencies.*
 
 ---
 
 ## Tasks
 
-Atomic, LLM-executable tasks. Each task should be completable in a single implementation session.
-
-**RED Phase Tasks** (test-first, defining acceptance criteria):
-
-- Write tests covering happy path and error cases
-- Tests should fail before implementation (RED)
-- Use fixtures and mocks to isolate units
-- No implementation code in RED phase
-
-**GREEN Phase Tasks** (implementation following tests):
-
-- Implement only functions/methods covered by RED tests
-- Make RED tests pass (GREEN)
-- Do not add new tests beyond what RED defined
-- Verify all RED tests pass before marking complete
-
-**GREEN Phase Guardrails** (verification rules):
-
-- [ ] All changes implement only code specified in RED phase tests
-- [ ] No new test files created beyond those in RED phase
-- [ ] No new test cases added to existing test files
-- [ ] All RED tests pass with implementation
-- [ ] Coverage meets or exceeds target threshold
-
-**File Scoping Rules**:
-
-- Every `File(s)` entry MUST be an explicit file path (e.g., `src/core/archive-logic.ts`)
-- NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
-- NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
-- If a refactoring touches many files, list each one explicitly — this is the cost signal that justifies splitting the proposal
-- Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
-
-**Test Scoping Rules**:
-
-- **Gate-tied proposals**: RED phase creates test proposals as early proposals in the gate; GREEN phase implementation proposals omit new test files; final proposal refines coverage
-- **Solitary proposals**: MUST include test tasks inline. Solitary proposals are self-contained and combine RED and GREEN.
-
 ### Task 1: Install and validate Tree-sitter Node.js bindings
 
 **Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**File(s)**: `package.json`  
 **Action**: modify
 
 Install and validate Tree-sitter Node.js bindings
@@ -122,8 +47,8 @@ Install and validate Tree-sitter Node.js bindings
 ### Task 2: Define the language-agnostic parser interface and Tree-sitter backend
 
 **Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
+**File(s)**: `src/analysis/types.ts`, `src/analysis/tree-sitter-parser.ts`  
+**Action**: create/modify
 
 Define the language-agnostic parser interface and Tree-sitter backend
 
@@ -139,8 +64,8 @@ Define the language-agnostic parser interface and Tree-sitter backend
 ### Task 3: Implement normalized metrics extraction from Tree-sitter ASTs
 
 **Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
-**Action**: modify
+**File(s)**: `src/analysis/tree-sitter-metrics.ts`  
+**Action**: create
 
 Implement normalized metrics extraction from Tree-sitter ASTs
 
@@ -156,14 +81,14 @@ Implement normalized metrics extraction from Tree-sitter ASTs
 ### Task 4: Integrate Tree-sitter backend into CodeAnalyzer
 
 **Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**File(s)**: `src/analysis/code-analyzer.ts`, `src/analysis/types.ts`  
 **Action**: modify
 
 Integrate Tree-sitter backend into CodeAnalyzer
 
 **Acceptance**:
 
-- [ ] AnalysisOptions gains optional enableTreeSitter?: boolean and treeSitterExtensions?: string[] fields (defaults: false, ['.py', '.rs', '.go', '.cpp', '.c', '.h'])
+- [ ] AnalysisOptions gains optional `enableTreeSitter?: boolean` and `treeSitterExtensions?: string[]` fields (defaults: `false`, `['.py', '.rs', '.go', '.cpp', '.c', '.h']`)
 - [ ] getFilesToAnalyze includes treeSitterExtensions when enableTreeSitter is true
 - [ ] analyzeCodebase calls parseFileTreeSitter for files matching treeSitterExtensions; Babel path unchanged for all other extensions
 - [ ] Module interface updated: ast field typed as BabelFile | TreeSitterParseResult | null so callers can discriminate
@@ -174,7 +99,7 @@ Integrate Tree-sitter backend into CodeAnalyzer
 ### Task 5: Write comprehensive tests and update documentation
 
 **Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**File(s)**: `README.md`  
 **Action**: modify
 
 Write comprehensive tests and update documentation
@@ -190,47 +115,37 @@ Write comprehensive tests and update documentation
 
 ## Files Affected
 
-**Rules**:
-
-- Every entry MUST be a fully-qualified file path — no directories, no globs, no wildcards
-- This table is the authoritative scope boundary; the scope validator rejects modifications to unlisted files
-- Each file path must match exactly one file in the repository
-- RED phase entries: test files only
-- GREEN phase entries: implementation files (no new test files)
-- Test Refinement entries: refinement and validation of test files only
-
 | File | Phase | Action | Description |
 | ---- | ----- | ------ | ----------- |
-| `src/analysis/parser.ts` | - | modify | Implementation file |
-| `src/analysis/types.ts` | - | modify | Implementation file |
-| `src/analysis/tree-sitter-parser.ts` | - | modify | Implementation file |
-| `src/analysis/tree-sitter-metrics.ts` | - | modify | Implementation file |
-| `src/analysis/code-analyzer.ts` | - | modify | Implementation file |
-| `tests/analysis/tree-sitter-parser.test.ts` | - | modify | Implementation file |
-| `package.json` | - | modify | Implementation file |
+| `package.json` | GREEN | modify | Add tree-sitter and language grammar packages as optional dependencies |
+| `src/analysis/types.ts` | GREEN | modify | Add LanguageBackend type, TreeSitterParseResult interface; update AnalysisOptions and Module interface |
+| `src/analysis/tree-sitter-parser.ts` | GREEN | create | Implement parseFileTreeSitter with language detection and grammar dispatch |
+| `src/analysis/tree-sitter-metrics.ts` | GREEN | create | Implement extractTreeSitterMetrics for LOC and complexity metrics |
+| `src/analysis/code-analyzer.ts` | GREEN | modify | Integrate Tree-sitter path into getFilesToAnalyze and analyzeCodebase |
+| `README.md` | GREEN | modify | Add Multi-language analysis section documenting enableTreeSitter usage |
 
 ---
 
 ## Implementation Notes
 
-[Optional: Technical approach, edge cases to handle, patterns to use. Keep brief - this is guidance, not specification. Omit if straightforward.]
+Tree-sitter grammars are loaded via `require('tree-sitter-<lang>')` at runtime — guard each `require` with a `try/catch` and return `success: false` if a grammar is not installed, rather than throwing. The Babel path must remain untouched; this change is purely additive. Use `path.extname(filePath).toLowerCase()` for extension matching to avoid case-sensitivity issues.
 
 ---
 
 ## Rollback
 
-**If rejected or failed**: [Brief description of how to revert changes, or "No rollback needed - isolated change"]
+**If rejected or failed**: Remove `src/analysis/tree-sitter-parser.ts` and `src/analysis/tree-sitter-metrics.ts`. Revert `src/analysis/types.ts` and `src/analysis/code-analyzer.ts` to their pre-proposal state. Remove tree-sitter packages from `package.json`. No database migrations; no breaking changes to existing consumers.
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
+**Document Version**: 1.0.0  
+**Last Updated**: 2026-03-01  
 **Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
-**Reviewers**: [git.user.name]
+**Owner**: Duccci  
+**Reviewers**: Duccci
 
 ### Change Log
 
-| Version | Date         | Summary         | Author          |
-| ------- | ------------ | --------------- | --------------- |
-| 1.0.0   | [YYYY-MM-DD] | Initial version | [git.user.name] |
+| Version | Date       | Summary         | Author |
+| ------- | ---------- | --------------- | ------ |
+| 1.0.0   | 2026-03-01 | Initial version | Duccci |

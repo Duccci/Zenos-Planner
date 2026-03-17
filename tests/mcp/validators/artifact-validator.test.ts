@@ -308,6 +308,22 @@ describe('artifact-validator', () => {
       expect(mockValidateTestFirstPattern).not.toHaveBeenCalled()
     })
 
+    it('does NOT call validateTestFirstPattern when gateId is "solitary"', async () => {
+      // Regression: solitary proposals have gateId="solitary" which is truthy,
+      // but must not trigger test-first / Roles-field enforcement.
+      const { validateArtifact } = await import('../../../src/mcp/validators/artifact-validator.js')
+
+      validateArtifact({
+        artifactType: 'proposal',
+        artifactPath: '/solitary-test.md',
+        content: VALID_PROPOSAL,
+        gateId: 'solitary',
+        // no role — must not error for solitary proposals
+      })
+
+      expect(mockValidateTestFirstPattern).not.toHaveBeenCalled()
+    })
+
     it('calls validateDependencies when allNodes AND hash are both provided', async () => {
       mockValidateDependencies.mockReturnValue({ errors: ['circular dep'], warnings: [] })
 
