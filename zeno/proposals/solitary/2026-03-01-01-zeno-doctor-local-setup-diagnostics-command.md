@@ -1,8 +1,8 @@
 # Proposal: zeno doctor: Local Setup Diagnostics Command
 
-**Hash**: #71586e28  
-**Gate**: Solitary  
-**Status**: pending  
+**Hash**: #71586e28
+**Gate**: Solitary
+**Status**: pending
 **Created**: 2026-03-01
 
 ---

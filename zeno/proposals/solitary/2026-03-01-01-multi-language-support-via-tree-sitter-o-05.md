@@ -1,9 +1,9 @@
 # Proposal: Multi-Language Support via Tree-sitter (O-05)
 
-**Hash**: #b5553461  
-**Gate**: Solitary  
-**Status**: pending  
-**Created**: 2026-03-01  
+**Hash**: #b5553461
+**Gate**: Solitary
+**Status**: pending
+**Created**: 2026-03-01
 **Roles**: feature
 
 ---
@@ -30,8 +30,8 @@ O-05 (RO-matrix): "Replacing Babel AST with Tree-sitter would support Python, Ru
 
 ### Task 1: Install and validate Tree-sitter Node.js bindings
 
-**Phase**: GREEN  
-**File(s)**: `package.json`  
+**Phase**: GREEN
+**File(s)**: `package.json`
 **Action**: modify
 
 Install and validate Tree-sitter Node.js bindings
@@ -46,8 +46,8 @@ Install and validate Tree-sitter Node.js bindings
 
 ### Task 2: Define the language-agnostic parser interface and Tree-sitter backend
 
-**Phase**: GREEN  
-**File(s)**: `src/analysis/types.ts`, `src/analysis/tree-sitter-parser.ts`  
+**Phase**: GREEN
+**File(s)**: `src/analysis/types.ts`, `src/analysis/tree-sitter-parser.ts`
 **Action**: create/modify
 
 Define the language-agnostic parser interface and Tree-sitter backend
@@ -63,8 +63,8 @@ Define the language-agnostic parser interface and Tree-sitter backend
 
 ### Task 3: Implement normalized metrics extraction from Tree-sitter ASTs
 
-**Phase**: GREEN  
-**File(s)**: `src/analysis/tree-sitter-metrics.ts`  
+**Phase**: GREEN
+**File(s)**: `src/analysis/tree-sitter-metrics.ts`
 **Action**: create
 
 Implement normalized metrics extraction from Tree-sitter ASTs
@@ -80,8 +80,8 @@ Implement normalized metrics extraction from Tree-sitter ASTs
 
 ### Task 4: Integrate Tree-sitter backend into CodeAnalyzer
 
-**Phase**: GREEN  
-**File(s)**: `src/analysis/code-analyzer.ts`, `src/analysis/types.ts`  
+**Phase**: GREEN
+**File(s)**: `src/analysis/code-analyzer.ts`, `src/analysis/types.ts`
 **Action**: modify
 
 Integrate Tree-sitter backend into CodeAnalyzer
@@ -98,8 +98,8 @@ Integrate Tree-sitter backend into CodeAnalyzer
 
 ### Task 5: Write comprehensive tests and update documentation
 
-**Phase**: GREEN  
-**File(s)**: `README.md`  
+**Phase**: GREEN
+**File(s)**: `README.md`
 **Action**: modify
 
 Write comprehensive tests and update documentation
@@ -138,10 +138,10 @@ Tree-sitter grammars are loaded via `require('tree-sitter-<lang>')` at runtime â
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: 2026-03-01  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: Duccci  
+**Document Version**: 1.0.0
+**Last Updated**: 2026-03-01
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: Duccci
 **Reviewers**: Duccci
 
 ### Change Log
