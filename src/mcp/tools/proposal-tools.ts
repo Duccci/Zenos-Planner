@@ -10,7 +10,6 @@ import {
   type ProposalQualitativeReview,
 } from '../schemas/proposal-schemas.js'
 import {
-  ProposalGenerateOutputSchema,
   ProposalUpdateProgressOutputSchema,
 } from '../schemas/workflow-schemas.js'
 import { ProposalActionInputSchema } from '../schemas/proposal-action-schemas.js'
@@ -52,16 +51,17 @@ import { getDatabase } from '../../storage/database.js'
  * Unified proposal action tool definition.
  * Consolidates all proposal lifecycle operations into a single action-based entrypoint.
  *
- * Actions: list, show, create, generate, validate, approve, reject, start, progress
+ * Actions: list, show, generate, validate, approve, reject, start, progress, cancel, defer
  *
- * The 'generate' action intelligently routes based on proposal type:
- * - Gate-tied proposals (gateId provided): uses gate workflow to decompose gate PRD into proposals
- * - Solitary proposals (solitary=true or no gateId): uses proposal workflow to create self-contained proposal
+ * The 'generate' action intelligently routes based on payload:
+ * - Explicit-fields path (title + tasks provided): creates the proposal directly via proposal_create
+ * - Gate-tied AI path (gateId only, no title/tasks): decomposes gate PRD into proposals via generateProposals
+ * - Solitary proposal (solitary=true or no gateId): creates a self-contained proposal via proposal_create
  *
  * Example usage:
  * ```json
  * {
- *   "action": "create",
+ *   "action": "generate",
  *   "payload": {
  *     "title": "Add authentication",
  *     "summary": "Implement JWT-based auth",
@@ -76,7 +76,8 @@ export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
     description: [
-      'Proposal lifecycle: list, show, create, generate, validate, approve, reject, start, progress. Use for proposal management, validation, and worktree operations.',
+      'Proposal lifecycle: list, show, generate, validate, approve, reject, start, progress, cancel, defer. Use for proposal management, validation, and worktree operations.',
+      'cancel and defer require confirmed: true — omitting confirmed returns a prompt instead of executing.',
       '',
       'Database access rules (always apply):',
       ...DATABASE_ACCESS_GUARDRAILS.map(g => `- ${g.rule}`),
@@ -87,8 +88,7 @@ export const proposalToolDefinitions = [
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { ProposalCreateOutputSchema } from '../schemas/proposal-create-schemas.js'
-import { ProposalActionOutputSchema } from '../schemas/proposal-action-schemas.js'
+import { ProposalActionOutputSchema, ProposalGenerateOrCreateOutputSchema } from '../schemas/proposal-action-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 import { withGuidance } from './handler-factory.js'
 import type { ValidationResult } from '../validators/types.js'
@@ -241,7 +241,6 @@ export function proposalHandlers(
       actions: [
         'list',
         'show',
-        'create',
         'generate',
         'validate',
         'approve',
@@ -259,10 +258,8 @@ export function proposalHandlers(
             return ProposalListOutputSchema
           case 'show':
             return ProposalDetailSchema
-          case 'create':
-            return ProposalCreateOutputSchema
           case 'generate':
-            return ProposalGenerateOutputSchema
+            return ProposalGenerateOrCreateOutputSchema
           case 'validate':
             return ProposalValidateOutputSchema
           case 'approve':
@@ -306,13 +303,17 @@ export function proposalHandlers(
           }
           return showResult
         },
-        create: async (payload, r) => r.invoke('proposal_create', payload),
         generate: async (payload, r) => {
-          // Route solitary proposals to the proposal workflow (proposal_create)
-          // Route gate-tied proposals to the gate workflow (generateProposals)
+          // Route based on payload shape:
+          // - Solitary or no gateId → proposal_create (self-contained proposal)
+          // - Gate-tied with explicit fields (title + tasks) → proposal_create (direct creation)
+          // - Gate-tied without explicit fields → generateProposals (AI decomposition)
           const isSolitary = (payload as { solitary?: boolean }).solitary === true
           const hasGateId = Boolean((payload as { gateId?: string }).gateId)
           const gateId = (payload as { gateId?: string }).gateId
+          const hasTitle = Boolean((payload as { title?: string }).title)
+          const explicitTasks = (payload as { tasks?: unknown[] }).tasks
+          const hasExplicitFields = hasTitle && Array.isArray(explicitTasks) && explicitTasks.length > 0
 
           let invokeResult
           if (isSolitary || !hasGateId) {
@@ -337,8 +338,11 @@ export function proposalHandlers(
                 }
               }
             }
+          } else if (hasExplicitFields) {
+            // Gate-tied explicit creation: use proposal_create directly (skip AI decomposition)
+            invokeResult = await r.invoke('proposal_create', payload)
           } else {
-            // Gate-tied proposal: use gate workflow (generateProposals)
+            // Gate-tied AI path: use gate workflow (generateProposals)
             invokeResult = await r.invoke('generateProposals', payload)
             if (invokeResult.success && gateId) {
               // Auto-start gate when proposals are generated: generating proposals is the
@@ -365,12 +369,14 @@ export function proposalHandlers(
             }
           }
 
-          // Inject preReviewSummary and proposal-generation guidance into successful response
+          // Inject preReviewSummary and proposal-generation guidance for AI decomposition path
           return withGuidance(
             invokeResult,
             toNarrativeRules(PROPOSAL_GENERATION_GUARDRAILS),
             toCompactWorkflow(PROPOSAL_GENERATION_WORKFLOW),
-            (payload as { preReview?: unknown }).preReview
+            !isSolitary && hasGateId && !hasExplicitFields
+              ? (payload as { preReview?: unknown }).preReview
+              : undefined
           )
         },
         validate: async (payload, r) => {
@@ -546,8 +552,7 @@ export function proposalHandlers(
                 proposal_hash: hash,
                 decision: 'rejected',
                 actor: (payload as { rejectedBy?: string }).rejectedBy ?? 'zeno',
-                reason: (payload as { reason?: string }).reason ?? null,
-                rejection_category: (payload as { rejectionCategory?: string }).rejectionCategory ?? null,
+                reason: (payload as { rejectionReason?: string }).rejectionReason ?? null,
                 timestamp: new Date().toISOString(),
               })
             } catch {
@@ -681,8 +686,42 @@ export function proposalHandlers(
           }
           return progressResult
         },
-        cancel: async (payload, r) => r.invoke('proposal_cancel', payload),
-        defer: async (payload, r) => r.invoke('proposal_defer', payload),
+        cancel: async (payload, r) => {
+          const { confirmed, hash } = payload as { confirmed?: boolean; hash?: string }
+          if (!confirmed) {
+            return {
+              success: true,
+              data: {
+                requiresConfirmation: true,
+                action: 'cancel' as const,
+                hash,
+                message:
+                  `Cancelling proposal${hash ? ` "${hash}"` : ''} is irreversible and will mark it as dropped. ` +
+                  'Please confirm with the user before proceeding. ' +
+                  'Re-call with confirmed: true once the user has explicitly approved.',
+              },
+            }
+          }
+          return r.invoke('proposal_cancel', payload)
+        },
+        defer: async (payload, r) => {
+          const { confirmed, hash } = payload as { confirmed?: boolean; hash?: string }
+          if (!confirmed) {
+            return {
+              success: true,
+              data: {
+                requiresConfirmation: true,
+                action: 'defer' as const,
+                hash,
+                message:
+                  `Deferring proposal${hash ? ` "${hash}"` : ''} will move it to the backlog and remove it from the active implementation path. ` +
+                  'Please confirm with the user before proceeding. ' +
+                  'Re-call with confirmed: true once the user has explicitly approved.',
+              },
+            }
+          }
+          return r.invoke('proposal_defer', payload)
+        },
       },
 
       validators: {
@@ -848,9 +887,33 @@ export function proposalHandlers(
           // 7) Cleanup test file reuse: cleanup proposals must only reference test files from RED
           async () => resolveAndValidateCleanupReuse(r, (payload as { hash?: string }).hash ?? ''),
         ],
-        generate: (_payload, _r) => [
-          // G5-G8 preReview + G12 markdown-only: shared with gates, delegated to factory
-          ...createGenerateValidators('proposal_action')(_payload, _r),
+        generate: (_payload, _r) => {
+          const isSolitary = (_payload as { solitary?: boolean }).solitary === true
+          const hasGateIdV = Boolean((_payload as { gateId?: string }).gateId)
+          const hasTitleV = Boolean((_payload as { title?: string }).title)
+          const explicitTasksV = (_payload as { tasks?: unknown[] }).tasks
+          const hasExplicitFieldsV =
+            hasTitleV && Array.isArray(explicitTasksV) && explicitTasksV.length > 0
+          const isAIPath = !isSolitary && hasGateIdV && !hasExplicitFieldsV
+          if (!isAIPath) {
+            // Direct creation path: skip preReview; only validate dependencies
+            return [
+              async () => {
+                const payloadDeps = (_payload as { dependencies?: string[] }).dependencies ?? []
+                if (payloadDeps.length === 0) return { allowed: true }
+                try {
+                  const gateId = (_payload as { gateId?: string }).gateId ?? ''
+                  const hash = (_payload as { hash?: string }).hash ?? 'new'
+                  return await validateProposalDependencies(_r, hash, gateId, payloadDeps)
+                } catch {
+                  return { allowed: true }
+                }
+              },
+            ]
+          }
+          return [
+            // G5-G8 preReview + G12 markdown-only: shared with gates, delegated to factory
+            ...createGenerateValidators('proposal_action')(_payload, _r),
           // Scope-creep check: reject multi-phase proposals at generation time
           // eslint-disable-next-line @typescript-eslint/require-await
           async () => {
@@ -886,7 +949,8 @@ export function proposalHandlers(
               return { allowed: true }
             }
           },
-        ],
+          ]
+        },
         progress: (payload, r) => [
           // currentTask enforcement: required on every progress call; out-of-bounds detection
           async () => {

@@ -174,15 +174,13 @@ describe('Action Tool Config Integration', () => {
       })
 
       const result = await handlers.gates_action({
-        action: 'create',
-        payload: {
-          gateId: 'gate-01',
-          name: 'Test Gate',
-          type: 'feature',
-          sequence: 1,
-          dependencies: [],
-          objectives: ['Test objective'],
-        },
+        action: 'generate',
+        gateId: 'gate-01',
+        name: 'Test Gate',
+        type: 'feature',
+        sequence: 1,
+        dependencies: [],
+        objectives: ['Test objective'],
       })
 
       expect(result).toBeDefined()

@@ -55,7 +55,6 @@ export const ProposalActionInputSchema = z.object({
     .enum([
       'list',
       'show',
-      'create',
       'generate',
       'validate',
       'approve',
@@ -70,15 +69,17 @@ export const ProposalActionInputSchema = z.object({
       'Action to perform. ' +
         'list=show proposals (filter by gateId/status). ' +
         'show=get proposal details (needs: hash). ' +
-        'create=new proposal (needs: title, summary, tasks; optional: gateId, filesAffected). ' +
-        'generate=generate proposals from gate PRD (gate-tied) or create solitary proposal (needs: gateId for gate-tied, solitary=true for solitary). ' +
+        'generate=create or generate proposals. ' +
+        'Explicit-fields path (needs: title, tasks; optional: gateId, filesAffected): creates the proposal directly. ' +
+        'Context-driven path (needs: gateId for gate-tied, or solitary=true; required: preReview with phase=generate): AI generates proposals from gate PRD. ' +
         'validate=run quality checks (needs: hash). ' +
         'approve=merge proposal (needs: hash; optional: writeback=true to patch status into .md file). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
         'start=create worktree for implementation (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems). ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
-        'cancel=mark proposal as cancelled/dropped (needs: hash; optional: rejectionReason as reason). ' +
-        'defer=move proposal to backlog for later implementation (needs: hash; optional: notes as reason).'
+        'cancel=mark proposal as cancelled/dropped (needs: hash, confirmed: true; optional: rejectionReason as reason). ' +
+        'defer=move proposal to backlog for later implementation (needs: hash, confirmed: true; optional: notes as reason). ' +
+        'IMPORTANT: cancel and defer are destructive and require confirmed: true — omitting it returns a confirmation prompt instead of executing.'
     ),
 
   // --- list filters ---
@@ -140,6 +141,17 @@ export const ProposalActionInputSchema = z.object({
   // --- reject fields ---
   rejectionReason: z.string().optional().describe('Required reason for rejection (reject)'),
   rejectedBy: z.string().optional().describe('Rejector identifier (reject)'),
+
+  // --- destructive action guard ---
+  confirmed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Must be true to execute destructive actions (cancel, defer). ' +
+        'If absent or false, the action returns a confirmation prompt with the required details ' +
+        'instead of executing. Always present this prompt to the user and wait for explicit approval ' +
+        'before re-calling with confirmed: true.'
+    ),
 
   // --- start fields ---
   startedBy: z.string().optional().describe('Implementer identifier (start)'),
@@ -215,6 +227,12 @@ const ValidationResultSchema = z.object({
 })
 
 /**
+ * Union of proposal generate outputs — covers both AI-decomposition (ProposalGenerateOutputSchema)
+ * and explicit-fields creation (ProposalCreateOutputSchema) paths.
+ */
+export const ProposalGenerateOrCreateOutputSchema = z.union([ProposalGenerateOutputSchema, ProposalCreateOutputSchema])
+
+/**
  * Discriminated union for proposal action outputs
  * Maps each action to its corresponding output schema
  */
@@ -230,13 +248,8 @@ export const ProposalActionOutputSchema = z.discriminatedUnion('action', [
     validation: ValidationResultSchema.optional(),
   }),
   z.object({
-    action: z.literal('create'),
-    result: ProposalCreateOutputSchema,
-    validation: ValidationResultSchema.optional(),
-  }),
-  z.object({
     action: z.literal('generate'),
-    result: ProposalGenerateOutputSchema,
+    result: ProposalGenerateOrCreateOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
   z.object({

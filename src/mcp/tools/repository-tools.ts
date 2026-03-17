@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -9,6 +10,10 @@ import {
   ReposRemoveOutputSchema,
 } from '../schemas/repository-schemas.js'
 import {
+  AnalysisResultSchema,
+  ProjectMetricsSchema,
+} from '../schemas/analysis-schemas.js'
+import {
   RepositoryActionInputSchema,
   RepositoryActionOutputSchema,
 } from '../schemas/repository-action-schemas.js'
@@ -17,7 +22,7 @@ import { createEntityActionHandler } from './entity-action-handler.js'
 export const repositoryToolDefinitions = [
   {
     name: 'repos_action',
-    description: `Repository management: list, detect, deps, adjust, add, remove. Use for multi-repo structure, boundaries, and dependency analysis.`,
+    description: `Repository management: list, detect, deps, adjust, add, remove, analyze. Use for multi-repo structure, boundaries, dependency analysis, and codebase metrics.`,
     inputSchema: RepositoryActionInputSchema,
   },
 ]
@@ -28,7 +33,7 @@ export function repositoryHandlers(
   const reposActionHandler = createEntityActionHandler(
     {
       entity: 'repository',
-      actions: ['list', 'detect', 'deps', 'adjust', 'add', 'remove'] as const,
+      actions: ['list', 'detect', 'deps', 'adjust', 'add', 'remove', 'analyze'] as const,
       inputSchema: RepositoryActionInputSchema,
       outputSchema: RepositoryActionOutputSchema,
       actionOutputSchema(action) {
@@ -45,6 +50,8 @@ export function repositoryHandlers(
             return ReposAddOutputSchema
           case 'remove':
             return ReposRemoveOutputSchema
+          case 'analyze':
+            return z.union([AnalysisResultSchema, z.array(AnalysisResultSchema), ProjectMetricsSchema])
           default:
             throw new Error(`Unknown repository action: ${String(action)}`)
         }
@@ -56,6 +63,12 @@ export function repositoryHandlers(
         adjust: async (payload, r) => r.invoke('repos_adjust', payload),
         add: async (payload, r) => r.invoke('repos_add', payload),
         remove: async (payload, r) => r.invoke('repos_remove', payload),
+        analyze: async (payload, r) => {
+          if (payload?.['groupBy'] !== undefined) {
+            return r.invoke('metrics', payload)
+          }
+          return r.invoke('analyze', payload)
+        },
       },
     },
     registry

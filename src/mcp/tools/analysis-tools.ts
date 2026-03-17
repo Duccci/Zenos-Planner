@@ -1,6 +1,3 @@
-import {
-  AnalyzeInputSchema,
-} from '../schemas/analysis-schemas.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -10,14 +7,8 @@ import {
 } from './handler-factory.js'
 import { z } from 'zod'
 
-export const analysisToolDefinitions = [
-  {
-    name: 'analyze',
-    description:
-      'Analyze codebase or path for metrics. Provide `groupBy` (repository|language|type) to get project-wide grouped metrics instead of a per-path analysis.',
-    inputSchema: AnalyzeInputSchema,
-  },
-]
+// analyze is now an action under repos_action — no standalone tool definition needed
+export const analysisToolDefinitions: never[] = []
 
 import { AnalysisResultSchema, ProjectMetricsSchema } from '../schemas/analysis-schemas.js'
 

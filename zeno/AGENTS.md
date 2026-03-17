@@ -43,7 +43,6 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 | `gates_action` | `list`, `show`, `create`, `generate`, `start`, `complete`, `regenerate` | Gate lifecycle |
 | `proposal_action` | `list`, `show`, `create`, `generate`, `validate`, `approve`, `reject`, `start`, `progress` | Proposal lifecycle |
 | `reg_action` | `list`, `show`, `deps`, `transfer`, `search` | Registry DB queries — all entity lookups, requirements, hashes, and dependencies |
-| `archive_action` | `gate`, `batch` | Finalize completed work |
 | `diagram_action` | `show`, `generate` | Architecture diagrams (on-demand) |
 | `repos_action` | `list`, `detect`, `deps`, `adjust` | Repository management |
 | `config_get` | — | Quality thresholds and configuration |

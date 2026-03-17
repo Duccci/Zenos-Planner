@@ -3,7 +3,6 @@ import { FunctionRegistry } from '../../src/integration/function-registry.js'
 import { registerGatesOps } from '../../src/integration/gates-registry.js'
 import { registerProposalsOps } from '../../src/integration/proposals-registry.js'
 import { registerRequirementsOps } from '../../src/integration/requirements-registry.js'
-import { registerArchiveOps } from '../../src/integration/archive-registry.js'
 import { registerConfigOps } from '../../src/integration/config-registry.js'
 import { registerTemplateOps } from '../../src/integration/template-registry.js'
 import { registerRepositoryOps, registerArchitectureOps, registerAnalysisOps } from '../../src/integration/schema-registry.js'
@@ -45,13 +44,6 @@ describe('Domain Registries', () => {
 
     expect(registry.get('template_list')).toBeDefined()
     expect(registry.get('template_get')).toBeDefined()
-  })
-
-  it('registers archive functions', () => {
-    const registry = new FunctionRegistry()
-    registerArchiveOps(registry)
-
-    expect(registry.get('archive_action')).toBeDefined()
   })
 
   it('registers repository/architecture/analysis ops', () => {

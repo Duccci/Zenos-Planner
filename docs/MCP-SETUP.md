@@ -9,7 +9,6 @@ Supported unified tools (examples):
 - `gates_action` — actions: `list`, `show`, `create`, `start`, `complete`, `regenerate`
 - `proposal_action` — actions: `list`, `show`, `create`, `validate`, `approve`, `reject`, `start`
 - `reg_action` — actions: `list`, `show`, `create`, `update`, `delete` (implementation-specific)
-- `archive_action` — actions: `list`, `show`, `archive`
 
 ### Call shape
 

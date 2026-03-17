@@ -54,11 +54,11 @@ export const ToolRegistry = {
 
   repositories: {
     toolName: 'repos_action',
-    actions: ['list', 'detect', 'deps', 'adjust'] as const,
+    actions: ['list', 'detect', 'deps', 'adjust', 'analyze'] as const,
     inputSchema: RepositoryActionInputSchema,
     outputSchema: RepositoryActionOutputSchema,
     description:
-      'REQUIRED: Use repos_action for repository management and analysis. Actions: list (view detected repositories), detect (re-run boundary detection), deps (view dependency graph), adjust (manually adjust boundaries).',
+      'REQUIRED: Use repos_action for repository management and analysis. Actions: list (view detected repositories), detect (re-run boundary detection), deps (view dependency graph), adjust (manually adjust boundaries), analyze (analyze codebase or path for metrics/dependencies; optional groupBy for project-wide metrics).',
   },
 
   config: {

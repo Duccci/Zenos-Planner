@@ -143,14 +143,14 @@ describe('MCP Proposal tools (integration)', () => {
     expect(result).toBeDefined()
   })
 
-  it('proposal_action create with valid payload creates proposal', async () => {
+  it('proposal_action generate with explicit fields creates proposal directly', async () => {
     const { createFunctionRegistry } =
       await import('../../../src/integration/function-implementations.js')
     const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
     const registry = createFunctionRegistry()
     const handler = createToolHandler(registry, 'proposal_action')
     const result = await handler({
-      action: 'create',
+      action: 'generate',
       payload: {
         title: 'Test Proposal',
         gateId: 'gate-01',
@@ -346,14 +346,14 @@ describe('MCP Proposal tools (integration)', () => {
     expect(result).toBeDefined()
   })
 
-  it('proposal_action create with all required fields', async () => {
+  it('proposal_action generate with all explicit fields creates proposal directly', async () => {
     const { createFunctionRegistry } =
       await import('../../../src/integration/function-implementations.js')
     const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
     const registry = createFunctionRegistry()
     const handler = createToolHandler(registry, 'proposal_action')
     const result = await handler({
-      action: 'create',
+      action: 'generate',
       payload: {
         title: 'Complete Feature Proposal',
         summary: 'Full implementation plan',

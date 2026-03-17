@@ -117,7 +117,7 @@ describe('Proposal Action Dispatcher', () => {
     expect(parsed.hash).toBe('prop0001')
   })
 
-  it('should dispatch create action correctly', async () => {
+  it('should dispatch generate (solitary explicit) action correctly', async () => {
     const now = new Date().toISOString()
     const mockCreateResult = {
       hash: 'prop0002',
@@ -131,7 +131,7 @@ describe('Proposal Action Dispatcher', () => {
     registry.setMockResult('proposal_create', mockCreateResult)
 
     const result = await handlers.proposal_action({
-      action: 'create',
+      action: 'generate',
       title: 'Test Proposal',
       summary: 'Test summary',
       solitary: true,
@@ -392,7 +392,7 @@ describe('Gates Action Dispatcher', () => {
     expect(parsed.id).toBe('gate-03')
   })
 
-  it('should dispatch create action correctly', async () => {
+  it('should dispatch generate (explicit gate) action correctly', async () => {
     const now = new Date().toISOString()
     registry.setMockResult('config_get', {
       projectName: 'test',
@@ -421,7 +421,7 @@ describe('Gates Action Dispatcher', () => {
     })
 
     const result = await handlers.gates_action({
-      action: 'create',
+      action: 'generate',
       gateId: 'gate-04',
       name: 'Infrastructure Setup',
       type: 'feature',

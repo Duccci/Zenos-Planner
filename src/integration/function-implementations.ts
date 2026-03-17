@@ -9,7 +9,6 @@
  *   - Gates: gate lifecycle operations
  *   - Proposals: proposal management and approval workflow
  *   - Requirements: requirement tracking and dependencies
- *   - Archive: archival and consolidation of completed work
  *   - Config: configuration access
  *   - Template: template management
  *   - Workflow: proposal and gate generation workflows
@@ -21,7 +20,6 @@ import { logger } from '../utils/logger.js'
 import { registerGatesOps } from './gates-registry.js'
 import { registerProposalsOps } from './proposals-registry.js'
 import { registerRequirementsOps } from './requirements-registry.js'
-import { registerArchiveOps } from './archive-registry.js'
 import { registerConfigOps } from './config-registry.js'
 import { registerTemplateOps } from './template-registry.js'
 import { registerWorkflowOps } from './workflow-registry.js'
@@ -39,12 +37,11 @@ import { registerProjectOps } from './project-registry.js'
  * Delegates to domain-specific registrars in dependency order:
  *  1. Config (used by other registries)
  *  2. Gates (base entity)
- *  3. Archive (depends on gates)
- *  4. Proposals (core workflow)
- *  5. Requirements (core workflow)
- *  6. Workflow (meta-operations)
- *  7. Repository/Architecture/Analysis (cross-cutting)
- *  8. Template (utility)
+ *  3. Proposals (core workflow)
+ *  4. Requirements (core workflow)
+ *  5. Workflow (meta-operations)
+ *  6. Repository/Architecture/Analysis (cross-cutting)
+ *  7. Template (utility)
  */
 export function createFunctionRegistry(): FunctionRegistry {
   const registry = new FunctionRegistry()
@@ -52,7 +49,6 @@ export function createFunctionRegistry(): FunctionRegistry {
   // Register all operations in dependency order
   registerConfigOps(registry)
   registerGatesOps(registry)
-  registerArchiveOps(registry)
   registerProposalsOps(registry)
   registerRequirementsOps(registry)
   registerWorkflowOps(registry)

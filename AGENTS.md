@@ -359,7 +359,6 @@ Zeno provides project-level planning (gates, roadmap) with architecture as a fir
 - `gates_action` / `reg_action` / `proposal_action` for project state queries
 - `context_action` to resolve any `#hash` to its entity
 - `config_get` for quality thresholds and project configuration
-- `archive_action` for gate finalization
 - See `PROJECT_PRD.md` for project scope, technical decisions, and architecture principles
 
 ---

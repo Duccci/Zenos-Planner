@@ -41,14 +41,15 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  */
 export const GatesActionInputSchema = z.object({
   action: z
-    .enum(['list', 'show', 'create', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'])
+    .enum(['list', 'show', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'])
     .optional()
     .describe(
       'Action to perform. ' +
         'list=show all gates (optional: status filter). ' +
         'show=get gate details (needs: gateId). ' +
-        'create=new gate (needs: gateId, name, sequence, objectives). ' +
-        'generate=generate from requirements (optional: mode, anchorGateId; required: preReview with phase=generate). ' +
+        'generate=create a gate or generate from requirements. ' +
+        'Explicit-fields path (needs: gateId, name, objectives): creates the gate directly without AI decomposition. ' +
+        'Context-driven path (no name/objectives; required: preReview with phase=generate): AI generates gates from PRD + requirements. ' +
         'validate=dry-run quality/structural checks without completing (needs: gateId). ' +
         'start=begin gate work, validated→in_progress (needs: gateId; required: qualitativeReview with all six booleans + flaggedItems). ' +
         'complete=finish gate (needs: gateId). ' +
@@ -184,6 +185,12 @@ const ValidationResultSchema = z.object({
 })
 
 /**
+ * Union of gate generate outputs — covers both AI-decomposition (GateGenerateOutputSchema)
+ * and explicit-fields creation (GateCreateOutputSchema) paths.
+ */
+export const GateGenerateOrCreateOutputSchema = z.union([GateGenerateOutputSchema, GateCreateOutputSchema])
+
+/**
  * Discriminated union for gate action outputs
  * Maps each action to its corresponding output schema
  */
@@ -199,13 +206,8 @@ export const GatesActionOutputSchema = z.discriminatedUnion('action', [
     validation: ValidationResultSchema.optional(),
   }),
   z.object({
-    action: z.literal('create'),
-    result: GateCreateOutputSchema,
-    validation: ValidationResultSchema.optional(),
-  }),
-  z.object({
     action: z.literal('generate'),
-    result: GateGenerateOutputSchema,
+    result: GateGenerateOrCreateOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
   z.object({

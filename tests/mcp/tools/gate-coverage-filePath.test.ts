@@ -120,8 +120,8 @@ describe('Gate Tools – filePath branch coverage', () => {
     }
   })
 
-  // ── create validator: line 496 (config_get failure warning) ───────────────
-  it('create validator pushes warning when config_get returns success: false', async () => {
+  // ── generate (explicit) validator: config_get failure warning ───────────────
+  it('generate (explicit) validator pushes warning when config_get returns success: false', async () => {
     const createdAt = new Date().toISOString()
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
@@ -146,7 +146,7 @@ describe('Gate Tools – filePath branch coverage', () => {
     }
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({
-      action: 'create',
+      action: 'generate',
       gateId: 'gate-07',
       name: 'New Test Gate',
       type: 'feature',
@@ -155,11 +155,11 @@ describe('Gate Tools – filePath branch coverage', () => {
     })
     expect(res).toBeDefined()
     // validator ran; config_get failure produces a warning (not a blocking error)
-    // the create action should still proceed
+    // the generate action should still proceed
   })
 
-  // ── create validator: lines 526-530 (gates_list failure warning) ──────────
-  it('create validator pushes warning when gates_list returns success: false', async () => {
+  // ── generate (explicit) validator: gates_list failure warning ───────────────
+  it('generate (explicit) validator pushes warning when gates_list returns success: false', async () => {
     const createdAt = new Date().toISOString()
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
@@ -184,7 +184,7 @@ describe('Gate Tools – filePath branch coverage', () => {
     }
     const handlers = gateHandlers(fakeRegistry)
     const res = await handlers.gates_action({
-      action: 'create',
+      action: 'generate',
       gateId: 'gate-07',
       name: 'New Test Gate',
       type: 'feature',
@@ -193,6 +193,6 @@ describe('Gate Tools – filePath branch coverage', () => {
     })
     expect(res).toBeDefined()
     // validator ran; gates_list failure produces a warning (not a blocking error)
-    // the create action should still proceed since allErrors is empty
+    // the generate action should still proceed since allErrors is empty
   })
 })

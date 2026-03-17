@@ -7,6 +7,7 @@ import {
   ReposAddOutputSchema,
   ReposRemoveOutputSchema,
 } from './repository-schemas.js'
+import { AnalysisResultSchema, ProjectMetricsSchema } from './analysis-schemas.js'
 
 /**
  * Zod schemas for repository action tool input and output
@@ -28,7 +29,7 @@ import {
  */
 export const RepositoryActionInputSchema = z.object({
   action: z
-    .enum(['list', 'detect', 'deps', 'adjust', 'add', 'remove'])
+    .enum(['list', 'detect', 'deps', 'adjust', 'add', 'remove', 'analyze'])
     .optional()
     .describe(
       'Action to perform. ' +
@@ -37,7 +38,8 @@ export const RepositoryActionInputSchema = z.object({
         'deps=view dependency graph (optional: repositoryId). ' +
         'adjust=manually adjust boundaries (needs: adjustments array). ' +
         'add=register a repository (needs: name, type, path). ' +
-        'remove=unregister a repository (needs: repositoryId).'
+        'remove=unregister a repository (needs: repositoryId). ' +
+        'analyze=analyze codebase or path for metrics/dependencies (optional: path, groupBy, includeMetrics, includeDependencies, depth).'
     ),
 
   // --- list filters ---
@@ -57,7 +59,16 @@ export const RepositoryActionInputSchema = z.object({
 
   // --- add fields ---
   name: z.string().optional().describe('Repository name (add)'),
-  path: z.string().optional().describe('Repository root path (add)'),
+  path: z.string().optional().describe('Repository root path (add); file or directory path to analyze (analyze)'),
+
+  // --- analyze fields ---
+  includeMetrics: z.boolean().optional().describe('Include code metrics in analysis result (analyze, default true)'),
+  includeDependencies: z.boolean().optional().describe('Include dependency info in analysis result (analyze, default true)'),
+  depth: z.number().int().min(0).max(10).optional().describe('Directory traversal depth for analysis (analyze, default 3)'),
+  groupBy: z
+    .enum(['repository', 'language', 'type'])
+    .optional()
+    .describe('Group metrics by dimension for project-wide analysis (analyze)'),
 
   // --- adjust fields ---
   adjustments: z
@@ -106,6 +117,10 @@ export const RepositoryActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('remove'),
     result: ReposRemoveOutputSchema,
+  }),
+  z.object({
+    action: z.literal('analyze'),
+    result: z.union([AnalysisResultSchema, z.array(AnalysisResultSchema), ProjectMetricsSchema]),
   }),
 ])
 

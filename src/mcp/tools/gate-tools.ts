@@ -22,12 +22,12 @@ import { getDatabase } from '../../storage/database.js'
  * Unified gate action tool definition.
  * Consolidates all gate lifecycle operations into a single action-based entrypoint.
  *
- * Actions: list, show, create, generate, start, complete, regenerate
+ * Actions: list, show, generate, start, complete, regenerate
  */
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    description: `Gate lifecycle: list, show, create, generate, validate, start, complete, regenerate, cancel, defer. Always call list first to get the gate hash; pass that hash as gateId — never use plaintext IDs like "gate-08".`,
+    description: `Gate lifecycle: list, show, generate, validate, start, complete, regenerate, cancel, defer. Always call list first to get the gate hash; pass that hash as gateId — never use plaintext IDs like "gate-08".`,
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -45,9 +45,7 @@ import {
   GatesValidateOutputSchema,
   type GateQualitativeReview,
 } from '../schemas/gate-schemas.js'
-import { GateCreateOutputSchema } from '../schemas/gate-create-schemas.js'
-import { GateGenerateOutputSchema } from '../schemas/workflow-schemas.js'
-import { GatesActionOutputSchema } from '../schemas/gates-action-schemas.js'
+import { GatesActionOutputSchema, GateGenerateOrCreateOutputSchema } from '../schemas/gates-action-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
 import { withGuidance } from './handler-factory.js'
 
@@ -57,7 +55,7 @@ export function gateHandlers(
   const gateActionHandler = createEntityActionHandler(
     {
       entity: 'gate',
-      actions: ['list', 'show', 'create', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'] as const,
+      actions: ['list', 'show', 'generate', 'validate', 'start', 'complete', 'regenerate', 'cancel', 'defer'] as const,
       inputSchema: GatesActionInputSchema,
       outputSchema: GatesActionOutputSchema,
       actionOutputSchema(action) {
@@ -66,10 +64,8 @@ export function gateHandlers(
             return GatesListOutputSchema
           case 'show':
             return GateDetailSchema
-          case 'create':
-            return GateCreateOutputSchema
           case 'generate':
-            return GateGenerateOutputSchema
+            return GateGenerateOrCreateOutputSchema
           case 'start':
             return GatesStartOutputSchema
           case 'complete':
@@ -89,14 +85,20 @@ export function gateHandlers(
       actionHandlers: {
         list: async (payload, r) => r.invoke('gates_list', payload),
         show: async (payload, r) => r.invoke('gates_show', payload),
-        create: async (payload, r) => r.invoke('gate_create', payload),
-        generate: async (payload, r) =>
-          withGuidance(
-            await r.invoke('generateGates', payload),
+        generate: async (payload, r) => {
+          const p = payload as { name?: string; objectives?: string[]; preReview?: unknown }
+          const hasExplicitFields =
+            Boolean(p.name) && Array.isArray(p.objectives) && (p.objectives ?? []).length > 0
+          const invokeResult = hasExplicitFields
+            ? await r.invoke('gate_create', payload)
+            : await r.invoke('generateGates', payload)
+          return withGuidance(
+            invokeResult,
             toNarrativeRules(GATE_GENERATION_GUARDRAILS),
             toCompactWorkflow(GATE_GENERATION_WORKFLOW),
-            (payload as { preReview?: unknown }).preReview
-          ),
+            hasExplicitFields ? undefined : p.preReview
+          )
+        },
         start: async (payload, r) => {
           const p = payload as { gateId?: string; qualitativeReview?: GateQualitativeReview; notes?: string }
           const gateId = p.gateId ?? ''
@@ -476,7 +478,85 @@ export function gateHandlers(
         },
       },
       validators: {
-        generate: createGenerateValidators('gates_action'),
+        generate: (_payload, r) => {
+          const p = _payload as { name?: string; objectives?: string[] }
+          const hasExplicitFields =
+            Boolean(p.name) && Array.isArray(p.objectives) && (p.objectives ?? []).length > 0
+          if (hasExplicitFields) {
+            // Explicit-fields path: run dependency check only
+            return [
+              async () => {
+                const allErrors: string[] = []
+                const allWarnings: string[] = []
+
+                const configResult = await r.invoke('config_get', {})
+                if (!configResult.success) {
+                  allWarnings.push(
+                    `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
+                  )
+                }
+
+                try {
+                  const gatesResult = await r.invoke('gates_list', {})
+                  if (!gatesResult.success) {
+                    allWarnings.push(
+                      `Failed to retrieve gates list for dependency validation: ${gatesResult.error.message}`
+                    )
+                  } else {
+                    const allGates = gatesResult.data as Record<string, unknown>[]
+                    const allNodes = new Map<
+                      string,
+                      { hash: string; dependencies: string[]; gateId: string; gateSequence: number }
+                    >()
+
+                    allGates.forEach((gate) => {
+                      const gateId = String(gate['id'])
+                      const deps = Array.isArray(gate['dependencies'])
+                        ? (gate['dependencies'] as string[])
+                        : []
+                      allNodes.set(gateId, {
+                        hash: gateId,
+                        dependencies: deps,
+                        gateId: gateId,
+                        gateSequence: parseInt(gateId.split('-')[1] ?? '') || 0,
+                      })
+                    })
+
+                    const rawGateId = _payload?.['gateId']
+                    const payloadGateId = typeof rawGateId === 'string' ? rawGateId : ''
+                    const rawDeps = _payload?.['dependencies']
+                    const payloadDeps = Array.isArray(rawDeps) ? (rawDeps as string[]) : []
+                    const newNode = {
+                      hash: payloadGateId,
+                      dependencies: payloadDeps,
+                      gateId: payloadGateId,
+                      gateSequence: parseInt(payloadGateId.split('-')[1] ?? '') || 0,
+                    }
+
+                    const dependencyContext: DependencyValidationContext = {
+                      node: newNode,
+                      allNodes: allNodes,
+                    }
+
+                    const dependencyResult = validateDependencies(dependencyContext)
+                    allErrors.push(...(dependencyResult.errors ?? []))
+                    allWarnings.push(...(dependencyResult.warnings ?? []))
+                  }
+                } catch (error) {
+                  allWarnings.push(`Validator execution failed: ${String(error)}`)
+                }
+
+                return {
+                  allowed: allErrors.length === 0,
+                  errors: allErrors.length > 0 ? allErrors : undefined,
+                  warnings: allWarnings.length > 0 ? allWarnings : undefined,
+                }
+              },
+            ]
+          }
+          // AI path: use createGenerateValidators (preReview + markdown-only)
+          return createGenerateValidators('gates_action')(_payload, r)
+        },
         start: (_payload, r) => [
           // Enforce state transition: only validated or rejected gates can be started
           // See MCP: entity-action-handler.ts#createStateTransitionValidator
@@ -508,75 +588,6 @@ export function gateHandlers(
               return result
             } catch {
               return { allowed: true }
-            }
-          },
-        ],
-        create: (_payload, r) => [
-          async () => {
-            const allErrors: string[] = []
-            const allWarnings: string[] = []
-
-            const configResult = await r.invoke('config_get', {})
-            if (!configResult.success) {
-              allWarnings.push(
-                `Failed to retrieve config: ${configResult.error.message}. Using default quality thresholds.`
-              )
-            }
-
-            try {
-              const gatesResult = await r.invoke('gates_list', {})
-              if (!gatesResult.success) {
-                allWarnings.push(
-                  `Failed to retrieve gates list for dependency validation: ${gatesResult.error.message}`
-                )
-              } else {
-                const allGates = gatesResult.data as Record<string, unknown>[]
-                const allNodes = new Map<
-                  string,
-                  { hash: string; dependencies: string[]; gateId: string; gateSequence: number }
-                >()
-
-                allGates.forEach((gate) => {
-                  const gateId = String(gate['id'])
-                  const deps = Array.isArray(gate['dependencies'])
-                    ? (gate['dependencies'] as string[])
-                    : []
-                  allNodes.set(gateId, {
-                    hash: gateId,
-                    dependencies: deps,
-                    gateId: gateId,
-                    gateSequence: parseInt(gateId.split('-')[1] ?? '') || 0,
-                  })
-                })
-
-                const rawGateId = _payload?.['gateId']
-                const payloadGateId = typeof rawGateId === 'string' ? rawGateId : ''
-                const rawDeps = _payload?.['dependencies']
-                const payloadDeps = Array.isArray(rawDeps) ? (rawDeps as string[]) : []
-                const newNode = {
-                  hash: payloadGateId,
-                  dependencies: payloadDeps,
-                  gateId: payloadGateId,
-                  gateSequence: parseInt(payloadGateId.split('-')[1] ?? '') || 0,
-                }
-
-                const dependencyContext: DependencyValidationContext = {
-                  node: newNode,
-                  allNodes: allNodes,
-                }
-
-                const dependencyResult = validateDependencies(dependencyContext)
-                allErrors.push(...(dependencyResult.errors ?? []))
-                allWarnings.push(...(dependencyResult.warnings ?? []))
-              }
-            } catch (error) {
-              allWarnings.push(`Validator execution failed: ${String(error)}`)
-            }
-
-            return {
-              allowed: allErrors.length === 0,
-              errors: allErrors.length > 0 ? allErrors : undefined,
-              warnings: allWarnings.length > 0 ? allWarnings : undefined,
             }
           },
         ],

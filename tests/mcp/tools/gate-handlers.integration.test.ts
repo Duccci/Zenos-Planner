@@ -119,9 +119,9 @@ describe('Gate Handlers Integration', () => {
     expect(result?.newStatus ?? result?.status ?? 'completed').toBe('completed')
   })
 
-  // ── create validator branches ─────────────────────────────────────────────
+  // ── generate (explicit-fields) validator branches ─────────────────────────
 
-  it('create validator adds warning when config_get fails but still proceeds with create', async () => {
+  it('generate (explicit) validator adds warning when config_get fails but still proceeds', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'config_get') return { success: false, error: { message: 'config unavailable', code: 'ERR' } }
@@ -131,13 +131,13 @@ describe('Gate Handlers Integration', () => {
       }),
     }
     const handlers = gateHandlers(fakeRegistry)
-    // Validation still runs (just adds warning), create proceeds
-    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New', dependencies: [] })
+    // Validation still runs (just adds warning), generate proceeds
+    const res = await handlers.gates_action({ action: 'generate', gateId: 'gate-05', name: 'New', objectives: ['Initial objective'], dependencies: [] })
     // Should not be a hard validation error — config failure is only a warning
     expect(res).toBeDefined()
   })
 
-  it('create validator adds warning when gates_list fails', async () => {
+  it('generate (explicit) validator adds warning when gates_list fails', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'config_get') return { success: true, data: {} }
@@ -146,7 +146,7 @@ describe('Gate Handlers Integration', () => {
       }),
     }
     const handlers = gateHandlers(fakeRegistry)
-    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New', dependencies: [] })
+    const res = await handlers.gates_action({ action: 'generate', gateId: 'gate-05', name: 'New', objectives: ['Initial objective'], dependencies: [] })
     expect(res).toBeDefined()
   })
 
@@ -319,9 +319,9 @@ describe('Gate Handlers Integration', () => {
     // Check ran: result is either success or validation error (test-first may fail without suite role)
   })
 
-  // ─── create validator dependency branches (lines 527, 534) ────────────────
+  // ─── generate (explicit) validator dependency branches ────────────────────
 
-  it('create validator processes gates with array dependencies (branch 527 true side, 534 true side)', async () => {
+  it('generate (explicit) validator processes gates with array dependencies', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'config_get') return { success: true, data: {} }
@@ -337,11 +337,11 @@ describe('Gate Handlers Integration', () => {
       }),
     }
     const handlers = gateHandlers(fakeRegistry)
-    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New Gate', dependencies: ['gate-01'] })
+    const res = await handlers.gates_action({ action: 'generate', gateId: 'gate-05', name: 'New Gate', objectives: ['Initial objective'], dependencies: ['gate-01'] })
     expect(res).toBeDefined()
   })
 
-  it('create validator handles gate with non-array dependencies and payload without dependencies (branch 527 false side, 534 false side)', async () => {
+  it('generate (explicit) validator handles gate with non-array dependencies and payload without dependencies', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'config_get') return { success: true, data: {} }
@@ -356,7 +356,7 @@ describe('Gate Handlers Integration', () => {
     }
     const handlers = gateHandlers(fakeRegistry)
     // payload has no dependencies field (rawDeps is undefined → not an array → payloadDeps=[])
-    const res = await handlers.gates_action({ action: 'create', gateId: 'gate-05', name: 'New Gate' })
+    const res = await handlers.gates_action({ action: 'generate', gateId: 'gate-05', name: 'New Gate', objectives: ['Initial objective'] })
     expect(res).toBeDefined()
   })
 })

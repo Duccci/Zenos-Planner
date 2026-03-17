@@ -8,11 +8,9 @@ import { gitTraceHandlers, gitTraceToolDefinitions } from './git-trace-tools.js'
 import { validationHandlers, validationToolDefinitions } from './validation-tools.js'
 import { repositoryHandlers, repositoryToolDefinitions } from './repository-tools.js'
 import { worktreeHandlers, worktreeToolDefinitions } from './worktree-tools.js'
-import { analysisHandlers, analysisToolDefinitions } from './analysis-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
 import { projectHandlers, projectToolDefinitions } from './project-tools.js'
 import { contextHandlers, contextToolDefinitions } from './context-tools.js'
-import { archiveHandlers, archiveToolDefinitions } from './archive-tools.js'
 import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -27,7 +25,6 @@ type HandlerFactory = (registry: FunctionRegistry) => Record<string, HandlerFn>
 // Collect handler-level definitions provided by handler modules
 const handlerToolDefs = [
   ...repositoryToolDefinitions,
-  ...analysisToolDefinitions,
   ...gateToolDefinitions,
   ...requirementToolDefinitions,
   ...proposalToolDefinitions,
@@ -38,7 +35,6 @@ const handlerToolDefs = [
   ...contextToolDefinitions,
   ...gitTraceToolDefinitions,
   ...worktreeToolDefinitions,
-  ...archiveToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -76,7 +72,6 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
   // Register handler-based tools first to allow them to override CLI-backed functions
   const handlerFactories: HandlerFactory[] = [
     repositoryHandlers,
-    analysisHandlers,
     gateHandlers,
     requirementHandlers,
     proposalHandlers,
@@ -87,7 +82,6 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     contextHandlers,
     gitTraceHandlers,
     worktreeHandlers,
-    archiveHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)
