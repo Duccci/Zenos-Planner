@@ -1,7 +1,7 @@
 # [Project Name]: Repository Structure
 
-**Purpose**: Canonical repo map and directory reference for AI agents, contributors, and onboarding  
-**Generated**: [DATE]  
+**Purpose**: Canonical repo map and directory reference for AI agents, contributors, and onboarding
+**Generated**: [DATE]
 **Stack**: [e.g., Node.js/TypeScript | Python | Rust | Go | Monorepo]
 
 ---
@@ -64,9 +64,9 @@
 
 ### `[module-a]/` — [Module Name]
 
-**Responsibility**: [One sentence: what this module does and what it does NOT do.]  
-**Owns**: [Key types, services, or subsystems managed here.]  
-**Consumes**: [Other modules or external packages it depends on.]  
+**Responsibility**: [One sentence: what this module does and what it does NOT do.]
+**Owns**: [Key types, services, or subsystems managed here.]
+**Consumes**: [Other modules or external packages it depends on.]
 **Exposes**: [Public API surface — re-exported symbols, service interfaces, or CLI commands.]
 
 | File              | Purpose                |
@@ -134,6 +134,6 @@ When adding new capabilities, use these locations:
 
 ---
 
-**Document Version**: 1.0.0  
-**Last Updated**: [YYYY-MM-DD]  
+**Document Version**: 1.0.0
+**Last Updated**: [YYYY-MM-DD]
 **Owner**: [git.user.name]
