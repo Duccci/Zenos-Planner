@@ -25,7 +25,7 @@ Formal state machines for Gates and Proposals. Each transition is triggered by a
 
 ```mermaid
 stateDiagram-v2
-    [*] --> pending : gates_action:create / gates_action:generate
+    [*] --> pending : gates_action:generate
     pending --> validated : gates_action:validate\n[all checks pass]
     pending --> cancelled : gates_action:cancel
     pending --> backlog : gates_action:defer

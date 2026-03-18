@@ -11,6 +11,7 @@ import { logger } from '../utils/logger.js'
 import { createProjectStructure } from '../scaffold/index.js'
 import { RequirementGenerator } from '../generation/requirement-generator.js'
 import { generateGates } from '../core/gate-generator.js'
+import type { GeneratedGates } from '../core/types.js'
 import { writeAgentsMD } from '../generation/agents-writer.js'
 import { generateAgentsMD } from '../generation/agents-generator.js'
 import {
@@ -19,7 +20,11 @@ import {
   getDefaultConfig,
   saveConfig,
   getWorkspaceRoot,
+  getDefaultProject,
+  saveProject,
 } from '../utils/config.js'
+import type { ProjectGate } from '../utils/config.js'
+import { shortHash } from '../utils/hash.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { readdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -113,15 +118,49 @@ export function registerProjectOps(registry: FunctionRegistry): void {
         // 4. Generate project requirements
         logger.info('Generating project requirements...')
         const reqGen = new RequirementGenerator()
+
+        // 4a. Extract requirements from existing spec files in the project root
+        const fileReqs = await reqGen.generateFromProjectFiles(projectRoot)
+        if (fileReqs.length > 0) {
+          logger.info(`Extracted ${fileReqs.length.toString()} requirements from existing project files`)
+        }
+
+        // 4b. Extract requirements from the project statement
         const requirements = reqGen.generateFromProjectStatement(input.projectStatement)
         logger.info(`Generated ${requirements.length.toString()} project requirements`)
 
-        // 5. Generate gates
-        logger.info('Generating project gates...')
-        const gatesResult = generateGates(input.projectStatement, undefined, requirements)
-        logger.info(
-          `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
-        )
+        // 5. Generate gates (only when requirements exist — empty description yields no meaningful gates)
+        let gatesResult: Pick<GeneratedGates, 'gates' | 'totalComplexity'> = { gates: [], totalComplexity: 0 }
+        if (requirements.length > 0) {
+          logger.info('Generating project gates...')
+          gatesResult = generateGates(input.projectStatement, undefined, requirements)
+          logger.info(
+            `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
+          )
+
+          // Persist generated gates to project.json
+          const now = new Date().toISOString()
+          const projectGates: ProjectGate[] = gatesResult.gates.map((gate, idx) => ({
+            id: gate.id,
+            sequence: idx + 1,
+            name: gate.name,
+            hash: shortHash(`${gate.id}:${gate.name}:${gate.description}`),
+            status: 'pending' as const,
+            goal: gate.objectives[0]?.description ?? gate.description,
+            estimatedComplexity: gate.estimatedComplexity.toString(),
+            milestones: gate.milestones,
+            createdAt: now,
+            completedAt: null,
+          }))
+          const project = getDefaultProject(input.projectName, input.projectStatement)
+          project.gates = projectGates
+          project.project.totalGatesPlanned = projectGates.length
+          project.lastUpdated = now
+          await saveProject(project, projectRoot)
+          logger.info(`Saved ${projectGates.length.toString()} gates to project.json`)
+        } else {
+          logger.info('Skipping gate generation: provide a detailed project description to generate gates')
+        }
 
         // 6. Generate AGENTS.md
         logger.info('Generating AGENTS.md...')
@@ -136,6 +175,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
           message: 'Project initialized successfully',
           gatesGenerated: gatesResult.gates.length,
           requirementsGenerated: requirements.length,
+          requirementsFromFiles: fileReqs.length,
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)

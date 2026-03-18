@@ -13,6 +13,7 @@ import { getDatabase } from '../../src/storage/database.js';
 vi.mock('../../src/storage/database.js');
 vi.mock('../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn(() => process.cwd()),
+  getWorkspaceRoot: vi.fn(() => process.cwd()),
   getZenoDir: vi.fn(() => 'zeno/.zeno'),
   loadConfig: vi.fn(() => ({
     versioning: {

@@ -33,9 +33,9 @@ import {
  * action required for all calls:
  *   list      — list proposals; optional: gateId, status
  *   show      — get proposal details; required: hash
- *   create    — new proposal; required: title, summary, tasks; optional: gateId, solitary, filesAffected, context, dependencies
- *   generate  — generate proposals (gate or solitary); required: gateId (for gate-tied) or solitary=true (for solitary); optional: title, summary, tasks, templateName, outputDir, filesAffected
- *              preReview required for generate (enforced by handler)
+ *   generate  — create or generate proposals. Explicit-fields path (title + tasks → creates directly; optional: gateId, solitary, filesAffected, context, dependencies).
+ *               Gate-tied AI path (gateId + preReview → decomposes gate PRD). Solitary path (solitary=true → standalone proposal).
+ *               preReview required for AI decomposition and start (enforced by handler)
  *   validate  — run quality checks on a proposal; required: hash; optional: strict
  *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
  *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy

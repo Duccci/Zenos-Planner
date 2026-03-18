@@ -6,7 +6,7 @@ import { decomposeWork } from './zeno-engine.js'
 import { sequenceGates } from './gate-sequencer.js'
 import { calculateConfidence } from './gate-scoring.js'
 import { getDatabase } from '../storage/database.js'
-import { readProjectOverview, getGatesFromOverview, getCompletedGates } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview, getCompletedGates, getWorkspaceRoot } from '../utils/config.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
 import { normalizeGateId } from '../utils/normalize.js'
 import type { CodeMetrics } from '../analysis/types.js'
@@ -163,7 +163,7 @@ export async function regenerateGatesWithAnalysis(
 ): Promise<RegenerationSuggestions> {
   // Verify gate exists in project overview
   try {
-    const overview = await readProjectOverview()
+    const overview = await readProjectOverview(getWorkspaceRoot())
     const summaries = getGatesFromOverview(overview)
     if (!summaries.find((g) => g.id === fromGateId)) {
       return {
@@ -208,7 +208,7 @@ export async function regenerateGatesWithAnalysis(
  * Compares theoretical decomposition with data-driven insights.
  */
 async function regenerateGatesFromAnalysis(fromGateId: string): Promise<RegenerationSuggestions> {
-  const overview = await readProjectOverview()
+  const overview = await readProjectOverview(getWorkspaceRoot())
   const summaries = getGatesFromOverview(overview)
 
   if (!summaries.find((g) => g.id === fromGateId)) {
@@ -343,7 +343,7 @@ async function regenerateGatesFromAnalysis(fromGateId: string): Promise<Regenera
  */
 export async function regenerateGatesTheoreticalFromProject(): Promise<RegenerationSuggestions> {
   // Get project overview (single source of truth)
-  const projectOverview = await readProjectOverview()
+  const projectOverview = await readProjectOverview(getWorkspaceRoot())
 
   // Build gate list from project overview
   const allGates: Gate[] = getGatesFromOverview(projectOverview).map((s) => ({
@@ -392,7 +392,7 @@ export async function regenerateGatesTheoreticalFromProject(): Promise<Regenerat
  * Uses decomposition-based approach to regenerate future gates.
  */
 async function regenerateGatesTheoretical(fromGateId: string): Promise<RegenerationSuggestions> {
-  const overview = await readProjectOverview()
+  const overview = await readProjectOverview(getWorkspaceRoot())
   const summaries = getGatesFromOverview(overview)
 
   // Build gate list from project overview
@@ -519,7 +519,7 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
     let rescopeNote = ''
     if (prdChanged) {
       try {
-        const overview = await readProjectOverview()
+        const overview = await readProjectOverview(getWorkspaceRoot())
         rescopeNote = `\n\n> **Rescoped**: PRD project statement has changed. Previous statement: "${overview.project.projectStatement}"`
       } catch {
         rescopeNote = '\n\n> **Rescoped**: PRD end-state updated (could not read current value).'
@@ -569,7 +569,7 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
   let rescopeContext = ''
   if (prdChanged) {
     try {
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
       rescopeContext = ` PRD rescope detected — current project statement: "${overview.project.projectStatement}".`
     } catch {
       rescopeContext = ' PRD rescope signal provided but end-state could not be read.'
@@ -580,7 +580,7 @@ export async function replanGates(options: ReplanOptions = {}): Promise<ReplanRe
   let baselineGateId = fromGateId
   if (!baselineGateId) {
     try {
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
       const completed = getCompletedGates(overview)
       if (completed.length > 0) {
         const last = completed[completed.length - 1]

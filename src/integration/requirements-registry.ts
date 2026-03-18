@@ -436,7 +436,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
           // Fallback: if no requirements found for a specific gate,
           // try parsing the gate markdown file and seeding the DB
           if (allRequirements.length === 0 && resolvedListGateId) {
-            const syncResult = syncGateRequirementsFromMarkdown(storage, resolvedListGateId)
+            const syncResult = syncGateRequirementsFromMarkdown(storage, resolvedListGateId, getWorkspaceRoot())
             inheritedHashes = syncResult.inheritedHashes
 
             if (syncResult.inserted > 0) {

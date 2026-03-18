@@ -9,7 +9,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { getZenoDir } from '../utils/config.js'
+import { getZenoDir, getWorkspaceRoot } from '../utils/config.js'
 import { ZenoError } from '../utils/errors.js'
 import { parseProposalMetadata } from './proposal-parser.js'
 import { findProposalByHash, resolveProposalGateInfo, findGateByGateId } from '../utils/artifact-locator.js'
@@ -92,7 +92,7 @@ export async function validateGateReady(gateId: string): Promise<{ filePath: str
   }
 
   // Check if all proposals are completed/integrated
-  const proposalsDir = join(getZenoDir(), '..', 'proposals', gateId)
+  const proposalsDir = join(getZenoDir(getWorkspaceRoot()), '..', 'proposals', gateId)
   if (existsSync(proposalsDir)) {
     // This is a simplified check - in practice, we'd need to check each proposal
     // For now, assume if gate is completed, proposals are integration-ready
@@ -103,7 +103,7 @@ export async function validateGateReady(gateId: string): Promise<{ filePath: str
 
   // Ensure no RED-phase tests remain unimplemented (`it.skip // @red`).
   // GREEN work must fully replace stubs before a gate can be archived.
-  const projectRoot = join(getZenoDir(), '..', '..')
+  const projectRoot = getWorkspaceRoot()
   const redTests = collectRedTests(projectRoot)
   if (redTests.length > 0) {
     throw new ZenoError(
@@ -128,7 +128,7 @@ export async function validateProposalReady(
 ): Promise<{ type: 'gate-tied' | 'solitary'; gateId?: string; title: string; filePath: string }> {
   // Find proposal file via content-based scan (files are date-named, not hash-named).
   // Delegates to the canonical findProposalByHash in artifact-locator.ts.
-  const projectRoot = join(getZenoDir(), '..', '..')
+  const projectRoot = getWorkspaceRoot()
   const proposalPath = await findProposalByHash(hash, projectRoot)
 
   if (!proposalPath) {

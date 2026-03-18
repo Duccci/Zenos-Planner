@@ -30,11 +30,11 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       let summaries: Awaited<ReturnType<typeof getGatesFromOverview>>
 
       try {
-        const overview = await readProjectOverview()
+        const overview = await readProjectOverview(getWorkspaceRoot())
         summaries = getGatesFromOverview(overview)
       } catch {
         // project.json unavailable — fall back to archive files
-        const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
+        const archivePath = join(getZenoDir(getWorkspaceRoot()), '..', 'gates', 'archive')
         const archivedGateList = listArchivedGates(archivePath)
         summaries = archivedGateList.map((g, index) => ({
           id: g.id,
@@ -70,7 +70,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       try {
         const { readdirSync, readFileSync } = await import('node:fs')
         const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
-        const gatesDir = join(getZenoDir(), '..', 'gates')
+        const gatesDir = join(getZenoDir(getWorkspaceRoot()), '..', 'gates')
         const files = readdirSync(gatesDir).filter(
           (f: string) => f.endsWith('.md') && /^gate-\d+/.test(f)
         )
@@ -136,7 +136,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       // Resolve hash or normalize textual ID: accept hash, gate-01, or 01
       const normalizedId = resolveGateIdentifier(validated.gateId)
 
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
       const summaries = getGatesFromOverview(overview)
       const gate =
         summaries.find((g) => g.id === normalizedId) ??
@@ -307,12 +307,12 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       db.prepare(`UPDATE gates SET status = 'validated' WHERE id = ?`).run(normalizedId)
       // Update project.json directly — the DB is a read-only cache and must not write back to files.
       const { readProjectOverview, saveProjectOverview } = await import('../utils/config.js')
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
       const gate = overview.gates.find((g) => g.id === normalizedId)
       if (gate) {
         gate.status = 'validated'
         overview.lastUpdated = new Date().toISOString()
-        await saveProjectOverview(overview)
+        await saveProjectOverview(overview, getWorkspaceRoot())
       }
       return { gateId: normalizedId, newStatus: 'validated' as const }
     },
@@ -514,7 +514,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seqMatch = /\d+/.exec(normalizedId)
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
 
       // Find gate in unified gates array
       const gateIdx = overview.gates.findIndex(
@@ -531,7 +531,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       gate.status = 'cancelled'
       gate.cancelledAt = cancelledAt
 
-      await saveProjectOverview(overview)
+      await saveProjectOverview(overview, getWorkspaceRoot())
 
       return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt, reason: validated.reason }
     },
@@ -555,7 +555,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       const seqMatch = /\d+/.exec(normalizedId)
       const seq = seqMatch ? parseInt(seqMatch[0], 10) : null
 
-      const overview = await readProjectOverview()
+      const overview = await readProjectOverview(getWorkspaceRoot())
 
       // Find gate in unified gates array
       const gateIdx = overview.gates.findIndex(
@@ -570,7 +570,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       gate.status = 'backlog'
 
-      await saveProjectOverview(overview)
+      await saveProjectOverview(overview, getWorkspaceRoot())
 
       const deferredAt = new Date().toISOString()
       return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt, reason: validated.reason }

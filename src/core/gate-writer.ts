@@ -8,6 +8,7 @@ export async function createGatePrdFiles(
   gates: {
     id: string
     name: string
+    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -18,6 +19,7 @@ export async function createGatePrdFiles(
   {
     id: string
     name: string
+    type: string
     status: string
     requirementsCount: number
     dependencies: string[]
@@ -32,6 +34,7 @@ export async function updateGateDiagrams(
   _gates: {
     id: string
     name: string
+    type: string
     status: string
     requirementsCount: number
     dependencies: string[]

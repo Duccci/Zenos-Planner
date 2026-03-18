@@ -35,7 +35,9 @@
 
 ### Database Access
 
-> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (`Get-Content`, `cat`, `better-sqlite3` scripts, raw SQL, `node -e`, `npx tsx -e`). The schema changes between gates; direct reads return stale data and bypass validation. Always use MCP tools — they are schema-validated and return structured content.
+> **`zeno init` creates `config.json` only** — `registry.db` does not exist until the first database operation (e.g. `zeno gates start`). Do not assume the database is present in a freshly initialised project.
+>
+> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (no `better-sqlite3` scripts, no raw SQL, no `node -e`, no `npx tsx -e` DB scripts). The database schema changes between gates; direct queries will silently return stale or incomplete data. Always use MCP tools — they are schema-validated and return structured content.
 
 ### MCP Tool Reference
 
@@ -44,14 +46,16 @@
 | MCP Tool | Actions | Purpose |
 | -------- | ------- | ------- |
 | `context_action` | `gate`, `proposal`, `requirement`, `repository` | Get working context or resolve any entity by hash/name |
-| `gates_action` | `list`, `show`, `create`, `generate`, `start`, `complete`, `regenerate` | Gate lifecycle |
-| `proposal_action` | `list`, `show`, `create`, `generate`, `validate`, `approve`, `reject`, `start`, `progress` | Proposal lifecycle |
-| `reg_action` | `list`, `show`, `deps`, `transfer`, `search` | Requirements queries |
-| `archive_action` | `gate`, `batch` | Finalize completed work |
-| `diagram_action` | `show`, `generate` | Architecture diagrams (on-demand) |
-| `repos_action` | `list`, `detect`, `deps`, `adjust` | Repository management |
+| `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `regenerate`, `cancel`, `defer` | Gate lifecycle |
+| `proposal_action` | `list`, `show`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer` | Proposal lifecycle |
+| `reg_action` | `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate` | Registry DB queries — all entity lookups, requirements, hashes, and dependencies |
+| `repos_action` | `list`, `detect`, `deps`, `adjust`, `add`, `remove`, `analyze` | Repository management and boundary detection |
+| `project_action` | `init`, `status` | Project initialization and status |
 | `config_get` | — | Quality thresholds and configuration |
-| `show_entity` removed | — | Replaced by `context_action` — use `requirement` or `repository` action |
+| `diagram_action` | `catalogue`, `select`, `generate`, `show`, `render`, `list_template`, `get_template` | Architecture & templates management |
+| `worktree_action` | `list`, `remove`, `prune`, `merge` | Git worktree management for proposals |
+| `artifact_validate` | — | Unified artifact validator (format/quality/dependency) |
+| `git_trace` | — | Trace git commits for artifacts (gates, proposals, requirements) |
 
 ### Reading Artifacts
 

@@ -1,5 +1,5 @@
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import type { FunctionRegistry } from '../../integration/function-registry.js'
+import type { FunctionRegistry, FunctionResult } from '../../integration/function-registry.js'
 import {
   DiagramActionInputSchema,
   DiagramActionOutputSchema,
@@ -15,6 +15,117 @@ let _discovery: ReturnType<typeof createDiscoveryService> | undefined
 function getDiscovery(): ReturnType<typeof createDiscoveryService> {
   _discovery ??= createDiscoveryService(getWorkspaceRoot())
   return _discovery
+}
+
+/**
+ * Handler for list_template action
+ * Returns all available templates (markdown and architecture)
+ */
+async function handleListTemplate(
+  _payload: Record<string, unknown> | undefined
+): Promise<FunctionResult> {
+  try {
+    const templates = await getDiscovery().getTemplates()
+    return {
+      success: true,
+      data: {
+        templates: templates.map((t) => ({
+          name: t.name,
+          shortName: t.shortName,
+          path: t.path,
+          description: t.description,
+          category: t.category,
+        })),
+      },
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return {
+      success: false,
+      error: {
+        message,
+        code: 'DISCOVERY_ERROR',
+        context: { timestamp: new Date().toISOString() },
+      },
+    }
+  }
+}
+
+/**
+ * Handler for get_template action
+ * Retrieves a specific template by name, optionally with full content
+ */
+async function handleGetTemplate(
+  payload: Record<string, unknown> | undefined
+): Promise<FunctionResult> {
+  const name = payload?.['name'] as string | undefined ?? ''
+  if (!name) {
+    return {
+      success: false,
+      error: {
+        message: 'name is required for get_template',
+        code: 'VALIDATION_ERROR',
+        context: {},
+      },
+    }
+  }
+
+  try {
+    const includeContextVal = payload?.['includeContext']
+    const includeContext = includeContextVal === true || includeContextVal === 'true'
+    const artifact = await getDiscovery().getArtifact('template', name)
+
+    if (!artifact) {
+      return {
+        success: false,
+        error: {
+          message: `Template not found: ${name}`,
+          code: 'NOT_FOUND',
+          context: { templateName: name },
+        },
+      }
+    }
+
+    // Type guard: artifact should be a Template for this handler
+    const template = artifact as {
+      name: string
+      shortName: string
+      path: string
+      description: string
+      category: 'markdown' | 'architecture'
+      content?: string
+    }
+
+    const result = {
+      name: template.name,
+      shortName: template.shortName,
+      path: template.path,
+      description: template.description,
+      category: template.category,
+      ...(template.content && { content: template.content }),
+      ...(includeContext && {
+        _context: {
+          retrievedAt: new Date().toISOString(),
+          templateName: name,
+        },
+      }),
+    }
+
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return {
+      success: false,
+      error: {
+        message,
+        code: 'INTERNAL_ERROR',
+        context: { templateName: name, timestamp: new Date().toISOString() },
+      },
+    }
+  }
 }
 
 /**
@@ -37,7 +148,7 @@ export function architectureHandlers(
   const archActionHandler = createEntityActionHandler(
     {
       entity: 'arch',
-      actions: ['catalogue', 'select', 'generate', 'show', 'render'] as const,
+      actions: ['catalogue', 'select', 'generate', 'show', 'render', 'list_template', 'get_template'] as const,
       inputSchema: DiagramActionInputSchema,
       outputSchema: DiagramActionOutputSchema,
       actionOutputSchema: getDiagramActionOutputSchema,
@@ -63,6 +174,8 @@ export function architectureHandlers(
             return { success: false as const, error: { message, code: 'RENDER_ERROR', context: {} } }
           }
         },
+        list_template: handleListTemplate,
+        get_template: handleGetTemplate,
       },
     },
     registry
@@ -76,63 +189,7 @@ export function architectureHandlers(
         }
       }
 
-      const action = args['action']
-
-      // --- template actions handled inline (use discovery service, not registry) ---
-      if (action === 'list_template') {
-        try {
-          const templates = await getDiscovery().getTemplates()
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ templates }, null, 2) }],
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-            isError: true,
-          }
-        }
-      }
-
-      if (action === 'get_template') {
-        const nameVal = args['name']
-        const includeContextVal = args['includeContext']
-        if (typeof nameVal !== 'string' || nameVal.length === 0) {
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ code: 'VALIDATION_ERROR', message: 'name is required for get_template' }, null, 2) }],
-            isError: true,
-          }
-        }
-        try {
-          const includeContext = includeContextVal === true || includeContextVal === 'true'
-          const artifact = await getDiscovery().getArtifact('template', nameVal)
-          if (!artifact) {
-            const payload = { code: 'NOT_FOUND', message: `Template not found: ${nameVal}`, timestamp: new Date().toISOString() }
-            return {
-              content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-              isError: true,
-            }
-          }
-          const artifactStr = JSON.stringify(artifact, null, 2)
-          if (includeContext) {
-            const context = `Name: ${nameVal}\nArtifact: ${artifactStr}`
-            return {
-              content: [{ type: 'text', text: context }],
-            }
-          }
-          return { content: [{ type: 'text', text: artifactStr }] }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          const payload = { code: 'INTERNAL_ERROR', message, timestamp: new Date().toISOString() }
-          return {
-            content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-            isError: true,
-          }
-        }
-      }
-
-      // --- architecture diagram actions delegated to entity action handler ---
+      // All actions (diagram + template) now delegated to entity action handler
       return archActionHandler(args)
     },
   }

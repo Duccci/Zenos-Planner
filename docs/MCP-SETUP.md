@@ -6,9 +6,9 @@ Zeno exposes consolidated MCP tools that follow the *Entity Action* pattern. Eac
 
 Supported unified tools (examples):
 
-- `gates_action` — actions: `list`, `show`, `create`, `start`, `complete`, `regenerate`
-- `proposal_action` — actions: `list`, `show`, `create`, `validate`, `approve`, `reject`, `start`
-- `reg_action` — actions: `list`, `show`, `create`, `update`, `delete` (implementation-specific)
+- `gates_action` — actions: `list`, `show`, `generate`, `validate`, `start`, `complete`, `regenerate`, `cancel`, `defer`
+- `proposal_action` — actions: `list`, `show`, `create`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`
+- `reg_action` — actions: `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate`
 
 ### Call shape
 

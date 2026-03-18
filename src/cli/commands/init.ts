@@ -10,10 +10,15 @@ import { logger } from '../../utils/logger.js'
 import { createProjectStructure } from '../../scaffold/index.js'
 import { RequirementGenerator } from '../../generation/requirement-generator.js'
 import { generateGates } from '../../core/gate-generator.js'
-import { directoryExists } from '../../utils/file.js'
-import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig } from '../../utils/config.js'
+import { directoryExists, fileExists } from '../../utils/file.js'
+import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig, getDefaultProject, saveProject, getProjectPath, readProject } from '../../utils/config.js'
+import type { ProjectGate } from '../../utils/config.js'
+import { shortHash } from '../../utils/hash.js'
 import { isZenoSubmodule, addZenoSubmodule } from '../../utils/git.js'
-import { resolve } from 'node:path'
+import { generateAgentsMD } from '../../generation/agents-generator.js'
+import { writeAgentsMD } from '../../generation/agents-writer.js'
+import { writeTerminologyMD } from '../../generation/terminology-writer.js'
+import { resolve, join } from 'node:path'
 
 /**
  * Validate project name
@@ -81,18 +86,69 @@ async function runInitWorkflow(
   }
   await saveConfig(config, projectRoot)
 
-  // 3. Generate project requirements
+  // 3. Create project.json if it doesn't exist
+  const projectJsonPath = getProjectPath(projectRoot)
+  if (!fileExists(projectJsonPath)) {
+    logger.info('Creating project.json...')
+    const defaultProject = getDefaultProject(projectName, projectStatement)
+    await saveProject(defaultProject, projectRoot)
+    createdPaths.push('zeno/.zeno/project.json')
+  }
+
+  // 4. Generate AGENTS.md and TERMINOLOGY.md
+  logger.info('Generating AGENTS.md...')
+  const zenoDir = join(projectRoot, 'zeno')
+  const agentsContent = generateAgentsMD(config)
+  await writeAgentsMD(agentsContent, zenoDir)
+
+  logger.info('Generating TERMINOLOGY.md...')
+  await writeTerminologyMD(projectName, zenoDir)
+
+  // 4. Generate project requirements
   logger.info('Generating project requirements...')
   const reqGen = new RequirementGenerator()
+
+  // 4a. Extract requirements from spec files already present in the project root
+  const fileReqs = await reqGen.generateFromProjectFiles(projectRoot)
+  if (fileReqs.length > 0) {
+    logger.info(`Extracted ${fileReqs.length.toString()} requirements from existing project files`)
+  }
+
+  // 4b. Extract requirements from the project statement
   const requirements = reqGen.generateFromProjectStatement(projectStatement)
   logger.info(`Generated ${requirements.length.toString()} project requirements`)
 
-  // 4. Generate gates
-  logger.info('Generating project gates...')
-  const gatesResult = generateGates(projectStatement, undefined, requirements)
-  logger.info(
-    `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
-  )
+  // 5. Generate gates (only when requirements exist — empty description yields no meaningful gates)
+  if (requirements.length > 0) {
+    logger.info('Generating project gates...')
+    const gatesResult = generateGates(projectStatement, undefined, requirements)
+    logger.info(
+      `Generated ${gatesResult.gates.length.toString()} gates with ${gatesResult.totalComplexity.toString()} total complexity`
+    )
+
+    // Persist generated gates to project.json
+    const now = new Date().toISOString()
+    const projectGates: ProjectGate[] = gatesResult.gates.map((gate, idx) => ({
+      id: gate.id,
+      sequence: idx + 1,
+      name: gate.name,
+      hash: shortHash(`${gate.id}:${gate.name}:${gate.description}`),
+      status: 'pending' as const,
+      goal: gate.objectives[0]?.description ?? gate.description,
+      estimatedComplexity: gate.estimatedComplexity.toString(),
+      milestones: gate.milestones,
+      createdAt: now,
+      completedAt: null,
+    }))
+    const project = await readProject(projectRoot)
+    project.gates = projectGates
+    project.project.totalGatesPlanned = projectGates.length
+    project.lastUpdated = now
+    await saveProject(project, projectRoot)
+    logger.info(`Saved ${projectGates.length.toString()} gates to project.json`)
+  } else {
+    logger.info('Skipping gate generation: provide a detailed project description to generate gates')
+  }
 
   logger.info('Project initialized successfully!')
   logger.info('')

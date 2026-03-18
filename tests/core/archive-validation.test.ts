@@ -18,6 +18,7 @@ describe('archive-validation', () => {
     // mock getZenoDir to point to tempDir
     vi.doMock('../../src/utils/config.js', () => ({
       getZenoDir: () => join(tempDir, 'zeno', '.zeno'),
+      getWorkspaceRoot: () => tempDir,
       getProjectRoot: () => tempDir,
       getZenoConfig: vi.fn(),
       loadConfig: vi.fn(),

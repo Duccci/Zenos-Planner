@@ -13,6 +13,7 @@ import { formatError, isZenoError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
 import { initializeDatabase } from '../storage/database.js'
 import { getGlobalRegistry } from '../integration/function-implementations.js'
+import { findProjectRoot, getWorkspaceRoot } from '../utils/config.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -90,14 +91,17 @@ export async function main(): Promise<void> {
   try {
     const program = await createProgram()
 
-    // Initialize database (creates tables and runs migrations if needed)
-    // Only sync proposals in production (skip during tests to prevent side effects)
-    const shouldSyncProposals = process.env['NODE_ENV'] !== 'test'
-    await initializeDatabase(process.cwd(), { syncProposals: shouldSyncProposals, syncRequirements: shouldSyncProposals, syncGates: shouldSyncProposals })
-
-    // Initialize function registry (enables all Zeno operations)
-    getGlobalRegistry()
-    logger.debug('Function registry initialized')
+    // Initialize database and function registry only when inside a Zeno project.
+    // Using findProjectRoot (not raw process.cwd()) prevents mkdirSync from
+    // creating a spurious zeno/zeno/.zeno directory when the CLI is invoked from
+    // inside the zeno/ subdirectory of an existing project.
+    const projectRoot = findProjectRoot(getWorkspaceRoot())
+    if (projectRoot) {
+      const shouldSyncProposals = process.env['NODE_ENV'] !== 'test'
+      await initializeDatabase(projectRoot, { syncProposals: shouldSyncProposals, syncRequirements: shouldSyncProposals, syncGates: shouldSyncProposals })
+      getGlobalRegistry()
+      logger.debug('Function registry initialized')
+    }
 
     // Parse arguments
     await program.parseAsync(process.argv)

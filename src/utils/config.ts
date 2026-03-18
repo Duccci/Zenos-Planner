@@ -8,7 +8,7 @@
 import { z } from 'zod'
 import type { ComplexityThresholds } from '../generation/diagram-types.js'
 import { dirname, join } from 'node:path'
-import { readJsonFile, writeJsonFile, fileExists, directoryExists, normalizePath } from './file.js'
+import { readJsonFile, writeJsonFile, fileExists, normalizePath } from './file.js'
 import { ConfigError } from './errors.js'
 
 /**
@@ -282,13 +282,15 @@ export function getConfigPath(projectRoot: string = process.cwd()): string {
 export function findProjectRoot(startDir: string = process.cwd()): string | null {
   let currentDir = normalizePath(startDir)
 
-  // Traverse up until we either find a .zeno directory or reach the filesystem root.
+  // Traverse up until we find a genuine Zeno project root or reach the filesystem root.
+  // We verify by checking for the config.json file (not just the directory) to avoid
+  // false positives from empty or spurious zeno/.zeno directories.
   // Using dirname() termination (parent === currentDir) is cross-platform and handles
   // both Unix '/' roots and Windows drive roots (e.g. 'C:/') without platform detection.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
-    const zenoDir = join(currentDir, ZENO_DIR)
-    if (directoryExists(zenoDir)) {
+    const configFile = join(currentDir, ZENO_DIR, CONFIG_FILE)
+    if (fileExists(configFile)) {
       return currentDir
     }
     const parent = normalizePath(dirname(currentDir))
@@ -343,6 +345,23 @@ export function getDefaultConfig(projectName: string, projectStatement?: string)
       cli: 'copilot',
       invocationMode: 'acp',
     },
+  }
+}
+
+/**
+ * Build an empty Project object suitable for writing to zeno/.zeno/project.json on init.
+ */
+export function getDefaultProject(projectName: string, projectStatement: string): Project {
+  return {
+    project: {
+      name: projectName,
+      version: '0.1.0',
+      projectStatement,
+      totalGatesPlanned: 0,
+    },
+    gates: [],
+    lastUpdated: new Date().toISOString(),
+    status: 'awaiting_review',
   }
 }
 

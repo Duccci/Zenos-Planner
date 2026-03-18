@@ -105,9 +105,10 @@ describe('config utilities', () => {
   })
 
   describe('findProjectRoot', () => {
-    it('finds project root with zeno/.zeno directory', async () => {
+    it('finds project root with zeno/.zeno/config.json', async () => {
       const zenoDir = join(testDir, 'zeno', '.zeno')
       await mkdir(zenoDir, { recursive: true })
+      await writeFile(join(zenoDir, 'config.json'), JSON.stringify({ projectName: 'Test' }), 'utf-8')
 
       const result = findProjectRoot(testDir)
       expect(result).toBe(testDir.replace(/\\/g, '/'))
@@ -118,11 +119,20 @@ describe('config utilities', () => {
       expect(result).toBeNull()
     })
 
+    it('returns null when zeno/.zeno exists but has no config.json', async () => {
+      const zenoDir = join(testDir, 'zeno', '.zeno')
+      await mkdir(zenoDir, { recursive: true })
+      // directory exists but no config.json
+      const result = findProjectRoot(testDir)
+      expect(result).toBeNull()
+    })
+
     it('finds root from subdirectory', async () => {
       const zenoDir = join(testDir, 'zeno', '.zeno')
       const subDir = join(testDir, 'src', 'utils')
       await mkdir(zenoDir, { recursive: true })
       await mkdir(subDir, { recursive: true })
+      await writeFile(join(zenoDir, 'config.json'), JSON.stringify({ projectName: 'Test' }), 'utf-8')
 
       const result = findProjectRoot(subDir)
       expect(result).toBe(testDir.replace(/\\/g, '/'))

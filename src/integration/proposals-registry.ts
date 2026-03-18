@@ -345,7 +345,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         validated.gateId = resolvedGateIdForCreate
         try {
           const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
-          const overview = await readProjectOverview()
+          const overview = await readProjectOverview(getWorkspaceRoot())
           const gateExists = getGatesFromOverview(overview).some((g) => g.id === validated.gateId)
           if (!gateExists) {
             warnings.push(`Gate ${validated.gateId} not found in project overview`)
@@ -1008,7 +1008,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         if (process.env['ZENO_SKIP_SHELL_CHECKS'] !== '1') {
           try {
             const { ShellValidationRunner } = await import('../core/shell-validation-runner.js')
-            const runner = new ShellValidationRunner(process.cwd())
+            const runner = new ShellValidationRunner(getWorkspaceRoot())
             const report = await runner.run()
 
             // Extract metrics from validation report

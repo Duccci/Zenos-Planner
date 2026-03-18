@@ -219,15 +219,17 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-#### gates_action: create
+#### gates_action: generate (explicit-fields path)
 
-**Description:** Create a new gate with objectives, requirements, and dependencies.
+> **Note:** Gate creation uses `action: "generate"` with explicit fields (`name` + `objectives`) to create a gate directly without AI decomposition. The handler detects explicit fields and routes to the creation path automatically.
+
+**Description:** Create a new gate directly with objectives, requirements, and dependencies.
 
 **Input Schema:**
 
 ```json
 {
-  "action": "create",
+  "action": "generate",
   "gateId": "gate-03",
   "name": "API Layer",
   "type": "feature",
@@ -298,15 +300,26 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 #### gates_action: generate
 
-**Description:** Auto-generate gates from requirements and project structure.
+**Description:** Create or generate gates. Supports two paths:
 
-**Input Schema:**
+1. **Explicit-fields path** — Supply `name` + `objectives` to create a gate directly (no AI decomposition). See [gates_action: generate (explicit-fields path)](#gates_action-generate-explicit-fields-path).
+2. **AI decomposition path** — Omit `name`/`objectives` and supply `preReview` (with `phase="generate"`) to auto-generate gates from PRD + requirements.
+
+**Input Schema (AI decomposition path):**
 
 ```json
 {
   "action": "generate",
-  "mode": "new",
-  "anchorGateId": "gate-02"
+  "preReview": {
+    "phase": "generate",
+    "openQuestionsResolved": true,
+    "questionsFound": [],
+    "gateReviewed": true,
+    "requirementsVerified": true,
+    "vagueRequirements": [],
+    "assumptionsDocumented": [],
+    "blockersIdentified": []
+  }
 }
 
 ```
@@ -314,10 +327,12 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | Field | Type | Required | Description |
 | ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"generate"` |
+| `preReview` | object | yes (AI path) | Pre-work review evidence with `phase="generate"`. Required when `name`/`objectives` are not provided. |
 | `mode` | enum | no | Generation mode (new, rebaseline, single); default "new" |
 | `anchorGateId` | string | no | Gate to anchor generation from |
 | `templateName` | string | no | Template name; default "gate-prd-template" |
 | `requirementsPerGate` | number | no | Max requirements per gate; default 5 |
+| `phases` | array | no | Delivery phase labels `(number \| string)[]`, e.g. `[1, "MVP"]` |
 
 **Validators Executed:**
 
@@ -1167,7 +1182,9 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
-#### proposal_action: create
+#### proposal_action: create (via generate)
+
+> **Note:** `create` is not a standalone action value. Use `action: "generate"` with explicit fields (`title` + `tasks`) to create a proposal directly. For solitary proposals, add `solitary: true`.
 
 **Description:** Create a new proposal for a gate from requirements.
 
@@ -1246,14 +1263,28 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 #### proposal_action: generate
 
-**Description:** Auto-generate a proposal from a gate's requirements.
+**Description:** Create or generate proposals. Supports three paths:
 
-**Input Schema:**
+1. **Explicit-fields path** — Supply `title` + `tasks` to create a proposal directly. Optionally include `gateId` for gate-tied or `solitary: true` for standalone. See [proposal_action: create (via generate)](#proposal_action-create-via-generate).
+2. **Gate-tied AI path** — Supply `gateId` + `preReview` (with `phase="generate"`) to auto-decompose the gate PRD into proposals.
+3. **Solitary path** — Supply `solitary: true` (no `gateId`) to create a standalone proposal not tied to any gate.
+
+**Input Schema (gate-tied AI path):**
 
 ```json
 {
   "action": "generate",
-  "gateId": "gate-03"
+  "gateId": "gate-03",
+  "preReview": {
+    "phase": "generate",
+    "openQuestionsResolved": true,
+    "questionsFound": [],
+    "gateReviewed": true,
+    "requirementsVerified": true,
+    "vagueRequirements": [],
+    "assumptionsDocumented": [],
+    "blockersIdentified": []
+  }
 }
 
 ```
@@ -1261,7 +1292,11 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 | Field | Type | Required | Description |
 | ----- | ---- | -------- | ----------- |
 | `action` | enum | yes | Must be `"generate"` |
-| `gateId` | string | yes | Gate ID to generate proposal from |
+| `gateId` | string | conditional | Gate ID for gate-tied proposals (required for AI decomposition path) |
+| `solitary` | boolean | conditional | Set `true` for standalone proposals not tied to a gate |
+| `preReview` | object | yes (AI path) | Pre-work review evidence with `phase="generate"`. Required for AI decomposition path. |
+| `title` | string | conditional | Proposal title (required for explicit-fields path) |
+| `tasks` | array | conditional | Implementation tasks (required for explicit-fields path) |
 
 **Validators Executed:**
 
@@ -1608,6 +1643,24 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 - `INVALID_TRANSFER` (409) — Transfer violates dependency constraints or creates cycles
 
 - `UNKNOWN_ACTION` (400) — Action not recognized
+
+---
+
+### Additional reg_action Actions
+
+The following actions are also available but less commonly used during normal workflows:
+
+| Action | Required Fields | Description |
+| ------ | --------------- | ----------- |
+| `search` | `query` | Full-text search across requirements; optional: `gateId`, `type` |
+| `inherit` | `hash`, `gateId` | Link existing requirement to a gate for cross-gate reuse |
+| `trace` | `hash` | Full traceability chain — ancestors, children, all referencing gates |
+| `update` | `hash` | Edit mutable fields on a requirement; optional: `title`, `type`, `priority`, `acceptance` |
+| `db_sync` | — | Reconcile proposals DB with disk (upsert new files, remove orphans) |
+| `db_status` | — | Report proposal DB health (orphan count, status breakdown) |
+| `purge_orphans` | — | Delete DB rows with no matching .md file; optional: `gateId`, `solitary`, `dryRun` |
+| `reset_gate` | `gateId` | Wipe and re-sync proposals for one gate from disk |
+| `regenerate` | — | Delete and re-initialise `registry.db` from disk |
 
 ---
 

@@ -8,6 +8,7 @@
 import { extractRequirementCandidates, validateCandidates } from './requirement-patterns.js'
 import { RequirementStorage } from './requirement-storage.js'
 import { Requirement, GenerationResult, RequirementCandidate } from './types.js'
+import { scanProjectFiles } from './project-file-scanner.js'
 
 /**
  * Main requirement generator class
@@ -113,6 +114,40 @@ export class RequirementGenerator {
         },
       }
     }
+  }
+
+  /**
+   * Scan existing project files (README, docs/, specs/, …) for requirement-like
+   * text and store any candidates found as project-level requirements.
+   *
+   * This is called automatically during `zeno init` so that spec files already
+   * present in the repository are recognised as potential requirements without
+   * the user having to paste their content into the project statement.
+   *
+   * @param projectRoot - Root directory of the project to scan (defaults to cwd)
+   * @returns Requirements extracted from discovered spec files
+   */
+  generateFromProjectFiles = async (projectRoot: string = process.cwd()): Promise<Requirement[]> => {
+    const scan = await scanProjectFiles(projectRoot)
+
+    if (scan.files.length === 0 || !scan.combinedText.trim()) {
+      return []
+    }
+
+    const rawCandidates = extractRequirementCandidates(scan.combinedText)
+    const validatedCandidates = validateCandidates(rawCandidates)
+
+    const requirements = this.storage.storeRequirementsFromCandidates(
+      validatedCandidates,
+      'default-project'
+    )
+
+    console.log(
+      `Extracted ${String(requirements.length)} requirements from ${String(scan.files.length)} project file(s): ` +
+      scan.files.map((f) => f.relativePath).join(', ')
+    )
+
+    return requirements
   }
 
   /**

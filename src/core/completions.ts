@@ -12,7 +12,7 @@
  */
 
 import type Database from 'better-sqlite3'
-import { findProjectRoot, loadConfig, saveConfig } from '../utils/config.js'
+import { findProjectRoot, loadConfig, saveConfig, getWorkspaceRoot } from '../utils/config.js'
 import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
@@ -40,12 +40,12 @@ import { WorktreeManager } from './worktree-manager.js'
 
 
 function requireProjectRoot(): string {
-  const root = findProjectRoot(process.cwd())
+  const root = findProjectRoot(getWorkspaceRoot())
   if (!root) {
     throw new ConfigError(
       'Not a Zeno project (missing zeno/.zeno directory)',
       'CONFIG_PROJECT_ROOT_NOT_FOUND',
-      { cwd: process.cwd() }
+      { cwd: getWorkspaceRoot() }
     )
   }
   return root
@@ -782,7 +782,7 @@ export async function regenerateGates(): Promise<void> {
   let recentGateId: string | undefined
 
   try {
-    const overview = await readProjectOverview()
+    const overview = await readProjectOverview(getWorkspaceRoot())
     const completed = getCompletedGates(overview)
     if (completed.length > 0) {
       const last = completed[completed.length - 1]

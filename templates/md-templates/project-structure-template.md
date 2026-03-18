@@ -128,7 +128,7 @@ When adding new capabilities, use these locations:
 | New shared type | `[src-dir]/types/[domain].[ext]` |
 | New test fixture | `tests/fixtures/[factory-or-mock-name].[ext]` |
 | New dev script | `scripts/[script-name].[ext]` (not in build) |
-| New gate PRD | `zeno/gates/gate-NN-[name].md` (via `zeno gates create`) |
+| New gate PRD | `zeno/gates/gate-NN-[name].md` (via `zeno gates generate`) |
 | New proposal | `zeno/proposals/gate-NN/NN-[phase]--[name].md` (via `zeno proposal generate`) |
 | New architecture diagram | `zeno/architecture/[diagram-name].md` (via `zeno arch generate`) |
 

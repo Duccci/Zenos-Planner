@@ -30,12 +30,15 @@ import { GateGenerateOutputSchema } from './workflow-schemas.js'
  * action required for all calls:
  *   list       — list gates; optional: status, skip, take
  *   show       — get gate details; required: gateId (gate hash preferred)
- *   create     — create a new gate; required: gateId, name, type, sequence, objectives; optional: dependencies, description
- *   generate   — generate gates from requirements; required: preReview (enforced by handler); optional: mode, anchorGateId, templateName, requirementsPerGate
+ *   generate   — create or generate gates. Explicit-fields path (name + objectives → creates directly);
+ *                 AI path (preReview required → decomposes from PRD + requirements). Optional: mode, anchorGateId, templateName, requirementsPerGate
+ *   validate   — dry-run quality/structural checks without completing; required: gateId
  *   start      — transition gate to in_progress; required: gateId (gate hash preferred); optional: notes
  *   complete   — mark gate completed; required: gateId (gate hash preferred); optional: completionNotes, approvalDate
  *   regenerate — unified replan: regenerate future gates, or clear+re-render a single gate from template.
  *                 optional: gateId (single-gate mode, gate hash preferred), fromGateId, prdChanged, dryRun, mode
+ *   cancel     — mark gate as cancelled/dropped; required: gateId, confirmed: true; optional: notes
+ *   defer      — move gate to backlog; required: gateId, confirmed: true; optional: notes
  *
  * preReview: required for `generate` action (enforced by handler, not schema).
  */

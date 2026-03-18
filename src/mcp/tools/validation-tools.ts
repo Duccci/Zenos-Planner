@@ -13,16 +13,7 @@ export const validationToolDefinitions = [
       'Unified artifact validator (format/quality/dependency). IMPORTANT: Structure validation is always enforced as part of Zeno. ' +
       'The result includes an `agentReview` field with targeted questions you MUST evaluate using your own judgment — ' +
       'mechanical checks do not substitute for this review. A `passed: true` result is not complete until every agentReview item has been addressed.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        artifactPath: { type: 'string' },
-        artifactHash: { type: 'string' },
-        artifactType: { type: 'string', enum: ['gate', 'proposal', 'architecture'] },
-        outputFormat: { type: 'string', enum: ['text', 'json'] },
-      },
-      required: ['artifactType'],
-    },
+    inputSchema: ArtifactValidateInputSchema,
   },
 ]
 

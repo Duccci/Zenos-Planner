@@ -24,11 +24,22 @@ describe('diagram_action template coverage', () => {
 
   describe('diagram_action: list_template', () => {
     it('should list templates', async () => {
-      mockGetTemplates.mockResolvedValue([{ name: 'gate-prd', path: '/templates/gate.md' }])
+      mockGetTemplates.mockResolvedValue([
+        {
+          name: 'gate-prd-template',
+          shortName: 'gate-prd',
+          path: '/templates/gate-prd-template.md',
+          description: 'Gate PRD template',
+          category: 'markdown',
+        },
+      ])
 
       const result = await handlers['diagram_action']!({ action: 'list_template' })
-      expect(result.isError).toBeUndefined()
+      expect(result.isError).toBeFalsy()
       expect(result.content).toBeDefined()
+      const text = (result.content[0] as any)?.text as string
+      expect(text).toContain('templates')
+      expect(text).toContain('gate-prd')
     })
 
     it('should handle errors', async () => {
@@ -41,10 +52,20 @@ describe('diagram_action template coverage', () => {
 
   describe('diagram_action: get_template', () => {
     it('should get a template by name', async () => {
-      mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
+      mockGetArtifact.mockResolvedValue({
+        name: 'gate-prd',
+        shortName: 'gate-prd',
+        path: '/templates/gate-prd-template.md',
+        description: 'Gate PRD template',
+        category: 'markdown',
+        content: '# Template',
+      })
 
       const result = await handlers['diagram_action']!({ action: 'get_template', name: 'gate-prd' })
-      expect(result.isError).toBeUndefined()
+      expect(result.isError).toBeFalsy()
+      const text = (result.content[0] as any)?.text as string
+      expect(text).toContain('"name"')
+      expect(text).toContain('gate-prd')
     })
 
     it('should return error for missing name', async () => {
@@ -65,27 +86,44 @@ describe('diagram_action template coverage', () => {
     })
 
     it('should include context when requested', async () => {
-      mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
+      mockGetArtifact.mockResolvedValue({
+        name: 'gate-prd',
+        shortName: 'gate-prd',
+        path: '/templates/gate-prd-template.md',
+        description: 'Gate PRD template',
+        category: 'markdown',
+        content: '# Template',
+      })
 
       const result = await handlers['diagram_action']!({
         action: 'get_template',
         name: 'gate-prd',
         includeContext: true,
       })
-      expect(result.isError).toBeUndefined()
-      expect((result.content[0] as any)?.text as string).toContain('Name: gate-prd')
+      expect(result.isError).toBeFalsy()
+      const text = (result.content[0] as any)?.text as string
+      expect(text).toContain('"_context"')
+      expect(text).toContain('retrievedAt')
     })
 
     it('should handle includeContext as string "true"', async () => {
-      mockGetArtifact.mockResolvedValue({ name: 'gate-prd', content: '# Template' })
+      mockGetArtifact.mockResolvedValue({
+        name: 'gate-prd',
+        shortName: 'gate-prd',
+        path: '/templates/gate-prd-template.md',
+        description: 'Gate PRD template',
+        category: 'markdown',
+        content: '# Template',
+      })
 
       const result = await handlers['diagram_action']!({
         action: 'get_template',
         name: 'gate-prd',
         includeContext: 'true',
       })
-      expect(result.isError).toBeUndefined()
-      expect((result.content[0] as any)?.text as string).toContain('Name: gate-prd')
+      expect(result.isError).toBeFalsy()
+      const text = (result.content[0] as any)?.text as string
+      expect(text).toContain('"_context"')
     })
 
     it('should handle get errors', async () => {

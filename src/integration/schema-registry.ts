@@ -5,7 +5,7 @@
  * to keep related operations together.
  *
  * Handles:
- *   - Repository: repos_list, repos_deps, repos_detect, repos_adjust
+ *   - Repository: repos_list, repos_deps, repos_detect, repos_adjust, repos_add, repos_remove
  *   - Architecture: arch_generate, arch_show
  *   - Analysis: analyze, show, metrics, git_trace
  */
@@ -15,7 +15,7 @@ import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 import { parseCommitsForHashes } from '../utils/git.js'
 import { getRepoDependencyGraph, detectCircularDependencies } from '../storage/repository-dependencies.js'
-import { listRepositories } from '../storage/repository-storage.js'
+import { listRepositories, saveRepository, deleteRepository, getRepositoryByHash } from '../storage/repository-storage.js'
 import { detectRepositoryBoundaries } from '../core/boundary-detection.js'
 import { shortHash } from '../utils/hash.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
@@ -231,6 +231,47 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
         reason: z.string().optional(),
       })).optional(),
     })
+  })
+
+  registry.register('repos_add', (params) => {
+    const { name, type, path } = params as { name: string; type: string; path: string }
+    const projectRoot = getWorkspaceRoot()
+    const validTypes = new Set(['main', 'service', 'library', 'tool', 'app'])
+    const repoType = (validTypes.has(type) ? type : 'service') as 'main' | 'service' | 'library' | 'tool' | 'app'
+    const hash = shortHash(`${name}${path}`)
+    saveRepository({ hash, name, type: repoType, path }, projectRoot)
+    return { id: hash, name, type: repoType, path }
+  }, {
+    description: 'Register a new repository manually',
+    parameters: [
+      { name: 'name', type: 'string', description: 'Repository name', required: true },
+      { name: 'type', type: 'string', description: 'Repository type (service, library, tool, app, main)', required: true },
+      { name: 'path', type: 'string', description: 'Repository root path', required: true },
+    ],
+    returnType: 'ReposAddOutput',
+    schema: z.object({
+      name: z.string(),
+      type: z.enum(['main', 'service', 'library', 'tool', 'app']),
+      path: z.string(),
+    })
+  })
+
+  registry.register('repos_remove', (params) => {
+    const { repositoryId } = params as { repositoryId: string }
+    const projectRoot = getWorkspaceRoot()
+    const existing = getRepositoryByHash(repositoryId, projectRoot)
+    if (!existing) {
+      return { removed: false, repositoryId }
+    }
+    deleteRepository(repositoryId, projectRoot)
+    return { removed: true, repositoryId }
+  }, {
+    description: 'Unregister a repository by its hash ID',
+    parameters: [
+      { name: 'repositoryId', type: 'string', description: 'Repository hash ID to remove', required: true },
+    ],
+    returnType: 'ReposRemoveOutput',
+    schema: z.object({ repositoryId: z.string() })
   })
 }
 

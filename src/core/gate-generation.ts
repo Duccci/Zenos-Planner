@@ -95,6 +95,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     let gates: {
       id: string
       name: string
+      type: string
       status: string
       requirementsCount: number
       dependencies: string[]
