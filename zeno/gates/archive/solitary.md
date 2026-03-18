@@ -111,3 +111,15 @@ Eliminated 15+ instances of duplicated logic across CLI, core, integration, MCP,
 **Completed**: 2026-02-17
 
 Implemented a unified artifact validator (MCP tool `artifact_validate`) with a lightweight ArtifactValidationService and MCP handler. Performs format/structure checks across gates, proposals, and architecture diagrams (section headers, status fields, diagram content detection). Quality and dependency validation are handled by dedicated validators (`quality-validator`, `dependency-validator`). Added initial test stubs and type-check fixes.
+
+### Multi-Language Support via Tree-sitter (#b5553461)
+
+**Completed**: 2026-03-17
+
+Extended Zeno's static analysis engine to support non-JS/TS languages (Python, Rust, Go, C/C++) via an optional tree-sitter backend. Added `LanguageBackend` and `TreeSitterParseResult` types, created `tree-sitter-parser.ts` for lazy grammar loading, created `tree-sitter-metrics.ts` for CST-based LOC and branch-node complexity, and integrated both into `CodeAnalyzer` alongside the existing Babel path. Added 21 new tests (8 parser, 13 metrics) plus 2 integration tests, fixture files for all four target languages, and a README section. Addresses risk O-05 (multi-language analysis gap). 2,926 total tests passing, 0 TypeScript errors.
+
+### zeno doctor: Local Setup Diagnostics Command (#71586e28)
+
+**Completed**: 2026-03-17
+
+Implemented `zeno doctor` CLI command that audits the local environment for all prerequisites required by Zeno's Planner — Node.js version (≥24 required, ≥20 warn), Git version (≥2.0), Graphviz `dot` binary, and better-sqlite3 native binding. Command renders a colored table (Check / Status / Detail / Fix columns) and supports a `--json` flag for scripting and CI use; exits 1 when any check fails. All checks use `spawnSync` with a 3s timeout. Addresses R-02 (Graphviz silent failure), R-03 (better-sqlite3 native compilation), and R-10 (single-developer setup friction). 25 unit tests and 5 integration smoke tests, all passing.
