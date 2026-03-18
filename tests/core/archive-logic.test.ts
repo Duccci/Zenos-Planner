@@ -348,6 +348,38 @@ describe('archiveProposal', () => {
     expect(performGitCommitAndPush).toHaveBeenCalled();
   });
 
+  it('consolidates solitary proposal into solitary.md, not proposals/archive/', async () => {
+    vi.mocked(validateProposalReady).mockResolvedValue({
+      type: 'solitary',
+      title: 'Solitary Consolidation Test',
+      filePath: '/project/zeno/proposals/solitary/p-consol.md',
+    });
+    vi.mocked(existsSync).mockReturnValue(true);
+    vi.mocked(readFile).mockResolvedValue('# Proposal: My Feature\n\n## Summary\n\nDid the thing.\n');
+
+    const result = await archiveProposal('p-consol');
+
+    // location must point to solitary.md, not proposals/archive/
+    expect(result.location).toContain('solitary.md');
+    expect(result.location).not.toContain('proposals/archive');
+
+    // writeFile must be called with solitary.md as the destination
+    const writeCall = vi.mocked(writeFile).mock.calls.find(([p]) =>
+      typeof p === 'string' && p.includes('solitary.md')
+    );
+    expect(writeCall).toBeDefined();
+
+    // The appended content must include the hash and summary
+    const writtenContent = writeCall?.[1] as string;
+    expect(writtenContent).toContain('#p-consol');
+    expect(writtenContent).toContain('Did the thing.');
+
+    // Commit message must reference solitary.md consolidation
+    const commitCall = vi.mocked(performGitCommitAndPush).mock.calls[0]?.[0];
+    expect(commitCall?.commitMessage).toContain('Consolidated into');
+    expect(commitCall?.commitMessage).toContain('solitary.md');
+  });
+
   it('archives a gate-tied proposal', async () => {
     vi.mocked(validateProposalReady).mockResolvedValue({
       type: 'gate-tied',
@@ -375,16 +407,17 @@ describe('archiveProposal', () => {
     await expect(archiveProposal('p-missing')).rejects.toThrow('not found');
   });
 
-  it('removes duplicate archive files before writing', async () => {
+  it('removes duplicate archive files before writing (gate-tied proposals)', async () => {
     vi.mocked(validateProposalReady).mockResolvedValue({
-      type: 'solitary',
+      type: 'gate-tied',
       title: 'Proposal',
-      filePath: '/project/zeno/proposals/solitary/p-hash.md',
+      gateId: 'gate-01',
+      filePath: '/project/zeno/proposals/gate-01/p-hash.md',
     });
-    vi.mocked(readdir).mockResolvedValue(['p-hash.md', 'p-hash-old.md'] as any);
+    vi.mocked(readdirSync).mockReturnValue(['p-hash.md', 'p-hash-old.md'] as any);
     vi.mocked(existsSync).mockReturnValue(true);
 
-    // Mock fs.unlink via dynamic import (used in archiveProposal)
+    // Mock fs.unlink via dynamic import (used in archiveProposal for duplicate removal)
     const fsImportSpy = vi.spyOn(await import('node:fs/promises'), 'unlink').mockResolvedValue(undefined as any);
 
     const result = await archiveProposal('p-hash');

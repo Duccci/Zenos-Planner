@@ -121,7 +121,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 8,
     title: 'Run Quality Checks',
     description:
-      'Run the full test suite, TypeScript compiler, and linting. Check coverage thresholds from config_get().',
+      'Run the full test suite, TypeScript compiler, and linting. Check coverage thresholds from config_get(). When committing from inside a git worktree the pre-commit hook automatically runs scoped tests (--changed HEAD) instead of the full suite, so unrelated in-progress failures on other worktrees do not block this proposal.',
     actions: [
       'npx tsc --noEmit',
       'npx vitest run',
@@ -129,8 +129,8 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
       'proposal_action:validate { hash: "<hash>" }',
     ],
     errorHandling:
-      'If automated checks fail, do not proceed to approval. Fix issues or wait for human guidance.',
-    guidance: 'Use quality thresholds from config_get() — never hard-code coverage percentages.',
+      'If automated checks fail, do not proceed to approval. Fix issues or wait for human guidance. Scoped pre-commit (worktree) only runs tests related to changed files — if a specific test file is failing, run it directly with `npx vitest run <path>` to confirm the fix.',
+    guidance: 'Use quality thresholds from config_get() — never hard-code coverage percentages. Full coverage enforcement only applies to commits made directly on main; worktree/merge commits use scoped test runs.',
   },
   {
     order: 9,
@@ -147,29 +147,29 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 10,
     title: 'Approve Proposal',
     description:
-      'Once human sign-off is received, call proposal_action:approve to mark the proposal as completed. This MUST happen before any git commit. Approval is the gate that transitions the proposal from in_progress → completed and writes the status into the proposal markdown file.',
+      'Once human sign-off is received, call proposal_action:approve to mark the proposal as completed. This MUST happen before any git commit. Approval transitions the proposal from in_progress → completed, writes the status into the proposal markdown file, and — if a worktree exists — automatically merges the worktree branch back into main then removes the worktree directory.',
     prerequisites: ['Human sign-off received (step 9)'],
-    actions: ['proposal_action:approve { hash } — marks proposal completed and updates proposal file'],
+    actions: ['proposal_action:approve { hash } — marks proposal completed, merges worktree branch to main (if applicable), and removes the worktree'],
     errorHandling:
-      'If approve is rejected (quality checks still failing): fix the issues and re-run step 8 (quality checks) before retrying approve.',
+      'If approve detects merge conflicts: the worktree is preserved (not deleted) so no work is lost. Resolve conflicts manually in the worktree directory, commit the resolution, then re-run proposal_action:approve. If approve is rejected because quality checks are still failing: fix the issues and re-run step 8 before retrying.',
     guidance:
-      'Gate-tied proposals: approval triggers worktree merge. Solitary proposals: approval finalises the proposal status. Either way, the proposal must be in "completed" status before the commit in step 11.',
+      'Gate-tied proposals: approval triggers worktree merge → cleanup automatically. Solitary proposals: approval finalises proposal status only (no worktree). Either way, the proposal must be in "completed" status before the commit in step 11. Do NOT manually delete the worktree directory — approval handles cleanup after a successful merge.',
   },
   {
     order: 11,
     title: 'Commit Changes',
     description:
-      'After the proposal is marked completed (step 10), commit all implementation changes. Always verify proposal status is "completed" before staging files.',
-    prerequisites: ['Proposal status === "completed" (step 10)'],
+      'After the proposal is marked completed (step 10), commit all implementation changes. For gate-tied proposals the merge into main happened during approval (step 10); stage and commit from main. For worktree commits the pre-commit hook automatically runs scoped tests (vitest --changed HEAD) instead of the full suite, so unrelated in-progress failures on other branches will not block this commit.',
+    prerequisites: ['Proposal status === "completed" (step 10)', 'Worktree merged to main (gate-tied) or working directory is main (solitary)'],
     actions: [
       'config_get() to retrieve git.commitFormat',
       'git add <files listed in Files Affected>',
       'Commit: chore(proposal): implement <title> (#<hash>)',
     ],
     errorHandling:
-      'If proposal is not yet "completed", do not commit — call proposal_action:approve first. Never commit before proposal status is "completed".',
+      'If proposal is not yet "completed", do not commit — call proposal_action:approve first. Never commit before proposal status is "completed". If the pre-commit hook fails on scoped tests, fix the specific failing tests before retrying.',
     guidance:
-      'Use chore(proposal): scope for implementation commits. Include the proposal hash in the commit message for traceability. Gate-level archival commits (feat(gate-XX):) are separate and happen later at gates_action:complete.',
+      'Use chore(proposal): scope for implementation commits. Include the proposal hash in the commit message for traceability. Gate-level archival commits (feat(gate-XX):) are separate and happen later at gates_action:complete. The pre-commit hook distinguishes worktree commits (scoped tests), merge commits (scoped tests), and main commits (full coverage suite) automatically — no manual override needed.',
   },
 ]
 

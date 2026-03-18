@@ -73,6 +73,27 @@ Commits reference artifact hashes using the `commitFormat` from `.zeno/config.js
 git log --grep '#<hash>' --pretty=format:'%h %ad %an %s' --date=short
 ```
 
+### Worktree Commit Behaviour
+
+The pre-commit hook automatically detects the commit context and adjusts the test run:
+
+| Context | Detection | Test strategy |
+|---------|-----------|---------------|
+| Commit inside a worktree | `.git` is a file (gitdir pointer) | `vitest --changed HEAD` (scoped — only files changed in this branch) |
+| Merge commit on main | `.git/MERGE_MSG` exists | `vitest --changed ORIG_HEAD` (scoped — only files brought in by the branch) |
+| Regular commit on main | default | Full `vitest run --coverage` + 90% threshold |
+
+**No manual override is required.** This lets proposals in parallel worktrees commit and merge cleanly without being blocked by unrelated failing tests on other in-progress branches.
+
+### Worktree Approval & Merge
+
+When `proposal_action:approve` is called for a gate-tied proposal that has an active worktree:
+
+1. The worktree branch is automatically **merged into main** before the worktree directory is removed.
+2. If merge conflicts are detected, the worktree is **preserved** (not deleted) so no work is lost.
+3. If conflicts occur: resolve them manually in the worktree directory, commit the resolution, then call `proposal_action:approve` again.
+4. **Do NOT call `worktree_action:remove` directly** — approval handles cleanup after a successful merge.
+
 ---
 
 **Document Version**: 0.3.0

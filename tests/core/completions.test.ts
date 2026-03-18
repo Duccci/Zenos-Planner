@@ -79,6 +79,14 @@ vi.mock('../../src/utils/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
 }))
 
+vi.mock('../../src/core/worktree-manager.js', () => ({
+  WorktreeManager: vi.fn().mockImplementation(() => ({
+    list: vi.fn().mockResolvedValue([]),
+    merge: vi.fn().mockResolvedValue({}),
+    remove: vi.fn().mockResolvedValue(undefined),
+  })),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
   vi.resetModules()

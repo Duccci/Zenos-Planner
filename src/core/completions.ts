@@ -303,13 +303,23 @@ export async function approveProposal(
     logger.warn(`Failed to update gate objectives for ${proposalHash}: ${String(error)}`)
   }
 
-  // Clean up the worktree associated with this proposal (if any)
+  // Merge worktree branch back to main, then clean up (if a worktree exists for this proposal)
   try {
     const worktreeManager = new WorktreeManager(projectRoot)
-    await worktreeManager.remove(proposalHash, true)
-    logger.debug(`Removed worktree for proposal ${proposalHash}`)
+    const worktrees = await worktreeManager.list()
+    const hasWorktree = worktrees.some((w) => w.proposalHash === proposalHash)
+    if (hasWorktree) {
+      const mergeResult = await worktreeManager.merge(proposalHash, 'main')
+      if (mergeResult.conflicts && mergeResult.conflicts.length > 0) {
+        logger.warn(
+          `Worktree merge conflicts for proposal ${proposalHash}: ${mergeResult.conflicts.join(', ')}. Worktree preserved for manual resolution.`
+        )
+      } else {
+        logger.debug(`Merged and removed worktree for proposal ${proposalHash}`)
+      }
+    }
   } catch (error) {
-    logger.debug(`No worktree to remove for proposal ${proposalHash}: ${String(error)}`)
+    logger.debug(`Worktree cleanup skipped for proposal ${proposalHash}: ${String(error)}`)
   }
 
   // Note: Commits deferred to gate completion (archive phase) for human-in-the-loop oversight.

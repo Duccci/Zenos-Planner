@@ -118,11 +118,13 @@ export class ShellValidationRunner {
       let stderr = ''
 
       try {
-        const proc = spawn(command, args, {
+        const resolvedCommand =
+          process.platform === 'win32' ? `${command}.cmd` : command
+        const proc = spawn(resolvedCommand, args, {
           cwd: this.projectRoot,
           timeout: 30000, // 30 second timeout per tool
           stdio: ['pipe', 'pipe', 'pipe'],
-          shell: process.platform === 'win32',
+          shell: false,
         })
 
         // Accumulate stdout

@@ -1,3 +1,4 @@
+import { execSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
@@ -10,7 +11,16 @@ if (commitType === 'merge' || commitType === 'squash') {
   process.exit(0)
 }
 
-const sentinelPath = path.join(process.cwd(), '.git', '.pre-commit-passed')
+// Resolve the real git directory (works in worktrees where .git is a file, not a dir).
+const gitDir = (() => {
+  try {
+    const d = execSync('git rev-parse --git-dir', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
+    return path.isAbsolute(d) ? d : path.join(process.cwd(), d)
+  } catch {
+    return path.join(process.cwd(), '.git')
+  }
+})()
+const sentinelPath = path.join(gitDir, '.pre-commit-passed')
 
 if (!fs.existsSync(sentinelPath)) {
   console.error('')

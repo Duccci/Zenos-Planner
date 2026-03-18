@@ -69,8 +69,6 @@ describe('Scaffolding', () => {
       expect(await directoryExists(join(testDir, 'zeno/gates'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/architecture'))).toBe(true)
       expect(await directoryExists(join(testDir, 'zeno/proposals'))).toBe(true)
-      expect(await directoryExists(join(testDir, 'zeno/requirements'))).toBe(true)
-      expect(await directoryExists(join(testDir, 'zeno/subprojects'))).toBe(true)
     })
 
     it('should create initial config.json', async () => {

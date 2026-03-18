@@ -251,10 +251,41 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`)
 // ============================================================================
 
 /**
+ * Append a consolidated entry for a solitary proposal to the solitary gate registry.
+ *
+ * Solitary proposals consolidate into `zeno/gates/archive/solitary.md` (not moved to
+ * the archive directory). Extracts title and summary from proposal content and appends
+ * a `### Title (#hash)` entry.
+ *
+ * @returns Absolute path to solitary.md
+ */
+async function appendToSolitaryGate(
+  proposalContent: string,
+  proposalHash: string,
+  completionDate: string
+): Promise<string> {
+  // Extract title: strip leading "Proposal: " prefix if present
+  const titleMatch = /^#\s+(?:Proposal:\s*)?(.+)/m.exec(proposalContent)
+  const title = titleMatch?.[1]?.trim() ?? proposalHash
+
+  // Extract summary section
+  const summaryMatch = /## Summary\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/.exec(proposalContent)
+  const summary = summaryMatch?.[1]?.trim() ?? 'No summary available.'
+
+  const solitaryGatePath = join(getZenoDir(), '..', 'gates', 'archive', 'solitary.md')
+  const existing = await readFile(solitaryGatePath, 'utf-8')
+  const entry = `\n### ${title} (#${proposalHash})\n\n**Completed**: ${completionDate}\n\n${summary}\n`
+  await writeFile(solitaryGatePath, existing + entry)
+
+  return solitaryGatePath
+}
+
+/**
  * Archive a completed proposal
  *
  * Moves proposal from active location to archive and updates metadata.
- * Handles both gate-tied and solitary proposals.
+ * Solitary proposals consolidate into the solitary gate registry.
+ * Gate-tied proposals move to the proposals archive directory.
  */
 export async function archiveProposal(
   proposalHash: string,
@@ -280,15 +311,20 @@ export async function archiveProposal(
   // Step 3: Read proposal content
   const content = await readFile(sourcePath, 'utf-8')
 
-  // Step 4: Create archive directory if needed
-  await mkdir(archiveDir, { recursive: true })
-
-  // Step 5: Prepare archival metadata
-  const archivePath = join(archiveDir, `${proposalHash}.md`)
   const archivalDate = new Date().toISOString().split('T')[0] ?? new Date().toLocaleDateString()
 
-  // Add archival metadata to the proposal
-  const archiveMetadata = `
+  // Steps 4–7: Route to the appropriate archive store
+  let archivePath: string
+  if (proposalInfo.type === 'solitary') {
+    // Solitary proposals consolidate into the solitary gate registry (not moved to archive dir)
+    archivePath = await appendToSolitaryGate(content, proposalHash, archivalDate)
+    logger.info(`Consolidated solitary proposal ${proposalHash} into ${archivePath}`)
+  } else {
+    // Step 4: Create archive directory if needed
+    await mkdir(archiveDir, { recursive: true })
+
+    // Step 5: Prepare archival metadata
+    const archiveMetadata = `
 
 ---
 
@@ -297,27 +333,29 @@ export async function archiveProposal(
 - Archive Location: zeno/proposals/archive/
 ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}`
 
-  const updatedContent = content + archiveMetadata
+    const updatedContent = content + archiveMetadata
 
-  // Step 6: Check for pre-existing archives with same hash to prevent duplicates
-  const archiveFiles = readdirSync(archiveDir).filter((f) => f.startsWith(proposalHash))
-  const duplicates = archiveFiles.filter((f) => f !== `${proposalHash}.md`)
-  if (duplicates.length > 0) {
-    logger.warn(`Detected duplicate archive files for hash ${proposalHash}:`, duplicates)
-    // Remove duplicates before writing the canonical version
-    for (const dup of duplicates) {
-      const dupPath = join(archiveDir, dup)
-      try {
-        await import('node:fs/promises').then((fs) => fs.unlink(dupPath))
-        logger.info(`Removed duplicate archive file: ${dup}`)
-      } catch (err) {
-        logger.warn(`Failed to remove duplicate: ${dup}`, err)
+    // Step 6: Check for pre-existing archives with same hash to prevent duplicates
+    const archiveFiles = readdirSync(archiveDir).filter((f) => f.startsWith(proposalHash))
+    const duplicates = archiveFiles.filter((f) => f !== `${proposalHash}.md`)
+    if (duplicates.length > 0) {
+      logger.warn(`Detected duplicate archive files for hash ${proposalHash}:`, duplicates)
+      // Remove duplicates before writing the canonical version
+      for (const dup of duplicates) {
+        const dupPath = join(archiveDir, dup)
+        try {
+          await import('node:fs/promises').then((fs) => fs.unlink(dupPath))
+          logger.info(`Removed duplicate archive file: ${dup}`)
+        } catch (err) {
+          logger.warn(`Failed to remove duplicate: ${dup}`, err)
+        }
       }
     }
-  }
 
-  // Step 7: Write to archive
-  await writeFile(archivePath, updatedContent)
+    // Step 7: Write to archive
+    archivePath = join(archiveDir, `${proposalHash}.md`)
+    await writeFile(archivePath, updatedContent)
+  }
 
   // Step 7.5: Delete source proposal file (content is now in the archive)
   try {
@@ -355,11 +393,17 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
   const reorderNote = reorderedPaths.length > 0
     ? `\n- Reordered ${String(reorderedPaths.length / 2)} remaining solitary proposal(s)`
     : ''
+  const archiveDestination = proposalInfo.type === 'solitary'
+    ? 'zeno/gates/archive/solitary.md'
+    : 'zeno/proposals/archive/'
+  const archiveAction = proposalInfo.type === 'solitary'
+    ? 'Consolidated into'
+    : `Moved from zeno/proposals/${proposalInfo.gateId ?? 'solitary'}/ to`
   const commitMessage = stripAnsi(
     `chore(proposal): archive ${proposalHash} - ${proposalInfo.title}
 
-- Moved from zeno/proposals/${proposalInfo.gateId ?? 'solitary'}/ to zeno/proposals/archive/
-- Added archival metadata${reorderNote}${completionNotes !== undefined ? `\n- Completion Notes: ${completionNotes}` : ''}`
+- ${archiveAction} ${archiveDestination}
+- Removed source proposal file${reorderNote}${completionNotes !== undefined ? `\n- Completion Notes: ${completionNotes}` : ''}`
   )
 
   await performGitCommitAndPush({

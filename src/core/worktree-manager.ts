@@ -140,14 +140,14 @@ export class WorktreeManager {
     if (strategy === 'rebase') {
       await git.raw(['checkout', targetBranch])
       await git.raw(['rebase', info.branch])
-      this.worktrees.delete(proposalHash)
+      await this.remove(proposalHash, true)
       return {}
     }
 
     if (strategy === 'squash') {
       await git.raw(['checkout', targetBranch])
       await git.raw(['merge', '--squash', info.branch])
-      this.worktrees.delete(proposalHash)
+      await this.remove(proposalHash, true)
       return {}
     }
 
@@ -155,7 +155,7 @@ export class WorktreeManager {
     const result = await git.merge({ from: info.branch, into: targetBranch } as Parameters<typeof git.merge>[0])
     const mergeResult = result as unknown as { ok: boolean; conflicts?: string[] }
     if (mergeResult.ok) {
-      this.worktrees.delete(proposalHash)
+      await this.remove(proposalHash, true)
       return {}
     }
 
