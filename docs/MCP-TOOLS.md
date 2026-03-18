@@ -1,7 +1,7 @@
 # MCP Tools Reference Documentation
 
 **Project:** Zeno's Planner
-**Last Updated:** February 22, 2026
+**Last Updated:** March 18, 2026
 **Purpose:** Authoritative reference for all Model Context Protocol (MCP) tools, their input/output schemas, validators, preconditions, and error codes.
 
 ---
@@ -2178,18 +2178,43 @@ See the architecture document for preconditions and postconditions on each trans
 
 ---
 
+## Known Gaps (as of 2026-03-18)
+
+The following actions and tools are implemented but not yet fully documented in this reference.
+A dedicated documentation gate will address these.
+
+### Undocumented actions on existing tools
+
+| Tool | Action | Notes |
+|------|--------|-------|
+| `gates_action` | `validate` | Dry-run structural and quality checks for a gate before start |
+| `proposal_action` | `cancel` | Mark a proposal as cancelled; requires `confirmed: true` |
+| `proposal_action` | `defer` | Move a proposal to backlog; requires `confirmed: true` |
+| `reg_action` | `search` | Full-text search across requirements |
+| `reg_action` | `update` | Update mutable fields (title, type, priority, acceptance criteria) |
+| `reg_action` | `inherit` | Inherit project-level requirements into a gate |
+| `reg_action` | `trace` | Trace requirement to git commits |
+| `reg_action` | `regenerate` | Regenerate requirements for project/gate |
+
+### Tools not yet documented
+
+| Tool | Description |
+|------|-------------|
+| `worktree_action` | Manage isolated git worktrees for proposals. Actions: `list`, `remove`, `prune`, `merge` |
+| `diagram_action` | Generate and retrieve architecture diagrams. Actions: `catalogue`, `select`, `generate`, `show`, `render`, `list_template`, `get_template` |
+
+---
+
 ## Related Documentation
 
 - [Architecture: MCP Workflows](../zeno/architecture/mcp-workflows.md) — State machines, preconditions, postconditions
 
-- [Zeno's Planner Project PRD](../zeno/PROJECT_PRD.md) — System overview and goals
+- [Zeno's Planner Project PRD](../zeno/overview/PROJECT_PRD.md) — System overview and goals
 
 - [MCP Setup & Integration](MCP-SETUP.md) — Deployment and server setup
-
-- [zeno-apply Skill](../.claude/skills/zeno-apply/SKILL.md) — How to implement proposals using MCP tools
 
 ---
 
 **Document Version:** 1.0.0
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-03-18
 **Status:** Active - Authoritative Reference

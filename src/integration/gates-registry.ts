@@ -25,91 +25,154 @@ export function registerGatesOps(registry: FunctionRegistry): void {
   registry.register(
     'gates_list',
     async () => {
-      const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
+      const { readdirSync, readFileSync } = await import('node:fs')
+      const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
+      const gatesDir = join(getZenoDir(getWorkspaceRoot()), '..', 'gates')
 
-      let summaries: Awaited<ReturnType<typeof getGatesFromOverview>>
-
-      try {
-        const overview = await readProjectOverview(getWorkspaceRoot())
-        summaries = getGatesFromOverview(overview)
-      } catch {
-        // project.json unavailable — fall back to archive files
-        const archivePath = join(getZenoDir(getWorkspaceRoot()), '..', 'gates', 'archive')
-        const archivedGateList = listArchivedGates(archivePath)
-        summaries = archivedGateList.map((g, index) => ({
-          id: g.id,
-          sequence: index + 1,
-          name: g.name,
-          status: 'completed' as const,
-          hash: `archived-${g.id}`,
-          completedAt: null,
-        }))
+      // ── Primary: build summaries by scanning gate MD files ──────────────────
+      interface MdSummary {
+        id: string
+        sequence: number
+        name: string
+        status: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog'
+        hash: string
+        completedAt: string | null
+        milestones?: (number | string)[]
+        description?: string
       }
+      const mdSummaries: MdSummary[] = []
+      const seenIds = new Set<string>()
+      const mdFileIds = new Set<string>() // IDs found in actual MD files (PRD exists)
 
-      const now = new Date().toISOString()
-
-      // Fetch prd_generated_at from DB for all gates in one query
-      const prdGeneratedMap: Record<string, boolean> = {}
-      const descriptionMap: Record<string, string> = {}
       try {
-        const db = (await import('../storage/database.js')).getDatabase()
-        const dbRows = db
-          .prepare('SELECT id, description, prd_generated_at FROM gates')
-          .all() as { id: string; description: string | null; prd_generated_at: string | null }[]
-        for (const row of dbRows) {
-          prdGeneratedMap[row.id] = row.prd_generated_at !== null
-          if (row.description) descriptionMap[row.id] = row.description
-        }
-      } catch {
-        // DB unavailable — default all to true (unknown) to avoid false alarms
-        for (const g of summaries) prdGeneratedMap[g.id] = true
-      }
+        const files = readdirSync(gatesDir)
+          .filter((f: string) => f.endsWith('.md') && /^gate-\d+/.test(f))
+          .sort()
 
-      // Build milestones map by scanning gate MD frontmatter (milestones live only in MD files)
-      const milestonesMap: Record<string, (number | string)[]> = {}
-      try {
-        const { readdirSync, readFileSync } = await import('node:fs')
-        const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
-        const gatesDir = join(getZenoDir(getWorkspaceRoot()), '..', 'gates')
-        const files = readdirSync(gatesDir).filter(
-          (f: string) => f.endsWith('.md') && /^gate-\d+/.test(f)
-        )
         for (const file of files) {
           try {
             const content = readFileSync(join(gatesDir, file), 'utf-8')
             const fm = parseGateFrontmatter(content)
-            if (fm?.id && fm.milestones && fm.milestones.length > 0) {
-              milestonesMap[fm.id] = fm.milestones
-            } else if (fm?.id) {
-              // Body-field fallback: **Milestones**: MVP, 2
+            if (!fm?.id) continue
+
+            // Parse milestones from body if not in frontmatter
+            let milestones = fm.milestones
+            if (!milestones?.length) {
               const bodyMatch = /\*\*Milestones\*\*:\s*(.+)$/m.exec(content)
               if (bodyMatch?.[1]) {
-                milestonesMap[fm.id] = bodyMatch[1]
+                milestones = bodyMatch[1]
                   .split(',')
                   .map((s: string) => s.trim())
                   .filter((s: string) => s.length > 0)
                   .map((s: string) => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
               }
             }
+
+            // Parse description from ## Overview section
+            let description: string | undefined
+            const overviewMatch = /## Overview\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
+            if (overviewMatch?.[1]) {
+              const firstLine = overviewMatch[1].split('\n').find((l: string) => l.trim().length > 0)
+              if (firstLine) description = firstLine.trim()
+            }
+
+            const validStatuses = new Set(['completed', 'in_progress', 'validated', 'pending', 'cancelled', 'backlog'])
+            const status = (validStatuses.has(fm.status) ? fm.status : 'pending') as MdSummary['status']
+
+            mdSummaries.push({
+              id: fm.id,
+              sequence: fm.sequence,
+              name: fm.name,
+              status,
+              hash: fm.hash,
+              completedAt: fm.completed_at ?? null,
+              milestones: milestones?.length ? milestones : undefined,
+              description,
+            })
+            seenIds.add(fm.id)
+            mdFileIds.add(fm.id)
           } catch {
-            // skip unreadable files
+            // skip unreadable / unparseable files
           }
         }
       } catch {
-        // gates dir unavailable — milestones simply omitted
+        // gates dir unavailable — fall through to project.json fallback
+      }
+
+      // ── Fallback: planned gates that have no MD yet (from project.json) ─────
+      try {
+        const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
+        const overview = await readProjectOverview(getWorkspaceRoot())
+        const planned = getGatesFromOverview(overview)
+        for (const g of planned) {
+          if (!seenIds.has(g.id)) {
+            mdSummaries.push({
+              id: g.id,
+              sequence: g.sequence,
+              name: g.name,
+              status: g.status,
+              hash: g.hash,
+              completedAt: g.completedAt,
+            })
+            seenIds.add(g.id)
+          }
+        }
+      } catch {
+        // project.json unavailable — use what we have from MD files only
+      }
+
+      // ── Last resort: archived gates when nothing else is available ───────────
+      if (mdSummaries.length === 0) {
+        const archivePath = join(gatesDir, 'archive')
+        const archivedGateList = listArchivedGates(archivePath)
+        for (const [index, g] of archivedGateList.entries()) {
+          mdSummaries.push({
+            id: g.id,
+            sequence: index + 1,
+            name: g.name,
+            status: 'completed',
+            hash: `archived-${g.id}`,
+            completedAt: null,
+          })
+        }
+      }
+
+      mdSummaries.sort((a, b) => a.sequence - b.sequence)
+
+      const now = new Date().toISOString()
+
+      // Fetch prd_generated_at and description from DB for gates that have one
+      const prdGeneratedMap: Record<string, boolean> = {}
+      const dbDescriptionMap: Record<string, string> = {}
+      try {
+        const db = (await import('../storage/database.js')).getDatabase()
+        const dbRows = db
+          .prepare('SELECT id, description, prd_generated_at FROM gates WHERE id IN (' +
+            mdSummaries.map(() => '?').join(',') +
+            ')')
+          .all(...mdSummaries.map((g) => g.id)) as { id: string; description: string | null; prd_generated_at: string | null }[]
+        for (const row of dbRows) {
+          prdGeneratedMap[row.id] = row.prd_generated_at !== null
+          if (row.description) dbDescriptionMap[row.id] = row.description
+        }
+      } catch {
+        // DB unavailable — default all to true (unknown) to avoid false alarms
+        for (const g of mdSummaries) prdGeneratedMap[g.id] = true
       }
 
       return {
-        gates: summaries.map((g) => ({
+        gates: mdSummaries.map((g) => ({
           id: g.id,
           hash: g.hash,
           name: g.name,
-          description: descriptionMap[g.id] ?? 'No description',
+          description: g.description ?? dbDescriptionMap[g.id] ?? 'No description',
           sequence: g.sequence,
           status: g.status,
-          milestones: milestonesMap[g.id],
+          milestones: g.milestones,
           lastUpdated: resolveLastUpdated(g.completedAt, now),
-          prdGenerated: prdGeneratedMap[g.id] ?? true,
+          prdGenerated: mdFileIds.has(g.id)
+            ? true
+            : (prdGeneratedMap[g.id] ?? false),
           proposalCount: 0,
           completedProposalCount: 0,
           requirementCount: 0,
@@ -131,60 +194,66 @@ export function registerGatesOps(registry: FunctionRegistry): void {
     'gates_show',
     async (params) => {
       const validated = z.object({ gateId: z.string() }).parse(params)
-      const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
 
       // Resolve hash or normalize textual ID: accept hash, gate-01, or 01
       const normalizedId = resolveGateIdentifier(validated.gateId)
 
-      const overview = await readProjectOverview(getWorkspaceRoot())
-      const summaries = getGatesFromOverview(overview)
-      const gate =
-        summaries.find((g) => g.id === normalizedId) ??
-        summaries.find((g) => g.name.toLowerCase().includes(validated.gateId.toLowerCase()))
-
-      if (!gate) {
-        throw new Error(`Gate not found: ${validated.gateId}`)
-      }
-
       const now = new Date().toISOString()
 
-      // Parse objectives, description, and phases from gate PRD file
+      // ── Primary: parse gate identity and metadata from the MD file ──────────
       const objectives: { title: string; completed: boolean }[] = []
       let description = 'No description'
       let milestones: (number | string)[] | undefined
+      let gateId = normalizedId
+      let gateName = normalizedId
+      let gateHash = normalizedId
+      let gateSequence = 0
+      let gateStatus: 'completed' | 'in_progress' | 'validated' | 'pending' | 'cancelled' | 'backlog' = 'pending'
+      let gateCompletedAt: string | null = null
+      let foundInMd = false
 
       try {
         const { findGateByGateId } = await import('../utils/artifact-locator.js')
         const { readFile } = await import('node:fs/promises')
+        const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
         const gatePath = await findGateByGateId(normalizedId)
         if (gatePath) {
           const content = await readFile(gatePath, 'utf-8')
-
-          // Parse milestones from frontmatter (authoritative), fallback to body field
-          const { parseGateFrontmatter } = await import('../storage/frontmatter.js')
           const fm = parseGateFrontmatter(content)
-          if (fm?.milestones && fm.milestones.length > 0) {
-            milestones = fm.milestones
-          } else {
-            // Body-field fallback: **Milestones**: MVP, 2
-            const milestonesBodyMatch = /\*\*Milestones\*\*:\s*(.+)$/m.exec(content)
-            if (milestonesBodyMatch?.[1]) {
-              milestones = milestonesBodyMatch[1]
-                .split(',')
-                .map((s) => s.trim())
-                .filter((s) => s.length > 0)
-                .map((s) => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
+
+          if (fm) {
+            gateId = fm.id
+            gateName = fm.name
+            gateHash = fm.hash
+            gateSequence = fm.sequence
+            const validStatuses = new Set(['completed', 'in_progress', 'validated', 'pending', 'cancelled', 'backlog'])
+            gateStatus = (validStatuses.has(fm.status) ? fm.status : 'pending') as typeof gateStatus
+            gateCompletedAt = fm.completed_at ?? null
+            foundInMd = true
+
+            // Milestones from frontmatter first, then body fallback
+            if (fm.milestones && fm.milestones.length > 0) {
+              milestones = fm.milestones
+            } else {
+              const milestonesBodyMatch = /\*\*Milestones\*\*:\s*(.+)$/m.exec(content)
+              if (milestonesBodyMatch?.[1]) {
+                milestones = milestonesBodyMatch[1]
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter((s) => s.length > 0)
+                  .map((s) => (/^\d+$/.test(s) ? parseInt(s, 10) : s))
+              }
             }
           }
 
-          // Parse description from ## Overview section (first non-empty line)
+          // Description from ## Overview section
           const overviewMatch = /## Overview\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
           if (overviewMatch?.[1]) {
             const firstLine = overviewMatch[1].split('\n').find((l) => l.trim().length > 0)
             if (firstLine) description = firstLine.trim()
           }
 
-          // Parse objectives from ## Objectives section — capture all - [ ] / - [x] items
+          // Objectives from ## Objectives section
           const objectivesMatch = /## Objectives\s*\n([\s\S]*?)(?=\n## )/m.exec(content)
           if (objectivesMatch?.[1]) {
             for (const line of objectivesMatch[1].split('\n')) {
@@ -196,8 +265,37 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           }
         }
       } catch {
-        // File unavailable — fall back to empty objectives/milestones
+        // File unavailable — fall through to project.json fallback
       }
+
+      // ── Fallback: planned gate that has no MD yet (project.json) ────────────
+      if (!foundInMd) {
+        try {
+          const { readProjectOverview, getGatesFromOverview } = await import('../utils/config.js')
+          const overview = await readProjectOverview(getWorkspaceRoot())
+          const summaries = getGatesFromOverview(overview)
+          const gate =
+            summaries.find((g) => g.id === normalizedId) ??
+            summaries.find((g) => g.name.toLowerCase().includes(validated.gateId.toLowerCase()))
+
+          if (!gate) {
+            throw new Error(`Gate not found: ${validated.gateId}`)
+          }
+
+          gateId = gate.id
+          gateName = gate.name
+          gateHash = gate.hash
+          gateSequence = gate.sequence
+          gateStatus = gate.status
+          gateCompletedAt = gate.completedAt
+        } catch (err) {
+          if ((err as Error).message.startsWith('Gate not found')) throw err
+          throw new Error(`Gate not found: ${validated.gateId}`, { cause: err })
+        }
+      }
+
+      // Synthetic gate summary for downstream code
+      const gate = { id: gateId, name: gateName, hash: gateHash, sequence: gateSequence, status: gateStatus, completedAt: gateCompletedAt }
 
       // Query gate-level requirements from the database
       let requirements: { hash: string; title: string; status: 'pending' | 'in_progress' | 'tested' | 'archived'; priority?: 'low' | 'medium' | 'high' }[] = []
@@ -239,12 +337,11 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         // DB unavailable — fall back to empty proposals
       }
 
-      // DB is authoritative for lifecycle state. Use DB status for all non-pending
-      // states. For 'pending', the overview may carry more granularity (e.g. the
-      // gate was never touched since init), so fall back to the overview value.
+      // MD file existence is authoritative for prdGenerated; DB is authoritative
+      // for lifecycle state (non-pending statuses override what the MD says).
       let effectiveStatus: typeof gate.status = gate.status
       let effectiveCompletedAt: string | null = gate.completedAt
-      let prdGenerated = true // default: assume generated unless DB says otherwise
+      let prdGenerated = foundInMd // if we found an MD file, the PRD was generated
       try {
         const { getDatabase } = await import('../storage/database.js')
         const dbRow = getDatabase()
@@ -252,18 +349,19 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           .get(normalizedId) as { status: string; completed_at: string | null; description: string | null; prd_generated_at: string | null } | undefined
         if (dbRow) {
           if (dbRow.status !== 'pending') {
-            // DB has a lifecycle state that overrides the overview value.
+            // DB has a lifecycle state that overrides the MD/overview value.
             effectiveStatus = dbRow.status as typeof gate.status
             effectiveCompletedAt = dbRow.completed_at
           }
-          prdGenerated = dbRow.prd_generated_at !== null
+          // DB prd_generated_at acts as a secondary confirmation; MD existence takes priority
+          if (!foundInMd) prdGenerated = dbRow.prd_generated_at !== null
           // Use DB description (goal statement) as fallback when MD file has none
           if (description === 'No description' && dbRow.description) {
             description = dbRow.description
           }
         }
       } catch {
-        // DB unavailable — use overview-derived status
+        // DB unavailable — use MD-derived status
       }
 
       return {

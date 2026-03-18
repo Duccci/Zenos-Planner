@@ -312,46 +312,77 @@ my-project/
 
 ```bash
 # Project
-zeno init                         # Initialize new project
-zeno init --submodule <url>       # Init with zeno/ as a git submodule
-zeno status                       # Show project overview
-zeno show <hash>                  # Resolve hash to entity
-zeno config                       # Show project configuration
-zeno trace <hash>                 # Trace git commits for artifact
+zeno init                                          # Initialize new project
+zeno init --submodule <url>                        # Init with zeno/ as a git submodule
+zeno status                                        # Show project overview
+zeno show <hash>                                   # Resolve hash to entity
+zeno doctor                                        # Audit environment prerequisites
+zeno trace <artifactHash>                          # Trace git commits for artifact
+
+# Configuration
+zeno config show                                   # Show project configuration
+zeno config set <key> <value>                      # Update a configuration value
 
 # Gates
-zeno gates list                   # List all gates
-zeno gates show <gate-id>         # Show gate details
-zeno gates start <gate-id>        # Start working on a gate
-zeno gates complete <gate-id>     # Mark gate complete, create tag
+zeno gates list                                    # List all gates
+zeno gates show <gate-id>                          # Show gate details
+zeno gates start <gate-id>                         # Start working on a gate
+zeno gates validate <gate-id>                      # Run gate quality checks
+zeno gates complete <gate-id>                      # Mark gate complete, create tag
+zeno gates replan [gate-id]                        # Regenerate future gates (alias: regenerate)
+zeno gates replan --prd-changed                    # Rescope: regenerate from updated PRD end-state
 
 # Requirements
-zeno req list [--gate <id>]       # List requirements
-zeno req show <hash>              # Show requirement details
-zeno req deps <hash>              # Show dependency graph
+zeno req list [--gate <id>]                        # List requirements
+zeno req show <hash>                               # Show requirement details
+zeno req deps <hash>                               # Show dependency graph
+zeno req transfer <hash> <gate-id>                 # Transfer requirement to another gate
+zeno req update <hash>                             # Update requirement fields
+zeno req search <query>                            # Search requirements by keyword
 
 # Proposals
-zeno proposal list [--gate <id>]  # List proposals
-zeno proposal show <hash>         # Show proposal details
-zeno proposal validate <hash>     # Run automated checks
-zeno proposal approve <hash>      # Approve proposal
-zeno proposal reject <hash>       # Reject with feedback
+zeno proposal list [--gate <id>]                   # List proposals
+zeno proposal show <hash>                          # Show proposal details
+zeno proposal create <title>                       # Create a new proposal
+zeno proposal start <hash>                         # Start proposal (creates worktree)
+zeno proposal validate <hash>                      # Run automated checks
+zeno proposal approve <hash>                       # Approve proposal
+zeno proposal reject <hash>                        # Reject with feedback
 
 # Architecture
-zeno arch generate                # Generate all diagrams
-zeno arch show <type>             # Show diagram (system|lifecycle|flow|gate-roadmap)
+zeno arch generate                                 # Generate all diagrams
+zeno arch show <type>                              # Show diagram (system|lifecycle|flow|gate-roadmap)
 
 # Repositories
-zeno repos list                   # List detected repos
-zeno repos deps                   # Show dependency graph
-zeno repos detect                 # Re-run boundary detection
-zeno repos adjust                 # Manually adjust boundaries
+zeno repos list                                    # List detected repos
+zeno repos deps                                    # Show dependency graph
+zeno repos detect                                  # Re-run boundary detection
+zeno repos adjust                                  # Manually adjust boundaries
+
+# Worktrees
+zeno worktree list                                 # List active and orphaned worktrees
+zeno worktree remove <hash>                        # Remove worktree by proposal hash
+zeno worktree prune                                # Remove expired worktrees
+zeno worktree merge <hash>                         # Merge worktree branch with conflict handling
 
 # Templates
-zeno template                     # Access project templates
+zeno template list                                 # List available templates
+zeno template get <name>                           # Show a template by name
+zeno template context <name>                       # Show template context
+
+# Database
+zeno db cleanup                                    # Clean up old database records
+zeno db validate                                   # Validate database integrity
+zeno db checkpoint                                 # Force WAL checkpoint
+
+# Registry
+zeno registry rebuild                              # Rebuild the hash registry
 
 # MCP
-zeno mcp install                  # Set up editor MCP integration
+zeno mcp install [--editor vscode|cursor|windsurf|all]  # Set up editor MCP integration
+zeno mcp diagnostics                               # Show MCP server diagnostics
+zeno mcp tools                                     # List available MCP tools
+zeno mcp errors                                    # Show recent MCP errors
 ```
 
 ## Quality Gates
@@ -400,7 +431,7 @@ console.log(result.totalLOC);           // aggregated across all languages
 
 ## Documentation
 
-- [PROJECT_PRD.md](zeno/PROJECT_PRD.md) — Product requirements (single source of truth)
+- [PROJECT_PRD.md](zeno/overview/PROJECT_PRD.md) — Product requirements (single source of truth)
 - [Architecture](zeno/architecture/) — System design diagrams
 - [AGENTS.md](AGENTS.md) — AI agent reference guide
 - [Schemas](schemas/) — JSON validation schemas
