@@ -123,3 +123,9 @@ Extended Zeno's static analysis engine to support non-JS/TS languages (Python, R
 **Completed**: 2026-03-17
 
 Implemented `zeno doctor` CLI command that audits the local environment for all prerequisites required by Zeno's Planner — Node.js version (≥24 required, ≥20 warn), Git version (≥2.0), Graphviz `dot` binary, and better-sqlite3 native binding. Command renders a colored table (Check / Status / Detail / Fix columns) and supports a `--json` flag for scripting and CI use; exits 1 when any check fails. All checks use `spawnSync` with a 3s timeout. Addresses R-02 (Graphviz silent failure), R-03 (better-sqlite3 native compilation), and R-10 (single-developer setup friction). 25 unit tests and 5 integration smoke tests, all passing.
+
+### Multi-Language Support via Tree-sitter (O-05) (#b5553461)
+
+**Completed**: 2026-03-18
+
+Introduces Tree-sitter as an optional second parser backend in the code-analysis pipeline. The Babel parser continues to own TypeScript/JavaScript; Tree-sitter handles Python, Rust, Go, and C++ by producing normalized LOC, dependency, and complexity metrics through a shared analyzer interface. The feature is opt-in (controlled by an AnalysisOptions flag) and carries no breaking changes to existing consumers.
