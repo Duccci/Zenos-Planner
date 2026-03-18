@@ -6,7 +6,7 @@
 
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
-import { loadConfig, saveConfig, findProjectRoot } from '../../utils/config.js'
+import { loadConfig, saveConfig, findProjectRoot, getWorkspaceRoot } from '../../utils/config.js'
 
 /**
  * Register config command
@@ -21,7 +21,7 @@ export function registerConfigCommand(program: Command): void {
     .action(async (options: { get?: string }) => {
       try {
         // Find project root
-        const projectRoot = findProjectRoot()
+        const projectRoot = findProjectRoot(getWorkspaceRoot())
         if (!projectRoot) {
           logger.error('Not in a Zeno project directory')
           process.exit(1)
@@ -70,7 +70,7 @@ export function registerConfigCommand(program: Command): void {
     .option('--get <key>', 'Get a specific configuration value')
     .action(async (options: { get?: string }) => {
       try {
-        const projectRoot = findProjectRoot()
+        const projectRoot = findProjectRoot(getWorkspaceRoot())
         if (!projectRoot) {
           logger.error('Not in a Zeno project directory')
           process.exit(1)
@@ -118,7 +118,7 @@ export function registerConfigCommand(program: Command): void {
     )
     .action(async (key: string, rawValue: string) => {
       try {
-        const projectRoot = findProjectRoot()
+        const projectRoot = findProjectRoot(getWorkspaceRoot())
         if (!projectRoot) {
           logger.error('Not in a Zeno project directory')
           process.exitCode = 1

@@ -14,7 +14,7 @@
 
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
-import { loadConfig, getDefaultConfig } from '../utils/config.js'
+import { loadConfig, getDefaultConfig, findProjectRoot, getWorkspaceRoot } from '../utils/config.js'
 import { ConfigError } from '../utils/errors.js'
 
 /**
@@ -26,7 +26,9 @@ export function registerConfigOps(registry: FunctionRegistry): void {
     'config_get',
     async () => {
       try {
-        const result = await loadConfig()
+        const wsRoot = getWorkspaceRoot()
+        const projectRoot = findProjectRoot(wsRoot) ?? wsRoot
+        const result = await loadConfig(projectRoot)
         return result
       } catch (error) {
         // Handle missing config gracefully by returning defaults

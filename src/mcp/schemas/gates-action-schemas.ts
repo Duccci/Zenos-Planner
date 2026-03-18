@@ -64,7 +64,7 @@ export const GatesActionInputSchema = z.object({
   gateId: z
     .string()
     .optional()
-    .describe('Gate hash from gates_action:list. Always resolve via list first — never pass plaintext IDs like "gate-08".'),
+    .describe('Gate ID in "gate-XX" format (e.g. "gate-08"). For generate: the new gate ID to assign. For show/start/complete/validate/cancel/defer: the existing gate ID from gates_action:list.'),
 
   // --- list filters ---
   status: GateStatusEnum
@@ -97,7 +97,7 @@ export const GatesActionInputSchema = z.object({
     .describe(
       'Generation/regeneration mode (generate: new|rebaseline|single; regenerate: full|partial|check)'
     ),
-  anchorGateId: z.string().optional().describe('Gate hash (or ID) to anchor generation from (generate)'),
+  anchorGateId: z.string().optional().describe('Gate ID (e.g. "gate-02") to anchor generation from (generate).'),
   templateName: z
     .string()
     .optional()

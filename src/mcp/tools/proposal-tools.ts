@@ -738,7 +738,7 @@ export function proposalHandlers(
               if (!filePath) return { allowed: true } // artifact not found is handled downstream
               const { validateArtifactFile } = await import('../validators/artifact-validator.js')
               const result = await validateArtifactFile(filePath, 'proposal')
-              
+
               // Enhance error messages for LLM with explicit file fixing guidance
               if (!result.allowed && result.errors && result.errors.length > 0) {
                 return {

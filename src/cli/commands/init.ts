@@ -12,8 +12,8 @@ import { RequirementGenerator } from '../../generation/requirement-generator.js'
 import { generateGates } from '../../core/gate-generator.js'
 import { directoryExists } from '../../utils/file.js'
 import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig } from '../../utils/config.js'
-import { initializeDatabase } from '../../storage/database.js'
 import { isZenoSubmodule, addZenoSubmodule } from '../../utils/git.js'
+import { resolve } from 'node:path'
 
 /**
  * Validate project name
@@ -81,17 +81,13 @@ async function runInitWorkflow(
   }
   await saveConfig(config, projectRoot)
 
-  // 3. Initialize database
-  logger.info('Initializing database...')
-  await initializeDatabase(projectRoot, { syncRequirements: true })
-
-  // 4. Generate project requirements
+  // 3. Generate project requirements
   logger.info('Generating project requirements...')
   const reqGen = new RequirementGenerator()
   const requirements = reqGen.generateFromProjectStatement(projectStatement)
   logger.info(`Generated ${requirements.length.toString()} project requirements`)
 
-  // 5. Generate gates
+  // 4. Generate gates
   logger.info('Generating project gates...')
   const gatesResult = generateGates(projectStatement, undefined, requirements)
   logger.info(
@@ -129,6 +125,19 @@ export function registerInitCommand(program: Command): void {
 
         let existingConfig: Awaited<ReturnType<typeof loadConfig>> | null = null
         if (existingRoot) {
+          // Guard: if the found root differs from the current working directory we
+          // are inside the zeno/ planning directory of an existing project.
+          // Proceeding would create a nested zeno/zeno/.zeno structure.
+          if (resolve(existingRoot) !== resolve(projectRoot)) {
+            logger.error(
+              `Cannot run "zeno init" from "${projectRoot}": this path is inside the zeno/ ` +
+              `planning directory of an existing project at "${existingRoot}".`
+            )
+            logger.error(
+              `Run "zeno init" from the project root instead: "${existingRoot}"`
+            )
+            return
+          }
           try {
             existingConfig = await loadConfig(existingRoot)
             if (!(options as { force?: boolean }).force) {

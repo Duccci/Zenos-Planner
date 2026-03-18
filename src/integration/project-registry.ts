@@ -22,7 +22,7 @@ import {
 } from '../utils/config.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
 import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 /**
  * Input schema for project_init
@@ -54,6 +54,21 @@ export function registerProjectOps(registry: FunctionRegistry): void {
         // Check if project already exists
         const existingRoot = findProjectRoot(projectRoot)
         if (existingRoot) {
+          // If the found root is different from projectRoot we are inside the
+          // zeno/ planning directory of an existing project.  Initializing here
+          // would create a nested zeno/zeno/.zeno structure.
+          if (resolve(existingRoot) !== resolve(projectRoot)) {
+            return {
+              success: false,
+              error: {
+                code: 'WRONG_DIRECTORY',
+                message:
+                  `Cannot initialize in "${projectRoot}": this path is inside the zeno/ planning ` +
+                  `directory of an existing project at "${existingRoot}". ` +
+                  `Run project_init from the project root instead.`,
+              },
+            }
+          }
           try {
             const existingConfig = await loadConfig(existingRoot)
             return {
@@ -64,7 +79,17 @@ export function registerProjectOps(registry: FunctionRegistry): void {
               },
             }
           } catch {
-            // If we can't load config, continue with fresh init
+            // existingRoot === projectRoot but config is unreadable — report it
+            // rather than silently continuing (which would overwrite the project).
+            return {
+              success: false,
+              error: {
+                code: 'PROJECT_EXISTS',
+                message:
+                  `A Zeno project directory was found at "${existingRoot}" but its ` +
+                  `configuration could not be read. Use the force option to reinitialize.`,
+              },
+            }
           }
         }
 

@@ -12,7 +12,7 @@
 | **prop N-M** | Shorthand reference for the Mth proposal of gate N; e.g. `prop 6-2` means proposal 2 within gate 6; resolves to the corresponding entry in `proposals/gate-06/` |
 | **Proposal** | Implementation plan for a set of requirements within a gate; stored in `proposals/gate-XX/<name>.md`; status: `pending` → `validated` → `in_progress` → `completed` or `rejected` |
 | **Quality Gate** | Automated check that must pass before proposal approval: ≥90% coverage, 0 CVEs, <0.01% lint errors, 0 TS errors, all tests passing |
-| **Registry** | SQLite database at `.zeno/registry.db` storing all requirements, gates, proposals, and hashes; accessed via MCP tools only |
+| **Registry** | SQLite database at `.zeno/registry.db` storing all requirements, gates, proposals, and hashes; created lazily on first database operation (not at `zeno init`); accessed via MCP tools only |
 | **Rescope** | Mid-project change to goals or constraints; triggers future gate regeneration via `zeno rescope` |
 | **Requirement** | Specific, measurable capability or constraint; types: `functional`, `non_functional`, `constraint`; priorities: `must`, `should`, `could`, `won't` |
 | **RO Matrix** | Risk/Opportunity Matrix — architecture artifact at `architecture/ro-matrix.md` visualising likelihood × impact scores |

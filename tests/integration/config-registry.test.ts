@@ -18,6 +18,8 @@ const mockGetDefaultConfig = vi.fn()
 vi.mock('../../src/utils/config.js', () => ({
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
   getDefaultConfig: (...args: unknown[]) => mockGetDefaultConfig(...args),
+  getWorkspaceRoot: () => '/workspace',
+  findProjectRoot: () => '/workspace',
 }))
 
 describe('config-registry operations', () => {

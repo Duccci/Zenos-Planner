@@ -31,6 +31,8 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 
 ## Database Access
 
+> **`zeno init` creates `config.json` only** — `registry.db` does not exist until the first database operation (e.g. `zeno gates start`). Do not assume the database is present in a freshly initialised project.
+>
 > **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (no `better-sqlite3` scripts, no raw SQL, no `node -e`, no `npx tsx -e` DB scripts). The database schema changes between gates; direct queries will silently return stale or incomplete data. Always use MCP tools — they are schema-validated and return structured content.
 
 ## MCP Tool Reference

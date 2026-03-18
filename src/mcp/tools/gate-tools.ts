@@ -27,7 +27,7 @@ import { getDatabase } from '../../storage/database.js'
 export const gateToolDefinitions = [
   {
     name: 'gates_action',
-    description: `Gate lifecycle: list, show, generate, validate, start, complete, regenerate, cancel, defer. Always call list first to get the gate hash; pass that hash as gateId — never use plaintext IDs like "gate-08".`,
+    description: `Gate lifecycle: list, show, generate, validate, start, complete, regenerate, cancel, defer. Gates use plaintext IDs in "gate-XX" format (e.g. "gate-08"); pass the gate ID directly as gateId. For generate: supply gateId+name+objectives to create a gate directly, or omit them to auto-generate from PRD.`,
     inputSchema: GatesActionInputSchema,
   },
 ]
@@ -569,7 +569,7 @@ export function gateHandlers(
               const filePath = await findGateByGateId(gateId)
               if (!filePath) return { allowed: true }
               const result = await validateArtifactFile(filePath, 'gate')
-              
+
               // Enhance error messages for LLM with explicit file fixing guidance
               if (!result.allowed && result.errors && result.errors.length > 0) {
                 return {

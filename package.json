@@ -21,7 +21,8 @@
   "author": "Zeno's Planner Contributors",
   "type": "module",
   "bin": {
-    "zeno": "./bin/zeno.js"
+    "zeno": "./bin/zeno.js",
+    "zeno-mcp": "./bin/mcp-server.js"
   },
   "files": [
     "dist",
@@ -86,17 +87,9 @@
     "@vitest/ui": "^4.0.0",
     "commitlint": "^20.4.3",
     "husky": "^9.1.7",
-    "lint-staged": "^16.3.0",
     "markdownlint-cli2": "^0.21.0",
     "typescript-eslint": "^8.20.0",
     "vitest": "^4.0.0"
-  },
-  "lint-staged": {
-    "src/**/*.ts": [
-      "prettier --write",
-      "eslint --fix",
-      "eslint"
-    ]
   },
   "optionalDependencies": {
     "tree-sitter": "^0.22.4",

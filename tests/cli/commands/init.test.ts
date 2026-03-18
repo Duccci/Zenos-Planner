@@ -49,10 +49,6 @@ vi.mock('../../../src/core/gate-generator.js', () => ({
   }),
 }))
 
-vi.mock('../../../src/storage/database.js', () => ({
-  initializeDatabase: vi.fn().mockResolvedValue(undefined),
-}))
-
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn(),
   loadConfig: vi.fn(),

@@ -21,6 +21,18 @@ export async function createProjectStructure(
 ): Promise<string[]> {
   const createdPaths: string[] = []
 
+  // Last-resort guard: if projectRoot is itself named 'zeno' or '.zeno' then
+  // every relative directory we create (e.g. 'zeno/.zeno') would end up nested
+  // as zeno/zeno/.zeno.  Callers are responsible for passing the project root
+  // (the parent of the intended zeno/ directory), but we fail fast here rather
+  // than silently producing a corrupt directory tree.
+  if (basename(projectRoot) === 'zeno' || basename(projectRoot) === '.zeno') {
+    throw new FileSystemError(
+      `createProjectStructure received a path that appears to be the zeno/ planning ` +
+      `directory itself: "${projectRoot}". Pass the project root (the parent directory) instead.`
+    )
+  }
+
   try {
     // When zeno/ is a git submodule the directory already exists (mounted by git);
     // we must not recreate it or we would overwrite the submodule mount.
