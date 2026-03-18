@@ -3,6 +3,8 @@ import { ShellValidationRunner } from '../../src/core/shell-validation-runner.js
 import type { ValidationReport } from '../../src/types/validation-runner.js'
 import { spawn } from 'node:child_process'
 
+const cmd = (name: string) => process.platform === 'win32' ? `${name}.cmd` : name
+
 vi.mock('node:child_process')
 vi.mock('node:fs/promises', async () => {
   const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises')
@@ -120,7 +122,7 @@ describe('ShellValidationRunner', () => {
 
       await runner.runEslint()
 
-      expect(spawn).toHaveBeenCalledWith('eslint', ['src', '--max-warnings', '0', '--format', 'json'], expect.any(Object))
+      expect(spawn).toHaveBeenCalledWith(cmd('eslint'), ['src', '--max-warnings', '0', '--format', 'json'], expect.any(Object))
     })
 
     it('should mark as failed when exit code is non-zero', async () => {
@@ -155,7 +157,7 @@ describe('ShellValidationRunner', () => {
 
       await runner.runTsc()
 
-      expect(spawn).toHaveBeenCalledWith('tsc', ['--strict', '--noEmit'], expect.any(Object))
+      expect(spawn).toHaveBeenCalledWith(cmd('tsc'), ['--strict', '--noEmit'], expect.any(Object))
     })
   })
 
@@ -173,7 +175,7 @@ describe('ShellValidationRunner', () => {
 
       await runner.runNpmAudit()
 
-      expect(spawn).toHaveBeenCalledWith('npm', ['audit', '--json'], expect.any(Object))
+      expect(spawn).toHaveBeenCalledWith(cmd('npm'), ['audit', '--json'], expect.any(Object))
     })
   })
 

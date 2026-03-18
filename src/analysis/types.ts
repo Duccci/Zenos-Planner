@@ -6,6 +6,31 @@
 import type { File as BabelFile } from '@babel/types';
 
 /**
+ * Language parser backend selector
+ */
+export type LanguageBackend = 'babel' | 'tree-sitter';
+
+/**
+ * Result of parsing a file with Tree-sitter
+ */
+export interface TreeSitterParseResult {
+  /** Absolute file path */
+  filePath: string;
+  /** Detected language (e.g. 'python', 'rust', 'go', 'cpp') */
+  language: string;
+  /** Total node count in the CST */
+  nodeCount: number;
+  /** Root CST node (tree-sitter SyntaxNode); typed as unknown since tree-sitter is optional */
+  rootNode: unknown;
+  /** Parsing succeeded */
+  success: boolean;
+  /** Error message if parse failed */
+  error?: string;
+  /** Source text; present on successful parse, used by metrics extraction */
+  source?: string;
+}
+
+/**
  * Result of parsing a single file
  */
 export interface ParseResult {
@@ -55,8 +80,8 @@ export interface Module {
   relativePath: string;
   /** File extension (.ts, .js, etc) */
   extension: string;
-  /** Parsed AST */
-  ast: BabelFile;
+  /** Parsed AST — Babel AST for JS/TS files; TreeSitterParseResult for other languages; null if unknown */
+  ast: BabelFile | TreeSitterParseResult | null;
   /** All dependencies in this module */
   dependencies: Dependencies;
   /** Number of lines of code */
@@ -93,10 +118,14 @@ export interface AnalysisOptions {
   skipCommonDirs?: boolean;
   /** Respect .gitignore file */
   respectGitignore?: boolean;
-  /** File extensions to include (default: ['.ts', '.tsx', '.js', '.jsx']) */
+  /** File extensions to include for Babel (default: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']) */
   extensions?: string[];
   /** Maximum files to analyze (for testing) */
   maxFiles?: number;
+  /** Enable Tree-sitter backend for non-JS/TS languages (default: false) */
+  enableTreeSitter?: boolean;
+  /** File extensions handled by Tree-sitter (default: ['.py', '.rs', '.go', '.cpp', '.c', '.h']) */
+  treeSitterExtensions?: string[];
 }
 
 /**

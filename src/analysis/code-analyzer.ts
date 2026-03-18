@@ -14,7 +14,10 @@ import type {
   CodeMetrics,
 } from './types.js';
 import { parseFile } from './parser.js';
+import { parseFileTreeSitter } from './tree-sitter-parser.js';
+import { extractTreeSitterMetrics } from './tree-sitter-metrics.js';
 import { extractDependencies, resolveImportPath } from './dependency-extractor.js';
+import type { TreeSitterParseResult } from './types.js';
 import { calculateCoupling } from './metrics/coupling.js';
 import { calculateComplexityMetrics } from './metrics/complexity.js';
 import { countLOCMetrics } from './metrics/loc.js';
@@ -36,6 +39,12 @@ const DEFAULT_SKIP_DIRS = [
 ];
 
 const DEFAULT_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+const DEFAULT_TREE_SITTER_EXTENSIONS = ['.py', '.rs', '.go', '.cpp', '.c', '.h'];
+
+/** Type guard: true when ast is a Babel File node (not Tree-sitter, not null) */
+function isBabelFile(ast: BabelFile | TreeSitterParseResult | null): ast is BabelFile {
+  return ast !== null && 'program' in ast;
+}
 
 /**
  * Analyzes a codebase by parsing all files and extracting dependencies
@@ -79,41 +88,73 @@ export class CodeAnalyzer {
     const filesToAnalyze = await this.getFilesToAnalyze(absoluteRootPath);
 
     // Parse and analyze each file
+    const tsExtensions = new Set(
+      this.options.extensions ?? DEFAULT_EXTENSIONS
+    );
     let totalLOC = 0;
     for (const filePath of filesToAnalyze) {
-      const parseResult = await parseFile(filePath);
+      const ext = path.extname(filePath);
+      const useTreeSitter =
+        this.options.enableTreeSitter === true && !tsExtensions.has(ext);
 
-      if (parseResult.success && parseResult.ast) {
-        try {
-          const relativePath = path.relative(absoluteRootPath, filePath);
-          const extension = path.extname(filePath);
+      if (useTreeSitter) {
+        // Tree-sitter path for non-JS/TS languages
+        const tsResult = await parseFileTreeSitter(filePath);
+        if (tsResult.success) {
+          try {
+            const relativePath = path.relative(absoluteRootPath, filePath);
+            const locMetrics = extractTreeSitterMetrics(tsResult);
+            totalLOC += locMetrics.totalLines;
+            this.modules.set(filePath, {
+              filePath,
+              relativePath,
+              extension: ext,
+              ast: tsResult,
+              dependencies: { imports: [], exports: [], reexports: [] },
+              linesOfCode: locMetrics.codeLines,
+            });
+          } catch (error) {
+            console.warn(
+              `Failed to analyze ${filePath}:`,
+              error instanceof Error ? error.message : String(error)
+            );
+          }
+        }
+      } else {
+        // Babel path for JS/TS
+        const parseResult = await parseFile(filePath);
 
-          // Count lines of code
-          const content = await fs.readFile(filePath, 'utf-8');
-          const linesOfCode = content.split('\n').length;
-          totalLOC += linesOfCode;
+        if (parseResult.success && parseResult.ast) {
+          try {
+            const relativePath = path.relative(absoluteRootPath, filePath);
 
-          // Extract dependencies
-          const dependencies = extractDependencies(
-            parseResult.ast,
-            filePath
-          );
+            // Count lines of code
+            const content = await fs.readFile(filePath, 'utf-8');
+            const linesOfCode = content.split('\n').length;
+            totalLOC += linesOfCode;
 
-          // Store module information
-          this.modules.set(filePath, {
-            filePath,
-            relativePath,
-            extension,
-            ast: parseResult.ast,
-            dependencies,
-            linesOfCode,
-          });
-        } catch (error) {
-          // Log but continue on error
-          console.warn(
-            `Failed to analyze ${filePath}:`,
-            error instanceof Error ? error.message : String(error)
-          );
+            // Extract dependencies
+            const dependencies = extractDependencies(
+              parseResult.ast,
+              filePath
+            );
+
+            // Store module information
+            this.modules.set(filePath, {
+              filePath,
+              relativePath,
+              extension: ext,
+              ast: parseResult.ast,
+              dependencies,
+              linesOfCode,
+            });
+          } catch (error) {
+            // Log but continue on error
+            console.warn(
+              `Failed to analyze ${filePath}:`,
+              error instanceof Error ? error.message : String(error)
+            );
+          }
         }
       }
     }
@@ -158,10 +199,14 @@ export class CodeAnalyzer {
       });
     }
 
-    // Build extension patterns
-    const extensionPatterns = (
-      this.options.extensions ?? DEFAULT_EXTENSIONS
-    ).map((ext: string) => `**/*${ext}`);
+    // Build extension patterns (Babel + optional Tree-sitter)
+    const babelExts = this.options.extensions ?? DEFAULT_EXTENSIONS;
+    const tsExts =
+      this.options.enableTreeSitter === true
+        ? (this.options.treeSitterExtensions ?? DEFAULT_TREE_SITTER_EXTENSIONS)
+        : [];
+    const allExts = [...babelExts, ...tsExts];
+    const extensionPatterns = allExts.map((ext: string) => `**/*${ext}`);
 
     // Use glob to find files
     const files = await glob(extensionPatterns, {
@@ -247,16 +292,20 @@ export class CodeAnalyzer {
    * Calculate all code metrics
    */
   private async calculateMetrics(): Promise<void> {
-    // Get ASTs for complexity calculation
+    // Get ASTs for complexity calculation (Babel JS/TS only; skip Tree-sitter and null ASTs)
     const asts = new Map<string, BabelFile>();
     for (const [filePath, module] of this.modules) {
-      asts.set(filePath, module.ast);
+      if (isBabelFile(module.ast)) {
+        asts.set(filePath, module.ast);
+      }
     }
+    // Only count LOC via filesystem reads for Babel files (tree-sitter LOC already counted)
+    const babelFilePaths = Array.from(asts.keys());
 
     // Calculate all metrics
     const coupling = calculateCoupling(this.modules);
     const complexity = calculateComplexityMetrics(asts);
-    const loc = await countLOCMetrics(Array.from(this.modules.keys()));
+    const loc = await countLOCMetrics(babelFilePaths);
 
     this.metrics = {
       coupling,

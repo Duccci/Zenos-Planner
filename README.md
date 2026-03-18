@@ -300,8 +300,6 @@ my-project/
 │   ├── gates/archive/          # Completed gates
 │   ├── proposals/              # Proposals organized by gate
 │   │   └── gate-XX/            # Proposal records (pending/in_progress/completed/rejected)
-│   ├── requirements/           # README for registry DB
-│   └── subprojects/            # Multi-repo detection artifacts
 ├── src/                        # Source code
 ├── agents/                     # AI agent definitions (git submodule)
 ├── templates/                  # Gate, proposal, architecture templates
@@ -365,6 +363,40 @@ zeno mcp install                  # Set up editor MCP integration
 | Linting Error Rate       | < 0.01%     |
 | Type Checking Errors     | 0           |
 | Unit Tests               | All passing |
+
+## Multi-language Analysis
+
+Zeno's Planner can analyze non-JavaScript/TypeScript codebases using
+[Tree-sitter](https://tree-sitter.github.io/tree-sitter/) as an optional
+parsing backend.
+
+**Supported languages** (via optional dependencies):
+
+| Language | npm package | Recognized extensions |
+|----------|-------------|----------------------|
+| Python   | `tree-sitter-python` | `.py` |
+| Rust     | `tree-sitter-rust`   | `.rs` |
+| Go       | `tree-sitter-go`     | `.go` |
+| C / C++  | `tree-sitter-cpp`    | `.c`, `.h`, `.cpp` |
+
+Enable the Tree-sitter backend when running analysis programmatically:
+
+```typescript
+import { CodeAnalyzer } from './src/analysis/code-analyzer.js';
+
+const analyzer = new CodeAnalyzer({ enableTreeSitter: true });
+const result = await analyzer.analyzeCodebase('/path/to/project');
+
+console.log(result.fileCount);          // includes .py / .rs / .go / .cpp
+console.log(result.totalLOC);           // aggregated across all languages
+```
+
+- The Babel path (JS/TS) and Tree-sitter path run in the same pass; results are
+  merged into a single `AnalysisResult`.
+- Dependency extraction (`imports`/`exports`) is only available for Babel-parsed
+  files; Tree-sitter modules have empty dependency arrays.
+- LOC metrics (code / blank / comment lines) are available for all supported
+  languages via `extractTreeSitterMetrics()`.
 
 ## Documentation
 

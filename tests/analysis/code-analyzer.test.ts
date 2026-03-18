@@ -191,4 +191,39 @@ describe('CodeAnalyzer', () => {
       // In a real scenario with proper module resolution, main would be in dependents
     });
   });
+
+  describe('Tree-sitter integration', () => {
+    it('includes Python files when enableTreeSitter is true', async () => {
+      await fs.writeFile(path.join(tempDir, 'main.ts'), 'export const x = 1;');
+      await fs.writeFile(path.join(tempDir, 'helper.ts'), 'export const y = 2;');
+      await fs.writeFile(
+        path.join(tempDir, 'script.py'),
+        'def hello():\n    return "hello"\n'
+      );
+
+      const analyzer = new CodeAnalyzer({ enableTreeSitter: true });
+      const result = await analyzer.analyzeCodebase(tempDir);
+
+      expect(result.fileCount).toBe(3);
+      const pyModule = result.modules.get(path.join(tempDir, 'script.py'));
+      expect(pyModule).toBeDefined();
+      expect(pyModule?.linesOfCode).toBeGreaterThan(0);
+    });
+
+    it('excludes Python files when enableTreeSitter is false (default)', async () => {
+      await fs.writeFile(path.join(tempDir, 'main.ts'), 'export const x = 1;');
+      await fs.writeFile(
+        path.join(tempDir, 'script.py'),
+        'def hello():\n    return "hello"\n'
+      );
+
+      const analyzer = new CodeAnalyzer();
+      const result = await analyzer.analyzeCodebase(tempDir);
+
+      expect(result.fileCount).toBe(1);
+      for (const ext of Array.from(result.modules.keys()).map((k) => path.extname(k))) {
+        expect(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']).toContain(ext);
+      }
+    });
+  });
 });

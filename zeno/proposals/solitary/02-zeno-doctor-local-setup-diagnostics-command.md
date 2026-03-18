@@ -2,7 +2,7 @@
 
 **Hash**: #71586e28
 **Gate**: Solitary
-**Status**: pending
+**Status**: completed
 **Created**: 2026-03-01
 
 ---
@@ -39,9 +39,9 @@ The command should be a read-only, side-effect-free diagnostic that a user can r
 
 **Acceptance**:
 
-- [ ] Tests cover each check: node version, git version, graphviz binary, better-sqlite3 binding, and overall pass/fail summary
-- [ ] Tests mock child_process and fs so they are hermetic and platform-independent
-- [ ] Tests assert check result shape: { id, label, status: 'ok'|'warn'|'fail', detail, fix }
+- [x] Tests cover each check: node version, git version, graphviz binary, better-sqlite3 binding, and overall pass/fail summary
+- [x] Tests mock child_process and fs so they are hermetic and platform-independent
+- [x] Tests assert check result shape: { id, label, status: 'ok'|'warn'|'fail', detail, fix }
 
 ---
 
@@ -54,12 +54,12 @@ Implement doctor check modules in src/cli/commands/doctor/
 
 **Acceptance**:
 
-- [ ] node-version check passes when Node.js >= 24.0.0, warns on >= 20 < 24, fails below 20
-- [ ] git-version check passes when Git >= 2.0.0, fails when not found
-- [ ] graphviz check passes when `dot -V` exits 0, fails with platform-specific install hint (brew/apt/choco/winget)
-- [ ] sqlite-binding check attempts `require('better-sqlite3')` in a try/catch and reports compile error with `npm rebuild better-sqlite3` fix hint
-- [ ] runner.ts aggregates all check results and returns { passed, warned, failed, checks[] }
-- [ ] All checks exported as DoctorCheck instances conforming to types.ts interface
+- [x] node-version check passes when Node.js >= 24.0.0, warns on >= 20 < 24, fails below 20
+- [x] git-version check passes when Git >= 2.0.0, fails when not found
+- [x] graphviz check passes when `dot -V` exits 0, fails with platform-specific install hint (brew/apt/choco/winget)
+- [x] sqlite-binding check attempts `require('better-sqlite3')` in a try/catch and reports compile error with `npm rebuild better-sqlite3` fix hint
+- [x] runner.ts aggregates all check results and returns { passed, warned, failed, checks[] }
+- [x] All checks exported as DoctorCheck instances conforming to types.ts interface
 
 ---
 
@@ -70,12 +70,12 @@ Implement doctor check modules in src/cli/commands/doctor/
 
 **Acceptance**:
 
-- [ ] `zeno doctor` is registered as a CLI subcommand in src/cli/index.ts
-- [ ] Output renders a table with columns: Check | Status | Detail | Fix
-- [ ] Status column uses colored symbols: green check (ok), yellow warning (warn), red cross (fail)
-- [ ] Exit code is 0 when all checks pass or warn; non-zero (1) when any check fails
-- [ ] --json flag outputs raw JSON of the check results array for scripting/CI use
-- [ ] Command documented in help text with description referencing R-02/R-03/R-10 setup requirements
+- [x] `zeno doctor` is registered as a CLI subcommand in src/cli/index.ts
+- [x] Output renders a table with columns: Check | Status | Detail | Fix
+- [x] Status column uses colored symbols: green check (ok), yellow warning (warn), red cross (fail)
+- [x] Exit code is 0 when all checks pass or warn; non-zero (1) when any check fails
+- [x] --json flag outputs raw JSON of the check results array for scripting/CI use
+- [x] Command documented in help text with description referencing R-02/R-03/R-10 setup requirements
 
 ---
 
@@ -88,10 +88,10 @@ Integration smoke test and CI matrix validation
 
 **Acceptance**:
 
-- [ ] Integration test runs `zeno doctor --json` as a child process and parses output
-- [ ] Test asserts that node_version and git_version checks return 'ok' in the CI environment
-- [ ] Test asserts exit code 0 when all checks pass
-- [ ] Test asserts --json flag produces valid parseable JSON with expected schema
+- [x] Integration test runs `zeno doctor --json` as a child process and parses output
+- [x] Test asserts that node_version and git_version checks return 'ok' in the CI environment
+- [x] Test asserts exit code 0 when all checks pass
+- [x] Test asserts --json flag produces valid parseable JSON with expected schema
 
 ---
 
