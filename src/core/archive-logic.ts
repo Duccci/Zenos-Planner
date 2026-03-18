@@ -29,7 +29,6 @@ import { logger } from '../utils/logger.js'
 import { stripAnsi } from '../utils/ansi-strip.js'
 import { ArchiveGateOutput, ArchiveProposalOutput, ArchiveBatchOutput } from '../mcp/schemas/archive-schemas.js'
 import { captureMetricsSnapshot } from './metrics-capture.js'
-import { reorderSolitaryProposals } from '../utils/solitary-numbering.js'
 
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
 
@@ -365,34 +364,7 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
     logger.warn(`Failed to remove source proposal file at ${sourcePath}`, err)
   }
 
-  // Step 7.75: Reorder remaining solitary proposals to close the numbering gap
-  const reorderedPaths: string[] = []
-  if (proposalInfo.type === 'solitary') {
-    const solitaryDir = join(proposalsBaseDir, 'solitary')
-    const archivedFilename = basename(sourcePath)
-    // Extract the top-level number: NN-CC-slug (chained) or NN-slug (standalone)
-    const chainedRe = /^(\d{2})-(\d{2})-/
-    const standaloneRe = /^(\d{2})-/
-    const chainedM = chainedRe.exec(archivedFilename)
-    const standaloneM = chainedM ? null : standaloneRe.exec(archivedFilename)
-    const removedNumber = chainedM
-      ? parseInt(chainedM[1] ?? '0', 10)
-      : standaloneM
-        ? parseInt(standaloneM[1] ?? '0', 10)
-        : null
-    if (removedNumber !== null) {
-      const renamed = await reorderSolitaryProposals(solitaryDir, removedNumber)
-      reorderedPaths.push(...renamed)
-      if (renamed.length > 0) {
-        logger.info(`Reordered ${String(renamed.length / 2)} solitary proposal(s) after archiving #${String(removedNumber)}`)
-      }
-    }
-  }
-
-  // Step 8: Git commit (stage archive creation + source deletion + reordered files)
-  const reorderNote = reorderedPaths.length > 0
-    ? `\n- Reordered ${String(reorderedPaths.length / 2)} remaining solitary proposal(s)`
-    : ''
+  // Step 8: Git commit (stage archive creation + source deletion)
   const archiveDestination = proposalInfo.type === 'solitary'
     ? 'zeno/gates/archive/solitary.md'
     : 'zeno/proposals/archive/'
@@ -403,12 +375,12 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
     `chore(proposal): archive ${proposalHash} - ${proposalInfo.title}
 
 - ${archiveAction} ${archiveDestination}
-- Removed source proposal file${reorderNote}${completionNotes !== undefined ? `\n- Completion Notes: ${completionNotes}` : ''}`
+- Removed source proposal file${completionNotes !== undefined ? `\n- Completion Notes: ${completionNotes}` : ''}`
   )
 
   await performGitCommitAndPush({
     commitMessage,
-    files: [archivePath, sourcePath, ...reorderedPaths],
+    files: [archivePath, sourcePath],
   })
 
   const result: ArchiveProposalOutput = {

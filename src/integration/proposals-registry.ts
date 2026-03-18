@@ -366,29 +366,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       if (!hasGateId && !isSolitary) {
         errors.push('Proposal must either be solitary or have a gateId')
       }
-      // parentHash is only valid for solitary proposals
-      if (validated.parentHash && !isSolitary) {
-        errors.push('parentHash is only supported for solitary proposals')
-      }
       /* eslint-enable @typescript-eslint/no-unnecessary-type-conversion */
-
-      // Resolve parent sequence number for chained solitary proposals
-      let resolvedParentNumber: number | null = null
-      if (validated.parentHash && isSolitary && !errors.length) {
-        const solitaryDirForParent = normalizePath(
-          join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary')
-        )
-        const { findSolitaryNumberForHash } = await import('../utils/solitary-numbering.js')
-        resolvedParentNumber = await findSolitaryNumberForHash(
-          solitaryDirForParent,
-          validated.parentHash
-        )
-        if (resolvedParentNumber === null) {
-          errors.push(
-            `Parent proposal not found in solitary proposals: ${validated.parentHash}`
-          )
-        }
-      }
 
       // Run dependency validator if dependencies provided
       if (validated.dependencies && validated.dependencies.length > 0) {
@@ -529,8 +507,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Determine file path based on gate-tied vs solitary
       let filePath: string
       if (validated.solitary) {
-        // Solitary: zeno/proposals/solitary/NN-name.md   (standalone)
-        //        or NN-CC-name.md                        (chained, parent=NN child=CC)
+        // Solitary: zeno/proposals/solitary/<slug>.md
         const solitaryDir = normalizePath(
           join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary')
         )
@@ -539,20 +516,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
 
-        const { nextSolitaryNumber, nextChainedNumber, padSeq } = await import(
-          '../utils/solitary-numbering.js'
-        )
-        let seqPart: string
-        if (resolvedParentNumber !== null) {
-          // Chained proposal: NN-CC
-          const childNum = nextChainedNumber(solitaryDir, resolvedParentNumber)
-          seqPart = `${padSeq(resolvedParentNumber)}-${padSeq(childNum)}`
-        } else {
-          // Standalone: next global sequence number
-          seqPart = padSeq(nextSolitaryNumber(solitaryDir))
-        }
-
-        const fileName = `${seqPart}-${slug}.md`
+        const fileName = `${slug}.md`
         filePath = normalizePath(join(solitaryDir, fileName))
       } else {
         // Gate-tied: zeno/proposals/gate-XX/NN-name.md
