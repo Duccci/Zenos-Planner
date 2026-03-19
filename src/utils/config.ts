@@ -240,6 +240,18 @@ export interface GateSummary {
 /** Default name of the planning directory within the project root */
 const DEFAULT_ZENO_DIR = 'zeno'
 
+/**
+ * Module-level cache for zenoDir, populated by loadConfig().
+ * Allows getZenoDir() callers that omit the `config` argument to still
+ * respect a non-default zenoDir value after the config has been loaded once.
+ */
+let _cachedZenoDir: string | undefined
+
+/** @internal – for tests only */
+export function _resetCachedZenoDir(): void {
+  _cachedZenoDir = undefined
+}
+
 /** Zeno internal state directory name (nested inside zenoDir) */
 const ZENO_INTERNAL_DIR = '.zeno'
 
@@ -276,7 +288,7 @@ export function getWorkspaceRoot(): string {
  * @returns Absolute path to .zeno directory
  */
 export function getZenoDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  const zenoDir = config?.zenoDir ?? DEFAULT_ZENO_DIR
+  const zenoDir = config?.zenoDir ?? _cachedZenoDir ?? DEFAULT_ZENO_DIR
   return normalizePath(join(projectRoot, zenoDir, '.zeno'))
 }
 
@@ -290,7 +302,7 @@ export function getZenoDir(projectRoot: string = process.cwd(), config?: ZenoCon
  * @returns Absolute path to the zeno planning directory root
  */
 export function getZenoGitDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  const zenoDir = config?.zenoDir ?? DEFAULT_ZENO_DIR
+  const zenoDir = config?.zenoDir ?? _cachedZenoDir ?? DEFAULT_ZENO_DIR
   return normalizePath(join(projectRoot, zenoDir))
 }
 
@@ -428,7 +440,10 @@ export async function loadConfig(projectRoot: string = process.cwd()): Promise<Z
   }
 
   try {
-    return await readJsonFile(configPath, ZenoConfigSchema)
+    const config = await readJsonFile(configPath, ZenoConfigSchema)
+    // Cache zenoDir so getZenoDir() callers without a config arg still respect it.
+    _cachedZenoDir = config.zenoDir
+    return config
   } catch (error) {
     if (error instanceof ConfigError) throw error
     throw new ConfigError(

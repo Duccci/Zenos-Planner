@@ -10,6 +10,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { glob } from 'glob'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { getZenoGitDir } from '../../utils/config.js'
 import { logger } from '../../utils/logger.js'
 
 /**
@@ -203,7 +204,13 @@ export async function registerResources(
   // If watcher requested, start a filesystem watcher to detect new/removed resources
   if (options?.watch) {
     const { watch } = await import('node:fs')
-    const watchDir = join(basePath, 'zeno')
+    // Use the configured zenoDir (via module cache) so standalone repos
+    // (zenoDir = '.') are watched at the correct path instead of '<root>/zeno'.
+    const watchDir = getZenoGitDir(basePath)
+    if (!existsSync(watchDir)) {
+      logger.warn(`Resource watcher skipped: watch directory does not exist: ${watchDir}`)
+      return { count: registeredHandles.size }
+    }
     let debounce: NodeJS.Timeout | null = null
     let refreshInFlight = false
 

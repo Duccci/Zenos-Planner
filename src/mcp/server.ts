@@ -10,17 +10,29 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
 import { initializeDatabase } from '../storage/database.js'
+import { loadConfig } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
 /**
  * Create and configure the MCP server
  */
 export async function createMcpServer(workspacePath?: string): Promise<McpServer> {
+  const projectRoot = workspacePath ?? process.cwd()
+
+  // Pre-load config to warm the zenoDir cache before any path resolution so
+  // that a non-default zenoDir value in config.json is honoured by all
+  // getZenoDir() callers that don't pass config explicitly.
+  try {
+    await loadConfig(projectRoot)
+  } catch {
+    // Non-fatal: project may not be initialised yet.
+  }
+
   // Run DB migrations (including the proposal status CHECK constraint patch)
   // before registering tools so that syncProposalsFromDisk never encounters
   // the stale constraint that is missing 'validated'.
   try {
-    await initializeDatabase(workspacePath ?? process.cwd(), { syncGates: true, syncProposals: true })
+    await initializeDatabase(projectRoot, { syncGates: true, syncProposals: true })
     logger.info('Database initialised and migrations applied')
   } catch (err) {
     // Non-fatal: the project root may not have a .zeno dir yet (first-run or
