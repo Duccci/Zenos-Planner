@@ -76,7 +76,12 @@ export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
     description: [
-      'Proposal lifecycle: list, show, generate, validate, approve, reject, start, progress, cancel, defer. Use for proposal management, validation, and worktree operations.',
+      'Proposal lifecycle: list, show, generate, validate, approve, reject, start, progress, cancel, defer.',
+      '',
+      'USE start FIRST when asked to "start", "implement", "work on", or "execute" any proposal (gate-tied or solitary). Call start { hash } before editing any files — it transitions the proposal to in_progress and returns the worktree path. All file edits and commits must happen inside that worktree, not in the main workspace. Then validate, then approve.',
+      '',
+      'USE generate with { solitary: true } for work that is not tied to any gate (cross-cutting improvements, tooling, experiments). Solitary proposals live in proposals/solitary/ and have gateId=null. List them with list { gateId: "solitary" }.',
+      '',
       'cancel and defer require confirmed: true — omitting confirmed returns a prompt instead of executing.',
       '',
       'Database access rules (always apply):',

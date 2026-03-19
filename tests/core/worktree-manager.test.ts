@@ -233,10 +233,18 @@ describe('WorktreeManager', () => {
       }).not.toThrow();
     });
 
-    it('should call git merge with correct parameters', async () => {
+    it('should checkout target branch and call git merge with branch name when proposal has new commits', async () => {
+      const rawCalls: string[][] = [];
       const mockGit = {
-        raw: vi.fn().mockResolvedValue(''),
-        merge: vi.fn().mockResolvedValue({ ok: true }),
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          // Simulate 1 new commit on proposal branch
+          if (args[0][0] === 'rev-list') {
+            return Promise.resolve('1');
+          }
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ conflicts: [] }),
         status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
@@ -244,20 +252,31 @@ describe('WorktreeManager', () => {
 
       const proposalHash = 'merge-params';
       const targetBranch = 'develop';
+      const m = new WorktreeManager();
 
-      await manager.create(proposalHash);
-      await manager.merge(proposalHash, targetBranch);
+      await m.create(proposalHash);
+      rawCalls.length = 0;
+      await m.merge(proposalHash, targetBranch);
 
-      expect(mockGit.merge).toHaveBeenCalledWith(expect.objectContaining({
-        from: expect.stringContaining(proposalHash),
-        into: targetBranch,
-      }));
+      // Should checkout the target branch first
+      const checkoutCall = rawCalls.find(c => c[0] === 'checkout' && c[1] === targetBranch);
+      expect(checkoutCall).toBeDefined();
+      // Should call git.merge with the proposal branch as an array element
+      expect(mockGit.merge).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.stringContaining(proposalHash)])
+      );
     });
 
     it('should handle merge conflicts gracefully', async () => {
       const mockGit = {
-        raw: vi.fn().mockResolvedValue(''),
-        merge: vi.fn().mockResolvedValue({ ok: false, conflicts: ['file.ts'] }),
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          // Simulate 1 new commit so the merge path is exercised
+          if (args[0][0] === 'rev-list') {
+            return Promise.resolve('1');
+          }
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ conflicts: ['file.ts'] }),
         status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 

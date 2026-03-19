@@ -14,7 +14,7 @@ import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
 import { fileURLToPath } from 'node:url'
 import { getWorkspaceRoot } from '../utils/config.js'
-import { resolveGateIdentifier } from '../utils/normalize.js'
+import { resolveGateIdentifier, normalizeHash } from '../utils/normalize.js'
 
 // Install-relative directory so templates are found regardless of user CWD.
 const __installDir = fileURLToPath(new URL('../..', import.meta.url))
@@ -133,7 +133,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     async (params) => {
       const validated = z.object({ hash: z.string(), reason: z.string().optional() }).parse(params)
       const db = (await import('../storage/database.js')).getDatabase()
-      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const normalizedHash = normalizeHash(validated.hash)
       const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
       if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
       const previousStatus = proposal['status'] as string
@@ -169,7 +169,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     async (params) => {
       const validated = z.object({ hash: z.string(), reason: z.string().optional() }).parse(params)
       const db = (await import('../storage/database.js')).getDatabase()
-      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const normalizedHash = normalizeHash(validated.hash)
       const proposal = db.prepare('SELECT hash, status FROM proposals WHERE hash = ? OR hash LIKE ?').get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
       if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
       const previousStatus = proposal['status'] as string
@@ -206,9 +206,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const validated = z.object({ hash: z.string() }).parse(params)
 
       const db = (await import('../storage/database.js')).getDatabase()
-      const normalizedHash = validated.hash.startsWith('#')
-        ? validated.hash.slice(1)
-        : validated.hash
+      const normalizedHash = normalizeHash(validated.hash)
 
       const proposal = db
         .prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?')
@@ -643,6 +641,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
     'proposal_start',
     async (params) => {
       const validated = z.object({ hash: z.string(), startedBy: z.string().optional() }).parse(params)
+      const normalizedHash = normalizeHash(validated.hash)
 
       // Validate artifact before starting (user may have edited it)
       const { validateArtifactFile } = await import('../mcp/validators/artifact-validator.js')
@@ -652,7 +651,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Get proposal details to find its file path
       const proposal = db
         .prepare('SELECT * FROM proposals WHERE hash = ? OR hash LIKE ?')
-        .get(validated.hash, `${validated.hash}%`) as Record<string, unknown> | undefined
+        .get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
 
       if (!proposal) {
         throw new Error(`Proposal not found: ${validated.hash}`)
@@ -664,10 +663,10 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Constructing from a title slug is unreliable when files have numbered
       // prefixes (e.g. `01-red-test-suite.md`) that differ from the bare slug.
       const { findProposalByHash: findProposal } = await import('../utils/artifact-locator.js')
-      const resolvedPath = await findProposal(validated.hash, projectRoot)
+      const resolvedPath = await findProposal(normalizedHash, projectRoot)
       if (!resolvedPath) {
         throw new Error(
-          `Proposal file for hash ${validated.hash} not found on disk. ` +
+          `Proposal file for hash ${normalizedHash} not found on disk. ` +
           `Ensure the proposal markdown file exists under zeno/proposals/ with a matching **Hash** field.`
         )
       }
@@ -680,7 +679,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
         const validationResult = await validateArtifactFile(resolvedPath, 'proposal', {
           gateId: proposal['gate_id'] as string,
-          hash: validated.hash,
+          hash: normalizedHash,
           role,
         })
 
@@ -711,14 +710,14 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Capture previous status before transition
       const currentRow = db
         .prepare('SELECT status FROM proposals WHERE hash = ? OR hash LIKE ?')
-        .get(validated.hash, `${validated.hash}%`) as { status: string } | undefined
+        .get(normalizedHash, `${normalizedHash}%`) as { status: string } | undefined
       const previousStatus = currentRow?.status ?? 'pending'
 
       const { startProposal } = await import('../core/completions.js')
-      await startProposal(validated.hash, { startedBy })
+      await startProposal(normalizedHash, { startedBy })
 
       return {
-        hash: validated.hash,
+        hash: normalizedHash,
         previousStatus,
         newStatus: 'in_progress' as const,
         startedAt: new Date().toISOString(),
@@ -781,7 +780,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       }
 
       // Load proposal from database
-      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const normalizedHash = normalizeHash(validated.hash)
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string
@@ -1384,7 +1383,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { getGitUserInfo } = await import('../utils/git.js')
 
       // Load proposal from database
-      const normalizedHash = validated.hash.startsWith('#') ? validated.hash.slice(1) : validated.hash
+      const normalizedHash = normalizeHash(validated.hash)
       const db = (await import('../storage/database.js')).getDatabase()
       interface ProposalRow {
         hash: string

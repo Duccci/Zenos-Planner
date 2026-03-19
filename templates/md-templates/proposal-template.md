@@ -18,6 +18,16 @@ zeno:
 **Roles**: {{ROLES}}
 **Created**: {{DATE}}
 
+<!-- LLM AGENT — MANDATORY PRE-EXECUTION STEP
+Do NOT read tasks and begin implementing. You MUST call the MCP tool first:
+
+  proposal_action:start { "hash": "#{{HASH}}" }
+
+This registers the proposal as in_progress and returns the worktree path.
+All file edits and commits must happen inside that worktree — not in the main workspace.
+Skipping this step bypasses worktree isolation and breaks the approve/merge workflow.
+-->
+
 ---
 
 ## Summary

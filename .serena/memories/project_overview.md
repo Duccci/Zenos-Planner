@@ -90,7 +90,7 @@ src/
 
 ## Gate Roadmap (auto-updated from project.json)
 
-### Completed (8/9)
+### Completed (9/9)
 - **Gate 01: Core Infrastructure** *(completed 2026-01-28T00:00:00.000Z)*
 - **Gate 02: Zeno Engine & Gate Generation** *(completed 2026-01-30T00:00:00.000Z)*
 - **Gate 03: MCP Server & LLM Tool Integration** *(completed 2026-02-04T00:00:00.000Z)*
@@ -99,9 +99,10 @@ src/
 - **Gate 06: Multi-Repo & Subproject Detection** *(completed 2026-03-06T00:00:00.000Z)*
 - **Gate 07: Proposal Generation & Management** *(completed 2026-03-14T00:00:00.000Z)*
 - **Gate 08: Automated Validation & Quality Gates** *(completed 2026-03-17T04:32:31.242Z)*
+- **Gate 09: Human Approval & Rejection Workflow** *(completed 2026-03-19T04:40:54.998Z)*
 
 ### Current
-- **Gate 09: Human Approval & Rejection Workflow** ← *in_progress*
+_None_
 
 ### Upcoming
 _None_

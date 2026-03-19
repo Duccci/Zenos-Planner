@@ -1,6 +1,6 @@
 {
   "name": "zenos-planner",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Progressively approach project completion through iterative gates inspired by Zeno's paradox",
   "keywords": [
     "project-planning",

@@ -95,6 +95,22 @@ export async function main(): Promise<void> {
     logger.info('Starting Zeno MCP server...')
     logger.info(`Workspace: ${workspacePath}`)
 
+    // Run environment diagnostics on MCP startup; log a warning if any check fails or warns.
+    try {
+      const { runAllChecks } = await import('../cli/commands/doctor/runner.js')
+      const report = await runAllChecks()
+      if (report.failed > 0 || report.warned > 0) {
+        const parts: string[] = []
+        if (report.failed > 0) parts.push(`${report.failed.toString()} failed`)
+        if (report.warned > 0) parts.push(`${report.warned.toString()} warned`)
+        logger.warn(`Environment check: ${parts.join(', ')} — run \`zeno doctor\` for details`)
+      } else {
+        logger.info('Environment check: all checks passed')
+      }
+    } catch (err) {
+      logger.warn('Environment diagnostics could not run', err)
+    }
+
     const server = await createMcpServer(workspacePath)
     const transport = new StdioServerTransport()
 

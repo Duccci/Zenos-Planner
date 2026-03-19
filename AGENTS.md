@@ -78,15 +78,17 @@ Diagrams are stored as:
 - Mermaid (text-based, simple diagrams ≤5 elements): `zeno/architecture/*.md`
 - DOT/SVG (prerendered, complex diagrams >5 elements): `zeno/architecture/diagrams/*.svg` with source in `.dot` files
 
-**Solitary** (Not a standard Zeno term; likely referring to solo/single-developer workflow)
-Zeno is designed for solo developers or individual AI agents working sequentially. For multi-developer or multi-agent teams:
+**Solitary Proposal**
+A gate-independent, self-contained proposal that is not tied to any gate. Solitary proposals:
 
-- Use git worktrees to isolate parallel work
-- Dependency detection prevents file conflicts
-- Orchestrator coordinates merge ordering
-- Human approval gates provide synchronization points
+- Live in `zeno/proposals/solitary/` (stored with `gate_id = NULL` in the database)
+- Are created via `proposal_action:generate` with `{ "solitary": true, "title": "...", "tasks": [...] }`
+- Are listed via `proposal_action:list` with `{ "gateId": "solitary" }`
+- Combine RED and GREEN phases inline — no separate phase proposals
+- Can be started, validated, and approved with the same `proposal_action` lifecycle as gate-tied proposals
+- Are independent of gate status — can be worked at any time without an active gate
 
-If you're working "solitary" (solo development), you'll still use gates and proposals, but won't need worktree coordination—just sequential approval and implementation.
+Use solitary proposals for cross-cutting improvements, tooling changes, or work that does not belong to a specific gate milestone.
 
 **Rescope**
 A mid-project change to goals, constraints, or end state. Rescoping triggers:
@@ -370,7 +372,7 @@ Zeno provides project-level planning (gates, roadmap) with architecture as a fir
 
 ---
 
-**Document Version**: 1.1.0
+**Document Version**: 1.0.0
 **Last Updated**: 2026-03-18
 **Status**: Active - Production Ready
 

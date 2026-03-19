@@ -319,7 +319,7 @@ export async function approveProposal(
       }
     }
   } catch (error) {
-    logger.debug(`Worktree cleanup skipped for proposal ${proposalHash}: ${String(error)}`)
+    logger.warn(`Worktree cleanup skipped for proposal ${proposalHash}: ${String(error)}`)
   }
 
   // Note: Commits deferred to gate completion (archive phase) for human-in-the-loop oversight.
@@ -443,8 +443,10 @@ export async function completeGate(
     const archiveDir = path.join(projectRoot, 'zeno', 'gates', 'archive')
     await ensureDir(archiveDir)
 
-    // Write to archive
-    const archivePath = path.join(archiveDir, `${gateId}.md`)
+    // Write to archive — preserve the original gate filename so the full
+    // descriptive name (e.g. gate-09-documentation-and-polish.md) is kept.
+    const archiveFileName = gatePrdPath ? path.basename(gatePrdPath) : `${gateId}.md`
+    const archivePath = path.join(archiveDir, archiveFileName)
     await writeFile(archivePath, newGateContent)
 
     // Remove the original gate PRD from gates/

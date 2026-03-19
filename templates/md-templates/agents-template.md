@@ -16,6 +16,7 @@
 | Current gate status | `gates_action:list` |
 | Gate details & objectives | `context_action:gate { gateId }` |
 | Proposal working context | `context_action:proposal { hash }` |
+| List solitary proposals | `proposal_action:list { gateId: 'solitary' }` |
 | Requirements for gate | `reg_action:list { gateId }` |
 | Specific requirement | `reg_action:show { hash }` |
 | Proposal details | `proposal_action:show { hash }` |
@@ -27,8 +28,10 @@
 
 | Phase | Triggered by | Load |
 | ----- | ------------ | ---- |
-| `execution` | `proposal_action:start` | Single proposal file only. No PRD or STRUCTURE.md. |
-| `gate-proposal-gen` | `proposal_action:generate` | Gate PRD + `AGENTS.md` only. |
+| `execution` | `proposal_action:start` (gate-tied) | Single proposal file only. No PRD or STRUCTURE.md. |
+| `solitary-execution` | `proposal_action:start` (solitary) | Single proposal file only. No gate PRD. No PRD or STRUCTURE.md. |
+| `gate-proposal-gen` | `proposal_action:generate` (gate-tied) | Gate PRD + `AGENTS.md` only. |
+| `solitary-generate` | `proposal_action:generate { solitary: true }` | `AGENTS.md` only. No PRD, no gate PRD. |
 | `planning` | `gates_action:generate` | `overview/PROJECT_PRD.md` + `overview/STRUCTURE.md` + `AGENTS.md`. |
 
 > Pass `operationMode` to `context_action` to declare the phase. In `execution` mode the response is DB-only. In `planning` mode `_planningContext` paths are included as load hints.
@@ -57,6 +60,10 @@
 | `artifact_validate` | — | Unified artifact validator (format/quality/dependency) |
 | `git_trace` | — | Trace git commits for artifacts (gates, proposals, requirements) |
 
+### Proposal Execution Protocol
+
+**When asked to "start", "implement", "work on", or "execute" a proposal**: extract its `#hash` from the `**Hash**:` line, then call `proposal_action:start { hash }` before touching any files. The response returns the worktree path — all edits and commits belong there, not in the main workspace. Finish with `proposal_action:validate` → `proposal_action:approve`.
+
 ### Reading Artifacts
 
 #### Gate PRDs (`gates/gate-XX-name.md`)
@@ -68,6 +75,10 @@ Each gate file contains objectives, deliverables, requirements references, and d
 Each proposal is self-contained: title, hash, gate, tasks (checkbox list), files affected, dependencies, and acceptance criteria. A proposal contains all information needed for execution — do not load external documents unless the proposal explicitly references them.
 
 **Task completion checkpointing**: After finishing each task during apply phase, immediately mark its checkbox `[x]` in the proposal markdown file before starting the next task. If the session crashes or is interrupted, the next session reads the proposal file to find the first unchecked task and resumes from there — no duplicated work.
+
+#### Solitary Proposals (`proposals/solitary/<name>.md`)
+
+Solitary proposals are **gate-independent** (`gateId = NULL`). List them with `proposal_action:list { gateId: 'solitary' }`. Create with `proposal_action:generate { solitary: true, title: '...', tasks: [...] }` — no gate PRD is loaded, only `AGENTS.md`. The `Gate` header field reads `Solitary`. RED and GREEN phases are combined inline. Dependency validation skips gate-ordering checks.
 
 #### Commits & Traceability
 

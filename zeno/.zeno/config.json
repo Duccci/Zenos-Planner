@@ -1,6 +1,6 @@
 {
   "projectName": "Zenos-Planner",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "qualityThresholds": {
     "codeCoverage": 90,
     "securityVulnerabilities": 0,

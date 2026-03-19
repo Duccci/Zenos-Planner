@@ -219,14 +219,47 @@ export class WorktreeManager {
       }
     }
 
-    // Default: standard merge (does not require checkout — simple-git handles it)
-    const result = await git.merge({ from: info.branch, into: targetBranch } as Parameters<typeof git.merge>[0])
-    const mergeResult = result as unknown as { ok: boolean; conflicts?: string[] }
-    if (mergeResult.ok) {
+    // Default: standard merge.
+    // First check if the proposal branch has any commits not already in targetBranch.
+    let hasNewCommits = false
+    try {
+      const count = await git.raw(['rev-list', `${targetBranch}..${info.branch}`, '--count'])
+      hasNewCommits = parseInt(count.trim(), 10) > 0
+    } catch {
+      // rev-list failed (e.g. targetBranch doesn't exist yet); skip merge.
+    }
+
+    if (!hasNewCommits) {
+      // Nothing to integrate — just clean up the worktree.
       await this.remove(proposalHash, true)
       return {}
     }
 
-    return { conflicts: mergeResult.conflicts ?? [] }
+    // Proposal branch has new commits; merge requires checking out targetBranch.
+    // Guard: working tree must be clean to allow checkout.
+    const defaultStatus = await git.status()
+    if (!defaultStatus.isClean()) {
+      return {
+        conflicts: [
+          'Working tree has uncommitted changes. Commit or stash them before merging.',
+        ],
+      }
+    }
+
+    const defaultPreviousBranch = await this.getCurrentBranch(git)
+    try {
+      await git.raw(['checkout', targetBranch])
+      const result = await git.merge([info.branch])
+      const conflicts = (result as unknown as { conflicts?: string[] }).conflicts ?? []
+      if (conflicts.length === 0) {
+        await this.remove(proposalHash, true)
+        return {}
+      }
+      return { conflicts }
+    } finally {
+      if (defaultPreviousBranch && defaultPreviousBranch !== targetBranch) {
+        try { await git.raw(['checkout', defaultPreviousBranch]) } catch { /* best-effort */ }
+      }
+    }
   }
 }

@@ -278,3 +278,35 @@ Gate 10 (Subagent Orchestration & Parallel Execution) is a deferred post-MVP gat
 - Previous Gate: `zeno/gates/gate-08-mvp-hardening.md`
 - Next Gate: `zeno/gates/gate-10-subagent-orchestration-parallel-execution.md`
 - Architecture: `zeno/architecture/`
+
+## Consolidated Proposals Summary
+
+*This section consolidates information from all archived proposals for this gate to reduce context size while preserving key breadcrumbs.*
+
+### Requirements Fulfilled
+
+*No requirements tracked in proposals.*
+
+### Lessons Learned
+
+- **Docs / Chore** — No code changes. Documentation accuracy pass only.
+
+### Next Dependencies
+
+*Proposals that are unblocked by this gate (identified from proposal dependency tables):*
+
+*No downstream dependencies identified.*
+
+### High-Level Delta
+
+**Summary**:
+Audits README.md and docs/MCP-TOOLS.md against the actual implementation delivered through gate-08. Removes references to unimplemented or deferred features, adds missing commands (worktree, rescope, req status/transfer, gates regenerate), corrects inaccurate examples, and updates the MCP-TOOLS.md last-updated date. This proposal produces the baseline-accurate documentation that proposal 02 (AGENTS.md updates) depends on. Updates root `AGENTS.md` and `zeno/AGENTS.md` to reflect the actual MVP implementation after gates 01-08. Corrects the command reference table, gate count references, file location table, and workflow descriptions. Also verifies `zeno/TERMINOLOGY.md` is current. Depends on proposal 01 completing the README/CLI audit first so corrections are consistent across all documentation. Adds JSDoc comments to all public API symbols exported from `src/index.ts` and their source files in `src/integration/`. Reviews CLI command error messages for clarity, actionable context, and consistent tone. Verifies no TypeScript strict-mode errors are introduced. This proposal is independent of the README/AGENTS.md audit proposals and can run in parallel.
+
+**Artifacts Created**:
+*No artifacts tracked.*
+
+**Quality Metrics**:
+
+- Total Coverage: 0%
+- Total Files Modified: 0
+- Total Tasks Completed: 6

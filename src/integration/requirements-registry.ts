@@ -21,7 +21,7 @@ import { getDatabase, getDatabasePath, closeDatabase, initializeDatabase } from 
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { logger } from '../utils/logger.js'
 import { getWorkspaceRoot } from '../utils/config.js'
-import { resolveGateIdentifier } from '../utils/normalize.js'
+import { resolveGateIdentifier, normalizeHash } from '../utils/normalize.js'
 
 // Valid type and priority values for validation
 const VALID_TYPES = new Set<string>(['functional', 'non_functional', 'constraint'])
@@ -497,13 +497,14 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'show': {
           const payload = z.object({ hash: z.string() }).parse(validated.payload ?? {})
-          const req = storage.getRequirementByHash(payload.hash)
+          const nhash = normalizeHash(payload.hash)
+          const req = storage.getRequirementByHash(nhash)
           if (!req) {
             return { requirement: null, children: [], ancestors: [] }
           }
-          const children = storage.getRequirementChildren(payload.hash)
-          const ancestors = storage.getRequirementAncestors(payload.hash)
-          const referencingGates = storage.getRequirementReferencingGates(payload.hash)
+          const children = storage.getRequirementChildren(nhash)
+          const ancestors = storage.getRequirementAncestors(nhash)
+          const referencingGates = storage.getRequirementReferencingGates(nhash)
           return {
             requirement: {
               hash: req.hash,
@@ -531,7 +532,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'deps': {
           const payload = z.object({ hash: z.string() }).parse(validated.payload ?? {})
-          const req = storage.getRequirementByHash(payload.hash)
+          const req = storage.getRequirementByHash(normalizeHash(payload.hash))
           if (!req) {
             return { graph: null }
           }
@@ -550,7 +551,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             .object({ hash: z.string(), gateId: z.string() })
             .parse(validated.payload ?? {})
           const resolvedTransferGateId = resolveGateIdentifier(payload.gateId)
-          const result = storage.transferRequirement(payload.hash, resolvedTransferGateId)
+          const result = storage.transferRequirement(normalizeHash(payload.hash), resolvedTransferGateId)
           return result
         }
 
@@ -597,7 +598,8 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             .object({ hash: z.string(), gateId: z.string() })
             .parse(validated.payload ?? {})
           const resolvedInheritGateId = resolveGateIdentifier(payload.gateId)
-          const req = storage.getRequirementByHash(payload.hash)
+          const nhash = normalizeHash(payload.hash)
+          const req = storage.getRequirementByHash(nhash)
           if (!req) {
             return {
               success: false,
@@ -640,13 +642,14 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             )
             .parse(validated.payload ?? {})
 
-          const req = storage.getRequirementByHash(payload.hash)
+          const nhash = normalizeHash(payload.hash)
+          const req = storage.getRequirementByHash(nhash)
           if (!req) {
             return {
               success: false,
-              hash: payload.hash,
+              hash: nhash,
               updated: {},
-              message: `Requirement ${payload.hash} not found`,
+              message: `Requirement ${nhash} not found`,
             }
           }
 
@@ -690,13 +693,14 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'trace': {
           const payload = z.object({ hash: z.string() }).parse(validated.payload ?? {})
-          const req = storage.getRequirementByHash(payload.hash)
+          const nhash = normalizeHash(payload.hash)
+          const req = storage.getRequirementByHash(nhash)
           if (!req) {
             return { found: false, hash: payload.hash }
           }
-          const ancestors = storage.getRequirementAncestors(payload.hash)
-          const children = storage.getRequirementChildren(payload.hash)
-          const referencingGates = storage.getRequirementReferencingGates(payload.hash)
+          const ancestors = storage.getRequirementAncestors(nhash)
+          const children = storage.getRequirementChildren(nhash)
+          const referencingGates = storage.getRequirementReferencingGates(nhash)
           return {
             found: true,
             hash: req.hash,

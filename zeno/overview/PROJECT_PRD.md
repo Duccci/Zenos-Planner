@@ -525,52 +525,26 @@ This reduces context size by 50%+ while maintaining precise references. Requirem
 
 ## Timeline (Order of Operations)
 
-### Archived Gates (Completed)
+### Completed Gates (1-9)
 
-Gates 1-4 have been completed and archived. These foundational gates established:
+Gates 1-9 have been completed and archived. These gates established the core Zeno's Planner system:
 
-- Gate 1: Core Infrastructure (TypeScript, CLI, SQLite, utilities)
-- Gate 2: Zeno Engine & Gate Generation (gate generation algorithm, requirements, analysis, LLM integration)
-- Gate 3: Requirements & Database Layer (requirement storage, SQLite CRUD, hash registry)
-- Gate 4: Architecture & Mermaid Generation (diagram generation base)
+- **Gate 01**: Core Infrastructure — TypeScript, CLI framework, SQLite schema, utilities
+- **Gate 02**: Zeno Engine & Gate Generation — gate decomposition algorithm, requirements analysis, LLM integration
+- **Gate 03**: MCP Server & LLM Tool Integration — MCP server, function registry, Zod schemas, tool handlers
+- **Gate 04**: Requirements & Database Layer — requirements CRUD, hash registry, dependency tracking
+- **Gate 05**: Architecture & Diagram Generation — Mermaid/DOT diagram generation, system visualization
+- **Gate 06**: Multi-Repo & Subproject Detection — repository boundary detection, coupling analysis
+- **Gate 07**: Proposal Generation & Management — proposal scaffolding, task breakdown, validation workflows
+- **Gate 08**: Automated Validation & Quality Gates — code coverage, security scanning, linting checks (90% / 0 CVE / <0.01% errors)
+- **Gate 09**: Human Approval & Rejection Workflow — proposal approval/rejection lifecycle, replan triggers
 
-MPC Server integration (formerly Gate 2.5) is now part of ongoing Gates 5-12 implementation.
+### Upcoming Gates (10+)
 
-### Active MVP Gates (09-14)
+Future gates under planning include:
 
-### Gate 09: Gate 09: Human Approval & Rejection Workflow
-
-[x] Implementation in progress...
-
-### Gate 10: Gate 10: Git Integration & Commit Automation
-
-[ ] Implementation in progress...
-
-### Gate 11: Gate 11: Rescope & Replan Engine
-
-[ ] Implementation in progress...
-
-### Gate 12: Gate 12: Dashboard & Visualization
-
-[ ] Implementation in progress...
-
-### Gate 13: Gate 13: Subagent Orchestration & Parallel Execution
-
-[ ] Implementation in progress...
-
-### Gate 14: Gate 14: Documentation & Polish
-
-[ ] Implementation in progress...
-
-### Archived Gates (Completed)
-
-Gates 1-4 have been completed and archived. These foundational gates established:
-
-- Gate 01: Gate 01: Core Infrastructure
-- Gate 02: Gate 02: Zeno Engine & Gate Generation
-- Gate 03: Gate 03: MCP Server & LLM Tool Integration
-- Gate 04: Gate 04: Requirements & Database Layer
-- Gate 05: Gate 05: Architecture & Diagram Generation
-- Gate 06: Gate 06: Multi-Repo & Subproject Detection
-- Gate 07: Gate 07: Proposal Generation & Management
-- Gate 08: Gate 08: Automated Validation & Quality Gates
+- **Gate 10**: Git Integration & Commit Automation
+- **Gate 11**: Rescope & Replan Engine
+- **Gate 12**: Dashboard & Visualization
+- **Gate 13**: Subagent Orchestration & Parallel Execution
+- **Gate 14**: Documentation & Polish

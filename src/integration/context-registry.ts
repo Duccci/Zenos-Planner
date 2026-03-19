@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { logger } from '../utils/logger.js'
 import { getDatabase } from '../storage/database.js'
+import { normalizeHash } from '../utils/normalize.js'
 
 // ── DB row types ─────────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
         } else if (hash) {
           gate = db
             .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE hash = ?')
-            .get(hash) as GateRow | undefined
+            .get(normalizeHash(hash)) as GateRow | undefined
         }
 
         if (!gate) {
@@ -204,14 +205,15 @@ export function registerContextOps(registry: FunctionRegistry): void {
         const db = getDatabase()
 
         // Proposal metadata
+        const normalizedProposalHash = normalizeHash(hash)
         const proposal = db
           .prepare(
             'SELECT id, title, status, hash, gate_id, created_at, started_at FROM proposals WHERE hash = ?'
           )
-          .get(hash) as ProposalRow | undefined
+          .get(normalizedProposalHash) as ProposalRow | undefined
 
         if (!proposal) {
-          throw new Error(`Proposal not found: ${hash}`)
+          throw new Error(`Proposal not found: ${normalizedProposalHash}`)
         }
 
         // Parent gate context (if gate-tied)
@@ -293,14 +295,15 @@ export function registerContextOps(registry: FunctionRegistry): void {
       try {
         const db = getDatabase()
 
+        const normalizedReqHash = normalizeHash(hash)
         const req = db
           .prepare(
             'SELECT id, description, type, priority, level, hash, gate_id, acceptance_criteria, created_at FROM requirements WHERE hash = ?'
           )
-          .get(hash) as RequirementDetailRow | undefined
+          .get(normalizedReqHash) as RequirementDetailRow | undefined
 
         if (!req) {
-          throw new Error(`Requirement not found: ${hash}`)
+          throw new Error(`Requirement not found: ${normalizedReqHash}`)
         }
 
         return {
@@ -347,7 +350,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
             .prepare(
               'SELECT id, name, path, type, hash, metadata, created_at FROM repositories WHERE hash = ?'
             )
-            .get(hash) as RepositoryRow | undefined
+            .get(normalizeHash(hash)) as RepositoryRow | undefined
         } else if (name) {
           repo = db
             .prepare(
