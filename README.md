@@ -149,6 +149,27 @@ git submodule update --init
 
 Setting `zenoSubmodule: true` manually has the same effect as using the flag — all subsequent Zeno operations will commit inside `zeno/` and update the parent pointer.
 
+### Using Zeno as a Standalone Planning Repo
+
+If the repository itself **is** the planning repo (i.e. Zeno is not embedded inside a code project), set `zenoDir` to `"."` in config so that all artifacts are written at the repository root rather than inside a nested `zeno/` subdirectory.
+
+`zeno/.zeno/config.json` → `.zeno/config.json` (once `zenoDir` is `"."`)
+
+```json
+{
+  "zenoDir": "."
+}
+```
+
+With `zenoDir: "."`:
+
+- Internal state lives at `.zeno/` (instead of `zeno/.zeno/`)
+- Gates, proposals, and architecture files live at `gates/`, `proposals/`, `architecture/` (instead of `zeno/gates/`, etc.)
+- `findProjectRoot` discovers the project by looking for `.zeno/config.json` at or above the working directory
+- `loadConfig` falls back to `.zeno/config.json` automatically when `zeno/.zeno/config.json` is absent
+
+The default value of `zenoDir` is `"zeno"`, which preserves the standard embedded layout and requires no migration for existing projects.
+
 ## Workflow
 
 Zeno's workflow consists of three phases: **Planning**, **Review**, and **Execution**. Gates flow through these phases iteratively until the project end goal is reached.

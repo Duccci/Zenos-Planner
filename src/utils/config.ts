@@ -128,6 +128,19 @@ export const ZenoConfigSchema = z
         model: z.string().optional(),
       })
       .default({ cli: 'copilot', invocationMode: 'cli' }),
+
+    /**
+     * Name of the planning directory relative to the project root.
+     *
+     * Defaults to `'zeno'` so that artifacts live at `<projectRoot>/zeno/`.
+     * Set to `'.'` when Zeno is used as a standalone planning repo (i.e. the
+     * repo itself IS the planning repo, not embedded as a submodule).  In that
+     * case all artifacts live directly under the repository root.
+     *
+     * This value is used by `getZenoDir` and `getZenoGitDir` once the config
+     * has been loaded; initial project discovery still uses the `'zeno'` default.
+     */
+    zenoDir: z.string().default('zeno'),
   })
   .loose()
 
@@ -224,8 +237,17 @@ export interface GateSummary {
   estimatedComplexity?: string
 }
 
-/** Zeno directory name */
-const ZENO_DIR = join('zeno', '.zeno')
+/** Default name of the planning directory within the project root */
+const DEFAULT_ZENO_DIR = 'zeno'
+
+/** Zeno internal state directory name (nested inside zenoDir) */
+const ZENO_INTERNAL_DIR = '.zeno'
+
+/**
+ * Bootstrap constant: path segment used by `findProjectRoot` when no config is
+ * available yet.  Equals `join(DEFAULT_ZENO_DIR, ZENO_INTERNAL_DIR)`.
+ */
+const ZENO_DIR = join(DEFAULT_ZENO_DIR, ZENO_INTERNAL_DIR)
 
 /** Config file name */
 const CONFIG_FILE = 'config.json'
@@ -246,31 +268,41 @@ export function getWorkspaceRoot(): string {
 
 /**
  * Get the path to the .zeno directory for a given project root.
+ * When `config` is provided its `zenoDir` field overrides the default (`'zeno'`),
+ * allowing the planning directory to be placed elsewhere (e.g. `'.'` for a
+ * standalone planning repo).
  * @param projectRoot - Project root directory (default: process.cwd())
+ * @param config - Optional loaded config; used to resolve `zenoDir`
  * @returns Absolute path to .zeno directory
  */
-export function getZenoDir(projectRoot: string = process.cwd()): string {
-  return normalizePath(join(projectRoot, ZENO_DIR))
+export function getZenoDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
+  const zenoDir = config?.zenoDir ?? DEFAULT_ZENO_DIR
+  return normalizePath(join(projectRoot, zenoDir, '.zeno'))
 }
 
 /**
- * Get the git working directory root for the zeno submodule.
+ * Get the git working directory root for the zeno planning directory.
  * When zeno is used as a git submodule, git operations must run from the
- * submodule root (i.e. the 'zeno' directory), not the parent project root.
+ * planning directory root, not the parent project root.
+ * When `config` is provided its `zenoDir` field overrides the default (`'zeno'`).
  * @param projectRoot - Parent project root directory (default: process.cwd())
- * @returns Absolute path to the zeno submodule root
+ * @param config - Optional loaded config; used to resolve `zenoDir`
+ * @returns Absolute path to the zeno planning directory root
  */
-export function getZenoGitDir(projectRoot: string = process.cwd(), _config?: ZenoConfig): string {
-  return normalizePath(join(projectRoot, 'zeno'))
+export function getZenoGitDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
+  const zenoDir = config?.zenoDir ?? DEFAULT_ZENO_DIR
+  return normalizePath(join(projectRoot, zenoDir))
 }
 
 /**
  * Get the path to the config.json file.
+ * When `config` is provided its `zenoDir` field is used to resolve the path.
  * @param projectRoot - Project root directory (default: process.cwd())
+ * @param config - Optional loaded config; used to resolve `zenoDir`
  * @returns Absolute path to config.json
  */
-export function getConfigPath(projectRoot: string = process.cwd()): string {
-  return normalizePath(join(getZenoDir(projectRoot), CONFIG_FILE))
+export function getConfigPath(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
+  return normalizePath(join(getZenoDir(projectRoot, config), CONFIG_FILE))
 }
 
 /**
@@ -289,8 +321,14 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
   // both Unix '/' roots and Windows drive roots (e.g. 'C:/') without platform detection.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   while (true) {
+    // Standard layout: <root>/zeno/.zeno/config.json
     const configFile = join(currentDir, ZENO_DIR, CONFIG_FILE)
     if (fileExists(configFile)) {
+      return currentDir
+    }
+    // Standalone layout: <root>/.zeno/config.json  (zenoDir = '.')
+    const standaloneConfigFile = join(currentDir, ZENO_INTERNAL_DIR, CONFIG_FILE)
+    if (fileExists(standaloneConfigFile)) {
       return currentDir
     }
     const parent = normalizePath(dirname(currentDir))
@@ -345,6 +383,7 @@ export function getDefaultConfig(projectName: string, projectStatement?: string)
       cli: 'copilot',
       invocationMode: 'acp',
     },
+    zenoDir: 'zeno',
   }
 }
 
@@ -366,17 +405,25 @@ export function getDefaultProject(projectName: string, projectStatement: string)
 }
 
 /**
- * Load configuration from zeno/.zeno/config.json.
+ * Load configuration from zeno/.zeno/config.json (or .zeno/config.json for standalone repos).
+ *
+ * Discovery order:
+ *  1. `<projectRoot>/zeno/.zeno/config.json`  — standard embedded layout
+ *  2. `<projectRoot>/.zeno/config.json`        — standalone planning repo (zenoDir = '.')
+ *
  * @param projectRoot - Project root directory (default: process.cwd())
  * @returns Validated ZenoConfig
  * @throws ConfigError if config is invalid
  */
 export async function loadConfig(projectRoot: string = process.cwd()): Promise<ZenoConfig> {
-  const configPath = getConfigPath(projectRoot)
+  // Try standard path first, fall back to standalone layout.
+  const standardPath = getConfigPath(projectRoot)
+  const standalonePath = normalizePath(join(projectRoot, ZENO_INTERNAL_DIR, CONFIG_FILE))
+  const configPath = fileExists(standardPath) ? standardPath : standalonePath
 
   if (!fileExists(configPath)) {
-    throw new ConfigError(`Configuration file not found: ${configPath}`, 'CONFIG_NOT_FOUND', {
-      path: configPath,
+    throw new ConfigError(`Configuration file not found: ${standardPath}`, 'CONFIG_NOT_FOUND', {
+      path: standardPath,
     })
   }
 
