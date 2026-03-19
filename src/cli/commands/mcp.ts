@@ -96,9 +96,7 @@ export function registerMcpCommands(program: Command): void {
         const zeroInstallCheck = isZenoInstalled(projectRoot)
         if (!zeroInstallCheck.valid) {
           const reason = zeroInstallCheck.reason ?? 'Unknown reason'
-          logger.error(`Zeno is not properly installed: ${reason}`)
-          console.error(`Error: ${reason}`)
-          console.error('Please ensure Zeno is installed by running: npm install')
+          logger.error(`zeno is not properly installed: ${reason}. run "npm install" to restore dependencies.`)
           process.exit(1)
         }
 

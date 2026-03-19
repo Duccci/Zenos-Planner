@@ -399,8 +399,6 @@ export async function completeGate(
            completed_at = CURRENT_TIMESTAMP
        WHERE id = ?`
     ).run(id)
-
-    // Update all requirements for this gate to tested
   })
   tx(gate.id)
 

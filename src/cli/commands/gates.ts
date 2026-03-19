@@ -414,7 +414,7 @@ export function registerGatesCommands(program: Command): void {
         logger.debug('Analysis prompt failed, continuing without analysis')
       }
 
-      logger.info('Gate completion summary: All requirements implemented and tested')
+      logger.info('Gate completion summary: All proposals consolidated and archived')
 
       // Sync completed gate back to project.json
       try {

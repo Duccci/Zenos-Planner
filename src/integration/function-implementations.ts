@@ -64,13 +64,18 @@ export function createFunctionRegistry(): FunctionRegistry {
   return registry
 }
 
-/**
- * Global singleton instance
- */
+/** Process-wide singleton; `null` until first call to {@link getGlobalRegistry}. */
 let globalRegistry: FunctionRegistry | null = null
 
 /**
- * Get or create the global function registry
+ * Return the process-wide singleton {@link FunctionRegistry}, creating it on
+ * first call via {@link createFunctionRegistry}.
+ *
+ * Node.js is single-threaded, so no synchronisation is needed.  The singleton
+ * is reset to `null` only in tests that call `vi.resetModules()` or clear the
+ * module cache between test cases.
+ *
+ * @returns The shared {@link FunctionRegistry} instance.
  */
 export function getGlobalRegistry(): FunctionRegistry {
   globalRegistry ??= createFunctionRegistry()

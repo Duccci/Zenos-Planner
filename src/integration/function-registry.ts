@@ -33,7 +33,12 @@ export interface FunctionDefinition {
 }
 
 /**
- * Error response structure for consistent error handling
+ * Structured error payload returned when a registered function fails.
+ *
+ * The `code` field is a machine-readable identifier (e.g. `FUNCTION_NOT_FOUND`,
+ * `INVALID_PARAMETERS`, `INVOCATION_ERROR`) that callers can switch on.
+ * `context` carries arbitrary diagnostic data; `operations` surfaces any
+ * partial-operation log emitted by the underlying implementation.
  */
 export interface FunctionErrorResponse {
   code: string
@@ -44,14 +49,27 @@ export interface FunctionErrorResponse {
 }
 
 /**
- * Result type for function invocation
+ * Discriminated union result for {@link FunctionRegistry.invoke}.
+ *
+ * On success: `{ success: true; data: T }` — callers can safely access `data`.
+ * On failure: `{ success: false; error: FunctionErrorResponse }` — inspect
+ * `error.code` for programmatic handling or `error.message` for display.
  */
 export type FunctionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: FunctionErrorResponse }
 
 /**
- * Registered function with implementation
+ * Descriptor for a function that has been registered with {@link FunctionRegistry}.
+ *
+ * @typeParam T - Return type of the underlying implementation.
+ * @property name - Unique function identifier used as the lookup key.
+ * @property description - Human-readable summary surfaced to LLM callers.
+ * @property parameters - Ordered list of parameter descriptors.
+ * @property returnType - String label describing the return shape.
+ * @property schema - Zod schema used to validate incoming parameters before
+ *   the implementation is invoked.
+ * @property implementation - Async-capable handler that receives validated params.
  */
 export interface RegisteredFunction<T = unknown> {
   name: string
@@ -63,13 +81,28 @@ export interface RegisteredFunction<T = unknown> {
 }
 
 /**
- * Function Registry class for registration and invocation
+ * Central registry for all Zeno functions callable by the CLI and MCP layers.
+ *
+ * The CLI (`src/cli/`) and MCP server (`src/mcp/`) both obtain a populated
+ * registry via {@link createFunctionRegistry} or {@link getGlobalRegistry} and
+ * call {@link FunctionRegistry.invoke} to dispatch operations.
+ *
+ * Functions are registered with a Zod schema for parameter validation.  The
+ * registry coerces invocation errors into typed {@link FunctionResult} values
+ * so callers never need to catch exceptions from `invoke`.
  */
 export class FunctionRegistry {
   private functions = new Map<string, RegisteredFunction>()
 
   /**
-   * Register a new function
+   * Register a function so it can be invoked by name.
+   *
+   * Calling `register` with an already-registered name silently replaces the
+   * previous definition, which is intentional for handler overrides in tests.
+   *
+   * @param name - Unique function identifier.
+   * @param implementation - Handler that receives Zod-validated params.
+   * @param options - Metadata and validation schema for the function.
    */
   register<T = unknown>(
     name: string,
@@ -95,7 +128,16 @@ export class FunctionRegistry {
   }
 
   /**
-   * Invoke a registered function with validation
+   * Invoke a registered function by name, validating params against its schema.
+   *
+   * Never throws — all errors are captured and returned as
+   * `{ success: false; error: FunctionErrorResponse }`.
+   *
+   * @param name - Function identifier as supplied to {@link register}.
+   * @param params - Raw parameter object; validated against the function's
+   *   Zod schema before the implementation is called.
+   * @returns A resolved {@link FunctionResult}; inspect `success` before
+   *   accessing `data`.
    */
   async invoke<T = unknown>(
     name: string,
@@ -183,21 +225,34 @@ export class FunctionRegistry {
   }
 
   /**
-   * Get all registered functions
+   * Return all registered functions in insertion order.
+   *
+   * @returns Snapshot array — mutations do not affect the internal map.
    */
   list(): RegisteredFunction[] {
     return Array.from(this.functions.values())
   }
 
   /**
-   * Get a specific registered function
+   * Look up a single registered function by name.
+   *
+   * @param name - The exact registered function identifier.
+   * @returns The {@link RegisteredFunction} descriptor, or `undefined` if not found.
    */
   get(name: string): RegisteredFunction | undefined {
     return this.functions.get(name)
   }
 
   /**
-   * Get functions by category (based on name prefix)
+   * Return all functions belonging to a named category.
+   *
+   * Category membership is determined by the function's name prefix (e.g.
+   * `gates_` → `"gates"`, `reg_` → `"requirements"`). Unknown categories
+   * return an empty array.
+   *
+   * @param category - One of: `"gates"`, `"requirements"`, `"proposals"`,
+   *   `"architecture"`, `"templates"`, `"general"`.
+   * @returns Filtered array of matching {@link RegisteredFunction} descriptors.
    */
   getByCategory(category: string): RegisteredFunction[] {
     const categoryPrefixes: Record<string, string[]> = {

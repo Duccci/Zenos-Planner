@@ -76,6 +76,18 @@ export class WorktreeManager {
     const worktreePath = `.local/worktrees/${proposalHash}`
     const branch = `proposal/${proposalHash}`
 
+    const git = simpleGit(this.projectRoot)
+
+    // If the branch already exists (e.g. stale from a prior failed removal),
+    // attach worktree to the existing branch instead of creating a new one.
+    let branchExists = false
+    try {
+      const refs = await git.raw(['branch', '--list', branch])
+      branchExists = refs.trim().length > 0
+    } catch {
+      // branch check failed; fall through to the default -b path
+    }
+
     const info: WorktreeInfo = {
       path: worktreePath,
       branch,
@@ -84,8 +96,11 @@ export class WorktreeManager {
     }
     this.worktrees.set(proposalHash, info)
 
-    const git = simpleGit(this.projectRoot)
-    await git.raw(['worktree', 'add', '-b', branch, worktreePath])
+    if (branchExists) {
+      await git.raw(['worktree', 'add', worktreePath, branch])
+    } else {
+      await git.raw(['worktree', 'add', '-b', branch, worktreePath])
+    }
 
     return info
   }
@@ -108,6 +123,13 @@ export class WorktreeManager {
       : ['worktree', 'remove', info.path]
     await git.raw(args)
 
+    // Delete the proposal branch to prevent stale branches from accumulating.
+    try {
+      await git.raw(['branch', '-D', info.branch])
+    } catch {
+      // Branch may have already been deleted or never fully created; ignore.
+    }
+
     this.worktrees.delete(proposalHash)
   }
 
@@ -125,33 +147,79 @@ export class WorktreeManager {
     }
   }
 
+  /**
+   * Save the current branch name so it can be restored after operations that
+   * require checking out a different branch in the main worktree.
+   */
+  private async getCurrentBranch(git: ReturnType<typeof simpleGit>): Promise<string | null> {
+    try {
+      const status = await git.status()
+      return status.current
+    } catch {
+      return null
+    }
+  }
+
   async merge(
     proposalHash: string,
     targetBranch: string,
     strategy: 'rebase' | 'squash' | 'merge' = 'merge',
     dryRun = false,
   ): Promise<MergeResult> {
+    if (!this.worktrees.has(proposalHash)) {
+      await this.syncFromGit()
+    }
     const info = this.worktrees.get(proposalHash)
     if (!info) return {}
     if (dryRun) return {}
 
     const git = simpleGit(this.projectRoot)
 
+    // Guard: refuse to switch branches if the main working tree has uncommitted changes.
+    if (strategy === 'rebase' || strategy === 'squash') {
+      const status = await git.status()
+      if (!status.isClean()) {
+        return {
+          conflicts: [
+            'Working tree has uncommitted changes. Commit or stash them before merging.',
+          ],
+        }
+      }
+    }
+
+    // Remember current branch so we can restore it after merge/squash.
+    const previousBranch = await this.getCurrentBranch(git)
+
     if (strategy === 'rebase') {
-      await git.raw(['checkout', targetBranch])
-      await git.raw(['rebase', info.branch])
-      await this.remove(proposalHash, true)
-      return {}
+      try {
+        await git.raw(['checkout', targetBranch])
+        await git.raw(['rebase', info.branch])
+        await this.remove(proposalHash, true)
+        return {}
+      } finally {
+        // Restore the previous branch in the main worktree.
+        if (previousBranch && previousBranch !== targetBranch) {
+          try { await git.raw(['checkout', previousBranch]) } catch { /* best-effort */ }
+        }
+      }
     }
 
     if (strategy === 'squash') {
-      await git.raw(['checkout', targetBranch])
-      await git.raw(['merge', '--squash', info.branch])
-      await this.remove(proposalHash, true)
-      return {}
+      try {
+        await git.raw(['checkout', targetBranch])
+        await git.raw(['merge', '--squash', info.branch])
+        // --squash stages changes but does NOT create a commit; finalize it.
+        await git.raw(['commit', '-m', `squash: merge proposal/${proposalHash}`])
+        await this.remove(proposalHash, true)
+        return {}
+      } finally {
+        if (previousBranch && previousBranch !== targetBranch) {
+          try { await git.raw(['checkout', previousBranch]) } catch { /* best-effort */ }
+        }
+      }
     }
 
-    // Default: standard merge
+    // Default: standard merge (does not require checkout — simple-git handles it)
     const result = await git.merge({ from: info.branch, into: targetBranch } as Parameters<typeof git.merge>[0])
     const mergeResult = result as unknown as { ok: boolean; conflicts?: string[] }
     if (mergeResult.ok) {

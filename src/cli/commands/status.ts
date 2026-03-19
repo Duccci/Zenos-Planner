@@ -22,7 +22,8 @@ export function registerStatusCommand(program: Command): void {
         const result = await registry.invoke('project_status', {})
 
         if (!result.success) {
-          logger.error(`Failed to get status: ${JSON.stringify(result.error)}`)
+          const errMsg = result.error.message
+          logger.error(`failed to get project status: ${errMsg}. run "zeno init" if the project is not initialised.`)
           process.exit(1)
           return
         }

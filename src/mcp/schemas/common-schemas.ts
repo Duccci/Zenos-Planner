@@ -69,8 +69,11 @@ export type RequirementType = z.infer<typeof RequirementTypeEnum>
  * Requirement status lifecycle:
  * - pending: Requirement generated, not yet implemented
  * - in_progress: Actively being implemented
- * - tested: Verified by tests after gate completion
+ * - tested: Implementation verified (set at gate completion)
  * - archived: Archived with the parent gate
+ *
+ * Note: status transitions are not user-controlled via CLI. The `zeno req status`
+ * command was removed. Status progresses automatically through gate/proposal lifecycle.
  */
 export const RequirementStatusEnum = z.enum(['pending', 'in_progress', 'tested', 'archived'])
 export type RequirementStatus = z.infer<typeof RequirementStatusEnum>

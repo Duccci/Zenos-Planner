@@ -139,9 +139,9 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'apply-013',
     topic: 'apply-phase',
-    rule: 'Solitary proposals – Requirement updates: Solitary proposals have no parent gate and must directly update requirements via zeno req status <hash> implemented (not through gate completion).',
+    rule: 'Solitary proposals – Gate association: Solitary proposals have no parent gate; all implementation work is tracked at the proposal level through task checkboxes and the proposal lifecycle.',
     mustHaveValidator: false,
-    reason: 'Process instruction: operational procedure for requirement tracking; not a runtime constraint',
+    reason: 'Process instruction: requirement status tracking via CLI was removed; completion is tracked through proposal lifecycle instead',
     agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/context-manager'],
   },
   {
@@ -400,7 +400,7 @@ export const ARCHIVAL_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'archive-001',
     topic: 'archival',
-    rule: 'Archive only when status is completed; proposals: all tasks done with [x] marks; gates: all requirements tested',
+    rule: 'Archive only when status is completed; proposals: all tasks done with [x] marks; gates: all proposals completed or archived',
     mustHaveValidator: true,
     validatorRef: 'entity-action-handler.ts#createStateTransitionValidator',
     reason: 'Enforced by createStateTransitionValidator: gates_action:complete and proposal_action:approve validate status before transitioning',

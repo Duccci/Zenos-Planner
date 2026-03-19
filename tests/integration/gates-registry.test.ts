@@ -9,6 +9,7 @@ const mockSaveProjectOverview = vi.fn()
 const mockGetGatesFromOverview = vi.fn()
 const mockExistsSync = vi.fn()
 const mockReaddirSync = vi.fn()
+const mockReadFileSync = vi.fn()
 const mockFindGateByGateId = vi.fn().mockResolvedValue(null)
 const mockReadFileFsPromises = vi.fn().mockResolvedValue('')
 const mockSyncProposalsFromDisk = vi.fn()
@@ -40,6 +41,7 @@ vi.mock('../../src/utils/git.js', () => ({
 vi.mock('node:fs', () => ({
   existsSync: (...args: unknown[]) => mockExistsSync(...args),
   readdirSync: (...args: unknown[]) => mockReaddirSync(...args),
+  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
 }))
 
 vi.mock('../../src/integration/command-invoker.js', () => ({
@@ -111,6 +113,7 @@ describe('gates-registry coverage', () => {
     mockGetGatesFromOverview.mockReturnValue([])
     mockExistsSync.mockReturnValue(false)
     mockReaddirSync.mockReturnValue([])
+    mockReadFileSync.mockReturnValue('')
     // Default: no gate file found, empty file content
     mockFindGateByGateId.mockResolvedValue(null)
     mockReadFileFsPromises.mockResolvedValue('')
@@ -131,6 +134,7 @@ describe('gates-registry coverage', () => {
       const result = (await registry.invoke('gates_list', {})) as {
         success: boolean
         data: unknown
+        error?: unknown
       }
       expect(result.success).toBe(true)
       const data = result.data as { gates: unknown[] }

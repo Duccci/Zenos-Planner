@@ -443,7 +443,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         .replace(/\{\{HASH\}\}/g, hash)
         .replace(/\{\{DATE\}\}/g, createdDate)
         .replace(/\{\{GATE_ID\}\}/g, gateLabel)
-        .replace(/\{\{ROLES\}\}/g, '')
+        .replace(/\{\{ROLES\}\}/g, validated.roles && validated.roles.length > 0 ? validated.roles.join(', ') : '')
 
       // Update summary section
       proposalContent = proposalContent.replace(

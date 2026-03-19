@@ -57,6 +57,9 @@ export const ProposalCreateInputSchema = z.object({
   /** Array of files that will be affected */
   filesAffected: z.array(z.string()).default([]),
 
+  /** Optional role for the proposal (testing, feature, cleanup, documentation, solitary) */
+  roles: z.array(z.enum(['testing', 'feature', 'cleanup', 'documentation', 'solitary'])).optional(),
+
   /** Optional proposal context */
   context: z.string().optional(),
 

@@ -282,7 +282,7 @@ export function registerProposalCommands(program: Command): void {
         .get(normalizedHash) as ProposalRecord | undefined
 
       if (!proposal) {
-        logger.error(`Proposal not found: #${normalizedHash}`)
+        logger.error(`Proposal not found: #${normalizedHash}. Run "zeno proposal list" to see available proposals.`)
         process.exit(1)
         return
       }

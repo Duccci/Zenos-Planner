@@ -109,13 +109,13 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 7,
     title: 'Update Requirements',
     description:
-      'For solitary proposals: mark requirements as implemented directly. For gate-tied proposals: requirement status updates are deferred to gate completion.',
+      'Requirement lifecycle is tracked automatically. Gate-tied proposals: requirements are updated at gate completion. Solitary proposals: no separate requirement update step needed.',
     actions: [
-      'Solitary: zeno req status <req-hash> implemented (for each listed requirement)',
       'Gate-tied: no action — handled at gates_action:complete',
+      'Solitary: no action — proposal lifecycle (task checkboxes + approval) is the tracking mechanism',
     ],
     guidance:
-      'Solitary proposals have no parent gate; requirement tracking is mandatory at proposal level.',
+      'The zeno req status CLI command has been removed. Requirement progression is inferred from proposal and gate completion states.',
   },
   {
     order: 8,
@@ -387,14 +387,13 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
     order: 1,
     title: 'Validate Gate Readiness',
     description:
-      'Before archiving, verify the gate is completed: all proposals done, all requirements at "tested" status, all quality gates met.',
+      'Before archiving, verify the gate is completed: all proposals done and all quality gates met.',
     actions: [
       'gates_action:show { gateId: "<hash from gates_list>" } — check status === "completed"',
-      'zeno req list --gate <hash from gates_list> — verify all requirements are "tested"',
       'proposal_action:list { gateId: "<hash from gates_list>" } — verify all proposals are "completed" or "archived"',
     ],
     errorHandling:
-      'If gate is not completed, or requirements are not tested, report what is incomplete and stop.',
+      'If gate is not completed or proposals are not done, report what is incomplete and stop.',
     guidance:
       'Enforced by createStateTransitionValidator: gates_action:complete validates preconditions before transitioning.',
   },
@@ -455,15 +454,14 @@ export const ARCHIVAL_WORKFLOW: WorkflowStep[] = [
   },
   {
     order: 7,
-    title: 'Update Requirements and Dependent Artifacts',
+    title: 'Update Dependent Artifacts',
     description:
-      'For gate-tied proposals: mark each listed requirement as tested. Update any dependent proposals or gates that were waiting on this one.',
+      'Check dependent proposals or gates that were waiting on this one and notify they are now unblocked.',
     actions: [
-      'zeno req status <req-hash> tested (for each requirement in the proposal)',
       'Check proposals that listed this one as a dependency — notify they are now unblocked',
     ],
     guidance:
-      'Gate-tied only. Solitary proposals: requirement tracking not applicable at proposal level.',
+      'The zeno req status CLI command has been removed. Requirement progression is tracked automatically through proposal and gate completion.',
   },
   {
     order: 8,

@@ -127,7 +127,7 @@ export function worktreeHandlers(
                     summary: {
                       prunedCount: input.dryRun ? 0 : wouldPrune.length,
                       diskFreedMB: 0,
-                      worktreetRemaining: after.length,
+                      worktreesRemaining: after.length,
                     },
                     message: input.dryRun
                       ? `Dry run: would prune ${String(wouldPrune.length)} worktree(s).`

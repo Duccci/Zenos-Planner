@@ -284,6 +284,61 @@ GREEN: Update project-structure-template to document the zeno/architecture/STRUC
 
 ---
 
+### Task 11: RED: Write acceptance tests for MCP project_init structure/terminology/diagram output
+
+**Phase**: RED
+**File(s)**: `tests/mcp/tools/project-tools.test.ts`
+**Action**: modify
+
+RED: Write acceptance tests verifying that the MCP `project_action { action: "init" }` path generates STRUCTURE.md, TERMINOLOGY.md, and universal diagrams with the same guarantees as the CLI path.
+
+**Acceptance**:
+
+- [ ] Test: `project_init` returns `structureMDCreated: true` when project root contains source files
+- [ ] Test: `project_init` returns `terminologyMDCreated: true` after a successful init
+- [ ] Test: `project_init` returns `diagramsCreated: number` equal to the count of successfully written diagram files
+- [ ] Test: when CodeAnalyzer scan fails, `project_init` still succeeds and returns `structureMDCreated: false` with a warning in the response
+- [ ] Test: `project_init` result schema (`ProjectInitOutputSchema`) accepts the three new optional fields without validation errors
+- [ ] Test: an existing `STRUCTURE.md` is not overwritten when `project_init` is called on an already-initialized project (idempotency guard already returns early)
+
+---
+
+### Task 12: GREEN: Wire StructureGenerator, TerminologyGenerator, and diagram generation into MCP project_init
+
+**Phase**: GREEN
+**File(s)**: `src/integration/project-registry.ts`
+**Action**: modify
+
+GREEN: Update the `project_init` registry function to call StructureGenerator, TerminologyGenerator, and `generateDiagrams()` after gates are persisted, matching the CLI init flow.
+
+**Acceptance**:
+
+- [ ] After gates are saved to project.json, `CodeAnalyzer.analyzeCodebase()` is called (greenfield path skipped when no source files exist)
+- [ ] `generateStructureMD(config, gates, analysis)` result is written to `zeno/architecture/STRUCTURE.md`
+- [ ] `generateTerminologyMD(config, endState, analysis)` result is written to `zeno/architecture/TERMINOLOGY.md`; existing files receive appended-only terms
+- [ ] `generateDiagrams()` is called with the five universal types; individual diagram failures are non-fatal
+- [ ] Return value includes `structureMDCreated: boolean`, `terminologyMDCreated: boolean`, and `diagramsCreated: number`
+- [ ] Errors in any of the three generation steps are caught, logged as warnings, and do not cause `project_init` to return `success: false`
+
+---
+
+### Task 13: GREEN: Extend ProjectInitOutputSchema with structure/terminology/diagram fields
+
+**Phase**: GREEN
+**File(s)**: `src/mcp/schemas/project-action-schemas.ts`
+**Action**: modify
+
+GREEN: Add three optional output fields to `ProjectInitOutputSchema` so the MCP tool surfaces generated-artifact counts to callers.
+
+**Acceptance**:
+
+- [ ] `ProjectInitOutputSchema` gains three optional boolean/number fields: `structureMDCreated`, `terminologyMDCreated`, `diagramsCreated`
+- [ ] All three fields are optional (`.optional()`) so existing call sites that don't supply them remain valid
+- [ ] `ProjectActionOutputSchema` discriminated union re-export continues to compile without changes
+- [ ] Schema version comment is bumped to reflect the additive change
+
+---
+
 ## Files Affected
 
 **Rules**:
@@ -307,6 +362,9 @@ GREEN: Update project-structure-template to document the zeno/architecture/STRUC
 | `tests/generation/terminology-generator.test.ts` | RED | create | Acceptance tests for TerminologyGenerator |
 | `tests/integration/init-structure.test.ts` | RED | create | Integration test: STRUCTURE.md, TERMINOLOGY.md, and diagrams exist post-init |
 | `src/generation/terminology-generator.ts` | GREEN | create | TerminologyGenerator implementation |
+| `tests/mcp/tools/project-tools.test.ts` | RED | modify | Acceptance tests for MCP project_init structure/terminology/diagram output |
+| `src/integration/project-registry.ts` | GREEN | modify | Wire StructureGenerator, TerminologyGenerator, and diagrams into MCP project_init |
+| `src/mcp/schemas/project-action-schemas.ts` | GREEN | modify | Extend ProjectInitOutputSchema with structureMDCreated, terminologyMDCreated, diagramsCreated fields |
 
 ---
 

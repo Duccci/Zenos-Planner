@@ -79,13 +79,13 @@ export function registerReqCommands(program: Command): void {
             if (req.parentId) logger.info(`Parent: ${req.parentId}`)
             if (req.acceptanceCriteria) logger.info(`Acceptance: ${req.acceptanceCriteria}`)
           } else {
-            logger.error('Requirement not found')
+            logger.error(`Requirement not found: ${hash}. Run "zeno req list" to see available requirements.`)
           }
         } else {
           logger.error('Failed to show requirement:', result.error)
         }
       } catch (error) {
-        logger.error('Error showing requirement:', error)
+        logger.error(`Error showing requirement ${hash}: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
 
@@ -103,13 +103,13 @@ export function registerReqCommands(program: Command): void {
             // Simple text representation
             logger.info(JSON.stringify(graph, null, 2))
           } else {
-            logger.error('No dependency graph found')
+            logger.error(`No dependency graph found for requirement ${hash}`)
           }
         } else {
           logger.error('Failed to get dependencies:', result.error)
         }
       } catch (error) {
-        logger.error('Error getting dependencies:', error)
+        logger.error(`Error getting dependencies for ${hash}: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
 
@@ -129,7 +129,7 @@ export function registerReqCommands(program: Command): void {
           logger.error('Failed to transfer requirement:', result.error)
         }
       } catch (error) {
-        logger.error('Error transferring requirement:', error)
+        logger.error(`Error transferring requirement ${hash}: ${error instanceof Error ? error.message : String(error)}`)
       }
     })
 
@@ -161,10 +161,10 @@ export function registerReqCommands(program: Command): void {
             const data = result.data as { message?: string }
             logger.info(data.message ?? `Requirement ${hash} updated`)
           } else {
-            logger.error('Failed to update requirement:', result.error)
+            logger.error(`Failed to update requirement ${hash}: ${result.error instanceof Object ? JSON.stringify(result.error) : String(result.error)}`)
           }
         } catch (error) {
-          logger.error('Error updating requirement:', error)
+          logger.error(`Error updating requirement ${hash}: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
     )
@@ -203,10 +203,10 @@ export function registerReqCommands(program: Command): void {
               logger.info(`  ${req.hash}: ${req.title ?? req.description ?? ''}${gateInfo}`)
             }
           } else {
-            logger.error('Failed to search requirements:', result.error)
+            logger.error(`Failed to search requirements: ${result.error instanceof Object ? JSON.stringify(result.error) : String(result.error)}`)
           }
         } catch (error) {
-          logger.error('Error searching requirements:', error)
+          logger.error(`Error searching requirements: ${error instanceof Error ? error.message : String(error)}`)
         }
       }
     )

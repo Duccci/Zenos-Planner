@@ -65,7 +65,7 @@ export const WorktreePruneOutputSchema = z.object({
   summary: z.object({
     prunedCount: z.number().int().min(0),
     diskFreedMB: z.number().min(0),
-    worktreetRemaining: z.number().int().min(0)
+    worktreesRemaining: z.number().int().min(0)
   }),
   message: z.string()
 })

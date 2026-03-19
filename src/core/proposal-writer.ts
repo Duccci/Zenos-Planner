@@ -146,6 +146,7 @@ async function generateRedTestSuiteProposal(
     .replace(/\{\{OBJECTIVE\}\}/g, `Test Suite for Gate ${gateId}`)
     .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'RED')
     .replace(/\{\{PHASE\}\}/g, 'RED')
+    .replace(/\{\{ROLES\}\}/g, 'testing')
     .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
     .replace(/\{\{COVERAGE_TARGET\}\}/g, String(totalCoverageTarget))
     .replace(
@@ -184,6 +185,7 @@ async function generateRedTestSuiteProposal(
   return startIndex + 1
 }
 
+
 /**
  * Implementation proposals: one per objective, no RED/GREEN prefix.
  * These are the middle proposals (Proposals 2 through N-1).
@@ -209,6 +211,7 @@ async function generateImplementationProposals(
       .replace(/\{\{OBJECTIVE\}\}/g, objective)
       .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'implementation')
       .replace(/\{\{PHASE\}\}/g, 'implementation')
+      .replace(/\{\{ROLES\}\}/g, 'feature')
       .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
       .replace(/\{\{COVERAGE_TARGET\}\}/g, String(coverageTarget))
       .replace(
@@ -274,6 +277,7 @@ async function generateGreenVerificationProposal(
     .replace(/\{\{OBJECTIVE\}\}/g, 'Test Verification & Green Validation')
     .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'GREEN')
     .replace(/\{\{PHASE\}\}/g, 'GREEN')
+    .replace(/\{\{ROLES\}\}/g, 'cleanup')
     .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, String(coverageThreshold))
     .replace(/\{\{COVERAGE_TARGET\}\}/g, String(totalCoverageTarget))
     .replace(
@@ -305,7 +309,7 @@ async function generateGreenVerificationProposal(
     summary: 'GREEN: Attach implementation to tests and verify all pass',
     phase: 'GREEN',
     coverageTarget: totalCoverageTarget,
-    roles: ['testing'] as ProposalRole[],
+    roles: ['cleanup'] as ProposalRole[],
   })
 }
 
@@ -441,6 +445,7 @@ export async function decomposeDocumentationProposals(
       .replace(/\{\{OBJECTIVE\}\}/g, objective)
       .replace(/\{\{PROPOSAL_TYPE\}\}/g, 'documentation')
       .replace(/\{\{PHASE\}\}/g, 'documentation')
+      .replace(/\{\{ROLES\}\}/g, 'documentation')
       .replace(/\{\{COVERAGE_THRESHOLD\}\}/g, 'N/A')
       .replace(/\{\{COVERAGE_TARGET\}\}/g, 'N/A')
       .replace(

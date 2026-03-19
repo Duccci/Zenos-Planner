@@ -100,11 +100,11 @@ Individual tasks are created during proposal generation.
 
 ### Proposal Status
 
-| Proposal                  | Hash    | Status  | Notes                               |
-| ------------------------- | ------- | ------- | ----------------------------------- |
-| 01-readme-cli-audit       | pending | pending | Generated when gate is started      |
-| 02-agents-md-updates      | pending | pending | Depends on 01 (README & CLI audit)  |
-| 03-jsdoc-error-messages   | pending | pending | Generated when gate is started      |
+| Proposal                  | Hash                   | Status  | Notes                               |
+| ------------------------- | ---------------------- | ------- | ----------------------------------- |
+| 01-readme-cli-audit       | #f3c9a1d4b8e70291     | pending | Independent; run first              |
+| 02-agents-md-updates      | #7e4b2f8ca15d3096     | pending | Requires 01 (README & CLI audit)    |
+| 03-jsdoc-error-messages   | #2d8f6a3e9c1b4075     | pending | Independent; can run in parallel    |
 
 ### Proposal Dependency Graph
 

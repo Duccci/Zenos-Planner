@@ -15,6 +15,7 @@ describe('WorktreeManager', () => {
     vi.mocked(simpleGit).mockReturnValue({
       raw: vi.fn().mockResolvedValue(''),
       merge: vi.fn().mockResolvedValue({ ok: true }),
+      status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
     } as any);
     manager = new WorktreeManager();
   });
@@ -217,6 +218,7 @@ describe('WorktreeManager', () => {
       const mockGit = {
         raw: vi.fn().mockResolvedValue(''),
         merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
       vi.mocked(simpleGit).mockReturnValue(mockGit as any);
@@ -235,6 +237,7 @@ describe('WorktreeManager', () => {
       const mockGit = {
         raw: vi.fn().mockResolvedValue(''),
         merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
       vi.mocked(simpleGit).mockReturnValue(mockGit as any);
@@ -255,6 +258,7 @@ describe('WorktreeManager', () => {
       const mockGit = {
         raw: vi.fn().mockResolvedValue(''),
         merge: vi.fn().mockResolvedValue({ ok: false, conflicts: ['file.ts'] }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
       vi.mocked(simpleGit).mockReturnValue(mockGit as any);
@@ -271,6 +275,7 @@ describe('WorktreeManager', () => {
       const mockGit = {
         raw: vi.fn().mockResolvedValue(''),
         merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
       vi.mocked(simpleGit).mockReturnValue(mockGit as any);
@@ -283,6 +288,152 @@ describe('WorktreeManager', () => {
       const list = await manager.list();
 
       expect(list.some(w => w.proposalHash === proposalHash)).toBe(false);
+    });
+
+    it('should commit after squash merge', async () => {
+      const rawCalls: string[][] = [];
+      const mockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'feature' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const proposalHash = 'squash-commit-test';
+      await manager.create(proposalHash);
+
+      // Reset rawCalls after create to only track merge calls
+      rawCalls.length = 0;
+      await manager.merge(proposalHash, 'main', 'squash');
+
+      // Verify the sequence: checkout -> merge --squash -> commit -> worktree remove -> branch -D
+      const checkoutIdx = rawCalls.findIndex(c => c[0] === 'checkout' && c[1] === 'main');
+      const squashIdx = rawCalls.findIndex(c => c[0] === 'merge' && c[1] === '--squash');
+      const commitIdx = rawCalls.findIndex(c => c[0] === 'commit');
+
+      expect(checkoutIdx).toBeGreaterThanOrEqual(0);
+      expect(squashIdx).toBeGreaterThan(checkoutIdx);
+      expect(commitIdx).toBeGreaterThan(squashIdx);
+      expect(rawCalls[commitIdx]).toEqual(expect.arrayContaining(['commit', '-m', expect.stringContaining('squash')]));
+    });
+
+    it('should refuse squash merge when working tree is dirty', async () => {
+      const mockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'main' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const proposalHash = 'dirty-squash';
+      await manager.create(proposalHash);
+
+      const result = await manager.merge(proposalHash, 'main', 'squash');
+
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts![0]).toContain('uncommitted changes');
+    });
+
+    it('should refuse rebase merge when working tree is dirty', async () => {
+      const mockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'main' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const proposalHash = 'dirty-rebase';
+      await manager.create(proposalHash);
+
+      const result = await manager.merge(proposalHash, 'main', 'rebase');
+
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts![0]).toContain('uncommitted changes');
+    });
+
+    it('should restore previous branch after squash merge', async () => {
+      const rawCalls: string[][] = [];
+      const mockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'feature-branch' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const proposalHash = 'restore-branch';
+      await manager.create(proposalHash);
+      rawCalls.length = 0;
+
+      await manager.merge(proposalHash, 'main', 'squash');
+
+      // Last checkout should restore `feature-branch`
+      const checkoutCalls = rawCalls.filter(c => c[0] === 'checkout');
+      const lastCheckout = checkoutCalls[checkoutCalls.length - 1];
+      expect(lastCheckout).toEqual(['checkout', 'feature-branch']);
+    });
+  });
+
+  describe('create() - existing branch handling', () => {
+    it('should attach to an existing branch instead of creating a new one', async () => {
+      const rawCalls: string[][] = [];
+      const mockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          // Return non-empty string for branch --list to simulate existing branch
+          if (args[0][0] === 'branch' && args[0][1] === '--list') {
+            return Promise.resolve('  proposal/existing-hash\n');
+          }
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const m = new WorktreeManager();
+      await m.create('existing-hash');
+
+      // Should use `worktree add <path> <branch>` (without -b)
+      const addCall = rawCalls.find(c => c[0] === 'worktree' && c[1] === 'add');
+      expect(addCall).toBeDefined();
+      expect(addCall).not.toContain('-b');
+    });
+  });
+
+  describe('remove() - branch cleanup', () => {
+    it('should delete the proposal branch after removing the worktree', async () => {
+      const rawCalls: string[][] = [];
+      const mockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+
+      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+
+      const m = new WorktreeManager();
+      await m.create('branch-cleanup-test');
+      rawCalls.length = 0;
+
+      await m.remove('branch-cleanup-test');
+
+      const branchDeleteCall = rawCalls.find(c => c[0] === 'branch' && c[1] === '-D');
+      expect(branchDeleteCall).toBeDefined();
+      expect(branchDeleteCall![2]).toBe('proposal/branch-cleanup-test');
     });
   });
 });

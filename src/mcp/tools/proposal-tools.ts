@@ -18,7 +18,7 @@ import {
   type ApplyPhaseValidationContext,
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationContext } from '../validators/quality-validator.js'
-import { type ZenoConfig } from '../../utils/config.js'
+import { type ZenoConfig, getWorkspaceRoot } from '../../utils/config.js'
 import { type PreReview } from '../validators/pre-review-validator.js'
 import {
   validateScope,
@@ -487,39 +487,10 @@ export function proposalHandlers(
               }
             }
           }
-          const approveResult = await r.invoke('proposal_approve', payload)
-          if (approveResult.success) {
-            // Record approval in audit trail (best-effort)
-            try {
-              const db = getDatabase()
-              const audit = new ApprovalAuditTrail(db)
-              audit.record({
-                proposal_hash: hash,
-                decision: 'approved',
-                actor: (payload as { approvedBy?: string }).approvedBy ?? 'zeno',
-                reason: (payload as { approverNotes?: string }).approverNotes ?? null,
-                timestamp: new Date().toISOString(),
-              })
-            } catch {
-              // Audit recording is best-effort; don't fail the approve
-            }
-            try {
-              const manager = new WorktreeManager()
-              const mergeResult = await manager.merge(hash, 'main')
-              if (mergeResult.conflicts && mergeResult.conflicts.length > 0) {
-                return {
-                  success: false as const,
-                  error: {
-                    code: 'MERGE_CONFLICTS',
-                    message: `Worktree merge failed with conflicts in: ${mergeResult.conflicts.join(', ')}. Resolve conflicts manually before approving.`,
-                  },
-                }
-              }
-            } catch {
-              // Worktree may not exist; best-effort merge
-            }
-          }
-          return approveResult
+          // Audit trail recording and worktree merge are handled by
+          // completions.ts approveProposal() — invoked via proposal_approve.
+          // Do not duplicate them here.
+          return await r.invoke('proposal_approve', payload)
         },
         reject: async (payload, r) => {
           // Idempotent: if already rejected, return success without re-invoking CLI
@@ -617,7 +588,7 @@ export function proposalHandlers(
             // Create worktree for isolated development (best-effort)
             if (rawResult.success) {
               try {
-                const manager = new WorktreeManager()
+                const manager = new WorktreeManager(getWorkspaceRoot())
                 const worktreeInfo = await manager.create(hash)
                 rawResult = {
                   ...rawResult,

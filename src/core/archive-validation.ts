@@ -91,15 +91,31 @@ export async function validateGateReady(gateId: string): Promise<{ filePath: str
     })
   }
 
-  // Check if all proposals are completed/integrated
+  // Check that all proposals for this gate are completed/integrated.
   const proposalsDir = join(getZenoDir(getWorkspaceRoot()), '..', 'proposals', gateId)
   if (existsSync(proposalsDir)) {
-    // This is a simplified check - in practice, we'd need to check each proposal
-    // For now, assume if gate is completed, proposals are integration-ready
+    const files = readdirSync(proposalsDir).filter((f) => f.endsWith('.md'))
+    const incomplete: string[] = []
+    for (const file of files) {
+      try {
+        const proposalContent = readFileSync(join(proposalsDir, file), 'utf-8')
+        const meta = parseProposalMetadata(proposalContent)
+        if (meta.status && meta.status !== 'completed') {
+          incomplete.push(`${file} (status: ${meta.status})`)
+        }
+      } catch {
+        // If we can't parse a proposal, flag it as potentially incomplete.
+        incomplete.push(`${file} (unreadable)`)
+      }
+    }
+    if (incomplete.length > 0) {
+      throw new ZenoError(
+        `Gate ${gateId} has incomplete proposals: ${incomplete.join(', ')}`,
+        'ARCHIVE_NOT_READY',
+        { gateId, reason: 'Not all proposals are completed', incompleteProposals: incomplete },
+      )
+    }
   }
-
-  // Check if all requirements are tested
-  // This would require database access - simplified for now
 
   // Ensure no RED-phase tests remain unimplemented (`it.skip // @red`).
   // GREEN work must fully replace stubs before a gate can be archived.
