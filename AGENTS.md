@@ -163,7 +163,7 @@ These are enforced automatically; cannot be overridden in MVP.
 | Document | Purpose | Location |
 |----------|---------|----------|
 | **Root AGENTS.md** | General Zeno's Planner tool usage | `AGENTS.md` (this file) |
-| **Project PRD** | Single source of truth for project scope | `zeno/PROJECT_PRD.md` |
+| **Project PRD** | Single source of truth for project scope | `zeno/overview/PROJECT_PRD.md` |
 | **Architecture Docs** | System design and diagrams | `zeno/architecture/*.md` |
 
 ## File Structure
@@ -174,15 +174,16 @@ Zeno's Planner uses PROJECT_PRD.md as the single source of truth, with MCP tools
 project-root/
 ├── AGENTS.md              # This file - tool overview and workflow reference
 └── zeno/
-    └── .zeno/             # Internal state (version controlled)
-    └── PROJECT_PRD.md     # Single source of truth for project scope
+    ├── .zeno/             # Internal state (version controlled)
+    └── overview/
+        └── PROJECT_PRD.md # Single source of truth for project scope
 ```
 
 ## Quick Start
 
 **If you're working in a Zeno-initialized project:**
 
-1. **Reference `#file:PROJECT_PRD.md`** - Single source of truth for:
+1. **Reference `#file:zeno/overview/PROJECT_PRD.md`** - Single source of truth for:
    - Project scope and goals
    - Technical decisions with rationale
    - User stories
@@ -220,25 +221,35 @@ project-root/
 |----------|---------|-------------|
 | **Project** | `zeno init` | Initialize new project |
 | | `zeno status` | Show project overview |
-| | `zeno rescope` | Rescope project mid-development |
+| | `zeno show <hash>` | Resolve hash reference to entity |
+| | `zeno doctor` | Audit environment prerequisites |
+| **Config** | `zeno config show` | Show project configuration |
+| | `zeno config set <key> <value>` | Set a configuration value |
 | **Gates** | `zeno gates list` | List all gates |
 | | `zeno gates show <id>` | Show gate details |
 | | `zeno gates start <id>` | Start gate (validated → in_progress) |
 | | `zeno gates complete <id>` | Complete gate (→ completed, creates tag) |
-| | `zeno gates regenerate` | Regenerate future gates |
+| | `zeno gates validate <id>` | Dry-run quality checks without completing |
+| | `zeno gates replan [gate-id]` | Regenerate future gates (or single gate) |
+| | `zeno gates replan --prd-changed` | Rescope: regenerate from updated PRD end-state |
 | **Requirements** | `zeno req list [--gate <id>]` | List requirements |
 | | `zeno req show <hash>` | Show requirement details |
 | | `zeno req deps <hash>` | Show dependency graph |
-| | `zeno req status <hash> <status>` | Update status |
+| | `zeno req update <hash>` | Update mutable fields of a requirement |
 | | `zeno req transfer <hash> <gate-id>` | Transfer requirement to another gate |
+| | `zeno req search <query>` | Search requirements by keyword |
 | **Architecture** | `zeno arch generate` | Generate all diagrams |
 | | `zeno arch show <type>` | Show specific diagram type |
+| | `zeno arch setup-graphviz` | Display Graphviz installation instructions |
 | **Repositories** | `zeno repos list` | List detected repositories |
 | | `zeno repos deps` | Show cross-repo dependencies |
 | | `zeno repos detect` | Re-run boundary detection |
 | | `zeno repos adjust` | Manually adjust boundaries |
+| | `zeno repos add` | Register a repository |
+| | `zeno repos remove` | Unregister a repository |
 | **Proposals** | `zeno proposal list [--gate <id>]` | List proposals |
 | | `zeno proposal show <hash>` | Show proposal details |
+| | `zeno proposal create <title>` | Create a new proposal file and register it |
 | | `zeno proposal start <hash>` | Start proposal (creates worktree) |
 | | `zeno proposal validate <hash>` | Run automated checks |
 | | `zeno proposal approve <hash>` | Approve proposal (merges worktree) |
@@ -247,33 +258,29 @@ project-root/
 | | `zeno worktree prune` | Remove expired worktrees |
 | | `zeno worktree remove <hash>` | Manually delete worktree |
 | | `zeno worktree merge <hash>` | Merge branch with conflict handling |
-| **Delegation** | `/delegate <model>` | Hand-off to another agent |
-| | `zeno metrics [path]` | Show code metrics |
-| **Registry** | `zeno show <hash>` | Resolve hash to entity |
-| | `zeno registry rebuild` | Rebuild hash registry |
+| **Templates** | `zeno template list` | List all available templates |
+| | `zeno template get <name>` | Get specific template content |
+| | `zeno template context <name>` | Get template formatted for LLM context injection |
+| **MCP Server** | `zeno mcp install` | Install MCP config and start server |
+| | `zeno mcp stop` | Stop a running background MCP server |
+| | `zeno mcp tools` | List all registered MCP tools |
+| | `zeno mcp diagnostics` | Run MCP server diagnostics |
+| | `zeno mcp errors` | Show recent errors with context |
+| **Database** | `zeno db validate` | Run integrity checks on the database |
+| | `zeno db cleanup` | Remove stale WAL/SHM files |
+| | `zeno db checkpoint` | Force a WAL checkpoint |
+| **Registry** | `zeno registry rebuild` | Rebuild hash registry from markdown/JSON |
+| **Tracing** | `zeno trace <artifactHash>` | Trace git commits referencing an artifact hash |
 
 ## Typical Workflow
 
-### Planning Phase (with Specialized Agents)
+### Planning Phase
 
-1. **Gate Analysis**: New gate created; determine gate type (API, Database, Frontend, Infrastructure, etc.)
-2. **Manifest Lookup**: Query `agents/agent-manifest.json` for planning agents:
-   - Use gate type to select from Planning Agent Selection Matrix (query `agents/agent-manifest.json`)
-   - Example: For API Integration gate, query `{tier: ["expert","phd"], category: "communication-protocols|api-standards"}`
-   - Apply Zod filters in agent-manifest.json for tier, category, and role matching
-3. **Candidate Ranking**: Invoke `pipeline-agents/00-orchestration/agent-selector.md` to score and rank:
-   - Composite score = (grade_points × 0.4) + (domain_match × 0.3) + (role_fit × 0.2) + (recent_usage × 0.1)
-   - Select lead agent (highest score per tier), support agents (next tiers by score)
-4. **Planning Agent Assignment**: Record in `.zeno/config.json` planning.agents with manifest references
-5. **Architectural Analysis**: PhD Tier agents validate approach, identify cross-gate constraints
-   - Read gate PRD, requirements, affected domains
-   - Check gate dependencies via `zeno req deps <hash>`
-6. **Decomposition**: Expert Tier agents create proposal breakdown with domain-specific insights
-   - Draft requirements, technical decisions, acceptance criteria
-   - Identify risks, dependencies, sequential constraints
-7. **Hand-off to Local Agent**: Planning agents delegate detailed decomposition insights to local agent
-   - Record planning phase analysis in proposal summaries
-   - Provide implementation agent selection hints based on decomposition insights
+1. **Gate Analysis**: New gate created; review the gate PRD at `zeno/gates/gate-XX-name.md`
+2. **Review requirements**: `zeno req list --gate "<id>"` to see what must be built
+3. **Check dependencies**: `zeno req deps <hash>` for cross-gate constraints
+4. **Generate proposals**: Use `proposal_action:generate` or `zeno proposal create <title>` to scaffold proposals for each implementation concern
+5. **Architectural review**: Cross-reference `zeno/architecture/system-overview.md` to ensure proposals fit the design
 
 ### Review Phase
 
@@ -286,7 +293,7 @@ project-root/
 
 ### Execution Phase
 
-1. **Implement proposals**: Apply phase implements all approved proposals (`/zeno-apply <hash>` for each, or batch)
+1. **Implement proposals**: Apply phase implements all approved proposals (`zeno proposal start <hash>` to begin each)
     - Implementation happens directly without intermediate approval workflow
     - Zeno validates implementation matches proposal specifications
     - All changes remain in active proposal files until gate completion
@@ -327,7 +334,7 @@ Use Git history to trace work back to Zeno artifacts (requirements, proposals, g
 
 | Artifact | Location | Access Method |
 |----------|----------|---------------|
-| Project PRD | `zeno/PROJECT_PRD.md` | Read file directly |
+| Project PRD | `zeno/overview/PROJECT_PRD.md` | Read file directly |
 | Architecture diagrams | `zeno/architecture/*.md` | `diagram_action { action: "show", type: "..." }` |
 | Gate PRDs | `zeno/gates/gate-XX-name.md` | `context_action { action: "gate", gateId: "..." }` |
 | Registry DB (requirements, hashes, deps, all entities) | `zeno/.zeno/registry.db` (internal — **MCP only**) | `reg_action { action: "list\|show\|deps\|search\|transfer\|inherit\|trace\|update" }` |
@@ -363,8 +370,8 @@ Zeno provides project-level planning (gates, roadmap) with architecture as a fir
 
 ---
 
-**Document Version**: 1.0.0
-**Last Updated**: 2026-01-04
+**Document Version**: 1.1.0
+**Last Updated**: 2026-03-18
 **Status**: Active - Production Ready
 
 **Zeno's Planner** | Bridging Vision and Implementation

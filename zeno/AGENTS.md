@@ -42,7 +42,7 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 | MCP Tool | Actions | Purpose |
 | -------- | ------- | ------- |
 | `context_action` | `gate`, `proposal`, `requirement`, `repository` | Get working context or resolve any entity by hash/name |
-| `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `regenerate`, `cancel`, `defer` | Gate lifecycle |
+| `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `replan`, `cancel`, `defer` | Gate lifecycle |
 | `proposal_action` | `list`, `show`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer` | Proposal lifecycle |
 | `reg_action` | `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate` | Registry DB queries — all entity lookups, requirements, hashes, and dependencies |
 | `repos_action` | `list`, `detect`, `deps`, `adjust`, `add`, `remove`, `analyze` | Repository management and boundary detection |
@@ -96,6 +96,6 @@ When `proposal_action:approve` is called for a gate-tied proposal that has an ac
 
 ---
 
-**Document Version**: 0.3.0
-**Last Updated**: 2026-02-06
+**Document Version**: 0.4.0
+**Last Updated**: 2026-03-18
 **Status**: Active
