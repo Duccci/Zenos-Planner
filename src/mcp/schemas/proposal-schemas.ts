@@ -63,17 +63,6 @@ export const ProposalTaskSchema = z.object({
 })
 export type ProposalTask = z.infer<typeof ProposalTaskSchema>
 
-export const ApprovalEventSchema = z.object({
-  id: z.number().int().optional(),
-  proposal_hash: z.string(),
-  decision: z.enum(['approved', 'rejected']),
-  actor: z.string(),
-  reason: z.string().nullable().optional(),
-  rejection_category: z.enum(['quality', 'scope', 'design', 'incomplete']).nullable().optional(),
-  timestamp: TimestampSchema,
-})
-export type ApprovalEvent = z.infer<typeof ApprovalEventSchema>
-
 export const ProposalDetailSchema = z.object({
   hash: ProposalHashSchema,
   title: z.string(),
@@ -102,7 +91,6 @@ export const ProposalDetailSchema = z.object({
       })
     )
     .optional(),
-  reviewHistory: z.array(ApprovalEventSchema).optional(),
   lastUpdated: TimestampSchema,
 })
 export type ProposalDetail = z.infer<typeof ProposalDetailSchema>

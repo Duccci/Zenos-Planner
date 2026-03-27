@@ -14,6 +14,10 @@ vi.mock('../../src/storage/database.js', () => ({
   getDatabase: () => mockGetDatabase(),
 }))
 
+vi.mock('../../src/utils/config.js', () => ({
+  getZenoGitDir: vi.fn().mockReturnValue('/test/project/zeno'),
+}))
+
 vi.mock('../../src/utils/logger.js', () => ({
   logger: {
     info: vi.fn(),

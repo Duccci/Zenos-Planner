@@ -30,8 +30,8 @@ export type RequirementLevel = 'project' | 'gate'
 export interface Requirement {
   /** Unique identifier */
   id: string
-  /** Project identifier for multi-project support */
-  projectId: string
+  /** Project identifiers — supports multi-repo/sub-project membership */
+  projectId: string[]
   /** Associated gate ID (null for project-level) */
   gateId: string | null
   /** Parent requirement ID for hierarchical requirements */
@@ -41,11 +41,6 @@ export interface Requirement {
    * 'gate' for gate-specific requirements (default).
    */
   level: RequirementLevel
-  /**
-   * For inherited requirements: the gate that originally defined this requirement.
-   * Null when the requirement is native to its own gate.
-   */
-  sourceGateId: string | null
   /** Type of requirement */
   type: RequirementType
   /** Priority level */

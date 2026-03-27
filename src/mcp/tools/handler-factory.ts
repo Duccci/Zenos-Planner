@@ -379,37 +379,45 @@ export function createNotImplementedHandler(msg?: string): CallToolResult {
   }
 }
 
+export interface GuidanceOptions {
+  preReview?: unknown
+  templateInfo?: {
+    name: string
+    content: string
+  }
+}
+
 /**
  * Inject guidance (guardrails + workflow) into a successful FunctionResult's data payload.
  *
  * Eliminates the repeated `if (result.success) { ...spread guidance... }` pattern
  * across gate, proposal, and archive action handlers.
  *
- * Usage:
- *   return withGuidance(
- *     await r.invoke('generateGates', payload),
- *     toNarrativeRules(GATE_GENERATION_GUARDRAILS),
- *     toCompactWorkflow(GATE_GENERATION_WORKFLOW),
- *     (payload as { preReview?: unknown }).preReview   // optional
- *   )
- *
  * @param result       The FunctionResult from r.invoke().
  * @param guardrails   Narrative rules array from toNarrativeRules().
  * @param workflow     Compact workflow string from toCompactWorkflow().
- * @param preReview    Optional preReview object to echo back as preReviewSummary.
+ * @param options      Optional preReview and templateInfo to inject.
  */
 export function withGuidance(
   result: FunctionResult,
   guardrails: unknown,
   workflow: unknown,
-  preReview?: unknown
+  options?: unknown
 ): FunctionResult {
   if (!result.success) return result
+
+  // Support both legacy positional (preReview) and new options-object callers
+  const opts: GuidanceOptions =
+    options !== null && typeof options === 'object' && ('preReview' in options || 'templateInfo' in options)
+      ? (options as GuidanceOptions)
+      : { preReview: options }
+
   return {
     success: true,
     data: {
       ...(result.data as Record<string, unknown>),
-      ...(preReview !== undefined ? { preReviewSummary: preReview } : {}),
+      ...(opts.preReview !== undefined ? { preReviewSummary: opts.preReview } : {}),
+      ...(opts.templateInfo ? { templateInfo: opts.templateInfo } : {}),
       guidance: { guardrails, workflow },
     },
   }

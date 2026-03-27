@@ -50,7 +50,7 @@ describe('RequirementGenerator', () => {
     `)
 
     db.exec(`
-      CREATE TABLE requirement_gate_links (
+      CREATE TABLE gate_dependencies (
         requirement_id TEXT NOT NULL,
         gate_id TEXT NOT NULL,
         linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -40,7 +40,7 @@ describe('migration system', () => {
       const db = getDatabase(TEST_DIR)
       await runMigrations(db, TEST_DIR)
 
-      for (const table of ['gates', 'repositories', 'requirements', 'proposals', 'metrics_snapshots']) {
+      for (const table of ['gates', 'repositories', 'requirements', 'proposals']) {
         const row = db
           .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
           .get(table) as { name: string } | undefined
@@ -70,13 +70,13 @@ describe('migration system', () => {
       await expect(runMigrations(db, TEST_DIR)).resolves.not.toThrow()
     })
 
-    it('also creates requirement_gate_links table', async () => {
+    it('also creates gate_dependencies table', async () => {
       await copySchema(TEST_DIR)
       const db = getDatabase(TEST_DIR)
       await runMigrations(db, TEST_DIR)
 
       const row = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='requirement_gate_links'")
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='gate_dependencies'")
         .get() as { name: string } | undefined
       expect(row).toBeDefined()
     })

@@ -62,7 +62,7 @@ export function registerReqCommands(program: Command): void {
               description?: string
               type?: string
               priority?: string
-              projectId?: string
+              projectId?: string | string[]
               gateId?: string
               parentId?: string
               acceptanceCriteria?: string
@@ -74,7 +74,10 @@ export function registerReqCommands(program: Command): void {
             logger.info(`Description: ${req.description ?? ''}`)
             logger.info(`Type: ${req.type ?? ''}`)
             logger.info(`Priority: ${req.priority ?? ''}`)
-            logger.info(`Project: ${req.projectId ?? ''}`)
+            const projectLabel = Array.isArray(req.projectId)
+              ? req.projectId.join(', ')
+              : (req.projectId ?? '')
+            logger.info(`Project: ${projectLabel}`)
             if (req.gateId) logger.info(`Gate: ${req.gateId}`)
             if (req.parentId) logger.info(`Parent: ${req.parentId}`)
             if (req.acceptanceCriteria) logger.info(`Acceptance: ${req.acceptanceCriteria}`)

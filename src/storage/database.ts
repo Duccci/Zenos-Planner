@@ -11,7 +11,6 @@ import { mkdirSync } from 'node:fs'
 import { ensureDir } from '../utils/file.js'
 import { getZenoDir } from '../utils/config.js'
 import { DatabaseError } from '../utils/errors.js'
-import { writeRequirementsManifest } from './requirements-sync.js'
 
 /** Database instance singleton */
 let dbInstance: Database.Database | null = null
@@ -182,13 +181,15 @@ export interface SchemaValidationResult {
  * - requirements: Hierarchical requirements with parent-child relationships
  * - repositories: Multi-repo support for large-scale projects
  * - proposals: Proposal metadata with hash-based lookup (operational efficiency)
- * - metrics_snapshots: Lightweight aggregate metrics at gate archive time
  *
  * NOT IN DATABASE (file-based per Technical Decision 4):
  * - gates: Stored in project.json (version-controlled, single source of truth)
  * - proposal_dependencies: Derived from proposal references (no separate source of truth)
+ * - repo_dependencies: Stored in project.json (version-controlled, single source of truth)
+ * - approval_events: Tracked via proposal markdown metadata and status fields
+ * - metrics_snapshots: Recomputable from git tags and codebase analysis on demand
  */
-const REQUIRED_TABLES = ['requirements', 'repositories', 'repo_dependencies', 'proposals', 'metrics_snapshots']
+const REQUIRED_TABLES = ['requirements', 'repositories', 'proposals']
 
 /**
  * Validate that all required tables exist in the database.
@@ -304,16 +305,28 @@ export async function initializeDatabase(
       try {
         const { syncRequirementsFromDisk } = await import('./requirements-sync.js')
         syncRequirementsFromDisk(db, projectRoot)
-
-        // After syncing from disk, write the manifest back to ensure it's current.
-        // This captures any requirements that were restored from the manifest or exist
-        // in the database, ensuring consistency between DB and manifest.
-        writeRequirementsManifest(db, projectRoot)
       } catch (error) {
         logger.warn(
           `Failed to sync requirements: ${error instanceof Error ? error.message : String(error)}`
         )
         // Non-fatal: manifest may not exist yet on a fresh project
+      }
+    }
+
+    // Sync requirements parsed from gate markdown files.
+    // Runs after gates and manifest sync so that gate rows exist (for FK) and
+    // manifest requirements are already present (INSERT OR IGNORE avoids dupes).
+    if (options.syncRequirements && options.syncGates) {
+      try {
+        const { syncGateRequirementsFromMarkdown } = await import('../integration/requirements-registry.js')
+        const { RequirementStorage } = await import('../generation/requirement-storage.js')
+        const storage = new RequirementStorage(db)
+        const gateRows = db.prepare('SELECT id FROM gates').all() as { id: string }[]
+        for (const row of gateRows) {
+          syncGateRequirementsFromMarkdown(storage, row.id, projectRoot)
+        }
+      } catch {
+        // Non-fatal: gate files may not contain parseable requirements
       }
     }
 

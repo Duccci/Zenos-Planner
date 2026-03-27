@@ -44,8 +44,7 @@ import {
 } from '../content/index.js'
 import { inferRoleFromFilename } from '../validators/test-first-validator.js'
 import { WorktreeManager } from '../../core/worktree-manager.js'
-import { ApprovalAuditTrail } from '../../storage/approval-audit-trail.js'
-import { getDatabase } from '../../storage/database.js'
+import { loadTemplateContent } from '../../generation/template-discovery.js'
 
 /**
  * Unified proposal action tool definition.
@@ -286,27 +285,7 @@ export function proposalHandlers(
       actionHandlers: {
         list: async (payload, r) => r.invoke('proposal_list', payload),
         show: async (payload, r) => {
-          const showResult = await r.invoke('proposal_show', payload)
-          if (showResult.success) {
-            // Enrich with approval/rejection review history (best-effort)
-            try {
-              const hash = (payload as { hash?: string }).hash ?? ''
-              if (hash) {
-                const db = getDatabase()
-                const audit = new ApprovalAuditTrail(db)
-                const reviewHistory = audit.getHistory(hash)
-                if (reviewHistory.length > 0) {
-                  return {
-                    ...showResult,
-                    data: { ...(showResult.data as Record<string, unknown>), reviewHistory },
-                  }
-                }
-              }
-            } catch {
-              // Audit enrichment is best-effort
-            }
-          }
-          return showResult
+          return r.invoke('proposal_show', payload)
         },
         generate: async (payload, r) => {
           // Route based on payload shape:
@@ -374,14 +353,26 @@ export function proposalHandlers(
             }
           }
 
-          // Inject preReviewSummary and proposal-generation guidance for AI decomposition path
+          // Load proposal template so the LLM knows the expected structure
+          let templateInfo: { name: string; content: string } | undefined
+          try {
+            const content = await loadTemplateContent(undefined, 'templates/md-templates/proposal-template.md')
+            templateInfo = { name: 'proposal-template', content }
+          } catch {
+            // Template loading is best-effort; guidance still flows without it
+          }
+
+          // Inject preReviewSummary, template, and proposal-generation guidance
           return withGuidance(
             invokeResult,
             toNarrativeRules(PROPOSAL_GENERATION_GUARDRAILS),
             toCompactWorkflow(PROPOSAL_GENERATION_WORKFLOW),
-            !isSolitary && hasGateId && !hasExplicitFields
-              ? (payload as { preReview?: unknown }).preReview
-              : undefined
+            {
+              preReview: !isSolitary && hasGateId && !hasExplicitFields
+                ? (payload as { preReview?: unknown }).preReview
+                : undefined,
+              templateInfo,
+            }
           )
         },
         validate: async (payload, r) => {
@@ -519,22 +510,6 @@ export function proposalHandlers(
             }
           }
           const rejectResult = await r.invoke('proposal_reject', payload)
-          // Record rejection in audit trail (best-effort)
-          if (rejectResult.success) {
-            try {
-              const db = getDatabase()
-              const audit = new ApprovalAuditTrail(db)
-              audit.record({
-                proposal_hash: hash,
-                decision: 'rejected',
-                actor: (payload as { rejectedBy?: string }).rejectedBy ?? 'zeno',
-                reason: (payload as { rejectionReason?: string }).rejectionReason ?? null,
-                timestamp: new Date().toISOString(),
-              })
-            } catch {
-              // Audit recording is best-effort; don't fail the reject
-            }
-          }
           return rejectResult
         },
         start: async (payload, r) => {

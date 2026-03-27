@@ -136,8 +136,6 @@ export const ReqShowOutputSchema = z.object({
     gateId: z.string(),
     /** Scope level: 'project' for PRD-level cross-cutting, 'gate' for gate-specific */
     level: z.enum(['project', 'gate']).optional(),
-    /** For inherited requirements: origin gate that originally defined this */
-    sourceGateId: z.string().optional(),
     priority: z.string().optional(),
     acceptance: z.array(z.object({ criteria: z.string(), completed: z.boolean() })).optional(),
     parentRequirement: z.object({ hash: z.string(), title: z.string() }).optional(),
@@ -286,7 +284,6 @@ export const ReqTraceOutputSchema = z.object({
   title: z.string().optional(),
   level: z.enum(['project', 'gate']).optional(),
   ownerGateId: z.string().nullable().optional(),
-  sourceGateId: z.string().nullable().optional(),
   type: z.string().optional(),
   priority: z.string().optional(),
   /** Parent requirements that this was decomposed from (PRD → gate chain) */

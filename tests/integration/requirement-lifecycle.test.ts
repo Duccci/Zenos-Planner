@@ -17,7 +17,7 @@ describe('Requirement Lifecycle Integration', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-lifecycle-${randomUUID()}.db`)
     db = new Database(tempDbPath)
-    
+
     // Disable foreign key constraints for this test
     db.pragma('foreign_keys = OFF')
 
@@ -52,7 +52,7 @@ describe('Requirement Lifecycle Integration', () => {
     `)
 
     db.exec(`
-      CREATE TABLE requirement_gate_links (
+      CREATE TABLE gate_dependencies (
         requirement_id TEXT NOT NULL,
         gate_id TEXT NOT NULL,
         linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

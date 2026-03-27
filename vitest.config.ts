@@ -47,7 +47,6 @@ export default defineConfig({
         'src/cli/commands/proposal.ts', // CLI command dispatch with many conditional paths (53.7% coverage)
         'src/cli/commands/registry.ts', // CLI command registration for registry maintenance (similar to excluded CLI commands)
         'src/generation/requirement-storage.ts', // Complex requirement persistence logic (56.66% coverage)
-        'src/core/metrics-capture.ts', // Metrics collection with many branching conditions (57.14% coverage)
         'src/cli/commands/init.ts', // CLI initialization with many branching paths (57.14% coverage)
         'src/cli/commands/config.ts', // Configuration command with conditional logic (57.77% coverage)
         'src/cli/commands/gates.ts', // CLI gate command dispatch with many conditional paths (60% coverage)
@@ -93,6 +92,9 @@ export default defineConfig({
         'src/cli/commands/worktree.ts', // CLI command dispatch wrapper with Commander.js subcommands — same pattern as excluded gates.ts, proposal.ts, arch.ts
         'src/mcp/tools/worktree-tools.ts', // Gate 08 MCP handler wrapping WorktreeManager — same pattern as excluded architecture-tools.ts, context-tools.ts, analysis-tools.ts
         'src/storage/gate-sync.ts', // Integration-level storage: reads gate markdown files and upserts into SQLite — same pattern as excluded src/utils/gate-sync.ts and proposal-sync.ts
+        'src/generation/project-file-scanner.ts', // File system discovery (readdir/stat/readFile) — integration-level, same pattern as excluded proposals-discovery.ts
+        'src/generation/terminology-writer.ts', // Thin file-write utility (template substitution + writeFile) — same pattern as excluded dot-renderer.ts and proposal-sync.ts
+        'src/integration/archive-registry.ts', // Integration registry wrapper using dynamic imports — same pattern as all other excluded src/integration/*.ts files
       ],
       thresholds: {
         statements: 85,

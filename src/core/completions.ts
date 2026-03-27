@@ -34,7 +34,6 @@ import { readProjectOverview, getCompletedGates } from '../utils/config.js'
 import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
 import { findGateByGateId, findProposalByHash } from '../utils/artifact-locator.js'
-import { ApprovalAuditTrail } from '../storage/approval-audit-trail.js'
 import { WorktreeManager } from './worktree-manager.js'
 
 
@@ -236,19 +235,6 @@ export async function approveProposal(
     ).run(options.approver ?? null, proposalId)
   })
   tx(proposal.id)
-
-  // Record approval event in audit trail
-  try {
-    const auditTrail = new ApprovalAuditTrail(db)
-    auditTrail.record({
-      proposal_hash: proposalHash,
-      decision: 'approved',
-      actor: options.approver ?? 'zeno',
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    logger.warn(`Failed to record approval event for ${proposalHash}: ${String(error)}`)
-  }
 
   // Update proposal file metadata in place (no proposal archive directory)
   let proposalContent = ''
@@ -654,7 +640,7 @@ export interface RejectProposalOptions {
 
 export async function rejectProposal(
   hashInput: string,
-  options: RejectProposalOptions = {}
+  _options: RejectProposalOptions = {}
 ): Promise<void> {
   const projectRoot = requireProjectRoot()
   await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
@@ -686,20 +672,6 @@ export async function rejectProposal(
   db.prepare(
     `UPDATE proposals SET status = 'rejected', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
   ).run(proposal.id)
-
-  // Record rejection event in audit trail
-  try {
-    const auditTrail = new ApprovalAuditTrail(db)
-    auditTrail.record({
-      proposal_hash: proposalHash,
-      decision: 'rejected',
-      actor: options.rejectedBy ?? 'zeno',
-      reason: options.rejectionReason,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    logger.warn(`Failed to record rejection event for ${proposalHash}: ${String(error)}`)
-  }
 
   // Sync status to proposal .md file
   try {

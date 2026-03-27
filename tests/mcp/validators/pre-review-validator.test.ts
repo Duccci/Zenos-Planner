@@ -69,6 +69,26 @@ describe('validatePreReviewGeneratePhase', () => {
     expect(result.errors).toBeUndefined()
   })
 
+  it('allows cleanly when openQuestionsResolved=true with non-empty questionsFound (documented resolved questions)', () => {
+    const result = validatePreReviewGeneratePhase(
+      { ...basePreReview, openQuestionsResolved: true, questionsFound: ['Gate geometry TBD — stubbed with debug_assert'] },
+      'gates_action'
+    )
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+    expect(result.warnings).toBeUndefined()
+  })
+
+  it('allows cleanly for proposal_action when openQuestionsResolved=true with documented questions', () => {
+    const result = validatePreReviewGeneratePhase(
+      { ...basePreReview, openQuestionsResolved: true, questionsFound: ['Auth scope unclear — deferred to Gate 3'] },
+      'proposal_action'
+    )
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+    expect(result.warnings).toBeUndefined()
+  })
+
   // ── G5: gateReviewed=false ─────────────────────────────────────────────────
 
   it('returns error for gates_action when gateReviewed=false', () => {
@@ -132,6 +152,26 @@ describe('validatePreReviewGeneratePhase', () => {
       'proposal_action'
     )
     expect(result.allowed).toBe(true)
+  })
+
+  it('allows cleanly when requirementsVerified=true with non-empty vagueRequirements (documented addressed requirements)', () => {
+    const result = validatePreReviewGeneratePhase(
+      { ...basePreReview, requirementsVerified: true, vagueRequirements: ['GATE_WIDTH_M TBD — stubbed with debug_assert'] },
+      'gates_action'
+    )
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+    expect(result.warnings).toBeUndefined()
+  })
+
+  it('allows cleanly for proposal_action when requirementsVerified=true with documented vague requirements', () => {
+    const result = validatePreReviewGeneratePhase(
+      { ...basePreReview, requirementsVerified: true, vagueRequirements: ['Perf goal unclear — assumed <10ms p99'] },
+      'proposal_action'
+    )
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+    expect(result.warnings).toBeUndefined()
   })
 
   // ── G8: blockersIdentified ────────────────────────────────────────────────

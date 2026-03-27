@@ -64,7 +64,9 @@ export function validatePreReviewGeneratePhase(
   const errors: string[] = []
   const warnings: string[] = []
 
-  // G5: unresolved open questions
+  // G5: unresolved open questions — error when not resolved
+  // When openQuestionsResolved=true with non-empty questionsFound, entries are treated as
+  // resolved/handled documentation (encouraged for traceability); no error or warning emitted.
   if (!pre.openQuestionsResolved && pre.questionsFound.length > 0) {
     errors.push(
       `Unresolved open questions${isProposal ? ' in Gate PRD' : ''}. Resolve before generating: ` +
@@ -81,7 +83,9 @@ export function validatePreReviewGeneratePhase(
     )
   }
 
-  // G6: vague or incomplete requirements
+  // G6: vague or incomplete requirements — error when not verified
+  // When requirementsVerified=true with non-empty vagueRequirements, entries are treated as
+  // addressed/documented stubs (encouraged for traceability); no error or warning emitted.
   if (
     pre.requirementsVerified === false &&
     pre.vagueRequirements &&

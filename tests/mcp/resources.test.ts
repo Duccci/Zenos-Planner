@@ -10,6 +10,7 @@ describe('MCP resources discovery and registration', () => {
     // ensure clean temp workspace
     try { rmSync(tmpDir, { recursive: true, force: true }) } catch {}
     mkdirSync(join(tmpDir, 'zeno'), { recursive: true })
+    mkdirSync(join(tmpDir, '.zeno'), { recursive: true })
     // Create a PROJECT_PRD.md
     writeFileSync(join(tmpDir, 'zeno', 'PROJECT_PRD.md'), '# Project PRD\n')
     // Create proposals/solitary file

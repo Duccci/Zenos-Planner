@@ -16,7 +16,7 @@ import {
   validateDependencyGraph,
   type DependencyGraph,
 } from './dependency-graph.js'
-import { writeRequirementsManifest } from '../storage/requirements-sync.js'
+import { writeRequirementsManifest, parseProjectIds } from '../storage/requirements-sync.js'
 
 interface RequirementRow {
   id: string
@@ -25,8 +25,6 @@ interface RequirementRow {
   parent_id: string | null
   /** Scope level added in migration 006 */
   level: string | null
-  /** Origin gate for inherited requirements (migration 006) */
-  source_gate_id: string | null
   type: string
   priority: string
   description: string
@@ -50,16 +48,15 @@ export class RequirementStorage {
 
   /**
    * Map a raw database row to a Requirement domain object.
-   * Handles backward-compat with pre-migration rows where level/source_gate_id are absent.
+   * Handles backward-compat with pre-migration rows where level is absent.
    */
   private rowToRequirement(row: RequirementRow): Requirement {
     return {
       id: row.id,
-      projectId: row.project_id,
+      projectId: parseProjectIds(row.project_id),
       gateId: row.gate_id,
       parentId: row.parent_id,
       level: (row.level as import('./types.js').RequirementLevel | null) ?? 'gate',
-      sourceGateId: row.source_gate_id ?? null,
       type: row.type as RequirementType,
       priority: row.priority as RequirementPriority,
       description: row.description,
@@ -78,12 +75,11 @@ export class RequirementStorage {
     description: string,
     type: RequirementType,
     priority: RequirementPriority,
-    projectId = 'default-project',
+    projectId: string | string[] = 'default-project',
     gateId?: string,
     acceptanceCriteria?: string,
     parentId?: string,
-    level: import('./types.js').RequirementLevel = 'gate',
-    sourceGateId?: string
+    level: import('./types.js').RequirementLevel = 'gate'
   ): Requirement {
     // Generate deterministic base hash from semantic content
     const baseHash: string = generateRequirementHash({
@@ -131,12 +127,15 @@ export class RequirementStorage {
     const selectParentStmt = this.db.prepare('SELECT id FROM requirements WHERE id = ?')
     const insertStmt = this.db.prepare(`
       INSERT INTO requirements (
-        id, project_id, gate_id, parent_id, level, source_gate_id,
+        id, project_id, gate_id, parent_id, level,
         type, priority, description, acceptance_criteria, hash, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     // Use a transaction to ensure atomicity
+    const projectIds: string[] = Array.isArray(projectId) ? projectId : [projectId]
+    const projectIdSerialized = JSON.stringify(projectIds)
+
     const insertTx = this.db.transaction(() => {
       // Validate parent exists if provided
       if (parentId) {
@@ -152,11 +151,10 @@ export class RequirementStorage {
 
       insertStmt.run(
         id,
-        projectId,
+        projectIdSerialized,
         gateId ?? null,
         parentId ?? null,
         level,
-        sourceGateId ?? null,
         type,
         priority,
         description.trim(),
@@ -184,11 +182,10 @@ export class RequirementStorage {
 
       return {
         id,
-        projectId,
+        projectId: projectIds,
         gateId: gateId ?? null,
         parentId: parentId ?? null,
         level,
-        sourceGateId: sourceGateId ?? null,
         type,
         priority,
         description: description.trim(),
@@ -256,8 +253,7 @@ export class RequirementStorage {
     try {
       // Try exact match first (supports base or versioned hashes)
       const exactQuery = `
-        SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-               type, priority, description, acceptance_criteria, hash, created_at
+        SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE hash = ?
       `
@@ -268,8 +264,7 @@ export class RequirementStorage {
       // If not found and a base hash (16 hex) was provided, look for a versioned hash
       if (!row && /^[a-f0-9]{16}$/i.test(hash)) {
         const likeQuery = `
-          SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-                 type, priority, description, acceptance_criteria, hash, created_at
+          SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
           FROM requirements
           WHERE hash LIKE ?
           ORDER BY created_at DESC
@@ -306,8 +301,7 @@ export class RequirementStorage {
       const params: unknown[] = [like, like]
 
       let sql = `
-        SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-               type, priority, description, acceptance_criteria, hash, created_at
+        SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE (description LIKE ? OR acceptance_criteria LIKE ?)
       `
@@ -351,15 +345,16 @@ export class RequirementStorage {
   getProjectRequirements(projectId?: string): Requirement[] {
     try {
       let query = `
-        SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-               type, priority, description, acceptance_criteria, hash, created_at
+        SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE gate_id IS NULL
       `
       const params: unknown[] = []
 
       if (projectId) {
-        query += ' AND project_id = ?'
+        query += ` AND EXISTS (
+          SELECT 1 FROM json_each(project_id) WHERE value = ?
+        )`
         params.push(projectId)
       }
 
@@ -386,8 +381,7 @@ export class RequirementStorage {
   buildRequirementGraph(gateId?: string): DependencyGraph {
     try {
       let query = `
-        SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-               type, priority, description, acceptance_criteria, hash, created_at
+        SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
         FROM requirements
       `
       const params: unknown[] = []
@@ -425,8 +419,7 @@ export class RequirementStorage {
       if (!parent) return []
 
       const stmt = this.db.prepare(`
-        SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-               type, priority, description, acceptance_criteria, hash, created_at
+        SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
         FROM requirements
         WHERE parent_id = ?
         ORDER BY created_at
@@ -459,8 +452,7 @@ export class RequirementStorage {
         const parentRow = this.db
           .prepare(
             `
-          SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-                 type, priority, description, acceptance_criteria, hash, created_at
+          SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
           FROM requirements
           WHERE id = ?
         `
@@ -549,7 +541,7 @@ export class RequirementStorage {
 
   /**
    * Transfer a requirement (and its descendants) to a new gate.
-   * Sets `gate_id = targetGateId`, `source = 'transferred'`, and records previous gate in `source_gate_id`.
+   * Sets `gate_id = targetGateId` and `source = 'transferred'`.
    */
   transferRequirement(
     hash: string,
@@ -595,13 +587,8 @@ export class RequirementStorage {
         }
 
         for (const id of Array.from(toUpdate)) {
-          // Record the origin gate as source_gate_id when moving to a new gate
+          // Move to target gate
           updateStmt.run(targetGateId, id)
-          if (previousGate) {
-            this.db
-              .prepare('UPDATE requirements SET source_gate_id = ? WHERE id = ? AND source_gate_id IS NULL')
-              .run(previousGate, id)
-          }
         }
       })
 
@@ -640,7 +627,7 @@ export class RequirementStorage {
   }
 
   // --------------------------------------------------------------------------
-  // Cross-gate requirement reuse (requirement_gate_links table)
+  // Cross-gate requirement dependencies (gate_dependencies table)
   // --------------------------------------------------------------------------
 
   /**
@@ -648,13 +635,13 @@ export class RequirementStorage {
    * Idempotent — calling multiple times with the same pair is safe.
    *
    * Use this when a gate needs to reference a requirement defined in another
-   * gate without transferring ownership. Creates a row in requirement_gate_links.
+   * gate without transferring ownership. Creates a row in gate_dependencies.
    */
   linkRequirementToGate(requirementId: string, gateId: string): void {
     try {
       this.db
         .prepare(`
-          INSERT OR IGNORE INTO requirement_gate_links (requirement_id, gate_id)
+          INSERT OR IGNORE INTO gate_dependencies (requirement_id, gate_id)
           VALUES (?, ?)
         `)
         .run(requirementId, gateId)
@@ -670,14 +657,14 @@ export class RequirementStorage {
   }
 
   /**
-   * Return all gate IDs that explicitly reference a requirement via requirement_gate_links.
+   * Return all gate IDs that explicitly reference a requirement via gate_dependencies.
    * Does NOT include the gate that owns the requirement (gate_id column).
    */
   getLinkedGates(requirementId: string): string[] {
     try {
       interface LinkRow { gate_id: string }
       const rows = this.db
-        .prepare('SELECT gate_id FROM requirement_gate_links WHERE requirement_id = ? ORDER BY linked_at')
+        .prepare('SELECT gate_id FROM gate_dependencies WHERE requirement_id = ? ORDER BY linked_at')
         .all(requirementId) as LinkRow[]
       return rows.map((r) => r.gate_id)
     } catch {
@@ -694,11 +681,11 @@ export class RequirementStorage {
       const rows = this.db
         .prepare(`
           SELECT r.id, r.project_id, r.gate_id, r.parent_id,
-                 r.level, r.source_gate_id,
+                 r.level,
                  r.type, r.priority, r.description, r.acceptance_criteria,
                  r.hash, r.created_at
           FROM requirements r
-          JOIN requirement_gate_links l ON l.requirement_id = r.id
+          JOIN gate_dependencies l ON l.requirement_id = r.id
           WHERE l.gate_id = ?
           ORDER BY l.linked_at
         `)
@@ -719,13 +706,12 @@ export class RequirementStorage {
       const conditions: string[] = ["level = 'project'"]
       const params: unknown[] = []
       if (projectId) {
-        conditions.push('project_id = ?')
+        conditions.push(`EXISTS (SELECT 1 FROM json_each(project_id) WHERE value = ?)`)
         params.push(projectId)
       }
       const rows = this.db
         .prepare(`
-          SELECT id, project_id, gate_id, parent_id, level, source_gate_id,
-                 type, priority, description, acceptance_criteria, hash, created_at
+          SELECT id, project_id, gate_id, parent_id, level, type, priority, description, acceptance_criteria, hash, created_at
           FROM requirements
           WHERE ${conditions.join(' AND ')}
           ORDER BY created_at
@@ -740,7 +726,7 @@ export class RequirementStorage {
   /**
    * Return all gates that reference a requirement, combining:
    *   - The owner gate (requirements.gate_id)
-   *   - All gates that linked it explicitly (requirement_gate_links)
+   *   - All gates that linked it explicitly (gate_dependencies)
    *
    * This is the core of the traceability chain: given a requirement hash,
    * answer "which gates work on this?"

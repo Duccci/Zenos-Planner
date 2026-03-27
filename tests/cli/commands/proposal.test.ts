@@ -19,6 +19,7 @@ vi.mock('../../../src/storage/database.js', () => ({
 // Mock config helpers to return a project root
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn().mockReturnValue('project-root'),
+  getZenoGitDir: vi.fn().mockReturnValue('project-root/zeno'),
   loadConfig: vi.fn(),
 }))
 
@@ -436,6 +437,7 @@ vi.mock('../../../src/core/completions.js', () => ({
 
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn().mockReturnValue('project-root'),
+  getZenoGitDir: vi.fn().mockReturnValue('project-root/zeno'),
   loadConfig: vi.fn(),
 }))
 

@@ -32,7 +32,7 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
   // before registering tools so that syncProposalsFromDisk never encounters
   // the stale constraint that is missing 'validated'.
   try {
-    await initializeDatabase(projectRoot, { syncGates: true, syncProposals: true })
+    await initializeDatabase(projectRoot, { syncGates: true, syncProposals: true, syncRequirements: true })
     logger.info('Database initialised and migrations applied')
   } catch (err) {
     // Non-fatal: the project root may not have a .zeno dir yet (first-run or

@@ -24,6 +24,13 @@ const mockUpdateGateDiagrams = vi.fn()
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
+  normalizePath: (p: string) => p,
+}))
+
+vi.mock('../../src/utils/config.js', () => ({
+  getZenoGitDir: vi.fn().mockReturnValue('/project/zeno'),
+  readProjectOverview: vi.fn().mockResolvedValue({}),
+  getGatesFromOverview: vi.fn().mockReturnValue([]),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({

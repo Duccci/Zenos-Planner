@@ -32,8 +32,9 @@ function parseFrontmatter(text: string): Record<string, string> | null {
   return out
 }
 
-export async function discoverTemplates(_projectRoot?: string): Promise<Template[]> {
-  const templatesDir = path.join(__installDir, 'templates')
+export async function discoverTemplates(projectRoot?: string): Promise<Template[]> {
+  const baseDir = projectRoot ?? __installDir
+  const templatesDir = path.join(baseDir, 'templates')
   const mdDir = path.join(templatesDir, 'md-templates')
   const archDir = path.join(templatesDir, 'architecture-templates')
 

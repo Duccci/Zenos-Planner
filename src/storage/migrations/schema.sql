@@ -38,22 +38,11 @@ CREATE TABLE IF NOT EXISTS repositories (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS repo_dependencies (
-  id                  TEXT      PRIMARY KEY,
-  source_repo_hash    TEXT      NOT NULL REFERENCES repositories(hash),
-  target_repo_hash    TEXT      NOT NULL REFERENCES repositories(hash),
-  dependency_type     TEXT      NOT NULL
-    CHECK (dependency_type IN ('imports', 'extends', 'references')),
-  metadata            TEXT,
-  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (source_repo_hash, target_repo_hash, dependency_type)
-);
-
 CREATE TABLE IF NOT EXISTS requirements (
   id                     TEXT      PRIMARY KEY,
   gate_id                TEXT      REFERENCES gates(id),
   parent_id              TEXT      REFERENCES requirements(id),
-  project_requirement_id TEXT,
+
   type                   TEXT      NOT NULL
     CHECK (type IN ('functional', 'non_functional', 'constraint')),
   priority               TEXT      NOT NULL
@@ -65,7 +54,6 @@ CREATE TABLE IF NOT EXISTS requirements (
   description            TEXT      NOT NULL,
   acceptance_criteria    TEXT,
   hash                   TEXT      UNIQUE NOT NULL,
-  source_gate_id         TEXT      REFERENCES gates(id),
   created_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at             TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   project_id             TEXT      NOT NULL DEFAULT 'default-project'
@@ -91,26 +79,6 @@ CREATE TABLE IF NOT EXISTS proposals (
   parallel_set_index INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS metrics_snapshots (
-  id                  INTEGER   PRIMARY KEY AUTOINCREMENT,
-  gate_id             TEXT      NOT NULL REFERENCES gates(id),
-  file_count          INTEGER   NOT NULL DEFAULT 0,
-  total_loc           INTEGER   NOT NULL DEFAULT 0,
-  code_lines          INTEGER   NOT NULL DEFAULT 0,
-  blank_lines         INTEGER   NOT NULL DEFAULT 0,
-  comment_lines       INTEGER   NOT NULL DEFAULT 0,
-  avg_instability     REAL      NOT NULL DEFAULT 0,
-  high_coupling_count INTEGER   NOT NULL DEFAULT 0,
-  max_complexity      INTEGER   NOT NULL DEFAULT 0,
-  avg_complexity      REAL      NOT NULL DEFAULT 0,
-  graph_nodes         INTEGER   NOT NULL DEFAULT 0,
-  graph_edges         INTEGER   NOT NULL DEFAULT 0,
-  cycle_count         INTEGER   NOT NULL DEFAULT 0,
-  max_depth           INTEGER   NOT NULL DEFAULT 0,
-  scan_duration_ms    INTEGER   NOT NULL DEFAULT 0,
-  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
 CREATE TABLE IF NOT EXISTS proposal_dependencies (
   id                   TEXT      PRIMARY KEY,
   source_proposal_id   TEXT      NOT NULL REFERENCES proposals(id),
@@ -122,25 +90,12 @@ CREATE TABLE IF NOT EXISTS proposal_dependencies (
   UNIQUE (source_proposal_id, target_proposal_hash, dependency_type)
 );
 
--- Cross-gate requirement reuse links (many-to-many)
-CREATE TABLE IF NOT EXISTS requirement_gate_links (
+-- Cross-gate requirement dependencies (many-to-many)
+CREATE TABLE IF NOT EXISTS gate_dependencies (
   requirement_id TEXT      NOT NULL REFERENCES requirements(id) ON DELETE CASCADE,
   gate_id        TEXT      NOT NULL REFERENCES gates(id)        ON DELETE CASCADE,
   linked_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (requirement_id, gate_id)
-);
-
--- Legacy bookkeeping tables (kept for compatibility with existing databases)
-CREATE TABLE IF NOT EXISTS migration_notes (
-  migration_id INTEGER   PRIMARY KEY,
-  note         TEXT      NOT NULL,
-  applied_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS migrations (
-  id         INTEGER   PRIMARY KEY,
-  name       TEXT      NOT NULL UNIQUE,
-  applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ─────────────────────────────────────────────
@@ -153,21 +108,16 @@ CREATE INDEX IF NOT EXISTS idx_gates_completed_by ON gates(completed_by);
 CREATE INDEX IF NOT EXISTS idx_repositories_hash ON repositories(hash);
 CREATE INDEX IF NOT EXISTS idx_repositories_type ON repositories(type);
 
-CREATE INDEX IF NOT EXISTS idx_repo_deps_source ON repo_dependencies(source_repo_hash);
-CREATE INDEX IF NOT EXISTS idx_repo_deps_target ON repo_dependencies(target_repo_hash);
-CREATE INDEX IF NOT EXISTS idx_repo_deps_type   ON repo_dependencies(dependency_type);
-
 CREATE INDEX IF NOT EXISTS idx_requirements_hash        ON requirements(hash);
 CREATE INDEX IF NOT EXISTS idx_requirements_parent      ON requirements(parent_id);
 CREATE INDEX IF NOT EXISTS idx_requirements_type        ON requirements(type);
 CREATE INDEX IF NOT EXISTS idx_requirements_priority    ON requirements(priority);
 CREATE INDEX IF NOT EXISTS idx_requirements_level       ON requirements(level);
 CREATE INDEX IF NOT EXISTS idx_requirements_source      ON requirements(source);
-CREATE INDEX IF NOT EXISTS idx_requirements_source_gate ON requirements(source_gate_id);
 CREATE INDEX IF NOT EXISTS idx_requirements_project_id  ON requirements(project_id);
 
-CREATE INDEX IF NOT EXISTS idx_req_gate_links_gate ON requirement_gate_links(gate_id);
-CREATE INDEX IF NOT EXISTS idx_req_gate_links_req  ON requirement_gate_links(requirement_id);
+CREATE INDEX IF NOT EXISTS idx_gate_deps_gate ON gate_dependencies(gate_id);
+CREATE INDEX IF NOT EXISTS idx_gate_deps_req  ON gate_dependencies(requirement_id);
 
 CREATE INDEX IF NOT EXISTS idx_proposals_hash        ON proposals(hash);
 CREATE INDEX IF NOT EXISTS idx_proposals_gate_id     ON proposals(gate_id);
@@ -179,34 +129,3 @@ CREATE INDEX IF NOT EXISTS idx_proposals_rejected_by ON proposals(rejected_by);
 CREATE INDEX IF NOT EXISTS idx_proposal_deps_source ON proposal_dependencies(source_proposal_id);
 CREATE INDEX IF NOT EXISTS idx_proposal_deps_target ON proposal_dependencies(target_proposal_hash);
 CREATE INDEX IF NOT EXISTS idx_proposal_deps_type   ON proposal_dependencies(dependency_type);
-
-CREATE INDEX IF NOT EXISTS idx_metrics_snapshots_gate_id ON metrics_snapshots(gate_id);
-
--- Approval audit trail — records every approve and reject decision
-CREATE TABLE IF NOT EXISTS approval_events (
-  id                    INTEGER   PRIMARY KEY AUTOINCREMENT,
-  proposal_hash         TEXT      NOT NULL,
-  decision              TEXT      NOT NULL 
-    CHECK (decision IN ('approved', 'rejected')),
-  actor                 TEXT      NOT NULL DEFAULT 'zeno',
-  reason                TEXT,
-  rejection_category    TEXT      
-    CHECK (rejection_category IN ('quality', 'scope', 'design', 'incomplete', NULL)),
-  timestamp             TEXT      NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_approval_events_proposal_hash ON approval_events(proposal_hash);
-CREATE INDEX IF NOT EXISTS idx_approval_events_decision_ts ON approval_events(decision, timestamp);
-
--- Rescope history — records every rescope/replan invocation with before/after snapshots
-CREATE TABLE IF NOT EXISTS rescope_events (
-  id               INTEGER   PRIMARY KEY AUTOINCREMENT,
-  gate_id          TEXT      NOT NULL,
-  snapshot_before  TEXT      NOT NULL,
-  snapshot_after   TEXT      NOT NULL,
-  actor            TEXT      NOT NULL,
-  created_at       TEXT      NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_rescope_events_gate_id    ON rescope_events(gate_id);
-CREATE INDEX IF NOT EXISTS idx_rescope_events_created_at ON rescope_events(created_at DESC);

@@ -24,6 +24,7 @@ const mockRename = vi.fn()
 vi.mock('../../src/utils/config.js', () => ({
   findProjectRoot: (...args: unknown[]) => mockFindProjectRoot(...args),
   getWorkspaceRoot: () => '/project',
+  getZenoGitDir: vi.fn().mockReturnValue('/project/zeno'),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
   saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }))

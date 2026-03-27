@@ -7,7 +7,6 @@
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { listRepositories, saveRepository, deleteRepository } from '../../storage/repository-storage.js'
-import { getRepoDependencyGraph, detectCircularDependencies } from '../../storage/repository-dependencies.js'
 import { detectRepositoryBoundaries } from '../../core/boundary-detection.js'
 import { shortHash } from '../../utils/hash.js'
 
@@ -42,26 +41,9 @@ export function registerReposCommands(program: Command): void {
     .command('deps')
     .description('Show cross-repository dependencies')
     .action(() => {
-      const projectRoot = process.cwd()
-      const graph = getRepoDependencyGraph(projectRoot)
-      const circles = detectCircularDependencies(projectRoot)
-
-      if (graph.edges.length === 0) {
-        logger.info('No dependency edges found.')
-      } else {
-        logger.info(`${'FROM'.padEnd(12)} ${'TO'.padEnd(12)} TYPE`)
-        logger.info(`${'-'.repeat(12)} ${'-'.repeat(12)} ${'-'.repeat(12)}`)
-        for (const e of graph.edges) {
-          logger.info(`${e.from.slice(0, 8).padEnd(12)} ${e.to.slice(0, 8).padEnd(12)} ${e.depType}`)
-        }
-      }
-
-      if (circles.length > 0) {
-        logger.info('\nCircular dependencies detected:')
-        for (const cycle of circles) {
-          logger.info(`  ${cycle.join(' → ')}`)
-        }
-      }
+      // Repository dependencies are tracked in project.json, not in SQLite.
+      logger.info('Repository dependencies are now tracked in project.json.')
+      logger.info('Use the project configuration to view cross-repo dependency data.')
     })
 
   reposCmd

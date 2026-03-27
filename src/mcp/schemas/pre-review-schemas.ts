@@ -47,19 +47,33 @@ export const PreReviewSchema = z
 
     /**
      * G1 / G5: True if agent reviewed the proposal/PRD and all open questions
-     * have been resolved. If false, questionsFound must be non-empty.
+     * have been resolved or explicitly handled (stubbed, deferred with documented rationale).
+     *
+     * In generate phase: set true even when questionsFound is non-empty — those entries
+     * document the resolved/handled questions for traceability and to prevent hallucinations.
+     * In apply phase: questionsFound must be empty when this is true.
      */
     openQuestionsResolved: z
       .boolean()
-      .describe('True if all open questions/unclear requirements have been resolved before proceeding'),
+      .describe(
+        'True if all open questions have been resolved or explicitly handled. ' +
+        'In generate phase, questionsFound may still list resolved items for traceability.'
+      ),
 
     /**
      * G1 / G5: Open questions, unclear requirements, or contradictory statements found.
-     * Must be empty when openQuestionsResolved === true.
+     *
+     * In generate phase: document ALL questions found — including resolved ones — for
+     * traceability and to surface context that prevents hallucinations. Non-empty is
+     * allowed (and encouraged) when openQuestionsResolved=true.
+     * In apply phase: must be empty when openQuestionsResolved=true.
      */
     questionsFound: z
       .array(z.string())
-      .describe('Open questions or contradictions found; empty array if none identified'),
+      .describe(
+        'Questions found during review. In generate phase, document resolved questions for traceability. ' +
+        'In apply phase, must be empty when openQuestionsResolved=true.'
+      ),
 
     /**
      * G2 (apply phase only): True if all entries in Files Affected were verified
@@ -91,12 +105,16 @@ export const PreReviewSchema = z
 
     /**
      * G6 (generate phase only): Vague or incomplete requirements identified.
-     * Must be empty when requirementsVerified === true.
+     *
+     * Must be empty when requirementsVerified=true. If vague requirements remain,
+     * set requirementsVerified=false and list them here.
      */
     vagueRequirements: z
       .array(z.string())
       .optional()
-      .describe("(generate phase) Vague requirements found; empty array if none identified"),
+      .describe(
+        '(generate phase) Vague requirements found; must be empty when requirementsVerified=true.'
+      ),
 
     /**
      * G3 / G7: Implicit assumptions the agent identified in the proposal/PRD.
@@ -115,14 +133,15 @@ export const PreReviewSchema = z
       .describe('Incomplete blockers from Dependencies table; empty array if none found'),
   })
   .superRefine((data, ctx) => {
-    // G1/G5: openQuestionsResolved=true requires questionsFound to be empty
-    if (data.openQuestionsResolved && data.questionsFound.length > 0) {
+    // G1 (apply phase only): openQuestionsResolved=true requires questionsFound to be empty.
+    // In generate phase, questionsFound may document resolved questions for traceability.
+    if (data.phase === 'apply' && data.openQuestionsResolved && data.questionsFound.length > 0) {
       ctx.addIssue({
         code: 'custom',
         path: ['questionsFound'],
         message:
-          'questionsFound must be empty when openQuestionsResolved is true. ' +
-          'Resolve all open questions before proceeding.',
+          'questionsFound must be empty when openQuestionsResolved is true in apply phase. ' +
+          'Resolve all open questions before starting implementation.',
       })
     }
 
@@ -156,17 +175,15 @@ export const PreReviewSchema = z
         })
       }
 
-      // G6: requirementsVerified=true requires vagueRequirements to be empty
-      if (
-        data.requirementsVerified === true &&
-        data.vagueRequirements &&
-        data.vagueRequirements.length > 0
-      ) {
+      // G6: requirementsVerified=true requires vagueRequirements to be empty.
+      // If requirements are truly verified as complete, there should be no vague ones.
+      if (data.requirementsVerified === true && data.vagueRequirements && data.vagueRequirements.length > 0) {
         ctx.addIssue({
           code: 'custom',
           path: ['vagueRequirements'],
           message:
-            'vagueRequirements must be empty when requirementsVerified is true.',
+            'vagueRequirements must be empty when requirementsVerified is true. ' +
+            'Set requirementsVerified=false if vague requirements remain.',
         })
       }
     }

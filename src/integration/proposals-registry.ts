@@ -255,23 +255,6 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         // File read failure is non-critical; tasks defaults to []
       }
 
-      // Fetch review history from audit trail
-      let reviewHistory: {
-        proposal_hash: string
-        decision: 'approved' | 'rejected'
-        actor: string
-        reason?: string | null
-        rejection_category?: string | null
-        timestamp: string
-      }[] = []
-      try {
-        const { ApprovalAuditTrail } = await import('../storage/approval-audit-trail.js')
-        const auditTrail = new ApprovalAuditTrail(db)
-        reviewHistory = auditTrail.getHistory(normalizedHash)
-      } catch {
-        // Audit trail might not be initialized — gracefully return empty history
-      }
-
       return {
         hash: (proposal['hash'] as string) || 'unknown00',
         title: (proposal['title'] as string) ?? '',
@@ -288,7 +271,6 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           filesAffected.length > 0
             ? filesAffected.map((f) => ({ path: f, action: 'modify' as const }))
             : undefined,
-        reviewHistory,
         lastUpdated: resolveLastUpdated(proposal['approved_at'] as string | null, proposal['created_at'] as string | null),
       }
     },

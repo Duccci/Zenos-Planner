@@ -975,8 +975,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       schema: z.object({
         gateId: z.string(),
         name: z.string(),
-        type: z.string(),
-        sequence: z.number(),
+        sequence: z.number().optional(),
         dependencies: z.array(z.string()).optional(),
         objectives: z.array(z.string()),
         description: z.string().optional(),

@@ -11,6 +11,7 @@ describe('MCP resources watcher', () => {
       rmSync(tmpDir, { recursive: true, force: true })
     } catch {}
     mkdirSync(join(tmpDir, 'zeno', 'proposals', 'solitary'), { recursive: true })
+    mkdirSync(join(tmpDir, '.zeno'), { recursive: true })
   })
 
   afterEach(() => {

@@ -14,7 +14,6 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { invokeCommand } from './command-invoker.js'
 import { parseCommitsForHashes } from '../utils/git.js'
-import { getRepoDependencyGraph, detectCircularDependencies } from '../storage/repository-dependencies.js'
 import { listRepositories, saveRepository, deleteRepository, getRepositoryByHash } from '../storage/repository-storage.js'
 import { detectRepositoryBoundaries } from '../core/boundary-detection.js'
 import { shortHash } from '../utils/hash.js'
@@ -139,50 +138,13 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
     schema: z.object({ type: z.string().optional() })
   })
 
-  registry.register('repos_deps', (params) => {
-    const { repositoryId } = params as { repositoryId?: string }
-    const projectRoot = getWorkspaceRoot()
-
-    const graph = getRepoDependencyGraph(projectRoot)
-    const circles = detectCircularDependencies(projectRoot)
-    const allRepos = listRepositories(undefined, projectRoot)
-
-    // Build a hash→full-repo lookup to enrich dependency nodes
-    const repoByHash = new Map(allRepos.map(r => [r.hash, r]))
-
-    const validEdgeTypes = new Set(['imports', 'extends', 'references'])
-
-    let edges = graph.edges.map(e => ({
-      from: e.from,
-      to: e.to,
-      type: (validEdgeTypes.has(e.depType) ? e.depType : 'references') as 'imports' | 'extends' | 'references',
-    }))
-
-    let repositories = graph.repositories.map(node => {
-      const full = repoByHash.get(node.hash)
-      return {
-        id: node.hash,
-        name: node.name,
-        type: (full?.type ?? 'service') as 'main' | 'service' | 'library' | 'tool',
-        path: full?.path ?? '',
-      }
-    })
-
-    if (repositoryId) {
-      const id = repositoryId
-      edges = edges.filter(e => e.from === id || e.to === id)
-      const neighborHashes = new Set<string>()
-      for (const e of edges) {
-        neighborHashes.add(e.from)
-        neighborHashes.add(e.to)
-      }
-      repositories = repositories.filter(r => neighborHashes.has(r.id))
-    }
-
+  registry.register('repos_deps', (_params) => {
+    // Repository dependencies are tracked in project.json, not in SQLite.
+    // This handler returns an empty graph; cross-repo dependency analysis
+    // should read from the version-controlled project configuration.
     return {
-      repositories,
-      edges,
-      ...(circles.length > 0 ? { circularDependencies: circles } : {}),
+      repositories: [] as { id: string; name: string; type: 'main' | 'service' | 'library' | 'tool'; path: string }[],
+      edges: [] as { from: string; to: string; type: 'imports' | 'extends' | 'references' }[],
     }
   }, {
     description: 'Show cross-repository dependencies',

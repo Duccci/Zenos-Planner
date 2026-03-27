@@ -12,6 +12,7 @@ import { logger } from '../utils/logger.js'
 import { getDefaultConfig, getZenoDir, getZenoGitDir } from '../utils/config.js'
 import { initializeDatabase, getDatabasePath, closeDatabase } from '../storage/database.js'
 import { isZenoSubmodule } from '../utils/git.js'
+import { REQUIREMENTS_MANIFEST_FILE } from '../storage/requirements-sync.js'
 
 /**
  * Create the complete .zeno directory structure
@@ -75,6 +76,16 @@ export async function createProjectStructure(
       logger.debug('Created initial config.json')
     } else {
       logger.debug('Config.json already exists, skipping')
+    }
+
+    // Create blank requirements.json manifest if it doesn't exist
+    const requirementsPath = join(zenoInternalDir, REQUIREMENTS_MANIFEST_FILE)
+    if (!fileExists(requirementsPath)) {
+      await writeJsonFile(requirementsPath, { version: 1, updatedAt: new Date().toISOString(), requirements: [] })
+      createdPaths.push(requirementsPath)
+      logger.debug('Created blank requirements.json')
+    } else {
+      logger.debug('requirements.json already exists, skipping')
     }
 
     // Initialize SQLite database if it doesn't exist

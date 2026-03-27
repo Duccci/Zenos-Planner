@@ -31,12 +31,10 @@ export const REQUIREMENTS_MANIFEST_FILE = 'requirements.json'
 
 export interface RequirementManifestEntry {
   id: string
-  projectId: string
+  projectId: string[]
   gateId: string | null
   parentId: string | null
-  projectRequirementId: string | null
   level: string
-  sourceGateId: string | null
   type: string
   priority: string
   description: string
@@ -57,9 +55,7 @@ interface RequirementDbRow {
   project_id: string
   gate_id: string | null
   parent_id: string | null
-  project_requirement_id: string | null
   level: string | null
-  source_gate_id: string | null
   type: string
   priority: string
   description: string
@@ -71,6 +67,24 @@ interface RequirementDbRow {
 
 function getManifestPath(projectRoot: string): string {
   return path.join(getZenoDir(projectRoot), REQUIREMENTS_MANIFEST_FILE)
+}
+
+/**
+ * Parse the raw DB project_id TEXT field into a string array.
+ * Handles both the new JSON-array format and the legacy plain-string format
+ * (e.g. 'default-project' → ['default-project']).
+ */
+export function parseProjectIds(raw: string | null | undefined): string[] {
+  if (!raw) return ['default-project']
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
+      return parsed
+    }
+  } catch {
+    // Not valid JSON — treat as a legacy plain string
+  }
+  return [raw]
 }
 
 /**
@@ -86,12 +100,15 @@ export function writeRequirementsManifest(
   projectRoot: string = process.cwd()
 ): void {
   try {
+    // Only persist project-level requirements; gate-level requirements are
+    // stored in gate markdown files and rebuilt by the registry-rebuild command.
     const rows = db
       .prepare(
-        `SELECT id, project_id, gate_id, parent_id, project_requirement_id,
-                level, source_gate_id, type, priority,
+        `SELECT id, project_id, gate_id, parent_id,
+                level, type, priority,
                 description, acceptance_criteria, hash, source, created_at
          FROM requirements
+         WHERE level = 'project'
          ORDER BY created_at`
       )
       .all() as RequirementDbRow[]
@@ -101,12 +118,10 @@ export function writeRequirementsManifest(
       updatedAt: new Date().toISOString(),
       requirements: rows.map((r) => ({
         id: r.id,
-        projectId: r.project_id,
+        projectId: parseProjectIds(r.project_id),
         gateId: r.gate_id,
         parentId: r.parent_id,
-        projectRequirementId: r.project_requirement_id,
-        level: r.level ?? 'gate',
-        sourceGateId: r.source_gate_id,
+level: r.level ?? 'gate',
         type: r.type,
         priority: r.priority,
         description: r.description,
@@ -166,22 +181,20 @@ export function syncRequirementsFromDisk(
   // children since storeRequirement validates parent existence before insert.
   const insert = db.prepare(
     `INSERT OR IGNORE INTO requirements (
-       id, project_id, gate_id, parent_id, project_requirement_id,
-       level, source_gate_id, type, priority,
+       id, project_id, gate_id, parent_id,
+       level, type, priority,
        description, acceptance_criteria, hash, source, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
 
   const syncAll = db.transaction(() => {
     for (const r of manifest.requirements) {
       insert.run(
         r.id,
-        r.projectId,
+        JSON.stringify(Array.isArray(r.projectId) ? r.projectId : [r.projectId]),
         r.gateId ?? null,
         r.parentId ?? null,
-        r.projectRequirementId ?? null,
         r.level,
-        r.sourceGateId ?? null,
         r.type,
         r.priority,
         r.description,
@@ -194,11 +207,16 @@ export function syncRequirementsFromDisk(
     }
   })
 
+  // Disable FK checks outside the transaction — SQLite ignores pragma changes
+  // inside BEGIN/COMMIT. Manifest may reference archived gates not in the DB.
+  db.pragma('foreign_keys = OFF')
   try {
     syncAll()
   } catch (err) {
     console.warn(
       `[requirements-sync] Failed to sync requirements from manifest: ${err instanceof Error ? err.message : String(err)}`
     )
+  } finally {
+    db.pragma('foreign_keys = ON')
   }
 }

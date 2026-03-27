@@ -6,8 +6,6 @@ import { logger } from '../../../src/utils/logger.js'
 const mockListRepositories = vi.fn()
 const mockSaveRepository = vi.fn()
 const mockDeleteRepository = vi.fn()
-const mockGetRepoDependencyGraph = vi.fn()
-const mockDetectCircularDependencies = vi.fn()
 const mockDetectRepositoryBoundaries = vi.fn()
 const mockShortHash = vi.fn()
 
@@ -19,11 +17,6 @@ vi.mock('../../../src/storage/repository-storage.js', () => ({
   listRepositories: (...args: unknown[]) => mockListRepositories(...args),
   saveRepository: (...args: unknown[]) => mockSaveRepository(...args),
   deleteRepository: (...args: unknown[]) => mockDeleteRepository(...args),
-}))
-
-vi.mock('../../../src/storage/repository-dependencies.js', () => ({
-  getRepoDependencyGraph: (...args: unknown[]) => mockGetRepoDependencyGraph(...args),
-  detectCircularDependencies: (...args: unknown[]) => mockDetectCircularDependencies(...args),
 }))
 
 vi.mock('../../../src/core/boundary-detection.js', () => ({
@@ -40,8 +33,6 @@ describe('Repos command coverage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockListRepositories.mockReturnValue([])
-    mockGetRepoDependencyGraph.mockReturnValue({ repositories: [], edges: [] })
-    mockDetectCircularDependencies.mockReturnValue([])
     mockDetectRepositoryBoundaries.mockResolvedValue({ recommendations: [], persisted: false })
     mockShortHash.mockReturnValue('abc12345')
     program = new Command()
@@ -68,37 +59,11 @@ describe('Repos command coverage', () => {
     expect(calls.some(s => s.includes('library'))).toBe(true)
   })
 
-  it('repos deps prints "No dependency edges found." when graph is empty', async () => {
-    await program.parseAsync(['node', 'test', 'repos', 'deps'])
-
-    expect(vi.mocked(logger.info)).toHaveBeenCalledWith('No dependency edges found.')
-    expect(mockGetRepoDependencyGraph).toHaveBeenCalled()
-    expect(mockDetectCircularDependencies).toHaveBeenCalled()
-  })
-
-  it('repos deps prints edges when graph has data', async () => {
-    mockGetRepoDependencyGraph.mockReturnValue({
-      repositories: [{ hash: 'aaa', name: 'svc-a' }],
-      edges: [{ from: 'aaabbbcc', to: 'dddeeeff', depType: 'imports' }],
-    })
-
+  it('repos deps prints message that dependencies are tracked in project.json', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'deps'])
 
     const calls = vi.mocked(logger.info).mock.calls.map(c => String(c[0]))
-    expect(calls.some(s => s.includes('imports'))).toBe(true)
-  })
-
-  it('repos deps prints circular dependency warnings', async () => {
-    mockDetectCircularDependencies.mockReturnValue([['aaa', 'bbb', 'aaa']])
-    mockGetRepoDependencyGraph.mockReturnValue({
-      repositories: [],
-      edges: [{ from: 'aaa', to: 'bbb', depType: 'imports' }],
-    })
-
-    await program.parseAsync(['node', 'test', 'repos', 'deps'])
-
-    const calls = vi.mocked(logger.info).mock.calls.map(c => String(c[0]))
-    expect(calls.some(s => s.includes('Circular'))).toBe(true)
+    expect(calls.some(s => s.includes('project.json'))).toBe(true)
   })
 
   it('repos detect calls detectRepositoryBoundaries with persist:false', async () => {

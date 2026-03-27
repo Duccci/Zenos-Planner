@@ -35,9 +35,7 @@ const VALID_PRIORITIES = new Set<string>(['must', 'should', 'could', 'wont'])
  *   - `'project'`  — from "### Project Requirements (Attributed to This Gate)"
  *   - `'inherited'` — from "### Inherited/Transferred Requirements"
  *
- * Inherited requirements carry `sourceGateId` extracted from the
- * "Source Gate" column so they can be associated with their origin gate
- * rather than duplicated under the current gate.
+ * Inherited requirements are requirements from other gates that this gate depends on.
  */
 export interface ParsedGateRequirement {
   hash: string
@@ -45,7 +43,6 @@ export interface ParsedGateRequirement {
   type: RequirementType
   priority: RequirementPriority
   source: 'project' | 'inherited'
-  sourceGateId?: string
 }
 
 /**
@@ -61,7 +58,18 @@ function findGateFileSync(gateId: string, projectRoot?: string): string | null {
     return null
   }
   const match = entries.find((e) => e === `${gateId}.md` || e.startsWith(`${gateId}-`))
-  return match ? path.join(gatesDir, match) : null
+  if (match) return path.join(gatesDir, match)
+
+  // Fallback: check archive/ subdirectory for completed gates
+  const archiveDir = path.join(gatesDir, 'archive')
+  let archiveEntries: string[]
+  try {
+    archiveEntries = readdirSync(archiveDir)
+  } catch {
+    return null
+  }
+  const archiveMatch = archiveEntries.find((e) => e === `${gateId}.md` || e.startsWith(`${gateId}-`))
+  return archiveMatch ? path.join(archiveDir, archiveMatch) : null
 }
 
 /**
@@ -107,7 +115,7 @@ function classifySubsection(heading: string): TemplateSubsection {
  *     type/priority default to functional/must since those columns are absent
  *
  * The parser tracks the current `###` subsection heading and tags each
- * parsed requirement with `source` and optional `sourceGateId`.
+ * parsed requirement with `source`.
  *
  * Each table is expected to have a header row and separator row before data rows.
  * Only rows with valid 16-char hex hashes are extracted.
@@ -139,7 +147,6 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
   let nameCol = -1
   let typeCol = -1
   let priorityCol = -1
-  let sourceGateCol = -1
 
   // Track current ### subsection from the gate template
   let currentSubsection: TemplateSubsection = 'unknown'
@@ -166,7 +173,6 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
       nameCol = headerCells.findIndex((c) => /^(name|title)$/i.test(c))
       typeCol = headerCells.findIndex((c) => /^type$/i.test(c))
       priorityCol = headerCells.findIndex((c) => /^priority$/i.test(c))
-      sourceGateCol = headerCells.findIndex((c) => /^source\s*gate$/i.test(c))
       inTable = hashCol !== -1 && nameCol !== -1
       continue
     }
@@ -188,7 +194,6 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
         nameCol = headerCells.findIndex((c) => /^(name|title)$/i.test(c))
         typeCol = headerCells.findIndex((c) => /^type$/i.test(c))
         priorityCol = headerCells.findIndex((c) => /^priority$/i.test(c))
-        sourceGateCol = headerCells.findIndex((c) => /^source\s*gate$/i.test(c))
         inTable = hashCol !== -1 && nameCol !== -1
       }
       continue
@@ -226,16 +231,7 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
       const source: 'project' | 'inherited' =
         currentSubsection === 'inherited' ? 'inherited' : 'project'
 
-      // Extract source gate for inherited requirements
-      let sourceGateId: string | undefined
-      if (source === 'inherited' && sourceGateCol >= 0) {
-        const rawGate = (cells[sourceGateCol] ?? '').trim()
-        if (rawGate && rawGate !== '#[hash]' && rawGate.length > 0) {
-          sourceGateId = rawGate
-        }
-      }
-
-      results.push({ hash, description, type, priority, source, sourceGateId })
+      results.push({ hash, description, type, priority, source })
     }
   }
 
@@ -245,7 +241,7 @@ export function parseGateRequirementsFromMarkdown(content: string): ParsedGateRe
 /**
  * Result of syncing a gate's markdown requirements into the database.
  */
-interface SyncResult {
+export interface SyncResult {
   /** Number of project requirements stored or already present under this gate */
   inserted: number
   /** Hashes of inherited requirements found in the markdown (from other gates) */
@@ -262,7 +258,7 @@ interface SyncResult {
  *      the idempotent `storeRequirement` call returns the existing row.
  *
  *   2. **Inherited/transferred requirements** — these originate from a different
- *      gate (identified by `sourceGateId` from the "Source Gate" column). They
+ *      gate. They
  *      are **not** duplicated under the current gate. If they already exist in
  *      the DB they are left untouched; if they don't exist they are stored with
  *      their source gate's ID. Their hashes are returned in `inheritedHashes`
@@ -270,7 +266,7 @@ interface SyncResult {
  *
  * @returns SyncResult with insertion count and inherited hash list
  */
-function syncGateRequirementsFromMarkdown(
+export function syncGateRequirementsFromMarkdown(
   storage: RequirementStorage,
   gateId: string,
   projectRoot?: string
@@ -314,17 +310,16 @@ function syncGateRequirementsFromMarkdown(
           continue
         }
 
-        // Not yet in DB — store under the source gate's ID with provenance metadata
+        // Not yet in DB — store under the inherited gate's ID
         const stored = storage.storeRequirement(
           req.description,
           req.type,
           req.priority,
           'default-project',
-          req.sourceGateId ?? undefined, // owned by source gate
-          undefined,                      // acceptance criteria
-          undefined,                      // parent id
-          'gate',                         // level
-          req.sourceGateId ?? undefined   // source_gate_id = origin gate
+          undefined,   // owned by current gate (no origin tracking)
+          undefined,   // acceptance criteria
+          undefined,   // parent id
+          'gate'       // level
         )
         // Explicitly link the inherited requirement to the current gate
         storage.linkRequirementToGate(stored.id, gateId)
@@ -513,7 +508,6 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               type: req.type,
               gateId: req.gateId ?? 'gate-00',
               level: req.level,
-              sourceGateId: req.sourceGateId ?? undefined,
               priority: req.priority,
               acceptance: req.acceptanceCriteria
                 ? [{ criteria: req.acceptanceCriteria, completed: false }]
@@ -580,7 +574,6 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
               priority: r.priority,
               gateId: r.gateId ?? 'gate-00',
               level: r.level,
-              sourceGateId: r.sourceGateId ?? undefined,
               created: (r.createdAt as Date | undefined)?.toISOString() ?? new Date().toISOString(),
             })),
             total,
@@ -707,7 +700,6 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             title: req.description,
             level: req.level,
             ownerGateId: req.gateId ?? null,
-            sourceGateId: req.sourceGateId ?? null,
             type: req.type,
             priority: req.priority,
             // Ancestry chain: PRD or parent gate requirements that led to this

@@ -66,6 +66,19 @@ export async function runMigrations(
     )
   }
 
+  // Normalise legacy single-string project_id values to JSON arrays.
+  // Rows written before multi-project support stored a plain string
+  // (e.g. 'default-project').  This one-time UPDATE converts them to
+  // JSON arrays (['default-project']) so that json_each() queries work.
+  try {
+    db.prepare(
+      `UPDATE requirements SET project_id = json_array(project_id)
+       WHERE project_id NOT LIKE '[%'`
+    ).run()
+  } catch {
+    // Non-fatal — best-effort normalisation; existing queries fall back gracefully
+  }
+
   // Return 1 on first apply (fresh DB), 0 if schema was already in place
   return alreadyInitialised ? 0 : 1
 }

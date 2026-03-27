@@ -33,6 +33,7 @@ vi.mock('../../src/storage/database.js', () => ({
 
 vi.mock('../../src/utils/config.js', () => ({
   getZenoDir: vi.fn().mockReturnValue('/project/zeno/.zeno'),
+  getZenoGitDir: vi.fn().mockReturnValue('/project/zeno'),
   getWorkspaceRoot: vi.fn().mockReturnValue('/mock/project'),
   readProjectOverview: (...args: unknown[]) => mockReadProjectOverview(...args),
   getGatesFromOverview: (...args: unknown[]) => mockGetGatesFromOverview(...args),

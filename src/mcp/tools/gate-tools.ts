@@ -15,8 +15,7 @@ import {
   toCompactWorkflow,
 } from '../content/index.js'
 import { validateArtifactFile } from '../validators/artifact-validator.js'
-import { RescopeEventStore } from '../../storage/rescope-event-store.js'
-import { getDatabase } from '../../storage/database.js'
+import { loadTemplateContent } from '../../generation/template-discovery.js'
 
 /**
  * Unified gate action tool definition.
@@ -89,14 +88,36 @@ export function gateHandlers(
           const p = payload as { name?: string; objectives?: string[]; preReview?: unknown }
           const hasExplicitFields =
             Boolean(p.name) && Array.isArray(p.objectives) && (p.objectives ?? []).length > 0
+          let invokePayload = payload ?? {}
+          if (hasExplicitFields && !invokePayload['sequence']) {
+            // Auto-derive sequence from gateId (e.g. "gate-01" → 1) when caller omits it
+            const rawGateId = typeof invokePayload['gateId'] === 'string' ? invokePayload['gateId'] : ''
+            const derived = parseInt(rawGateId.replace(/^gate-0*/, ''), 10)
+            if (!isNaN(derived) && derived > 0) {
+              invokePayload = { ...invokePayload, sequence: derived }
+            }
+          }
           const invokeResult = hasExplicitFields
-            ? await r.invoke('gate_create', payload)
+            ? await r.invoke('gate_create', invokePayload)
             : await r.invoke('generateGates', payload)
+
+          // Load gate PRD template so the LLM knows the expected structure
+          let templateInfo: { name: string; content: string } | undefined
+          try {
+            const content = await loadTemplateContent(undefined, 'templates/md-templates/gate-prd-template.md')
+            templateInfo = { name: 'gate-prd-template', content }
+          } catch {
+            // Template loading is best-effort; guidance still flows without it
+          }
+
           return withGuidance(
             invokeResult,
             toNarrativeRules(GATE_GENERATION_GUARDRAILS),
             toCompactWorkflow(GATE_GENERATION_WORKFLOW),
-            hasExplicitFields ? undefined : p.preReview
+            {
+              preReview: hasExplicitFields ? undefined : p.preReview,
+              templateInfo,
+            }
           )
         },
         start: async (payload, r) => {
@@ -189,48 +210,24 @@ export function gateHandlers(
           const p = payload as { gateId?: string; force?: boolean }
           // Safety guard: block regeneration when a gate is in_progress unless force:true
           try {
-            const db = getDatabase()
-            const store = new RescopeEventStore(db)
             const gatesResult = await r.invoke('gates_list', {})
             if (gatesResult.success) {
               const gates = gatesResult.data as { id: string; status: string; name?: string }[]
               const inProgressGate = gates.find((g) => g.status === 'in_progress')
-              if (inProgressGate) {
-                const warning = store.guardRescope('in_progress', p.force)
-                if (warning) {
-                  return {
-                    success: false as const,
-                    error: {
-                      code: 'IN_PROGRESS_GATE_GUARD',
-                      message: `${warning.message} Gate "${inProgressGate.name ?? inProgressGate.id}" is in_progress.`,
-                    },
-                  }
+              if (inProgressGate && !p.force) {
+                return {
+                  success: false as const,
+                  error: {
+                    code: 'IN_PROGRESS_GATE_GUARD',
+                    message: `Gate is in_progress. Use force: true to override. Gate "${inProgressGate.name ?? inProgressGate.id}" is in_progress.`,
+                  },
                 }
               }
             }
-            // Capture snapshot before regeneration
-            const snapshotBefore = JSON.stringify(gatesResult.success ? gatesResult.data : [])
-            const regenerateResult = await r.invoke('gates_regenerate', payload)
-            // Record rescope event (best-effort)
-            if (regenerateResult.success) {
-              try {
-                const afterResult = await r.invoke('gates_list', {})
-                const snapshotAfter = JSON.stringify(afterResult.success ? afterResult.data : [])
-                store.record({
-                  gate_id: p.gateId ?? 'all',
-                  snapshot_before: snapshotBefore,
-                  snapshot_after: snapshotAfter,
-                  actor: 'zeno',
-                  created_at: new Date().toISOString(),
-                })
-              } catch {
-                // Rescope event recording is best-effort
-              }
-            }
-            return regenerateResult
+            return await r.invoke('gates_regenerate', payload)
           } catch {
             // If database is unavailable, fall through to direct invocation
-            return r.invoke('gates_regenerate', payload)
+            return await r.invoke('gates_regenerate', payload)
           }
         },
         validate: async (payload, r) => {

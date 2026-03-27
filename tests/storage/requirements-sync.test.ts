@@ -141,12 +141,10 @@ describe('requirements-sync', () => {
       requirements: [
         {
           id: 'restore-001',
-          projectId: 'default-project',
+          projectId: ['default-project'],
           gateId: null,
           parentId: null,
-          projectRequirementId: null,
           level: 'project',
-          sourceGateId: null,
           type: 'functional',
           priority: 'must',
           description: 'Restored from manifest',
@@ -183,12 +181,10 @@ describe('requirements-sync', () => {
       requirements: [
         {
           id: 'idempotent-001',
-          projectId: 'default-project',
+          projectId: ['default-project'],
           gateId: null,
           parentId: null,
-          projectRequirementId: null,
           level: 'project',
-          sourceGateId: null,
           type: 'functional',
           priority: 'must',
           description: 'Should not duplicate',
@@ -234,12 +230,10 @@ describe('requirements-sync', () => {
       requirements: [
         {
           id: 'existing-001',
-          projectId: 'default-project',
+          projectId: ['default-project'],
           gateId: null,
           parentId: null,
-          projectRequirementId: null,
           level: 'project',
-          sourceGateId: null,
           type: 'functional',
           priority: 'must',
           description: 'Override attempt — should be ignored',
@@ -281,7 +275,7 @@ describe('requirements-sync', () => {
   // Round-trip: write → wipe DB → sync back
   // ---------------------------------------------------------------------------
 
-  it('round-trips project-level and solitary requirements after DB wipe', async () => {
+  it('round-trips project-level requirements after DB wipe (gate-level excluded from manifest)', async () => {
     await initializeDatabase(TEST_DIR)
     const db = getDatabase(TEST_DIR)
 
@@ -293,13 +287,13 @@ describe('requirements-sync', () => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run('proj-req-001', 'projhash001', 'functional', 'must', 'project', 'generated', 'Project level req', 'default-project', now, now)
 
-    // Solitary-proposal requirement (gate_id = NULL, level = 'gate')
+    // Solitary-proposal requirement (gate_id = NULL, level = 'gate') — excluded from manifest
     db.prepare(
       `INSERT INTO requirements (id, hash, type, priority, level, source, description, project_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run('solitary-req-001', 'solitaryhash001', 'non_functional', 'should', 'gate', 'generated', 'Solitary proposal req', 'default-project', now, now)
 
-    // Write manifest
+    // Write manifest (only project-level rows)
     writeRequirementsManifest(db, TEST_DIR)
 
     // Simulate DB wipe: delete both rows
@@ -308,23 +302,19 @@ describe('requirements-sync', () => {
       (db.prepare('SELECT COUNT(*) as c FROM requirements').get() as { c: number }).c
     ).toBe(0)
 
-    // Restore from manifest
+    // Restore from manifest — only project-level survives
     syncRequirementsFromDisk(db, TEST_DIR)
 
     const rows = db
       .prepare('SELECT id, description, level, gate_id FROM requirements ORDER BY id')
       .all() as { id: string; description: string; level: string; gate_id: string | null }[]
 
-    expect(rows).toHaveLength(2)
+    expect(rows).toHaveLength(1)
 
-    const projRow = rows.find((r) => r.id === 'proj-req-001')
-    expect(projRow?.description).toBe('Project level req')
-    expect(projRow?.level).toBe('project')
-    expect(projRow?.gate_id).toBeNull()
-
-    const solRow = rows.find((r) => r.id === 'solitary-req-001')
-    expect(solRow?.description).toBe('Solitary proposal req')
-    expect(solRow?.gate_id).toBeNull()
+    expect(rows[0].id).toBe('proj-req-001')
+    expect(rows[0].description).toBe('Project level req')
+    expect(rows[0].level).toBe('project')
+    expect(rows[0].gate_id).toBeNull()
   })
 
   // ---------------------------------------------------------------------------
@@ -342,9 +332,7 @@ describe('requirements-sync', () => {
           project_id: 'proj',
           gate_id: null,
           parent_id: null,
-          project_requirement_id: null,
           level: null,       // r.level ?? 'gate' arm=1
-          source_gate_id: null,
           type: 'functional',
           priority: 'must',
           description: 'Null fields req',

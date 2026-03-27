@@ -79,26 +79,31 @@ function parseGateBodyFields(content: string, filePath: string): ParsedGateMeta 
   if (!idMatch?.[1]) return null
   const id = idMatch[1]
 
-  // Name: first H1 heading, strip "Gate XX: " prefix
-  const h1Match = /^#\s+Gate\s+\d+:\s+(.+)$/m.exec(content)
+  // Name: first H1 heading, strip optional "Gate XX: " prefix
+  const h1Match = /^#\s+(?:Gate\s+\d+:\s+)?(.+)$/m.exec(content)
   const name = h1Match?.[1]?.trim() ?? fileBase
 
-  // Hash: strip leading #
+  // Hash: strip leading #.  Fall back to gate id when the field is absent
+  // (some consolidated archive files omit **Hash**).
   const hashMatch = /\*\*Hash\*\*:\s*#?([a-zA-Z0-9_-]+)/.exec(content)
-  if (!hashMatch?.[1]) return null
-  const hash = hashMatch[1].trim()
+  const hash = hashMatch?.[1]?.trim() ?? id
 
   // Status
   const statusMatch = /\*\*Status\*\*:\s*([a-z_]+)/.exec(content)
   const status = statusMatch?.[1]?.trim() ?? 'pending'
 
-  // Sequence: "6 of 12" → 6
+  // Sequence: "6 of 12" → 6.  Fall back to number in gate id (gate-03 → 3).
   const seqMatch = /\*\*Sequence\*\*:\s*(\d+)/.exec(content)
-  const sequence = seqMatch?.[1] ? parseInt(seqMatch[1], 10) : 0
+  const idSeq = /gate-(\d+)/.exec(id)?.[1]
+  const sequence = seqMatch?.[1]
+    ? parseInt(seqMatch[1], 10)
+    : idSeq ? parseInt(idSeq, 10) : 0
 
-  // Created
+  // Created / Completed
   const createdMatch = /\*\*Created\*\*:\s*([^\n\r]+)/.exec(content)
-  const createdAt = createdMatch?.[1]?.trim() ?? null
+  const completedMatch = /\*\*Completed\*\*:\s*([^\n\r]+)/.exec(content)
+  const completedAt = completedMatch?.[1]?.trim() ?? null
+  const createdAt = createdMatch?.[1]?.trim() ?? completedAt
 
   return {
     id,
@@ -108,7 +113,7 @@ function parseGateBodyFields(content: string, filePath: string): ParsedGateMeta 
     hash,
     projectId: 'default-project',
     createdAt,
-    completedAt: null,
+    completedAt,
     dependsOn: null,
   }
 }
@@ -136,9 +141,20 @@ export function syncGatesFromDisk(
 
   let files: string[]
   try {
-    files = readdirSync(gatesDir).filter(
-      (f) => f.endsWith('.md') && /^gate-\d+/.test(f) && f !== 'archive'
+    const topLevel = readdirSync(gatesDir).filter(
+      (f) => f.endsWith('.md') && /^gate-\d+/.test(f)
     )
+    // Also scan archive/ subdirectory for completed gates
+    const archiveDir = path.join(gatesDir, 'archive')
+    let archiveFiles: string[] = []
+    try {
+      archiveFiles = readdirSync(archiveDir)
+        .filter((f) => f.endsWith('.md') && /^gate-\d+/.test(f))
+        .map((f) => path.join('archive', f))
+    } catch {
+      // archive/ may not exist — not an error
+    }
+    files = [...topLevel, ...archiveFiles]
   } catch {
     return { synced: 0, skipped: 0 }
   }

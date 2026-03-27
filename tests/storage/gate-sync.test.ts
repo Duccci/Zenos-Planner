@@ -106,12 +106,14 @@ describe('gate-sync', () => {
     expect(result.skipped).toBe(0)
   })
 
-  it('skips files missing required fields and increments skipped count', async () => {
+  it('syncs files missing **Hash** by deriving hash from gate id', async () => {
     await writeFile(join(GATES_DIR, 'gate-03-broken.md'), '# Gate 3: Broken\n\nNo hash here.')
     const db = getDatabase(TEST_DIR)
     const result = syncGatesFromDisk(db, TEST_DIR)
-    expect(result.skipped).toBe(1)
-    expect(result.synced).toBe(0)
+    expect(result.synced).toBe(1)
+    expect(result.skipped).toBe(0)
+    const row = db.prepare('SELECT hash FROM gates WHERE id = ?').get('gate-03') as { hash: string } | undefined
+    expect(row?.hash).toBe('gate-03')
   })
 
   it('normalizes status validated → validated (DB now supports it)', async () => {
@@ -188,8 +190,8 @@ describe('gate-sync', () => {
     expect(row?.name).toBe('gate-03-minimal')
     // status falls back to 'pending'
     expect(row?.status).toBe('pending')
-    // sequence falls back to 0
-    expect(row?.sequence).toBe(0)
+    // sequence falls back to number from gate id (gate-03 → 3)
+    expect(row?.sequence).toBe(3)
   })
 
   it('uses default project_id when frontmatter omits project_id', async () => {

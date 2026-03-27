@@ -27,7 +27,7 @@ import {
 import { logger } from '../utils/logger.js'
 import { stripAnsi } from '../utils/ansi-strip.js'
 import { ArchiveGateOutput, ArchiveProposalOutput, ArchiveBatchOutput } from '../mcp/schemas/archive-schemas.js'
-import { captureMetricsSnapshot } from './metrics-capture.js'
+
 
 // Helper functions moved to `archive-consolidation.ts` and `archive-execution.ts`
 
@@ -217,10 +217,7 @@ ${completionNotes ? `Notes: ${completionNotes}` : ''}`)
     remote: config.git?.remote,
   })
 
-  // Step 8: Capture metrics snapshot (non-fatal)
-  await captureMetricsSnapshot(gateId)
-
-  // Step 8.5: Update architecture documentation (non-fatal)
+  // Step 8: Update architecture documentation (non-fatal)
   await updateArchitectureOnGateCompletion(gateId, gateName, timestamp)
 
   // Step 9: Calculate dependencies

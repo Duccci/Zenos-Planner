@@ -14,7 +14,7 @@ describe('RequirementStorage', () => {
     // Create temporary database for testing
     tempDbPath = join(tmpdir(), `test-storage-${randomUUID()}.db`)
     db = new Database(tempDbPath)
-    
+
     // Disable foreign key constraints for unit tests
     db.pragma('foreign_keys = OFF')
 
@@ -27,7 +27,7 @@ describe('RequirementStorage', () => {
         status TEXT
       )
     `)
-    
+
     db.exec(`
       CREATE TABLE requirements (
         id TEXT PRIMARY KEY,
@@ -48,7 +48,7 @@ describe('RequirementStorage', () => {
     `)
 
     db.exec(`
-      CREATE TABLE requirement_gate_links (
+      CREATE TABLE gate_dependencies (
         requirement_id TEXT NOT NULL,
         gate_id TEXT NOT NULL,
         linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -86,7 +86,7 @@ describe('RequirementStorage', () => {
       expect(requirement.priority).toBe(priority)
       // Project-level requirement (no gateId)
       expect(requirement.gateId).toBeNull()
-      expect(requirement.projectId).toBe('default-project')
+      expect(requirement.projectId).toEqual(['default-project'])
 
     })
 
@@ -147,7 +147,7 @@ describe('RequirementStorage', () => {
       )
 
       expect(requirement.gateId).toBe(gateId)
-      expect(requirement.projectId).toBe('project-1')
+      expect(requirement.projectId).toEqual(['project-1'])
       expect(requirement.type).toBe('non_functional')
     })
 
@@ -295,16 +295,10 @@ describe('RequirementStorage', () => {
     })
   })
 
-  describe('storeRequirement level/sourceGateId', () => {
+  describe('storeRequirement level', () => {
     it('stores requirement with project level', () => {
       const req = storage.storeRequirement('PRD constraint', 'constraint', 'must', 'proj-1', undefined, undefined, undefined, 'project')
       expect(req.level).toBe('project')
-      expect(req.sourceGateId).toBeNull()
-    })
-
-    it('stores requirement with sourceGateId', () => {
-      const req = storage.storeRequirement('Inherited req', 'functional', 'should', 'proj-1', 'gate-02', undefined, undefined, 'gate', 'gate-01')
-      expect(req.sourceGateId).toBe('gate-01')
     })
   })
 

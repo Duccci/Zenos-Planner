@@ -11,7 +11,7 @@ const mockGetProjectRequirements = vi.fn().mockReturnValue([
     priority: 'must',
     gateId: null,
     parentId: null,
-    projectId: 'project-1',
+    projectId: ['project-1'],
   },
 ])
 const mockBuildRequirementGraph = vi.fn().mockReturnValue({
@@ -37,7 +37,7 @@ const mockGetRequirementByHash = vi.fn().mockReturnValue({
   priority: 'must',
   gateId: 'gate-01',
   parentId: null,
-  projectId: 'project-1',
+  projectId: ['project-1'],
   acceptanceCriteria: ['Criteria 1', 'Criteria 2'],
   createdAt: new Date('2026-01-01'),
 })
@@ -77,9 +77,8 @@ const mockStoreRequirement = vi.fn().mockImplementation(
     priority,
     gateId,
     parentId: null,
-    projectId: 'default-project',
+    projectId: ['default-project'],
     level: 'gate',
-    sourceGateId: null,
     createdAt: new Date(),
   })
 )
@@ -513,7 +512,6 @@ describe('Requirements Registry wiring', () => {
         type: 'functional',
         priority: 'must',
         gateId: 'gate-01',
-        sourceGateId: 'gate-00',
       })
       mockGetRequirementAncestors.mockReturnValueOnce([
         { hash: '#parent', description: 'Parent req', gateId: 'gate-00', level: 'project' },
@@ -951,7 +949,7 @@ describe('Requirements Registry wiring', () => {
               priority: 'must',
               gateId: 'gate-01',
               parentId: null,
-              projectId: 'default-project',
+              projectId: ['default-project'],
             }
           }
           return null
@@ -1006,7 +1004,7 @@ describe('Requirements Registry wiring', () => {
         // Both graph calls return empty so fallback triggers and nothing re-seeds
         mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
 
-        // Inherited req is NOT in DB — storeRequirement path executes with defined sourceGateId
+        // Inherited req is NOT in DB — storeRequirement path executes
         mockGetRequirementByHash.mockReturnValue(null)
         mockStoreRequirement.mockReturnValue({
           id: 'stored-inh-1',
@@ -1031,21 +1029,20 @@ describe('Requirements Registry wiring', () => {
           payload: { gateId: 'gate-06' },
         })
 
-        // storeRequirement called with defined sourceGateId for both owned-by and source_gate_id args
+        // storeRequirement called with 8 args (sourceGateId removed)
         expect(mockStoreRequirement).toHaveBeenCalledWith(
           'Create SQLite database',
           expect.any(String),
           expect.any(String),
           'default-project',
-          'gate-01',
+          undefined,
           undefined,
           undefined,
           'gate',
-          'gate-01',
         )
       })
 
-      it('stores inherited requirement with undefined sourceGateId when column absent (covers ?? true branch)', () => {
+      it('stores inherited requirement when source gate column absent', () => {
         mockBuildRequirementGraph.mockReturnValue({ nodes: new Map(), edges: [] })
 
         // Inherited req not in DB
@@ -1063,7 +1060,6 @@ describe('Requirements Registry wiring', () => {
         })
         mockReadFileSyncFs.mockImplementation((filePath: string) => {
           if (filePath.includes('gate-08')) {
-            // No "Source Gate" column — sourceGateCol will be -1 → sourceGateId = undefined
             return `# Gate 08\n\n## Requirements\n\n### Inherited/Transferred Requirements\n\n|Hash|Title|\n|-|-|\n|#bb4ecdb42908c10f|Inherited no source|\n\n---\n`
           }
           return ''
@@ -1074,7 +1070,7 @@ describe('Requirements Registry wiring', () => {
           payload: { gateId: 'gate-08' },
         })
 
-        // storeRequirement called with undefined for both sourceGateId positions
+        // storeRequirement called with 8 args (sourceGateId removed)
         expect(mockStoreRequirement).toHaveBeenCalledWith(
           'Inherited no source',
           expect.any(String),
@@ -1084,7 +1080,6 @@ describe('Requirements Registry wiring', () => {
           undefined,
           undefined,
           'gate',
-          undefined,
         )
       })
     })
@@ -1121,7 +1116,6 @@ describe('parseGateRequirementsFromMarkdown', () => {
       type: 'constraint',
       priority: 'must',
       source: 'project',
-      sourceGateId: undefined,
     })
     expect(result[1].hash).toBe('9b4ecdb42908c10f')
     expect(result[1].source).toBe('project')
@@ -1155,10 +1149,8 @@ No project requirements.
       type: 'functional', // default — type column not present in inherited table
       priority: 'must',   // default — priority column not present
       source: 'inherited',
-      sourceGateId: 'gate-01',
     })
     expect(result[1].source).toBe('inherited')
-    expect(result[1].sourceGateId).toBe('gate-02')
   })
 
   it('skips placeholder hashes like #[hash]', () => {
@@ -1241,7 +1233,6 @@ Some overview text.
       type: 'non_functional',
       priority: 'should',
       source: 'project',
-      sourceGateId: undefined,
     })
   })
 
@@ -1317,16 +1308,13 @@ Some overview text.
     expect(result[0].hash).toBe('4bc74e36854c4221')
     expect(result[0].type).toBe('constraint')
     expect(result[0].source).toBe('project')
-    expect(result[0].sourceGateId).toBeUndefined()
     expect(result[1].hash).toBe('10a621a3715172ae')
     expect(result[1].type).toBe('functional')
     expect(result[1].source).toBe('project')
     // Inherited requirements
     expect(result[2].hash).toBe('ac3ffa69e28bfed4')
     expect(result[2].source).toBe('inherited')
-    expect(result[2].sourceGateId).toBe('gate-01')
     expect(result[3].hash).toBe('ebc7a086e26b111c')
     expect(result[3].source).toBe('inherited')
-    expect(result[3].sourceGateId).toBe('gate-02')
   })
 })
