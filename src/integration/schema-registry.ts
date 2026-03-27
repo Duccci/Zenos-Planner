@@ -22,7 +22,7 @@ import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-tr
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
 import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
-import { readProjectOverview, getGatesFromOverview, getWorkspaceRoot } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview, getWorkspaceRoot, getZenoGitDir } from '../utils/config.js'
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -52,7 +52,7 @@ async function buildDiagramContext(): Promise<DiagramContext> {
 
     // Read PROJECT_PRD.md for aspirational vision
     try {
-      const prdPath = join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
+      const prdPath = join(getZenoGitDir(projectRoot), 'overview', 'PROJECT_PRD.md')
       const prdContent = readFileSync(prdPath, 'utf-8')
       context.prdContent = prdContent
 
@@ -311,7 +311,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     // subsequent MCP calls can read from disk instead of re-generating.
     // Graphviz diagrams: write .dot + .svg sidecars to dot-diagrams/ and reference
     // via <img> in the .md (avoids VS Code DOMPurify stripping SVG transform attrs).
-    const archDir = join(getWorkspaceRoot(), 'zeno', 'architecture')
+    const archDir = join(getZenoGitDir(getWorkspaceRoot()), 'architecture')
     const dotDiagramsDir = join(archDir, 'dot-diagrams')
     mkdirSync(archDir, { recursive: true })
     const written: string[] = []
@@ -390,7 +390,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     }
 
     // Read from persisted file first (written by arch_generate); re-generate if missing.
-    const archFile = join(getWorkspaceRoot(), 'zeno', 'architecture', `${diagramType}.md`)
+    const archFile = join(getZenoGitDir(getWorkspaceRoot()), 'architecture', `${diagramType}.md`)
     if (existsSync(archFile)) {
       const content = readFileSync(archFile, 'utf-8')
       const format = content.includes('dot-diagrams/') || content.includes('<svg') ? 'graphviz' : 'mermaid'
@@ -407,7 +407,7 @@ export function registerArchitectureOps(registry: FunctionRegistry): void {
     const output = await generator.generate(context)
 
     // Persist freshly generated diagram for future reads
-    const archDir = join(getWorkspaceRoot(), 'zeno', 'architecture')
+    const archDir = join(getZenoGitDir(getWorkspaceRoot()), 'architecture')
     const dotDiagramsDir = join(archDir, 'dot-diagrams')
     mkdirSync(archDir, { recursive: true })
     if (output.svgContent && output.dotSource) {

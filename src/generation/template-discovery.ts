@@ -1,5 +1,8 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
+import { fileURLToPath } from 'url'
+
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 
 export interface Template {
   name: string
@@ -8,6 +11,7 @@ export interface Template {
   description: string
   category: 'markdown' | 'architecture'
   content?: string
+  localPath?: string
 }
 
 async function readFileHead(filePath: string, maxBytes = 4096): Promise<string> {
@@ -28,8 +32,8 @@ function parseFrontmatter(text: string): Record<string, string> | null {
   return out
 }
 
-export async function discoverTemplates(projectRoot: string): Promise<Template[]> {
-  const templatesDir = path.join(projectRoot, 'templates')
+export async function discoverTemplates(_projectRoot?: string): Promise<Template[]> {
+  const templatesDir = path.join(__installDir, 'templates')
   const mdDir = path.join(templatesDir, 'md-templates')
   const archDir = path.join(templatesDir, 'architecture-templates')
 
@@ -58,7 +62,7 @@ export async function discoverTemplates(projectRoot: string): Promise<Template[]
         results.push({
           name: templateName,
           shortName,
-          path: path.relative(projectRoot, full).replace(/\\/g, '/'),
+          path: path.relative(__installDir, full).replace(/\\/g, '/'),
           description: descriptionFromFm ?? firstLine,
           category,
         })
@@ -74,7 +78,20 @@ export async function discoverTemplates(projectRoot: string): Promise<Template[]
   return results
 }
 
-export async function loadTemplateContent(projectRoot: string, relPath: string): Promise<string> {
-  const full = path.join(projectRoot, relPath)
+export async function loadTemplateContent(_projectRoot: string | undefined, relPath: string): Promise<string> {
+  const full = path.join(__installDir, relPath)
   return fs.readFile(full, 'utf-8')
+}
+
+/**
+ * Copies a template from the install directory into <workspacePath>/.local/zeno-templates/
+ * and returns the absolute destination path. No template content is returned.
+ */
+export async function copyTemplateToLocal(workspacePath: string, relPath: string): Promise<string> {
+  const srcPath = path.join(__installDir, relPath)
+  const destDir = path.join(workspacePath, '.local', 'zeno-templates')
+  await fs.mkdir(destDir, { recursive: true })
+  const destPath = path.join(destDir, path.basename(relPath))
+  await fs.copyFile(srcPath, destPath)
+  return destPath
 }

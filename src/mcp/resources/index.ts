@@ -10,7 +10,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { glob } from 'glob'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { getZenoGitDir } from '../../utils/config.js'
+import { getZenoGitDir, isZenoProject as isZenoProjectFromConfig } from '../../utils/config.js'
 import { logger } from '../../utils/logger.js'
 
 /**
@@ -47,12 +47,11 @@ function findZenoProjects(workspacePath: string): string[] {
  * Check if a directory is a Zeno project
  */
 function isZenoProject(dirPath: string): boolean {
+  // Use config utility which respects the cached zenoDir (e.g. '.' for standalone repos)
+  if (isZenoProjectFromConfig(dirPath)) return true
+  // Fall back to checking for .zeno/ directory directly (standalone layout not yet loaded)
   try {
-    // Check for zeno/ directory or .zeno/ directory
-    return (
-      statSync(join(dirPath, 'zeno')).isDirectory() ||
-      statSync(join(dirPath, '.zeno')).isDirectory()
-    )
+    return statSync(join(dirPath, '.zeno')).isDirectory()
   } catch {
     return false
   }

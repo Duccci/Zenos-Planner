@@ -20,7 +20,7 @@ import type { RequirementType, RequirementPriority } from '../generation/types.j
 import { getDatabase, getDatabasePath, closeDatabase, initializeDatabase } from '../storage/database.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
 import { logger } from '../utils/logger.js'
-import { getWorkspaceRoot } from '../utils/config.js'
+import { getWorkspaceRoot, getZenoGitDir } from '../utils/config.js'
 import { resolveGateIdentifier, normalizeHash } from '../utils/normalize.js'
 
 // Valid type and priority values for validation
@@ -53,7 +53,7 @@ export interface ParsedGateRequirement {
  * Scans `zeno/gates/` for a file matching `<gateId>.md` or `<gateId>-*.md`.
  */
 function findGateFileSync(gateId: string, projectRoot?: string): string | null {
-  const gatesDir = path.join(projectRoot ?? process.cwd(), 'zeno', 'gates')
+  const gatesDir = path.join(getZenoGitDir(projectRoot ?? process.cwd()), 'gates')
   let entries: string[]
   try {
     entries = readdirSync(gatesDir)
@@ -731,7 +731,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
 
         case 'db_status': {
           const db = getDatabase()
-          const proposalsDir = path.join(getWorkspaceRoot(), 'zeno', 'proposals')
+          const proposalsDir = path.join(getZenoGitDir(getWorkspaceRoot()), 'proposals')
           const diskHashes = collectDiskHashes(proposalsDir)
 
           interface StatusRow { hash: string; status: string; gate_id: string | null }
@@ -762,7 +762,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
         case 'db_sync': {
           const db = getDatabase()
           const projectRoot = getWorkspaceRoot()
-          const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+          const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
 
           const before = (
             db.prepare('SELECT COUNT(*) as count FROM proposals').get() as { count: number }
@@ -819,7 +819,7 @@ export function registerRequirementsOps(registry: FunctionRegistry): void {
             : payload.gateId
 
           const db = getDatabase()
-          const proposalsDir = path.join(getWorkspaceRoot(), 'zeno', 'proposals')
+          const proposalsDir = path.join(getZenoGitDir(getWorkspaceRoot()), 'proposals')
           const diskHashes = collectDiskHashes(proposalsDir)
 
           interface ProposalRow { hash: string; gate_id: string | null; title: string; status: string }

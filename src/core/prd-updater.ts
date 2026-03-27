@@ -13,6 +13,7 @@ import { readFile, writeFile } from '../utils/file.js'
 import { getDatabase } from '../storage/database.js'
 import path from 'path'
 import { logger } from '../utils/logger.js'
+import { getZenoGitDir } from '../utils/config.js'
 
 interface GateStatus {
   id: string
@@ -178,7 +179,7 @@ function generateArchivedGatesSection(gates: GateStatus[]): string {
  */
 export async function updateProjectPRDGates(projectRoot: string): Promise<void> {
   try {
-    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
+    const prdPath = path.join(getZenoGitDir(projectRoot), 'overview', 'PROJECT_PRD.md')
     const content = await readFile(prdPath)
 
     // Extract current sections
@@ -224,7 +225,7 @@ export async function updateTimelineSection(
   completedGateId: string
 ): Promise<void> {
   try {
-    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
+    const prdPath = path.join(getZenoGitDir(projectRoot), 'overview', 'PROJECT_PRD.md')
     const content = await readFile(prdPath)
 
     // Find timeline section

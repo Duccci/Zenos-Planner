@@ -13,7 +13,7 @@ import { resolveLastUpdated } from '../utils/datetime.js'
 import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
 import { fileURLToPath } from 'node:url'
-import { getWorkspaceRoot } from '../utils/config.js'
+import { getWorkspaceRoot, getZenoGitDir } from '../utils/config.js'
 import { resolveGateIdentifier, normalizeHash } from '../utils/normalize.js'
 
 // Install-relative directory so templates are found regardless of user CWD.
@@ -507,7 +507,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       if (validated.solitary) {
         // Solitary: zeno/proposals/solitary/<slug>.md
         const solitaryDir = normalizePath(
-          join(getWorkspaceRoot(), 'zeno', 'proposals', 'solitary')
+          join(getZenoGitDir(getWorkspaceRoot()), 'proposals', 'solitary')
         )
         const slug = validated.title
           .toLowerCase()

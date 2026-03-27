@@ -13,7 +13,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, dirname, basename } from 'node:path'
 import { existsSync } from 'node:fs'
-import { getZenoDir } from './config.js'
+import { getZenoGitDir } from './config.js'
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -60,7 +60,7 @@ export async function findProposalByHash(
   projectRoot = process.cwd()
 ): Promise<string | null> {
   if (!hash) return null
-  const proposalsDir = join(projectRoot, 'zeno', 'proposals')
+  const proposalsDir = join(getZenoGitDir(projectRoot), 'proposals')
   if (!existsSync(proposalsDir)) return null
 
   const hashPattern = new RegExp(`\\*\\*Hash\\*\\*:\\s*#?${hash}(?:[^a-zA-Z0-9_-]|$)`)
@@ -117,8 +117,8 @@ export async function findGateByGateId(
   projectRoot?: string
 ): Promise<string | null> {
   const gatesDir = projectRoot
-    ? join(projectRoot, 'zeno', 'gates')
-    : join(getZenoDir(), '..', 'gates')
+    ? join(getZenoGitDir(projectRoot), 'gates')
+    : join(getZenoGitDir(), 'gates')
 
   let entries: string[]
   try {

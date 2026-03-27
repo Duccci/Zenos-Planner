@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 import * as path from 'path'
 import { walkDir, walkDirSync } from '../utils/file.js'
 import { parseProposalMetadata } from '../core/proposal-parser.js'
+import { getZenoGitDir } from '../utils/config.js'
 
 export interface Proposal {
   hash: string
@@ -13,7 +14,7 @@ export interface Proposal {
 }
 
 export async function discoverProposals(projectRoot: string): Promise<Proposal[]> {
-  const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+  const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
   const files = await walkDir(proposalsDir)
   const proposals: Proposal[] = []
 
@@ -57,7 +58,7 @@ export async function findProposalsReferencingRequirement(
   projectRoot: string,
   requirementHash: string
 ): Promise<string[]> {
-  const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+  const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
   const files = await walkDir(proposalsDir)
   const matches = new Set<string>()
 
@@ -84,7 +85,7 @@ export function findProposalsReferencingRequirementSync(
   projectRoot: string,
   requirementHash: string
 ): string[] {
-  const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+  const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
   const proposalFiles = walkDirSync(proposalsDir)
   const matches = new Set<string>()
 

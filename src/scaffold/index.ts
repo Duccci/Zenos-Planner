@@ -9,7 +9,7 @@ import { basename } from 'node:path'
 import { ensureDir, writeJsonFile, fileExists, directoryExists } from '../utils/file.js'
 import { FileSystemError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
-import { getDefaultConfig } from '../utils/config.js'
+import { getDefaultConfig, getZenoDir, getZenoGitDir } from '../utils/config.js'
 import { initializeDatabase, getDatabasePath, closeDatabase } from '../storage/database.js'
 import { isZenoSubmodule } from '../utils/git.js'
 
@@ -41,35 +41,37 @@ export async function createProjectStructure(
       logger.info('zeno/ is a git submodule — skipping top-level directory creation')
     }
 
+    const zenoPlanningDir = getZenoGitDir(projectRoot)
+    const zenoInternalDir = getZenoDir(projectRoot)
+
     // Define directory structure
     const directories = [
-      ...(zenoIsSubmodule ? [] : ['zeno']),
-      'zeno/.zeno',
-      'zeno/gates',
-      'zeno/architecture',
-      'zeno/overview',
-      'zeno/proposals',
+      ...(zenoIsSubmodule ? [] : [zenoPlanningDir]),
+      zenoInternalDir,
+      join(zenoPlanningDir, 'gates'),
+      join(zenoPlanningDir, 'architecture'),
+      join(zenoPlanningDir, 'overview'),
+      join(zenoPlanningDir, 'proposals'),
     ]
 
     // Create all directories
-    for (const dir of directories) {
-      const fullPath = join(projectRoot, dir)
+    for (const fullPath of directories) {
       if (!fileExists(fullPath)) {
         await ensureDir(fullPath)
-        createdPaths.push(dir)
-        logger.debug(`Created directory: ${dir}`)
+        createdPaths.push(fullPath)
+        logger.debug(`Created directory: ${fullPath}`)
       } else {
-        logger.debug(`Directory already exists: ${dir}`)
+        logger.debug(`Directory already exists: ${fullPath}`)
       }
     }
 
     // Create initial config.json if it doesn't exist
-    const configPath = join(projectRoot, 'zeno', '.zeno', 'config.json')
+    const configPath = join(zenoInternalDir, 'config.json')
     if (!fileExists(configPath)) {
       const inferredName = basename(projectRoot) || 'Unnamed Project'
       const defaultConfig = getDefaultConfig(inferredName)
       await writeJsonFile(configPath, defaultConfig)
-      createdPaths.push('zeno/.zeno/config.json')
+      createdPaths.push(configPath)
       logger.debug('Created initial config.json')
     } else {
       logger.debug('Config.json already exists, skipping')
@@ -93,7 +95,7 @@ export async function createProjectStructure(
 
           const initResult = await initializeDatabase(projectRoot, { syncProposals: true, syncRequirements: true })
           if (initResult.created) {
-            createdPaths.push('zeno/.zeno/registry.db')
+            createdPaths.push(join(zenoInternalDir, 'registry.db'))
             logger.debug(
               `Database initialized: ${String(initResult.migrationsApplied)} migrations applied`
             )
@@ -132,7 +134,7 @@ export async function createGateDirectory(
   gateId: string
 ): Promise<string | null> {
   const normalizedGateId = gateId.startsWith('gate-') ? gateId : `gate-${gateId.padStart(2, '0')}`
-  const gateDir = join(projectRoot, 'zeno', 'proposals', normalizedGateId)
+  const gateDir = join(getZenoGitDir(projectRoot), 'proposals', normalizedGateId)
 
   if (!fileExists(gateDir)) {
     await ensureDir(gateDir)

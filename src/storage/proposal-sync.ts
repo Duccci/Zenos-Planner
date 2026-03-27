@@ -17,6 +17,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { normalizeDateTime } from '../utils/datetime.js'
 import { parseProposalFrontmatter } from './frontmatter.js'
+import { getZenoGitDir } from '../utils/config.js'
 
 /**
  * Map any Zeno workflow status to the values accepted by the DB CHECK constraint:
@@ -197,7 +198,7 @@ export function syncProposalsFromDisk(
   db: Database.Database,
   projectRoot: string = process.cwd()
 ): void {
-  const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+  const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
 
   const nowIso = new Date().toISOString()
   const upsert = db.prepare(`

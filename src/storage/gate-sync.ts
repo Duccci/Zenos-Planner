@@ -28,6 +28,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { normalizeDateTime } from '../utils/datetime.js'
 import { parseGateFrontmatter } from './frontmatter.js'
+import { getZenoGitDir, getZenoDir } from '../utils/config.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal types
@@ -131,7 +132,7 @@ export function syncGatesFromDisk(
   db: Database.Database,
   projectRoot: string = process.cwd()
 ): SyncGatesResult {
-  const gatesDir = path.join(projectRoot, 'zeno', 'gates')
+  const gatesDir = path.join(getZenoGitDir(projectRoot), 'gates')
 
   let files: string[]
   try {
@@ -228,7 +229,7 @@ export function syncPlannedGatesFromState(
   db: Database.Database,
   projectRoot: string = process.cwd()
 ): SyncGatesResult {
-  const projectPath = path.join(projectRoot, 'zeno', '.zeno', 'project.json')
+  const projectPath = path.join(getZenoDir(projectRoot), 'project.json')
 
   let projectContent: string
   try {

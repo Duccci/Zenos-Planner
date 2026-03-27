@@ -22,6 +22,7 @@ import {
   getWorkspaceRoot,
   getDefaultProject,
   saveProject,
+  getZenoGitDir,
 } from '../utils/config.js'
 import type { ProjectGate } from '../utils/config.js'
 import { shortHash } from '../utils/hash.js'
@@ -208,7 +209,7 @@ export function registerProjectOps(registry: FunctionRegistry): void {
     async () => {
       try {
         const projectRoot = getWorkspaceRoot()
-        const zenoDir = join(projectRoot, 'zeno')
+        const zenoDir = getZenoGitDir(projectRoot)
         const gatesDir = join(zenoDir, 'gates')
         const archiveDir = join(gatesDir, 'archive')
 

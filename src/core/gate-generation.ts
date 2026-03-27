@@ -9,7 +9,7 @@
 import { readFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
-import { readProjectOverview, getGatesFromOverview } from '../utils/config.js'
+import { readProjectOverview, getGatesFromOverview, getZenoGitDir } from '../utils/config.js'
 import {
   getProjectRequirements,
   generateNewGates,
@@ -68,7 +68,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     } = input
 
     // Read project PRD and requirements
-    const prdPath = path.join(projectRoot, 'zeno', 'overview', 'PROJECT_PRD.md')
+    const prdPath = path.join(getZenoGitDir(projectRoot), 'overview', 'PROJECT_PRD.md')
     const prdContent = await readFile(prdPath)
 
     // Get existing requirements

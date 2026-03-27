@@ -126,7 +126,8 @@ function runCommand(command, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: 'inherit',
-      cwd: __installDir
+      cwd: __installDir,
+      shell: true,
     })
 
     child.on('close', (code) => {

@@ -12,7 +12,7 @@
  */
 
 import type Database from 'better-sqlite3'
-import { findProjectRoot, loadConfig, saveConfig, getWorkspaceRoot } from '../utils/config.js'
+import { findProjectRoot, loadConfig, saveConfig, getWorkspaceRoot, getZenoGitDir } from '../utils/config.js'
 import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
@@ -253,7 +253,7 @@ export async function approveProposal(
   // Update proposal file metadata in place (no proposal archive directory)
   let proposalContent = ''
   try {
-    const gateDir = path.join(projectRoot, 'zeno', 'proposals', proposal.gateId)
+    const gateDir = path.join(getZenoGitDir(projectRoot), 'proposals', proposal.gateId)
     const files = await readdir(gateDir)
     for (const file of files) {
       if (file.endsWith('.md')) {
@@ -420,7 +420,7 @@ export async function completeGate(
 
   // Consolidate proposals into gate archive
   try {
-    const proposalsDir = path.join(projectRoot, 'zeno', 'proposals')
+    const proposalsDir = path.join(getZenoGitDir(projectRoot), 'proposals')
     const consolidation = await consolidateGateProposals(gateId, proposalsDir)
     const consolidationMd = generateConsolidationMarkdown(consolidation)
 
@@ -440,7 +440,7 @@ export async function completeGate(
     const newGateContent = gateContent + '\n\n' + consolidationMd
 
     // Ensure archive directory exists
-    const archiveDir = path.join(projectRoot, 'zeno', 'gates', 'archive')
+    const archiveDir = path.join(getZenoGitDir(projectRoot), 'gates', 'archive')
     await ensureDir(archiveDir)
 
     // Write to archive — preserve the original gate filename so the full

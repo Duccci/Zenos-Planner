@@ -9,7 +9,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { getZenoDir, getWorkspaceRoot } from '../utils/config.js'
+import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 import { ZenoError } from '../utils/errors.js'
 import { parseProposalMetadata } from './proposal-parser.js'
 import { findProposalByHash, resolveProposalGateInfo, findGateByGateId } from '../utils/artifact-locator.js'
@@ -92,7 +92,7 @@ export async function validateGateReady(gateId: string): Promise<{ filePath: str
   }
 
   // Check that all proposals for this gate are completed/integrated.
-  const proposalsDir = join(getZenoDir(getWorkspaceRoot()), '..', 'proposals', gateId)
+  const proposalsDir = join(getZenoGitDir(getWorkspaceRoot()), 'proposals', gateId)
   if (existsSync(proposalsDir)) {
     const files = readdirSync(proposalsDir).filter((f) => f.endsWith('.md'))
     const incomplete: string[] = []

@@ -11,14 +11,14 @@ import { createProjectStructure } from '../../scaffold/index.js'
 import { RequirementGenerator } from '../../generation/requirement-generator.js'
 import { generateGates } from '../../core/gate-generator.js'
 import { directoryExists, fileExists } from '../../utils/file.js'
-import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig, getDefaultProject, saveProject, getProjectPath, readProject } from '../../utils/config.js'
+import { findProjectRoot, loadConfig, getDefaultConfig, saveConfig, getDefaultProject, saveProject, getProjectPath, readProject, getZenoGitDir } from '../../utils/config.js'
 import type { ProjectGate } from '../../utils/config.js'
 import { shortHash } from '../../utils/hash.js'
 import { isZenoSubmodule, addZenoSubmodule } from '../../utils/git.js'
 import { generateAgentsMD } from '../../generation/agents-generator.js'
 import { writeAgentsMD } from '../../generation/agents-writer.js'
 import { writeTerminologyMD } from '../../generation/terminology-writer.js'
-import { resolve, join } from 'node:path'
+import { resolve } from 'node:path'
 
 /**
  * Validate project name
@@ -97,7 +97,7 @@ async function runInitWorkflow(
 
   // 4. Generate AGENTS.md and TERMINOLOGY.md
   logger.info('Generating AGENTS.md...')
-  const zenoDir = join(projectRoot, 'zeno')
+  const zenoDir = getZenoGitDir(projectRoot)
   const agentsContent = generateAgentsMD(config)
   await writeAgentsMD(agentsContent, zenoDir)
 

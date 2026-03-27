@@ -15,7 +15,7 @@ import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import { simpleGit, type SimpleGit, type StatusResult } from 'simple-git'
 import { GitError } from './errors.js'
-import { loadConfig } from './config.js'
+import { loadConfig, getZenoGitDir } from './config.js'
 
 /** Git operation timeout in milliseconds */
 const GIT_TIMEOUT = 30000
@@ -395,7 +395,7 @@ export async function updateSubmodulePointer(
  */
 export function isZenoSubmodule(projectRoot: string = process.cwd()): boolean {
   try {
-    const gitEntry = join(projectRoot, 'zeno', '.git')
+    const gitEntry = join(getZenoGitDir(projectRoot), '.git')
     const stat = statSync(gitEntry)
     return stat.isFile() // submodule gitfile, not a directory
   } catch {

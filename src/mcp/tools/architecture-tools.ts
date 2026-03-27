@@ -93,7 +93,7 @@ async function handleGetTemplate(
       path: string
       description: string
       category: 'markdown' | 'architecture'
-      content?: string
+      localPath?: string
     }
 
     const result = {
@@ -102,7 +102,7 @@ async function handleGetTemplate(
       path: template.path,
       description: template.description,
       category: template.category,
-      ...(template.content && { content: template.content }),
+      ...(template.localPath && { localPath: template.localPath }),
       ...(includeContext && {
         _context: {
           retrievedAt: new Date().toISOString(),

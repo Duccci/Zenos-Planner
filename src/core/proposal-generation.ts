@@ -11,6 +11,9 @@ import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 
 export interface ProposalGenerateInput {
   gateId: string
@@ -72,7 +75,7 @@ export async function generateProposals(
     const requirements = extractRequirements(gateContent)
 
     // Load proposal template
-    const templatePath = path.join(projectRoot, 'templates', 'md-templates', `${templateName}.md`)
+    const templatePath = path.join(__installDir, 'templates', 'md-templates', `${templateName}.md`)
     const templateContent = await readFile(templatePath)
 
     // Generate proposals by decomposing objectives into tasks

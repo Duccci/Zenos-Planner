@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs'
 import * as path from 'path'
+import { getZenoGitDir } from '../utils/config.js'
 
 export interface Gate {
   id: string
@@ -10,7 +11,7 @@ export interface Gate {
 }
 
 export async function discoverGates(projectRoot: string): Promise<Gate[]> {
-  const gatesDir = path.join(projectRoot, 'zeno', 'gates')
+  const gatesDir = path.join(getZenoGitDir(projectRoot), 'gates')
   let entries: string[]
   try {
     entries = await fs.readdir(gatesDir)

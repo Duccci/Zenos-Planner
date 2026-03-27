@@ -13,7 +13,7 @@ import { resolveLastUpdated } from '../utils/datetime.js'
 
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { getZenoDir, getWorkspaceRoot } from '../utils/config.js'
+import { getZenoDir, getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 
 // Install-relative directory so templates are found regardless of the user's CWD.
 const __installDir = fileURLToPath(new URL('../..', import.meta.url))
@@ -861,7 +861,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       // Write gate file
       const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
-      const filePath = normalizePath(join(getWorkspaceRoot(), 'zeno', 'gates', fileName))
+      const filePath = normalizePath(join(getZenoGitDir(getWorkspaceRoot()), 'gates', fileName))
 
       const { writeFile } = await import('../utils/file.js')
       await writeFile(filePath, gateContent, 'utf-8')

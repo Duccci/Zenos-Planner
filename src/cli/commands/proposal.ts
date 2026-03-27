@@ -7,7 +7,7 @@
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { getDatabase } from '../../storage/database.js'
-import { findProjectRoot, loadConfig } from '../../utils/config.js'
+import { findProjectRoot, loadConfig, getZenoGitDir } from '../../utils/config.js'
 import { normalizeHash } from '../../utils/normalize.js'
 import { readFile } from '../../utils/file.js'
 import { readdir } from 'node:fs/promises'
@@ -57,7 +57,7 @@ async function readProposalFile(
 ): Promise<string | null> {
   try {
     const gateFolder = (proposal.gate_id ?? proposal.gateId) ?? 'solitary'
-    const gateDir = path.join(projectRoot, 'zeno', 'proposals', gateFolder)
+    const gateDir = path.join(getZenoGitDir(projectRoot), 'proposals', gateFolder)
     const files = await readdir(gateDir)
 
     for (const file of files) {
@@ -180,8 +180,8 @@ export function registerProposalCommands(program: Command): void {
       // Destination folder: zeno/proposals/<gate-id|solitary>
       const gateId = options.gate
       const dir = gateId
-        ? path.join(projectRoot, 'zeno', 'proposals', gateId)
-        : path.join(projectRoot, 'zeno', 'proposals', 'solitary')
+        ? path.join(getZenoGitDir(projectRoot), 'proposals', gateId)
+        : path.join(getZenoGitDir(projectRoot), 'proposals', 'solitary')
 
       // Slug for file name
       const slug = title
