@@ -10,6 +10,7 @@ import { ensureDir, writeJsonFile, fileExists, directoryExists } from '../utils/
 import { FileSystemError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
 import { getDefaultConfig, getZenoDir, getZenoGitDir } from '../utils/config.js'
+import type { ZenoConfig } from '../utils/config.js'
 import { initializeDatabase, getDatabasePath, closeDatabase } from '../storage/database.js'
 import { isZenoSubmodule } from '../utils/git.js'
 import { REQUIREMENTS_MANIFEST_FILE } from '../storage/requirements-sync.js'
@@ -18,7 +19,8 @@ import { REQUIREMENTS_MANIFEST_FILE } from '../storage/requirements-sync.js'
  * Create the complete .zeno directory structure
  */
 export async function createProjectStructure(
-  projectRoot: string = process.cwd()
+  projectRoot: string = process.cwd(),
+  config?: ZenoConfig
 ): Promise<string[]> {
   const createdPaths: string[] = []
 
@@ -42,8 +44,8 @@ export async function createProjectStructure(
       logger.info('zeno/ is a git submodule — skipping top-level directory creation')
     }
 
-    const zenoPlanningDir = getZenoGitDir(projectRoot)
-    const zenoInternalDir = getZenoDir(projectRoot)
+    const zenoPlanningDir = getZenoGitDir(projectRoot, config)
+    const zenoInternalDir = getZenoDir(projectRoot, config)
 
     // Define directory structure
     const directories = [

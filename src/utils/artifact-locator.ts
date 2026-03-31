@@ -13,7 +13,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, dirname, basename } from 'node:path'
 import { existsSync } from 'node:fs'
-import { getZenoGitDir } from './config.js'
+import { getZenoGitDir, getWorkspaceRoot } from './config.js'
 
 // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -118,7 +118,7 @@ export async function findGateByGateId(
 ): Promise<string | null> {
   const gatesDir = projectRoot
     ? join(getZenoGitDir(projectRoot), 'gates')
-    : join(getZenoGitDir(), 'gates')
+    : join(getZenoGitDir(getWorkspaceRoot()), 'gates')
 
   let entries: string[]
   try {

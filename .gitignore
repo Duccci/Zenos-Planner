@@ -47,6 +47,10 @@ temp/
 
 # Generated database (rebuilt on startup)
 zeno/.zeno/registry.db
+# When Zeno is embedded as a git submodule, the consumer project's planning
+# data lives at the submodule root — ignore the generated/runtime files there too.
+.zeno/registry.db
 
 # Runtime files
 zeno/.zeno/mcp.pid
+.zeno/mcp.pid

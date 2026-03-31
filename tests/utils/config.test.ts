@@ -12,6 +12,7 @@ import {
   loadConfig,
   saveConfig,
   isZenoProject,
+  _resetCachedZenoDir,
 } from '../../src/utils/config.js'
 
 describe('config utilities', () => {
@@ -23,6 +24,7 @@ describe('config utilities', () => {
   })
 
   afterEach(async () => {
+    _resetCachedZenoDir()
     if (existsSync(testDir)) {
       await rm(testDir, { recursive: true, force: true })
     }
@@ -136,6 +138,115 @@ describe('config utilities', () => {
 
       const result = findProjectRoot(subDir)
       expect(result).toBe(testDir.replace(/\\/g, '/'))
+    })
+
+    it('prefers consumer project root over a mounted submodule', async () => {
+      // Simulate: consumer uses standalone layout, planner is a submodule at zeno/
+      //   <consumer>/
+      //     .zeno/config.json          ← consumer's own config (standalone)
+      //     zeno/                      ← submodule (planner repo)
+      //       .git                     ← FILE (gitdir pointer for submodule)
+      //       zeno/.zeno/config.json   ← planner's own self-planning config
+
+      const consumerRoot = testDir
+      const submoduleRoot = join(consumerRoot, 'zeno')
+      const submoduleZenoDir = join(submoduleRoot, 'zeno', '.zeno')
+      const consumerStandalone = join(consumerRoot, '.zeno')
+
+      await mkdir(submoduleZenoDir, { recursive: true })
+      await writeFile(
+        join(submoduleZenoDir, 'config.json'),
+        JSON.stringify({ projectName: 'Zenos-Planner' }),
+        'utf-8'
+      )
+
+      // .git as a FILE simulates a submodule gitdir pointer
+      await writeFile(join(submoduleRoot, '.git'), 'gitdir: ../.git/modules/zeno\n', 'utf-8')
+
+      // Consumer's config lives at <consumer>/.zeno/config.json (standalone layout)
+      await mkdir(consumerStandalone, { recursive: true })
+      await writeFile(
+        join(consumerStandalone, 'config.json'),
+        JSON.stringify({ projectName: 'MyApp', zenoDir: '.', zenoToolDir: 'zeno', zenoSubmodule: true }),
+        'utf-8'
+      )
+
+      // From inside the submodule, findProjectRoot should return the consumer root
+      const srcDir = join(submoduleRoot, 'src')
+      await mkdir(srcDir, { recursive: true })
+      const result = findProjectRoot(srcDir)
+      expect(result).toBe(consumerRoot.replace(/\\/g, '/'))
+    })
+
+    it('skips standard-layout config inside a submodule with no consumer config', async () => {
+      // When zeno/ is a submodule but the consumer hasn't run init yet,
+      // findProjectRoot should NOT return the consumer root by matching
+      // the planner's config that sits inside the submodule.
+      const consumerRoot = testDir
+      const submoduleRoot = join(consumerRoot, 'zeno')
+      const plannerConfig = join(submoduleRoot, 'zeno', '.zeno')
+
+      await mkdir(plannerConfig, { recursive: true })
+      await writeFile(
+        join(plannerConfig, 'config.json'),
+        JSON.stringify({ projectName: 'Zenos-Planner' }),
+        'utf-8'
+      )
+
+      // .git as a FILE = submodule
+      await writeFile(join(submoduleRoot, '.git'), 'gitdir: ../.git/modules/zeno\n', 'utf-8')
+
+      // No consumer config anywhere — findProjectRoot should return null
+      const result = findProjectRoot(consumerRoot)
+      expect(result).toBeNull()
+    })
+
+    it('prefers standalone consumer config when zenoDir is a submodule', async () => {
+      // Simulate: consumer uses standalone layout (zenoDir: '.') while planner
+      // submodule has its own config in its zeno/.zeno/ directory.
+      //   <consumer>/
+      //     .zeno/config.json         ← consumer's standalone config
+      //     zeno/                     ← submodule
+      //       .git                    ← FILE (submodule marker)
+      //       zeno/.zeno/config.json  ← planner's own self-planning config
+
+      const consumerRoot = testDir
+      const submoduleRoot = join(consumerRoot, 'zeno')
+      const plannerConfig = join(submoduleRoot, 'zeno', '.zeno')
+      const consumerConfig = join(consumerRoot, '.zeno')
+
+      // Planner's config inside the submodule
+      await mkdir(plannerConfig, { recursive: true })
+      await writeFile(
+        join(plannerConfig, 'config.json'),
+        JSON.stringify({ projectName: 'Zenos-Planner' }),
+        'utf-8'
+      )
+
+      // Submodule marker (.git file)
+      await writeFile(join(submoduleRoot, '.git'), 'gitdir: ../.git/modules/zeno\n', 'utf-8')
+
+      // Consumer's standalone config at root
+      await mkdir(consumerConfig, { recursive: true })
+      await writeFile(
+        join(consumerConfig, 'config.json'),
+        JSON.stringify({ projectName: 'MyApp', zenoDir: '.', zenoToolDir: 'zeno', zenoSubmodule: true }),
+        'utf-8'
+      )
+
+      // findProjectRoot from inside the submodule should find the consumer root
+      const srcDir = join(submoduleRoot, 'src')
+      await mkdir(srcDir, { recursive: true })
+      expect(findProjectRoot(srcDir)).toBe(consumerRoot.replace(/\\/g, '/'))
+
+      // findProjectRoot from the consumer root should find its own standalone config
+      expect(findProjectRoot(consumerRoot)).toBe(consumerRoot.replace(/\\/g, '/'))
+
+      // loadConfig should load the consumer's standalone config, not the planner's
+      const loaded = await loadConfig(consumerRoot.replace(/\\/g, '/'))
+      expect(loaded.projectName).toBe('MyApp')
+      expect(loaded.zenoSubmodule).toBe(true)
+      expect(loaded.zenoToolDir).toBe('zeno')
     })
   })
 

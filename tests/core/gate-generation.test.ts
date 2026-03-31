@@ -19,8 +19,6 @@ const mockGetProjectRequirements = vi.fn()
 const mockGenerateNewGates = vi.fn()
 const mockRebaselineGates = vi.fn()
 const mockGenerateSingleGate = vi.fn()
-const mockCreateGatePrdFiles = vi.fn()
-const mockUpdateGateDiagrams = vi.fn()
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
@@ -96,8 +94,6 @@ describe('gate-generation: generateGates', () => {
     mockGenerateNewGates.mockResolvedValue(SAMPLE_GATES)
     mockRebaselineGates.mockResolvedValue(SAMPLE_GATES)
     mockGenerateSingleGate.mockResolvedValue([SAMPLE_GATES[0]])
-    mockCreateGatePrdFiles.mockResolvedValue(SAMPLE_GATES)
-    mockUpdateGateDiagrams.mockResolvedValue(['gate-roadmap.md'])
   })
 
   it('generates gates in "new" mode', async () => {
@@ -110,7 +106,7 @@ describe('gate-generation: generateGates', () => {
     expect(result.gatesGenerated).toBe(2)
     expect(result.gates).toHaveLength(2)
     expect(result.requirementsAttributed).toBe(2)
-    expect(result.diagramsUpdated).toContain('gate-roadmap.md')
+    expect(result.diagramsUpdated).toEqual([])
     expect(mockGenerateNewGates).toHaveBeenCalledWith(
       expect.any(String),
       SAMPLE_REQUIREMENTS,
@@ -150,13 +146,12 @@ describe('gate-generation: generateGates', () => {
     expect(mockRebaselineGates).not.toHaveBeenCalled()
   })
 
-  it('uses custom requirementsPerGate and templateName when provided', async () => {
+  it('uses custom requirementsPerGate when provided', async () => {
     const { generateGates } = await import('../../src/core/gate-generation.js')
 
     const result = await generateGates({
       mode: 'new',
       requirementsPerGate: 3,
-      templateName: 'custom-gate-template',
     })
 
     expect(result.success).toBe(true)

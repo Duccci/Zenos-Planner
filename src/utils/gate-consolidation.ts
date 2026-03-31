@@ -10,6 +10,8 @@ import { FileSystemError } from './errors.js'
 import { readdirSync, existsSync } from 'node:fs'
 import { walkDir } from './file.js'
 import { parseProposalMetadata } from '../core/proposal-parser.js'
+import { getZenoGitDir } from './config.js'
+import path from 'path'
 
 export interface ConsolidatedProposal {
   hash: string
@@ -253,7 +255,7 @@ export async function parseProposal(proposalPath: string): Promise<ConsolidatedP
  */
 export async function consolidateGateProposals(
   gateId: string,
-  proposalsDir = 'zeno/proposals'
+  proposalsDir = path.join(getZenoGitDir(process.cwd()), 'proposals')
 ): Promise<GateConsolidation> {
   const proposals: ConsolidatedProposal[] = []
   const requirementsFulfilled: { hash: string; proposalHash: string }[] = []

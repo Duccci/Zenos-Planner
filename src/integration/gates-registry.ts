@@ -79,8 +79,9 @@ export function registerGatesOps(registry: FunctionRegistry): void {
             const validStatuses = new Set(['completed', 'in_progress', 'validated', 'pending', 'cancelled', 'backlog'])
             const status = (validStatuses.has(fm.status) ? fm.status : 'pending') as MdSummary['status']
 
+            const normalizedId = normalizeGateId(fm.id)
             mdSummaries.push({
-              id: fm.id,
+              id: normalizedId,
               sequence: fm.sequence,
               name: fm.name,
               status,
@@ -89,8 +90,8 @@ export function registerGatesOps(registry: FunctionRegistry): void {
               milestones: milestones?.length ? milestones : undefined,
               description,
             })
-            seenIds.add(fm.id)
-            mdFileIds.add(fm.id)
+            seenIds.add(normalizedId)
+            mdFileIds.add(normalizedId)
           } catch {
             // skip unreadable / unparseable files
           }
@@ -105,16 +106,17 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         const overview = await readProjectOverview(getWorkspaceRoot())
         const planned = getGatesFromOverview(overview)
         for (const g of planned) {
-          if (!seenIds.has(g.id)) {
+          const normalizedPlannedId = normalizeGateId(g.id)
+          if (!seenIds.has(normalizedPlannedId)) {
             mdSummaries.push({
-              id: g.id,
+              id: normalizedPlannedId,
               sequence: g.sequence,
               name: g.name,
               status: g.status,
               hash: g.hash,
               completedAt: g.completedAt,
             })
-            seenIds.add(g.id)
+            seenIds.add(normalizedPlannedId)
           }
         }
       } catch {
@@ -141,19 +143,21 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       const now = new Date().toISOString()
 
-      // Fetch prd_generated_at and description from DB for gates that have one
+      // Fetch prd_generated_at, description, and archived_at from DB for gates that have one
       const prdGeneratedMap: Record<string, boolean> = {}
       const dbDescriptionMap: Record<string, string> = {}
+      const archivedAtMap: Record<string, string | null> = {}
       try {
         const db = (await import('../storage/database.js')).getDatabase()
         const dbRows = db
-          .prepare('SELECT id, description, prd_generated_at FROM gates WHERE id IN (' +
+          .prepare('SELECT id, description, prd_generated_at, archived_at FROM gates WHERE id IN (' +
             mdSummaries.map(() => '?').join(',') +
             ')')
-          .all(...mdSummaries.map((g) => g.id)) as { id: string; description: string | null; prd_generated_at: string | null }[]
+          .all(...mdSummaries.map((g) => g.id)) as { id: string; description: string | null; prd_generated_at: string | null; archived_at: string | null }[]
         for (const row of dbRows) {
           prdGeneratedMap[row.id] = row.prd_generated_at !== null
           if (row.description) dbDescriptionMap[row.id] = row.description
+          archivedAtMap[row.id] = row.archived_at ?? null
         }
       } catch {
         // DB unavailable — default all to true (unknown) to avoid false alarms
@@ -170,6 +174,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
           status: g.status,
           milestones: g.milestones,
           lastUpdated: resolveLastUpdated(g.completedAt, now),
+          archivedAt: archivedAtMap[g.id] ?? null,
           prdGenerated: mdFileIds.has(g.id)
             ? true
             : (prdGeneratedMap[g.id] ?? false),
@@ -319,7 +324,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         const { getDatabase } = await import('../storage/database.js')
         const { syncProposalsFromDisk } = await import('../storage/proposal-sync.js')
         const db = getDatabase()
-        syncProposalsFromDisk(db)
+        syncProposalsFromDisk(db, getWorkspaceRoot())
         const rows = db
           .prepare('SELECT hash, title, status FROM proposals WHERE gate_id LIKE ? ORDER BY created_at DESC')
           .all(`%${normalizedId}%`) as ProposalRow[]

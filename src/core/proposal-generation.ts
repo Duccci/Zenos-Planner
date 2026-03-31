@@ -10,6 +10,7 @@ import { readFile, writeFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
+import { getZenoGitDir } from '../utils/config.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -84,7 +85,7 @@ export async function generateProposals(
       objectives,
       requirements,
       templateContent,
-      outputDir ?? `zeno/proposals/gate-${gateNumberStr}`,
+      outputDir ?? path.join(getZenoGitDir(projectRoot), 'proposals', `gate-${gateNumberStr}`),
       gateType
     )
 

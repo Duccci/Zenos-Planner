@@ -8,7 +8,7 @@
 import Database from 'better-sqlite3'
 import { getDatabase } from '../storage/database.js'
 import { Requirement, RequirementType, RequirementPriority, RequirementCandidate } from './types.js'
-import { generateRequirementHash, detectHashCollision } from '../utils/hash.js'
+import { generateRequirementHash, detectHashCollision, hashObject } from '../utils/hash.js'
 import { findProposalsReferencingRequirementSync } from './proposals-discovery.js'
 import { DatabaseError } from '../utils/errors.js'
 import {
@@ -627,25 +627,39 @@ export class RequirementStorage {
   }
 
   // --------------------------------------------------------------------------
-  // Cross-gate requirement dependencies (gate_dependencies table)
+  // Cross-gate requirement dependencies (dependency_map table)
   // --------------------------------------------------------------------------
 
   /**
    * Explicitly link an existing requirement to a gate for cross-gate reuse.
    * Idempotent — calling multiple times with the same pair is safe.
    *
-   * Use this when a gate needs to reference a requirement defined in another
-   * gate without transferring ownership. Creates a row in gate_dependencies.
+   * Records a 'gate requires requirement' row in dependency_map using the
+   * requirement's content-addressable hash as the target reference.
    */
   linkRequirementToGate(requirementId: string, gateId: string): void {
     try {
+      const req = this.db
+        .prepare('SELECT hash FROM requirements WHERE id = ?')
+        .get(requirementId) as { hash: string } | undefined
+      if (!req) {
+        throw new DatabaseError(
+          'Requirement not found for linking',
+          'DB_REQUIREMENT_NOT_FOUND',
+          { requirementId, gateId }
+        )
+      }
+      // Deterministic ID from the unique tuple so INSERT OR IGNORE works naturally.
+      const depId = hashObject({ sourceType: 'gate', sourceId: gateId, targetType: 'requirement', targetHash: req.hash, dependencyType: 'requires' })
       this.db
         .prepare(`
-          INSERT OR IGNORE INTO gate_dependencies (requirement_id, gate_id)
-          VALUES (?, ?)
+          INSERT OR IGNORE INTO dependency_map
+            (id, source_type, source_id, target_type, target_hash, dependency_type)
+          VALUES (?, 'gate', ?, 'requirement', ?, 'requires')
         `)
-        .run(requirementId, gateId)
+        .run(depId, gateId, req.hash)
     } catch (err: unknown) {
+      if (err instanceof DatabaseError) throw err
       const e = err instanceof Error ? err : new Error(String(err))
       throw new DatabaseError(
         'Failed to link requirement to gate',
@@ -657,16 +671,24 @@ export class RequirementStorage {
   }
 
   /**
-   * Return all gate IDs that explicitly reference a requirement via gate_dependencies.
-   * Does NOT include the gate that owns the requirement (gate_id column).
+   * Return all gate IDs that explicitly reference a requirement via dependency_map.
+   * Does NOT include the gate that owns the requirement (gate_id column on requirements).
    */
   getLinkedGates(requirementId: string): string[] {
     try {
-      interface LinkRow { gate_id: string }
+      const req = this.db
+        .prepare('SELECT hash FROM requirements WHERE id = ?')
+        .get(requirementId) as { hash: string } | undefined
+      if (!req) return []
+      interface LinkRow { source_id: string }
       const rows = this.db
-        .prepare('SELECT gate_id FROM gate_dependencies WHERE requirement_id = ? ORDER BY linked_at')
-        .all(requirementId) as LinkRow[]
-      return rows.map((r) => r.gate_id)
+        .prepare(`
+          SELECT source_id FROM dependency_map
+          WHERE source_type = 'gate' AND target_type = 'requirement' AND target_hash = ?
+          ORDER BY created_at
+        `)
+        .all(req.hash) as LinkRow[]
+      return rows.map((r) => r.source_id)
     } catch {
       return []
     }
@@ -685,9 +707,9 @@ export class RequirementStorage {
                  r.type, r.priority, r.description, r.acceptance_criteria,
                  r.hash, r.created_at
           FROM requirements r
-          JOIN gate_dependencies l ON l.requirement_id = r.id
-          WHERE l.gate_id = ?
-          ORDER BY l.linked_at
+          JOIN dependency_map dm ON dm.target_hash = r.hash
+          WHERE dm.source_type = 'gate' AND dm.source_id = ? AND dm.target_type = 'requirement'
+          ORDER BY dm.created_at
         `)
         .all(gateId) as RequirementRow[]
       return rows.map((row) => this.rowToRequirement(row))
@@ -726,7 +748,7 @@ export class RequirementStorage {
   /**
    * Return all gates that reference a requirement, combining:
    *   - The owner gate (requirements.gate_id)
-   *   - All gates that linked it explicitly (gate_dependencies)
+   *   - All gates that linked it explicitly (dependency_map)
    *
    * This is the core of the traceability chain: given a requirement hash,
    * answer "which gates work on this?"

@@ -28,9 +28,9 @@ export async function performGitCommitAndPush(options: {
   const projectRoot = options.projectRoot ?? process.cwd()
 
   const config = await loadConfig(projectRoot).catch(() => null)
-  const isSubmodule = config?.['zenoSubmodule'] === true
+  const isSubmodule = config?.zenoSubmodule === true
   // Use direct condition so TypeScript narrows config to non-null in the true branch
-  const gitDir = config?.['zenoSubmodule'] === true ? getZenoGitDir(projectRoot, config) : projectRoot
+  const gitDir = config?.zenoSubmodule === true ? getZenoGitDir(projectRoot, config) : projectRoot
 
   if (tagName) {
     // Tags live in the parent repo so they appear in implementation history
@@ -39,11 +39,13 @@ export async function performGitCommitAndPush(options: {
 
   await commit(commitMessage, files, gitDir)
 
-  if (isSubmodule) {
+  if (config?.zenoSubmodule === true) {
     // Update the parent repo's submodule pointer after the submodule commit
     await updateSubmodulePointer(
       projectRoot,
-      `chore(zeno): update submodule pointer after ${commitMessage.split('\n')[0] ?? commitMessage}`
+      `chore(zeno): update submodule pointer after ${commitMessage.split('\n')[0] ?? commitMessage}`,
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      config.zenoToolDir ?? config.zenoDir ?? 'zeno'
     )
   }
 

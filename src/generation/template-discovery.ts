@@ -9,7 +9,7 @@ export interface Template {
   shortName: string
   path: string
   description: string
-  category: 'markdown' | 'architecture'
+  category: 'markdown' | 'architecture' | 'misc'
   content?: string
   localPath?: string
 }
@@ -37,6 +37,7 @@ export async function discoverTemplates(projectRoot?: string): Promise<Template[
   const templatesDir = path.join(baseDir, 'templates')
   const mdDir = path.join(templatesDir, 'md-templates')
   const archDir = path.join(templatesDir, 'architecture-templates')
+  const miscDir = path.join(templatesDir, 'misc-templates')
 
   const results: Template[] = []
 
@@ -73,14 +74,55 @@ export async function discoverTemplates(projectRoot?: string): Promise<Template[
     }
   }
 
+  async function scanMiscDir(dir: string): Promise<void> {
+    let entries: string[]
+    try {
+      entries = await fs.readdir(dir)
+    } catch {
+      return
+    }
+
+    if (!Array.isArray(entries)) return
+
+    for (const name of entries) {
+      // skip hidden files and directories
+      if (name.startsWith('.')) continue
+      const full = path.join(dir, name)
+      try {
+        const stat = await fs.stat(full)
+        if (!stat.isFile()) continue
+      } catch {
+        continue
+      }
+      const shortName = name.replace(/-template$/, '')
+      const templateName = shortName === name ? name : `${shortName}-template`
+      results.push({
+        name: templateName,
+        shortName,
+        path: path.relative(__installDir, full).replace(/\\/g, '/'),
+        description: `Misc template: ${shortName}`,
+        category: 'misc',
+      })
+    }
+  }
+
   await scanDir(mdDir, 'markdown')
   await scanDir(archDir, 'architecture')
+  await scanMiscDir(miscDir)
 
   return results
 }
 
 export async function loadTemplateContent(_projectRoot: string | undefined, relPath: string): Promise<string> {
   const full = path.join(__installDir, relPath)
+  return fs.readFile(full, 'utf-8')
+}
+
+/**
+ * Load the bundled .gitignore template from templates/misc-templates/gitignore.
+ */
+export async function loadGitignoreTemplate(): Promise<string> {
+  const full = path.join(__installDir, 'templates', 'misc-templates', 'gitignore')
   return fs.readFile(full, 'utf-8')
 }
 

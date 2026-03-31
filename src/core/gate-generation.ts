@@ -16,7 +16,6 @@ import {
   rebaselineGates,
   generateSingleGate,
 } from './gate-planner.js'
-import { createGatePrdFiles, updateGateDiagrams } from './gate-writer.js'
 import path from 'path'
 
 export interface ArchReviewNotification {
@@ -33,7 +32,6 @@ export interface ArchReviewNotification {
 export interface GateGenerateInput {
   mode: 'new' | 'rebaseline' | 'single'
   anchorGateId?: string
-  templateName?: string
   requirementsPerGate?: number
 }
 
@@ -63,7 +61,6 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     const {
       mode,
       anchorGateId,
-      templateName = 'gate-prd-template',
       requirementsPerGate = 5,
     } = input
 
@@ -113,11 +110,7 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
         break
     }
 
-    // Create gate PRD files
-    const createdGates = await createGatePrdFiles(gates, templateName, projectRoot)
-
-    // Update diagrams
-    const diagramsUpdated = await updateGateDiagrams(gates, projectRoot)
+    const diagramsUpdated: string[] = []
 
     // Detect structural changes and notify if arch review needed
     const archReviewNotification = await detectGateChangesAndNotify(
@@ -128,11 +121,11 @@ export async function generateGates(input: GateGenerateInput): Promise<GateGener
     return {
       success: true,
       mode,
-      gatesGenerated: createdGates.length,
-      gates: createdGates,
+      gatesGenerated: gates.length,
+      gates,
       requirementsAttributed: requirements.length,
       diagramsUpdated,
-      message: `Generated ${String(createdGates.length)} gates in ${mode} mode`,
+      message: `Generated ${String(gates.length)} gates in ${mode} mode`,
       archReviewNotification,
     }
   } catch (error) {

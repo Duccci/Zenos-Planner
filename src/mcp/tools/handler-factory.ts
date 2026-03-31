@@ -363,8 +363,8 @@ export function handleError(error: unknown, context?: Record<string, unknown>): 
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    isError: true,
     structuredContent: { error: payload },
+    isError: true,
   }
 }
 

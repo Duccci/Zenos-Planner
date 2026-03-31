@@ -30,21 +30,27 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         })
         .parse(params)
 
-      const db = (await import('../storage/database.js')).getDatabase()
+      const projectRoot = getWorkspaceRoot()
+      const db = (await import('../storage/database.js')).getDatabase(projectRoot)
 
       // Always sync from disk first so we surface newly-written proposal files
       // without requiring a restart.  Lifecycle state (status, approved_at)
       // is authoritative in the DB; the sync only adds missing rows.
-      syncProposalsFromDisk(db)
+      // projectRoot includes zenoDir via getZenoGitDir(projectRoot) inside syncProposalsFromDisk.
+      syncProposalsFromDisk(db, projectRoot)
 
       let query = 'SELECT id, gate_id, title, status, hash, created_at, approved_at, parallel_set_index FROM proposals'
       const conditions: string[] = []
       const queryParams: (string | null)[] = []
 
       if (validated.gateId) {
-        const resolvedGateId = resolveGateIdentifier(validated.gateId)
-        conditions.push('gate_id LIKE ?')
-        queryParams.push(`%${resolvedGateId}%`)
+        if (validated.gateId.toLowerCase() === 'solitary') {
+          conditions.push('gate_id IS NULL')
+        } else {
+          const resolvedGateId = resolveGateIdentifier(validated.gateId)
+          conditions.push('gate_id LIKE ?')
+          queryParams.push(`%${resolvedGateId}%`)
+        }
       }
       if (validated.status) {
         conditions.push('status = ?')
@@ -92,7 +98,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           title: (row['title'] as string) ?? '',
           description: (row['description'] as string) ?? undefined,
           status: (row['status'] as string) ?? 'pending',
-          gateId: (row['gate_id'] as string | null) ?? 'solitary',
+          gateId: row['gate_id'] ? resolveGateIdentifier(row['gate_id'] as string) : 'solitary',
           tasksCompleted: 0,
           totalTasks: 0,
             parallelSetIndex:
@@ -522,7 +528,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Sync the new file into the DB so proposal_show resolves it immediately.
       try {
         const db = (await import('../storage/database.js')).getDatabase()
-        syncProposalsFromDisk(db)
+        syncProposalsFromDisk(db, getWorkspaceRoot())
       } catch {
         // Non-fatal — file was written; DB will be synced on next startup
       }
@@ -1391,7 +1397,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         : []
 
       // Load config for validation
-      const config = await loadConfig()
+      const config = await loadConfig(getWorkspaceRoot())
 
       // Run apply-phase validation (no git operations, files in scope)
       const applyValidation = validateApplyPhase({

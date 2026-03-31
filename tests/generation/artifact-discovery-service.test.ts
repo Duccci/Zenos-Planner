@@ -19,7 +19,7 @@ describe('Artifact Discovery Service', () => {
         expect(t).toHaveProperty('path')
         expect(t).toHaveProperty('description')
         expect(t).toHaveProperty('category')
-        expect(['markdown', 'architecture']).toContain(t.category)
+        expect(['markdown', 'architecture', 'misc']).toContain(t.category)
       }
     })
 

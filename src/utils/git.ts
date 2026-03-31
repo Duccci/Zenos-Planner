@@ -352,21 +352,39 @@ export async function syncWithGit(options: {
  * Commit record for git traceability
  */
 /**
- * Stage and commit the zeno/ submodule pointer in the parent repository.
+ * Stage and commit the zeno submodule pointer in the parent repository.
  *
  * Call this after committing changes inside the submodule's own git repo so
  * that the parent records the new HEAD of the submodule.
  *
  * @param parentDir - Parent repository root (default: process.cwd())
- * @param message - Commit message for the pointer update
+ * @param message   - Commit message for the pointer update
+ * @param zenoDir   - Name of the submodule directory relative to parentDir.
+ *                    Defaults to the value stored in the project config, or
+ *                    `'zeno'` if the config cannot be loaded.
  */
 export async function updateSubmodulePointer(
   parentDir: string = process.cwd(),
-  message: string
+  message: string,
+  zenoDir?: string
 ): Promise<void> {
+  // Resolve the submodule directory name: explicit arg > config > fallback.
+  let resolvedZenoDir = zenoDir
+  if (!resolvedZenoDir) {
+    try {
+      const cfg = await loadConfig(parentDir)
+      // In submodule mode, zenoToolDir tracks the submodule mount point;
+      // zenoDir is '.' (consumer's planning root), not the submodule path.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      resolvedZenoDir = cfg.zenoToolDir ?? cfg.zenoDir ?? 'zeno'
+    } catch {
+      resolvedZenoDir = 'zeno'
+    }
+  }
+
   try {
     const git = getGit(parentDir)
-    await git.add('zeno')
+    await git.add(resolvedZenoDir)
     const status: StatusResult = await git.status()
     if (status.isClean()) {
       return // submodule pointer unchanged, nothing to commit
@@ -376,7 +394,7 @@ export async function updateSubmodulePointer(
     throw new GitError(
       'Failed to update submodule pointer in parent repo',
       'GIT_COMMIT_FAILED',
-      { parentDir, message },
+      { parentDir, message, zenoDir: resolvedZenoDir },
       error instanceof Error ? error : undefined
     )
   }

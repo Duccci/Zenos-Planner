@@ -50,11 +50,16 @@ describe('RequirementGenerator', () => {
     `)
 
     db.exec(`
-      CREATE TABLE gate_dependencies (
-        requirement_id TEXT NOT NULL,
-        gate_id TEXT NOT NULL,
-        linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (requirement_id, gate_id)
+      CREATE TABLE dependency_map (
+        id TEXT PRIMARY KEY,
+        source_type TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        target_type TEXT NOT NULL,
+        target_hash TEXT NOT NULL,
+        dependency_type TEXT NOT NULL,
+        description TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (source_type, source_id, target_type, target_hash, dependency_type)
       )
     `)
 

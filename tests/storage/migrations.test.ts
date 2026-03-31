@@ -70,13 +70,13 @@ describe('migration system', () => {
       await expect(runMigrations(db, TEST_DIR)).resolves.not.toThrow()
     })
 
-    it('also creates gate_dependencies table', async () => {
+    it('also creates dependency_map table', async () => {
       await copySchema(TEST_DIR)
       const db = getDatabase(TEST_DIR)
       await runMigrations(db, TEST_DIR)
 
       const row = db
-        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='gate_dependencies'")
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='dependency_map'")
         .get() as { name: string } | undefined
       expect(row).toBeDefined()
     })

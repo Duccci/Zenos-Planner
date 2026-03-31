@@ -81,6 +81,8 @@ export const proposalToolDefinitions = [
       '',
       'USE generate with { solitary: true } for work that is not tied to any gate (cross-cutting improvements, tooling, experiments). Solitary proposals live in proposals/solitary/ and have gateId=null. List them with list { gateId: "solitary" }.',
       '',
+      'generate with gateId (AI decomposition path) REQUIRES preReview with phase="generate". Read the full Gate PRD and call reg_action { action: "list", gateId } BEFORE calling generate. Then supply preReview: { phase: "generate", openQuestionsResolved (bool), questionsFound (string[]), gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), assumptionsDocumented (string[]), blockersIdentified (string[]) }. Omitting preReview returns a structured validation error.',
+      '',
       'cancel and defer require confirmed: true — omitting confirmed returns a prompt instead of executing.',
       '',
       'Database access rules (always apply):',

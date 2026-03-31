@@ -26,6 +26,7 @@ import type Database from 'better-sqlite3'
 import { writeFileSync, readFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { getZenoDir } from '../utils/config.js'
+import { logger } from '../utils/logger.js'
 
 export const REQUIREMENTS_MANIFEST_FILE = 'requirements.json'
 
@@ -158,24 +159,37 @@ level: r.level ?? 'gate',
  *
  * Non-fatal: any error is swallowed so it never breaks startup.
  */
+export interface SyncRequirementsResult {
+  manifestPath: string
+  found: boolean
+  inManifest: number
+  synced: number
+}
+
 export function syncRequirementsFromDisk(
   db: Database.Database,
   projectRoot: string = process.cwd()
-): void {
+): SyncRequirementsResult {
   const manifestPath = getManifestPath(projectRoot)
+  logger.debug(`[requirements-sync] Reading manifest from: ${manifestPath}`)
 
   let manifest: RequirementsManifest
   try {
     const raw = readFileSync(manifestPath, 'utf-8')
     manifest = JSON.parse(raw) as RequirementsManifest
-  } catch {
-    // File does not exist yet — nothing to sync
-    return
+  } catch (err) {
+    logger.debug(
+      `[requirements-sync] Manifest not found or unreadable at ${manifestPath}: ${err instanceof Error ? err.message : String(err)}`
+    )
+    return { manifestPath, found: false, inManifest: 0, synced: 0 }
   }
 
   if (!Array.isArray(manifest.requirements) || manifest.requirements.length === 0) {
-    return
+    logger.debug(`[requirements-sync] Manifest is empty at ${manifestPath}`)
+    return { manifestPath, found: true, inManifest: 0, synced: 0 }
   }
+
+  const inManifest = manifest.requirements.length
 
   // Requirements are stored ordered by created_at; parents always come before
   // children since storeRequirement validates parent existence before insert.
@@ -187,9 +201,10 @@ export function syncRequirementsFromDisk(
      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
 
+  let synced = 0
   const syncAll = db.transaction(() => {
     for (const r of manifest.requirements) {
-      insert.run(
+      const result = insert.run(
         r.id,
         JSON.stringify(Array.isArray(r.projectId) ? r.projectId : [r.projectId]),
         r.gateId ?? null,
@@ -204,6 +219,7 @@ export function syncRequirementsFromDisk(
         r.createdAt,
         r.createdAt // updated_at = created_at on restore
       )
+      if (result.changes > 0) synced++
     }
   })
 
@@ -213,10 +229,12 @@ export function syncRequirementsFromDisk(
   try {
     syncAll()
   } catch (err) {
-    console.warn(
+    logger.warn(
       `[requirements-sync] Failed to sync requirements from manifest: ${err instanceof Error ? err.message : String(err)}`
     )
   } finally {
     db.pragma('foreign_keys = ON')
   }
+
+  return { manifestPath, found: true, inManifest, synced }
 }

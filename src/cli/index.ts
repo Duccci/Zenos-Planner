@@ -13,7 +13,7 @@ import { formatError, isZenoError } from '../utils/errors.js'
 import { logger } from '../utils/logger.js'
 import { initializeDatabase } from '../storage/database.js'
 import { getGlobalRegistry } from '../integration/function-implementations.js'
-import { findProjectRoot, getWorkspaceRoot } from '../utils/config.js'
+import { findProjectRoot, getWorkspaceRoot, loadConfig } from '../utils/config.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -97,6 +97,14 @@ export async function main(): Promise<void> {
     // inside the zeno/ subdirectory of an existing project.
     const projectRoot = findProjectRoot(getWorkspaceRoot())
     if (projectRoot) {
+      // Pre-load config to warm the zenoDir cache BEFORE initializeDatabase so
+      // that getDatabase() creates its singleton at the correct path for
+      // projects with a non-default zenoDir (e.g. zenoDir: '.').
+      try {
+        await loadConfig(projectRoot)
+      } catch {
+        // Non-fatal: project may not be initialised yet.
+      }
       const shouldSyncProposals = process.env['NODE_ENV'] !== 'test'
       await initializeDatabase(projectRoot, { syncProposals: shouldSyncProposals, syncRequirements: shouldSyncProposals, syncGates: shouldSyncProposals })
       getGlobalRegistry()

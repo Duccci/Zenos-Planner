@@ -14,6 +14,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   getZenoDir,
+  getWorkspaceRoot,
   readProjectOverview,
   getGatesFromOverview,
 } from '../../utils/config.js'
@@ -135,7 +136,7 @@ export function registerGatesCommands(program: Command): void {
 
         // Archive fallback if no gates from overview
         if (gates.length === 0) {
-          const archivePath = join(getZenoDir(), '..', 'gates', 'archive')
+          const archivePath = join(getZenoDir(getWorkspaceRoot()), '..', 'gates', 'archive')
           const archivedGateList = listArchivedGates(archivePath)
 
           // Convert archived gate records to gate records
@@ -272,7 +273,7 @@ export function registerGatesCommands(program: Command): void {
 
         // Check for PRD file
         const prdPath = join(
-          getZenoDir(),
+          getZenoDir(getWorkspaceRoot()),
           'gates',
           `${gate.id}-${gate.name.toLowerCase().replace(/\s+/g, '-')}.md`
         )

@@ -28,6 +28,7 @@ export const GateSummarySchema = z.object({
   status: GateStatusEnum,
   milestones: z.array(z.union([z.number().int().min(1), z.string().min(1)])).optional(),
   lastUpdated: TimestampSchema,
+  archivedAt: TimestampSchema.nullable().optional(),
   proposalCount: z.number().int().min(0),
   completedProposalCount: z.number().int().min(0),
   requirementCount: z.number().int().min(0),

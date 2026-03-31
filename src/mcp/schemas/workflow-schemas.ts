@@ -100,7 +100,6 @@ export type ProposalUpdateProgressOutput = z.infer<typeof ProposalUpdateProgress
 export const GateGenerateInputSchema = z.object({
   mode: z.enum(['new', 'rebaseline', 'single']).default('new'),
   anchorGateId: GateIdSchema.optional(),
-  templateName: z.string().optional().default('gate-prd-template'),
   requirementsPerGate: z.number().int().min(1).max(10).default(5)
 })
 

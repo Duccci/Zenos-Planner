@@ -89,11 +89,25 @@ export function registerMcpCommands(program: Command): void {
     .action(async (opts: { editor: string; dryRun?: boolean }) => {
       try {
         const { ensureWorkspaceMcp, isZenoInstalled } = await import('../../mcp/editor-adapters.js')
+        const { findProjectRoot, getWorkspaceRoot, loadConfig } = await import('../../utils/config.js')
 
-        const projectRoot = process.cwd()
+        const projectRoot = findProjectRoot(getWorkspaceRoot()) ?? process.cwd()
 
-        // Check if Zeno is installed first
-        const zeroInstallCheck = isZenoInstalled(projectRoot)
+        // Detect whether the project uses Zeno as a git submodule and resolve
+        // the correct binary directory and workspace path for mcp.json.
+        let zenoDir = '.'
+        try {
+          const cfg = await loadConfig(projectRoot)
+          if (cfg.zenoSubmodule === true) {
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+            zenoDir = cfg.zenoToolDir ?? cfg.zenoDir ?? 'zeno'
+          }
+        } catch {
+          // Config not found or not yet initialised — fall back to standalone defaults.
+        }
+
+        // Check if Zeno is installed first (binary location differs for submodules)
+        const zeroInstallCheck = isZenoInstalled(projectRoot, zenoDir)
         if (!zeroInstallCheck.valid) {
           const reason = zeroInstallCheck.reason ?? 'Unknown reason'
           logger.error(`zeno is not properly installed: ${reason}. run "npm install" to restore dependencies.`)
@@ -101,12 +115,17 @@ export function registerMcpCommands(program: Command): void {
         }
 
         if (opts.dryRun) {
+          const binaryPath = zenoDir === '.' ? './bin/mcp-server.js' : `./${zenoDir}/bin/mcp-server.js`
           console.log('Dry run: actions that would be performed:')
           console.log(`  - Ensure workspace .vscode/mcp.json exists`)
+          console.log(`  - MCP server binary: ${binaryPath}`)
+          if (zenoDir !== '.') {
+            console.log(`  - ZENO_WORKSPACE: ${projectRoot}`)
+          }
           process.exit(0)
         }
 
-        const written = ensureWorkspaceMcp(projectRoot)
+        const written = ensureWorkspaceMcp(projectRoot, zenoDir)
         if (written) console.log('[mcp-install] Wrote .vscode/mcp.json to workspace')
         else console.log('[mcp-install] Workspace MCP config already exists')
 

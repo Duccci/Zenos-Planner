@@ -212,7 +212,7 @@ export function syncGatesFromDisk(
 
       const dbStatus = normalizeStatus(meta.status)
 
-      insert.run(
+      const result = insert.run(
         meta.id,
         meta.projectId,
         meta.sequence,
@@ -223,7 +223,8 @@ export function syncGatesFromDisk(
         meta.dependsOn
       )
 
-      synced++
+      if (result.changes > 0) synced++
+      else skipped++
     }
   })
 
@@ -305,7 +306,7 @@ export function syncPlannedGatesFromState(
         continue
       }
 
-      insert.run(
+      const result = insert.run(
         g.id,
         g.sequence ?? 0,
         g.name,
@@ -313,7 +314,8 @@ export function syncPlannedGatesFromState(
         g.hash,
         now
       )
-      synced++
+      if (result.changes > 0) synced++
+      else skipped++
     }
   })
 

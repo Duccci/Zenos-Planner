@@ -184,7 +184,7 @@ export interface SchemaValidationResult {
  *
  * NOT IN DATABASE (file-based per Technical Decision 4):
  * - gates: Stored in project.json (version-controlled, single source of truth)
- * - proposal_dependencies: Derived from proposal references (no separate source of truth)
+ * - dependency_map: Unified dependency tracking for gates, proposals, and requirements
  * - repo_dependencies: Stored in project.json (version-controlled, single source of truth)
  * - approval_events: Tracked via proposal markdown metadata and status fields
  * - metrics_snapshots: Recomputable from git tags and codebase analysis on demand
@@ -321,7 +321,10 @@ export async function initializeDatabase(
         const { syncGateRequirementsFromMarkdown } = await import('../integration/requirements-registry.js')
         const { RequirementStorage } = await import('../generation/requirement-storage.js')
         const storage = new RequirementStorage(db)
-        const gateRows = db.prepare('SELECT id FROM gates').all() as { id: string }[]
+        // Only sync requirements for gates whose PRD markdown has been generated.
+        // Planned/pending gates (prd_generated_at IS NULL) have no file on disk yet;
+        // calling syncGateRequirementsFromMarkdown for them produces a spurious WARN.
+        const gateRows = db.prepare('SELECT id FROM gates WHERE prd_generated_at IS NOT NULL').all() as { id: string }[]
         for (const row of gateRows) {
           syncGateRequirementsFromMarkdown(storage, row.id, projectRoot)
         }

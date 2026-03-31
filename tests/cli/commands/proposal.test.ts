@@ -38,6 +38,13 @@ vi.mock('../../../src/storage/proposal-sync.js', () => ({
   syncProposalsFromDisk: vi.fn(),
 }))
 
+vi.mock('../../../src/cli/cli-tool-invoker.js', () => ({
+  invokeProposalAction: vi.fn().mockResolvedValue({ success: false }),
+  invokeCliTool: vi.fn().mockResolvedValue({ success: false }),
+  invokeGatesAction: vi.fn().mockResolvedValue({ success: false }),
+  invokeRequirementAction: vi.fn().mockResolvedValue({ success: false }),
+}))
+
 describe('Proposal validate command', () => {
   let mockDb: {
     prepare: ReturnType<typeof vi.fn>
@@ -794,17 +801,13 @@ describe('Proposal list command', () => {
   })
 
   it('shows message when no proposals found', async () => {
-    const { getDatabase } = await import('../../../src/storage/database.js')
+    const { invokeProposalAction } = await import('../../../src/cli/cli-tool-invoker.js')
     const { logger } = await import('../../../src/utils/logger.js')
 
-    const mockPrepare = vi.fn()
-    mockDb.prepare = mockPrepare
-
-    mockPrepare.mockReturnValueOnce({
-      all: vi.fn().mockReturnValue([]),
+    vi.mocked(invokeProposalAction).mockResolvedValue({
+      success: true,
+      data: { proposals: [] },
     })
-
-    vi.mocked(getDatabase).mockReturnValue(mockDb as unknown as Database.Database)
 
     const program = new Command()
     program.exitOverride()

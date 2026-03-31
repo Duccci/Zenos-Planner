@@ -13,6 +13,8 @@ import { FunctionRegistry } from './function-registry.js'
 import { logger } from '../utils/logger.js'
 import { getDatabase } from '../storage/database.js'
 import { normalizeHash } from '../utils/normalize.js'
+import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
+import { relative } from 'node:path'
 
 // ── DB row types ─────────────────────────────────────────────────────────────
 
@@ -170,12 +172,16 @@ export function registerContextOps(registry: FunctionRegistry): void {
           },
           proposals,
           requirements,
-          ...(operationMode === 'planning' && {
-            _planningContext: {
-              prdPath: 'zeno/overview/PROJECT_PRD.md',
-              structurePath: 'zeno/overview/STRUCTURE.md',
-            },
-          }),
+          ...(operationMode === 'planning' && (() => {
+            const root = getWorkspaceRoot()
+            const zenoGitDir = relative(root, getZenoGitDir(root)).replace(/\\/g, '/')
+            return {
+              _planningContext: {
+                prdPath: `${zenoGitDir}/overview/PROJECT_PRD.md`,
+                structurePath: `${zenoGitDir}/overview/STRUCTURE.md`,
+              },
+            }
+          })()),
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -239,7 +245,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
         const dependencies = (
           db
             .prepare(
-              'SELECT target_proposal_hash, dependency_type, description FROM proposal_dependencies WHERE source_proposal_id = ?'
+              'SELECT target_hash AS target_proposal_hash, dependency_type, description FROM dependency_map WHERE source_type = \'proposal\' AND source_id = ?'
             )
             .all(proposal.id) as DependencyRow[]
         ).map((d) => ({
@@ -261,12 +267,16 @@ export function registerContextOps(registry: FunctionRegistry): void {
           gate,
           requirements,
           dependencies,
-          ...(operationMode === 'planning' && {
-            _planningContext: {
-              prdPath: 'zeno/overview/PROJECT_PRD.md',
-              structurePath: 'zeno/overview/STRUCTURE.md',
-            },
-          }),
+          ...(operationMode === 'planning' && (() => {
+            const root = getWorkspaceRoot()
+            const zenoGitDir = relative(root, getZenoGitDir(root)).replace(/\\/g, '/')
+            return {
+              _planningContext: {
+                prdPath: `${zenoGitDir}/overview/PROJECT_PRD.md`,
+                structurePath: `${zenoGitDir}/overview/STRUCTURE.md`,
+              },
+            }
+          })()),
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)

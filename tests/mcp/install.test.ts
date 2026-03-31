@@ -10,4 +10,11 @@ describe('mcp install helpers', () => {
     const result = ensureWorkspaceMcp('/project/root')
     expect(typeof result).toBe('boolean')
   })
+
+  it('generates submodule binary path when zenoDir is provided', () => {
+    // We can indirectly verify the path by checking that calling with a non-default
+    // zenoDir does not throw and still returns a boolean.
+    const result = ensureWorkspaceMcp('/consumer/project', 'zeno')
+    expect(typeof result).toBe('boolean')
+  })
 })

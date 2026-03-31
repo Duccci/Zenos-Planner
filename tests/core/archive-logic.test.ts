@@ -24,6 +24,7 @@ vi.mock('../../src/utils/config.js', () => ({
   getZenoDir: vi.fn(),
   getZenoGitDir: vi.fn(),
   findProjectRoot: vi.fn(),
+  getWorkspaceRoot: vi.fn(),
 }));
 
 vi.mock('../../src/utils/gate-consolidation.js', () => ({
@@ -53,7 +54,7 @@ vi.mock('../../src/utils/logger.js', () => ({
 import { archiveGate, archiveBatch, archiveProposal } from '../../src/core/archive-logic.js';
 import { readFile, writeFile, mkdir, readdir, rm, unlink } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
-import { loadConfig, getZenoDir, getZenoGitDir } from '../../src/utils/config.js';
+import { loadConfig, getZenoDir, getZenoGitDir, getWorkspaceRoot } from '../../src/utils/config.js';
 import { consolidateGateProposals } from '../../src/utils/gate-consolidation.js';
 import { validateGateReady, validateProposalReady } from '../../src/core/archive-validation.js';
 import { prepareArchiveContent } from '../../src/core/archive-consolidation.js';
@@ -79,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getZenoDir).mockReturnValue('/project/zeno/.zeno');
   vi.mocked(getZenoGitDir).mockReturnValue('/project/zeno');
+  vi.mocked(getWorkspaceRoot).mockReturnValue('/project');
   vi.mocked(loadConfig).mockResolvedValue({ git: { remote: 'origin' } } as any);
   vi.mocked(getCurrentTimestamp).mockReturnValue('2026-02-16T00:00:00Z');
   vi.mocked(calculateNextGateId).mockReturnValue('gate-02');

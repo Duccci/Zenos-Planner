@@ -238,6 +238,31 @@ describe('proposals-registry operations', () => {
       expect(mockPrepare).toHaveBeenCalled()
     })
 
+    it('filters by gateId=solitary returns proposals with null gate_id', async () => {
+      mockAll.mockReturnValue([
+        {
+          hash: 'sol12345',
+          title: 'Solitary Proposal',
+          status: 'pending',
+          gate_id: null,
+          created_at: '2026-01-01T00:00:00Z',
+        },
+      ])
+
+      const result = (await registry.invoke('proposal_list', { gateId: 'solitary' })) as {
+        success: boolean
+        data: { proposals: Array<{ hash: string; gateId: string }> }
+      }
+      expect(result.success).toBe(true)
+      expect(result.data.proposals).toHaveLength(1)
+      expect(result.data.proposals[0]?.gateId).toBe('solitary')
+      // Verify IS NULL query (not LIKE) was used — prepare called with IS NULL in query
+      const prepareCall = mockPrepare.mock.calls.find((c: unknown[]) =>
+        typeof c[0] === 'string' && (c[0] as string).includes('IS NULL')
+      )
+      expect(prepareCall).toBeDefined()
+    })
+
     it('filters by status', async () => {
       mockAll.mockReturnValue([
         {

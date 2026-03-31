@@ -451,26 +451,25 @@ export async function completeGate(
     const proposalIds = proposalRows.map((row) => row.id)
     const proposalHashes = proposalRows.map((row) => row.hash)
 
-    // Delete proposal_dependencies involving these proposals (both directions)
+    // Delete dependency_map rows involving these proposals (both as source and target)
     if (proposalIds.length > 0) {
       const idPlaceholders = proposalIds.map(() => '?').join(',')
       const hashPlaceholders = proposalHashes.map(() => '?').join(',')
       db.prepare(
-        `DELETE FROM proposal_dependencies WHERE source_proposal_id IN (${idPlaceholders})`
+        `DELETE FROM dependency_map WHERE source_type = 'proposal' AND source_id IN (${idPlaceholders})`
       ).run(...proposalIds)
       db.prepare(
-        `DELETE FROM proposal_dependencies WHERE target_proposal_hash IN (${hashPlaceholders})`
+        `DELETE FROM dependency_map WHERE target_type = 'proposal' AND target_hash IN (${hashPlaceholders})`
       ).run(...proposalHashes)
     }
 
     // Delete the proposals themselves
     db.prepare('DELETE FROM proposals WHERE gate_id = ?').run(gate.id)
 
-    // Clear proposal_hashes from the gate record.
-    // NOTE: proposal_hashes is a denormalised cache column; its write path (populating
-    // hashes when proposals are created/assigned) is planned for gate-07. For now this
-    // clear is a no-op but kept so the column is reset consistently on archive.
-    db.prepare('UPDATE gates SET proposal_hashes = NULL WHERE id = ?').run(gate.id)
+    // Clear proposal_hashes from the gate record and stamp archived_at now that
+    // consolidation is fully complete and the archive file has been written.
+    // archived_at distinguishes "completed + archived" from "completed but consolidation pending".
+    db.prepare('UPDATE gates SET proposal_hashes = NULL, archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(gate.id)
 
     // Delete proposal files and remove the gate proposals directory
     const gateDir = path.join(proposalsDir, gateId)

@@ -12,9 +12,9 @@
  */
 
 import { readFile, writeFile, mkdir, rm, unlink } from 'node:fs/promises'
-import { join, basename } from 'node:path'
+import { join, basename, relative } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
-import { loadConfig, getZenoGitDir } from '../utils/config.js'
+import { loadConfig, getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 import { consolidateGateProposals } from '../utils/gate-consolidation.js'
 import { validateGateReady, validateProposalReady } from './archive-validation.js'
 import { prepareArchiveContent } from './archive-consolidation.js'
@@ -50,7 +50,7 @@ async function updateArchitectureOnGateCompletion(
   timestamp: string
 ): Promise<void> {
   try {
-    const archFile = join(getZenoGitDir(), 'architecture', 'system-overview.md')
+    const archFile = join(getZenoGitDir(getWorkspaceRoot()), 'architecture', 'system-overview.md')
 
     if (!existsSync(archFile)) {
       logger.warn(`Architecture file not found at ${archFile}, skipping architecture update`)
@@ -159,11 +159,12 @@ export async function archiveGate(
   // Step 1: Validate using dedicated validation module
   const { filePath: gatePath } = await validateGateReady(gateId)
 
-  const config = await loadConfig()
+  const projectRoot = getWorkspaceRoot()
+  const config = await loadConfig(projectRoot)
   const timestamp = getCurrentTimestamp()
 
   // Step 2: Prepare paths
-  const gatesDir = join(getZenoGitDir(), 'gates')
+  const gatesDir = join(getZenoGitDir(projectRoot), 'gates')
   const archiveDir = join(gatesDir, 'archive')
   // Preserve the original filename in the archive directory
   const archivePath = join(archiveDir, basename(gatePath))
@@ -178,7 +179,7 @@ export async function archiveGate(
   // Step 4: Consolidate proposals using dedicated utility
   const consolidation = await consolidateGateProposals(
     gateId,
-    join(getZenoGitDir(), 'proposals')
+    join(getZenoGitDir(projectRoot), 'proposals')
   )
 
   // Step 5: Update gate content with consolidation
@@ -189,7 +190,7 @@ export async function archiveGate(
 
   // Step 6.5: Clean up gate proposals directory (content consolidated into archive)
   // Guard: gateId must look like "gate-NN" to prevent accidentally deleting unrelated directories
-  const proposalsBaseDir = join(getZenoGitDir(), 'proposals')
+  const proposalsBaseDir = join(getZenoGitDir(projectRoot), 'proposals')
   const gateProposalsDir = join(proposalsBaseDir, gateId)
   const isValidGateId = /^gate-\d+$/.test(gateId)
   if (!isValidGateId) {
@@ -267,7 +268,7 @@ async function appendToSolitaryGate(
   const summaryMatch = /## Summary\s*\n([\s\S]*?)(?=\n## |\n---|\n$)/.exec(proposalContent)
   const summary = summaryMatch?.[1]?.trim() ?? 'No summary available.'
 
-  const solitaryGatePath = join(getZenoGitDir(), 'gates', 'archive', 'solitary.md')
+  const solitaryGatePath = join(getZenoGitDir(getWorkspaceRoot()), 'gates', 'archive', 'solitary.md')
   const existing = await readFile(solitaryGatePath, 'utf-8')
   const entry = `\n### ${title} (#${proposalHash})\n\n**Completed**: ${completionDate}\n\n${summary}\n`
   await writeFile(solitaryGatePath, existing + entry)
@@ -292,7 +293,7 @@ export async function archiveProposal(
   const proposalInfo = await validateProposalReady(proposalHash)
 
   const timestamp = getCurrentTimestamp()
-  const proposalsBaseDir = join(getZenoGitDir(), 'proposals')
+  const proposalsBaseDir = join(getZenoGitDir(getWorkspaceRoot()), 'proposals')
   const archiveDir = join(proposalsBaseDir, 'archive')
 
   // Step 2: Use the file path resolved by validateProposalReady (content-addressed by hash,
@@ -319,13 +320,14 @@ export async function archiveProposal(
     await mkdir(archiveDir, { recursive: true })
 
     // Step 5: Prepare archival metadata
+    const archiveLocation = relative(process.cwd(), archiveDir).replace(/\\/g, '/')
     const archiveMetadata = `
 
 ---
 
 **Archival Metadata**:
 - Archived Date: ${archivalDate}
-- Archive Location: zeno/proposals/archive/
+- Archive Location: ${archiveLocation}/
 ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}`
 
     const updatedContent = content + archiveMetadata
@@ -361,12 +363,16 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
   }
 
   // Step 8: Git commit (stage archive creation + source deletion)
+  const zenoGitDir = getZenoGitDir(getWorkspaceRoot())
+  const relSolitaryPath = relative(process.cwd(), join(zenoGitDir, 'gates', 'archive', 'solitary.md')).replace(/\\/g, '/')
+  const relProposalsArchive = relative(process.cwd(), join(zenoGitDir, 'proposals', 'archive')).replace(/\\/g, '/')
+  const relGateProposalsDir = relative(process.cwd(), join(zenoGitDir, 'proposals', proposalInfo.gateId ?? 'solitary')).replace(/\\/g, '/')
   const archiveDestination = proposalInfo.type === 'solitary'
-    ? 'zeno/gates/archive/solitary.md'
-    : 'zeno/proposals/archive/'
+    ? relSolitaryPath
+    : `${relProposalsArchive}/`
   const archiveAction = proposalInfo.type === 'solitary'
     ? 'Consolidated into'
-    : `Moved from zeno/proposals/${proposalInfo.gateId ?? 'solitary'}/ to`
+    : `Moved from ${relGateProposalsDir}/ to`
   const commitMessage = stripAnsi(
     `chore(proposal): archive ${proposalHash} - ${proposalInfo.title}
 

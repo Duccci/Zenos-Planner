@@ -23,6 +23,7 @@ describe('template-discovery branches', () => {
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce(['proposal-template.md', 'notes.txt'] as any)
       .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce([] as any)
 
     vi.mocked(fs.promises.readFile).mockResolvedValueOnce(
       '---\ndescription: A proposal template\n---\n# Template\nContent here.' as any
@@ -41,6 +42,7 @@ describe('template-discovery branches', () => {
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce(['readme.txt', 'data.json'] as any)
       .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce([] as any)
 
     const templates = await discoverTemplates('/project')
     expect(templates.length).toBe(0)
@@ -51,6 +53,7 @@ describe('template-discovery branches', () => {
     const { discoverTemplates } = await import('../../src/generation/template-discovery.js')
 
     vi.mocked(fs.promises.readdir)
+      .mockRejectedValueOnce(new Error('ENOENT'))
       .mockRejectedValueOnce(new Error('ENOENT'))
       .mockRejectedValueOnce(new Error('ENOENT'))
 
@@ -64,6 +67,7 @@ describe('template-discovery branches', () => {
 
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce(['gate-template.md'] as any)
+      .mockResolvedValueOnce([] as any)
       .mockResolvedValueOnce([] as any)
 
     vi.mocked(fs.promises.readFile).mockResolvedValueOnce(
@@ -82,6 +86,7 @@ describe('template-discovery branches', () => {
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce(['bad.md', 'good.md'] as any)
       .mockResolvedValueOnce([] as any)
+      .mockResolvedValueOnce([] as any)
 
     vi.mocked(fs.promises.readFile)
       .mockRejectedValueOnce(new Error('Permission denied'))
@@ -99,6 +104,7 @@ describe('template-discovery branches', () => {
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce([] as any)
       .mockResolvedValueOnce(['overview-template.md'] as any)
+      .mockResolvedValueOnce([] as any)
 
     vi.mocked(fs.promises.readFile).mockResolvedValueOnce(
       '---\ndesc: Architecture overview\n---\n# Overview' as any
@@ -116,6 +122,7 @@ describe('template-discovery branches', () => {
 
     vi.mocked(fs.promises.readdir)
       .mockResolvedValueOnce(['t.md'] as any)
+      .mockResolvedValueOnce([] as any)
       .mockResolvedValueOnce([] as any)
 
     vi.mocked(fs.promises.readFile).mockResolvedValueOnce('---\ndesc: Short desc\n---\n# T' as any)

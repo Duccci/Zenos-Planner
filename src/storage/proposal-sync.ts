@@ -18,6 +18,7 @@ import path from 'node:path'
 import { normalizeDateTime } from '../utils/datetime.js'
 import { parseProposalFrontmatter } from './frontmatter.js'
 import { getZenoGitDir } from '../utils/config.js'
+import { normalizeGateId } from '../utils/normalize.js'
 
 /**
  * Map any Zeno workflow status to the values accepted by the DB CHECK constraint:
@@ -105,12 +106,14 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
 
   if (fm) {
     const title = titleMatch?.[1]?.trim() ?? path.basename(filePath, '.md')
-    // Gate ID: prefer frontmatter gate_id; fall back to directory inference
-    let gateId = fm.gate_id ?? null
+    // Gate ID: prefer frontmatter gate_id; fall back to directory inference.
+    // Normalize to short form (gate-01) in case frontmatter or folder uses a slug.
+    let gateId = fm.gate_id ? normalizeGateId(fm.gate_id) : null
     if (!gateId) {
-      const gateMatch = /[/\\]proposals[/\\](gate-\d+|solitary)[/\\]/.exec(filePath)
+      // Match any gate-NN or gate-NN-slug folder name between proposals/ separators
+      const gateMatch = /[/\\]proposals[/\\](gate-\d[^/\\]*|solitary)[/\\]/.exec(filePath)
       const folderName = gateMatch?.[1] ?? null
-      gateId = folderName === 'solitary' ? null : folderName
+      gateId = folderName === 'solitary' ? null : (folderName ? normalizeGateId(folderName) : null)
     }
     return {
       hash: fm.hash,
@@ -144,9 +147,10 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
 
   // Gate ID: infer from directory path.
   // 'gate-NN' folder -> store as gate_id; 'solitary' folder -> store NULL (avoids FK violation).
-  const gateMatch = /[/\\]proposals[/\\](gate-\d+|solitary)[/\\]/.exec(filePath)
+  // Match any gate-NN or gate-NN-slug folder name between proposals/ separators
+  const gateMatch = /[/\\]proposals[/\\](gate-\d[^/\\]*|solitary)[/\\]/.exec(filePath)
   const folderName = gateMatch?.[1] ?? null
-  const gateId = folderName === 'solitary' ? null : folderName
+  const gateId = folderName === 'solitary' ? null : (folderName ? normalizeGateId(folderName) : null)
 
   // Requirement: **Requirement**: #<hash> — strip leading '#' to store raw hash
   const reqMatch = /\*\*Requirement\*\*:\s*#?([a-zA-Z0-9_-]+)/.exec(content)

@@ -15,6 +15,7 @@
 import type { Command } from 'commander'
 import { logger } from '../../utils/logger.js'
 import { getDatabase, initializeDatabase } from '../../storage/database.js'
+import { loadConfig } from '../../utils/config.js'
 
 export function registerRegistryCommands(program: Command): void {
   const registry = program.command('registry').description('Registry maintenance commands')
@@ -30,6 +31,16 @@ export function registerRegistryCommands(program: Command): void {
       const projectRoot = options.projectRoot ?? process.cwd()
 
       try {
+        // 0. Load config to set zenoDir cache so sync functions use correct paths
+        try {
+          await loadConfig(projectRoot)
+        } catch (error) {
+          // Non-fatal: config may not exist on fresh projects
+          logger.debug(
+            `Config load failed (may be expected on fresh project): ${error instanceof Error ? error.message : String(error)}`
+          )
+        }
+
         // 1. Ensure DB exists with latest schema
         await initializeDatabase(projectRoot)
         const db = getDatabase(projectRoot)
@@ -60,12 +71,24 @@ export function registerRegistryCommands(program: Command): void {
 
         // 4. Requirements — restored from requirements.json manifest
         logger.info('Syncing requirements from disk…')
-        const { syncRequirementsFromDisk, writeRequirementsManifest } =
+        const { syncRequirementsFromDisk } =
           await import('../../storage/requirements-sync.js')
-        syncRequirementsFromDisk(db, projectRoot)
-        // Re-write manifest so it reflects any requirements that were in the DB
-        // but not yet in the file (e.g., generated mid-session).
-        writeRequirementsManifest(db, projectRoot)
+        const reqResult = syncRequirementsFromDisk(db, projectRoot)
+        // NOTE: Do NOT call writeRequirementsManifest here.  The manifest is
+        // the version-controlled source of truth; writing it back during rebuild
+        // would drop gate-level requirements (the writer only persists
+        // level='project' rows) and destroy data that was just read in.
+        if (!reqResult.found) {
+          logger.warn(`  requirements: manifest not found at ${reqResult.manifestPath}`)
+        } else if (reqResult.synced === 0 && reqResult.inManifest > 0) {
+          logger.info(
+            `  requirements: ${String(reqResult.inManifest)} already in registry (0 new rows from manifest), path: ${reqResult.manifestPath}`
+          )
+        } else {
+          logger.info(
+            `  requirements: ${String(reqResult.synced)} inserted from manifest (${String(reqResult.inManifest)} in file), path: ${reqResult.manifestPath}`
+          )
+        }
         const reqCount = (
           db.prepare('SELECT COUNT(*) AS n FROM requirements').get() as { n: number }
         ).n

@@ -4,15 +4,18 @@
  * Writes rendered gate PRDs to the zeno/gates/ directory.
  */
 
-import { writeFile } from '../utils/file.js';
+import path from 'path'
+import { writeFile } from '../utils/file.js'
+import { getZenoGitDir } from '../utils/config.js'
 
 export async function writeGatePRD(
   gatePRD: string,
   gateNumber: number,
-  gateName: string
+  gateName: string,
+  projectRoot: string = process.cwd()
 ): Promise<string> {
-  const fileName = `gate-${gateNumber.toString().padStart(2, '0')}-${gateName.replace(/\s+/g, '-').toLowerCase()}.md`;
-  const filePath = `zeno/gates/${fileName}`;
+  const fileName = `gate-${gateNumber.toString().padStart(2, '0')}-${gateName.replace(/\s+/g, '-').toLowerCase()}.md`
+  const filePath = path.join(getZenoGitDir(projectRoot), 'gates', fileName)
 
   await writeFile(filePath, gatePRD, 'utf-8');
 

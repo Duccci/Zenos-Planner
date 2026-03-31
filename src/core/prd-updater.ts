@@ -13,7 +13,7 @@ import { readFile, writeFile } from '../utils/file.js'
 import { getDatabase } from '../storage/database.js'
 import path from 'path'
 import { logger } from '../utils/logger.js'
-import { getZenoGitDir } from '../utils/config.js'
+import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 
 interface GateStatus {
   id: string
@@ -26,7 +26,7 @@ interface GateStatus {
  * Load all gates from database
  */
 function loadGatesFromDatabase(): GateStatus[] {
-  const db = getDatabase()
+  const db = getDatabase(getWorkspaceRoot())
   const rows = db
     .prepare(
       `SELECT id, name, status, description FROM gates ORDER BY CAST(SUBSTRING(id, 6) AS INTEGER)`

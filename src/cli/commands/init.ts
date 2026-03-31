@@ -18,7 +18,8 @@ import { isZenoSubmodule, addZenoSubmodule } from '../../utils/git.js'
 import { generateAgentsMD } from '../../generation/agents-generator.js'
 import { writeAgentsMD } from '../../generation/agents-writer.js'
 import { writeTerminologyMD } from '../../generation/terminology-writer.js'
-import { resolve } from 'node:path'
+import { loadGitignoreTemplate } from '../../generation/template-discovery.js'
+import { resolve, join } from 'node:path'
 
 /**
  * Validate project name
@@ -74,16 +75,23 @@ async function runInitWorkflow(
     logger.info('Detected existing zeno/ git submodule — enabling submodule mode')
   }
 
-  // 1. Create project structure
-  logger.info('Creating project structure...')
-  const createdPaths = await createProjectStructure(projectRoot)
-  logger.info(`Created ${createdPaths.length.toString()} directories/files`)
-
-  // 2. Update config with project name, end state, and submodule flag
+  // 2. Build config first so scaffold can resolve paths correctly.
+  //    In submodule mode the consumer stores planning data at the project root
+  //    (standalone layout: zenoDir = '.') to keep the submodule pristine.
+  //    The tool binary location is tracked via zenoToolDir.
   const config = getDefaultConfig(projectName, projectStatement)
   if (usingSubmodule) {
-    config['zenoSubmodule'] = true
+    config.zenoSubmodule = true
+    config.zenoToolDir = config.zenoDir   // e.g. 'zeno' — where the submodule is mounted
+    config.zenoDir = '.'                   // standalone layout for consumer data
   }
+
+  // 1. Create project structure (pass config for submodule-aware path resolution)
+  logger.info('Creating project structure...')
+  const createdPaths = await createProjectStructure(projectRoot, config)
+  logger.info(`Created ${createdPaths.length.toString()} directories/files`)
+
+  // Save config
   await saveConfig(config, projectRoot)
 
   // 3. Create project.json if it doesn't exist
@@ -92,17 +100,19 @@ async function runInitWorkflow(
     logger.info('Creating project.json...')
     const defaultProject = getDefaultProject(projectName, projectStatement)
     await saveProject(defaultProject, projectRoot)
-    createdPaths.push('zeno/.zeno/project.json')
+    createdPaths.push(projectJsonPath)
   }
 
   // 4. Generate AGENTS.md and TERMINOLOGY.md
+  //    In submodule mode, write to consumer's planning dir (project root),
+  //    not inside the submodule.
   logger.info('Generating AGENTS.md...')
-  const zenoDir = getZenoGitDir(projectRoot)
+  const planningDir = getZenoGitDir(projectRoot, config)
   const agentsContent = generateAgentsMD(config)
-  await writeAgentsMD(agentsContent, zenoDir)
+  await writeAgentsMD(agentsContent, planningDir)
 
   logger.info('Generating TERMINOLOGY.md...')
-  await writeTerminologyMD(projectName, zenoDir)
+  await writeTerminologyMD(projectName, planningDir)
 
   // 4. Generate project requirements
   logger.info('Generating project requirements...')
@@ -150,13 +160,72 @@ async function runInitWorkflow(
     logger.info('Skipping gate generation: provide a detailed project description to generate gates')
   }
 
+  // Write a .gitignore for the project from the bundled template.
+  // If one already exists, only append lines that are not yet present.
+  const gitignorePath = join(projectRoot, '.gitignore')
+  const { readFileSync, writeFileSync, appendFileSync } = await import('node:fs')
+  let existingGitignore = ''
+  try {
+    existingGitignore = readFileSync(gitignorePath, 'utf-8')
+  } catch {
+    // does not exist yet
+  }
+
+  try {
+    const templateContent = await loadGitignoreTemplate()
+    if (!existingGitignore) {
+      writeFileSync(gitignorePath, templateContent, 'utf-8')
+      logger.info('Created .gitignore from Zeno template')
+    } else {
+      // Append only non-empty, non-comment lines that are not yet covered
+      const newLines = templateContent
+        .split(/\r?\n/)
+        .filter((line) => line.trim() && !line.trim().startsWith('#') && !existingGitignore.includes(line.trim()))
+      if (newLines.length > 0) {
+        appendFileSync(gitignorePath, '\n# ── Added by zeno init ─────────────────────────────────────\n' + newLines.join('\n') + '\n', 'utf-8')
+        logger.info(`Updated .gitignore with ${String(newLines.length)} missing entries from Zeno template`)
+      }
+    }
+    existingGitignore = readFileSync(gitignorePath, 'utf-8')
+  } catch (err) {
+    logger.warn(`Could not apply .gitignore template: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  // In submodule mode, also append tool-directory-specific entries that the
+  // generic template cannot know (the mounted submodule path).
+  if (usingSubmodule) {
+    const toolDir = config.zenoToolDir ?? 'zeno'
+    const submoduleEntries = [
+      `${toolDir}/.zeno/`,
+    ]
+    const missingSubmodule = submoduleEntries.filter((e) => !existingGitignore.includes(e))
+    if (missingSubmodule.length > 0) {
+      appendFileSync(
+        gitignorePath,
+        '\n# Zeno submodule tool directory — do not commit consumer state inside it\n' +
+          missingSubmodule.join('\n') + '\n',
+        'utf-8'
+      )
+      logger.info('Updated .gitignore with Zeno submodule tool-directory exclusions')
+    }
+  }
+
   logger.info('Project initialized successfully!')
   logger.info('')
   logger.info('Next steps:')
-  logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
-  logger.info('  2. Check zeno/architecture/ for system diagrams')
-  logger.info('  3. Run "zeno gates list" to see your roadmap')
-  logger.info('  4. Start with "zeno gates start gate-01"')
+  if (usingSubmodule) {
+    logger.info('  1. cd into zeno/ and install dependencies: cd zeno && npm install && npm run build')
+    logger.info('  2. Run "node zeno/bin/zeno.js mcp install" to configure the editor MCP server')
+    logger.info('  3. Commit the submodule changes: git add zeno .vscode && git commit')
+    logger.info('  4. Run "node zeno/bin/zeno.js gates list" to see your roadmap')
+    logger.info('  5. Start with "node zeno/bin/zeno.js gates start gate-01"')
+  } else {
+    logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
+    logger.info('  2. Check zeno/architecture/ for system diagrams')
+    logger.info('  3. Run "zeno mcp install" to configure the editor MCP server')
+    logger.info('  4. Run "zeno gates list" to see your roadmap')
+    logger.info('  5. Start with "zeno gates start gate-01"')
+  }
 }
 
 /**
