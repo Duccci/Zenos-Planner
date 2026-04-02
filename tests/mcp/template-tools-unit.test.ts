@@ -66,6 +66,11 @@ describe('diagram_action template coverage', () => {
       const text = (result.content[0] as any)?.text as string
       expect(text).toContain('"name"')
       expect(text).toContain('gate-prd')
+      expect(text).toContain('"content"')
+      expect(text).toContain('# Template')
+      // fillDirective should always be present, even without includeContext
+      expect(text).toContain('"fillDirective"')
+      expect(text).toContain('Replace every')
     })
 
     it('should return error for missing name', async () => {
@@ -102,8 +107,10 @@ describe('diagram_action template coverage', () => {
       })
       expect(result.isError).toBeFalsy()
       const text = (result.content[0] as any)?.text as string
-      expect(text).toContain('"_context"')
-      expect(text).toContain('retrievedAt')
+      expect(text).toContain('"fillInstructions"')
+      expect(text).toContain('directive')
+      expect(text).toContain('placeholders')
+      expect(text).toContain('rules')
     })
 
     it('should handle includeContext as string "true"', async () => {
@@ -123,7 +130,7 @@ describe('diagram_action template coverage', () => {
       })
       expect(result.isError).toBeFalsy()
       const text = (result.content[0] as any)?.text as string
-      expect(text).toContain('"_context"')
+      expect(text).toContain('"fillInstructions"')
     })
 
     it('should handle get errors', async () => {

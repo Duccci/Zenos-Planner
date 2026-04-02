@@ -8,6 +8,7 @@ import { checkNodeVersion } from './checks/node-version.js'
 import { checkGitVersion } from './checks/git-version.js'
 import { checkGraphviz } from './checks/graphviz.js'
 import { checkSqliteBinding } from './checks/sqlite-binding.js'
+import { checkTemplateDrift } from './checks/template-drift.js'
 import type { DoctorReport } from './types.js'
 
 export async function runAllChecks(): Promise<DoctorReport> {
@@ -16,6 +17,7 @@ export async function runAllChecks(): Promise<DoctorReport> {
     Promise.resolve(checkGitVersion()),
     Promise.resolve(checkGraphviz()),
     checkSqliteBinding(),
+    Promise.resolve(checkTemplateDrift()),
   ])
 
   let passed = 0

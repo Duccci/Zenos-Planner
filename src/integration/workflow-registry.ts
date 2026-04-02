@@ -7,6 +7,7 @@
 
 import { FunctionRegistry } from './function-registry.js'
 import { generateProposals, updateProposalProgress, generateGates } from '../core/workflow-logic.js'
+import { logger } from '../utils/logger.js'
 import { 
   ProposalGenerateInputSchema, 
   ProposalUpdateProgressInputSchema, 
@@ -16,7 +17,19 @@ import {
 export function registerWorkflowOps(registry: FunctionRegistry): void {
   registry.register('generateProposals', async (params) => {
     const validated = ProposalGenerateInputSchema.parse(params)
-    return await generateProposals(validated)
+    const result = await generateProposals(validated)
+
+    // Reconcile gate PRD so the Proposals section reflects newly created proposals
+    if (validated.gateId) {
+      try {
+        const { reconcileGatePRD } = await import('../core/gate-prd-reconciler.js')
+        await reconcileGatePRD(validated.gateId, process.cwd())
+      } catch (err) {
+        logger.warn(`Failed to reconcile gate PRD after proposal generation for ${validated.gateId}: ${String(err)}`)
+      }
+    }
+
+    return result
   }, {
     description: 'Generate proposals for a gate based on requirements and context',
     parameters: [

@@ -834,7 +834,7 @@ describe('proposals-registry operations', () => {
       mockValidateQuality.mockResolvedValue({ allowed: true, warnings: [] })
       mockApproveProposal.mockResolvedValue({})
       mockFindProposalByHash.mockResolvedValue('/tmp/proposals/gate-01/my-proposal.md')
-      mockReadFileSync.mockReturnValue('**Status**: in_progress\n## Summary\nTest content')
+      mockReadFile.mockResolvedValue('**Status**: in_progress\n## Summary\nTest content')
 
       const result = (await registry.invoke('proposal_approve', { hash: 'abc12345', writeback: true })) as {
         success: boolean
@@ -843,10 +843,9 @@ describe('proposals-registry operations', () => {
       expect(result.success).toBe(true)
       const data = result.data as { wroteBack: boolean }
       expect(data.wroteBack).toBe(true)
-      expect(mockWriteFileSync).toHaveBeenCalledWith(
+      expect(mockWriteFile).toHaveBeenCalledWith(
         '/tmp/proposals/gate-01/my-proposal.md',
-        '**Status**: completed\n## Summary\nTest content',
-        'utf-8'
+        '**Status**: completed\n## Summary\nTest content'
       )
     })
   })

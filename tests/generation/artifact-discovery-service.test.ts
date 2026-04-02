@@ -23,10 +23,11 @@ describe('Artifact Discovery Service', () => {
       }
     })
 
-    it('should return empty array for missing templates directory', async () => {
+    it('should return templates even when project path is missing (templates ship with package)', async () => {
       const templates = await missingService.getTemplates()
       expect(Array.isArray(templates)).toBe(true)
-      expect(templates.length).toBe(0)
+      // Templates are resolved from the package install dir, not the project root
+      expect(templates.length).toBeGreaterThan(0)
     })
   })
 

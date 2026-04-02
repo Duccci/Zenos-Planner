@@ -150,9 +150,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         const { readFile, writeFile } = await import('../utils/file.js')
         const filePath = await findProposalByHash(normalizedHash)
         if (filePath) {
-          const content = await readFile(filePath)
-          const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1cancelled')
-          await writeFile(filePath, updated)
+          let content = await readFile(filePath)
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd !== -1) {
+            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1cancelled') + content.slice(fmEnd)
+          }
+          content = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1cancelled')
+          await writeFile(filePath, content)
         }
       } catch {
         // writeback is best-effort; do not fail the cancel operation
@@ -186,9 +190,13 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         const { readFile, writeFile } = await import('../utils/file.js')
         const filePath = await findProposalByHash(normalizedHash)
         if (filePath) {
-          const content = await readFile(filePath)
-          const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1backlog')
-          await writeFile(filePath, updated)
+          let content = await readFile(filePath)
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd !== -1) {
+            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1backlog') + content.slice(fmEnd)
+          }
+          content = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1backlog')
+          await writeFile(filePath, content)
         }
       } catch {
         // writeback is best-effort; do not fail the defer operation
@@ -418,6 +426,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // Replace template placeholders
       const createdDate = new Date().toISOString().split('T')[0] ?? ''
       const gateLabel = validated.gateId ?? 'Solitary'
+      // YAML gate_id must be null for solitary proposals to avoid FK violations;
+      // the display label ('Solitary') is only used in the **Gate** body line.
       proposalContent = proposalContent
         .replace(/\[Proposal Title\]/g, validated.title)
         .replace(/\[Generated SHA-256 first 16 chars\]/g, hash)
@@ -428,6 +438,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         // Replace {{...}} style placeholders introduced in the updated template
         .replace(/\{\{HASH\}\}/g, hash)
         .replace(/\{\{DATE\}\}/g, createdDate)
+        // In YAML frontmatter, write null (unquoted) for solitary; write the gate ID string for gate-tied.
+        .replace(/gate_id: '\{\{GATE_ID\}\}'/g, validated.gateId ? `gate_id: '${gateLabel}'` : 'gate_id: null')
+        // In body text, use the human-readable label.
         .replace(/\{\{GATE_ID\}\}/g, gateLabel)
         .replace(/\{\{ROLES\}\}/g, validated.roles && validated.roles.length > 0 ? validated.roles.join(', ') : '')
 
@@ -521,6 +534,15 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           fileName
         ))
       }
+
+      // Strip template HTML comments before writing to disk.
+      // Authoring guidance is delivered to the generating LLM via templateInfo.content;
+      // it must not persist in the scaffold file where it would waste context for any
+      // subsequent LLM instance reading the proposal.
+      proposalContent = proposalContent
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim() + '\n'
 
       // Write proposal file
       await writeFile(filePath, proposalContent, 'utf-8')
@@ -703,6 +725,19 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       const { startProposal } = await import('../core/completions.js')
       await startProposal(normalizedHash, { startedBy })
+
+      // Sync YAML frontmatter status: in_progress (best-effort)
+      try {
+        const { readFile, writeFile } = await import('../utils/file.js')
+        let content = await readFile(resolvedPath)
+        const fmEnd = content.indexOf('\n---', 3)
+        if (fmEnd !== -1) {
+          content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1in_progress') + content.slice(fmEnd)
+          await writeFile(resolvedPath, content)
+        }
+      } catch {
+        // Frontmatter sync is best-effort; do not fail the start operation
+      }
 
       return {
         hash: normalizedHash,
@@ -1445,20 +1480,26 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       // the caller explicitly opts in.  The .md is the user's source of truth; we never
       // mutate it automatically so as not to surprise users who track the file in git.
       let wroteBack = false
-      if (validated.writeback) {
-        try {
-          const { findProposalByHash } = await import('../utils/artifact-locator.js')
-          const { readFileSync, writeFileSync } = await import('node:fs')
-          const filePath = await findProposalByHash(normalizedHash)
-          if (filePath) {
-            const content = readFileSync(filePath, 'utf-8')
-            const updated = content.replace(/(\*\*Status\*\*:\s*)[a-z_]+/, '$1completed')
-            writeFileSync(filePath, updated, 'utf-8')
+      // Always sync YAML frontmatter status: completed (best-effort)
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        const { readFile, writeFile } = await import('../utils/file.js')
+        const filePath = await findProposalByHash(normalizedHash)
+        if (filePath) {
+          let content = await readFile(filePath)
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd !== -1) {
+            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1completed') + content.slice(fmEnd)
+          }
+          // Only patch **Status**: body field when caller opts in
+          if (validated.writeback) {
+            content = content.replace(/(\*\*Status\*\*:\s*)[a-z_]+/, '$1completed')
             wroteBack = true
           }
-        } catch {
-          // Non-fatal: writeback failure should not abort the approval result
+          await writeFile(filePath, content)
         }
+      } catch {
+        // Non-fatal: writeback failure should not abort the approval result
       }
 
       return {
@@ -1524,6 +1565,23 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
 
       const { rejectProposal } = await import('../core/completions.js')
       await rejectProposal(validated.hash, { rejectedBy, rejectionReason: validated.rejectionReason })
+
+      // Sync YAML frontmatter status: rejected (best-effort)
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        const { readFile, writeFile } = await import('../utils/file.js')
+        const filePath = await findProposalByHash(validated.hash)
+        if (filePath) {
+          let content = await readFile(filePath)
+          const fmEnd = content.indexOf('\n---', 3)
+          if (fmEnd !== -1) {
+            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1rejected') + content.slice(fmEnd)
+            await writeFile(filePath, content)
+          }
+        }
+      } catch {
+        // Frontmatter sync is best-effort; do not fail the reject operation
+      }
 
       return {
         hash: validated.hash,

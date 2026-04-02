@@ -108,7 +108,13 @@ function parseProposalMetadata(content: string, filePath: string): ParsedProposa
     const title = titleMatch?.[1]?.trim() ?? path.basename(filePath, '.md')
     // Gate ID: prefer frontmatter gate_id; fall back to directory inference.
     // Normalize to short form (gate-01) in case frontmatter or folder uses a slug.
-    let gateId = fm.gate_id ? normalizeGateId(fm.gate_id) : null
+    // Treat "Solitary", "solitary", "null", and literal null as solitary (gate_id = NULL).
+    const rawGateId = fm.gate_id
+    const isSolitary =
+      !rawGateId ||
+      rawGateId === 'null' ||
+      rawGateId.toLowerCase() === 'solitary'
+    let gateId = isSolitary ? null : normalizeGateId(rawGateId)
     if (!gateId) {
       // Match any gate-NN or gate-NN-slug folder name between proposals/ separators
       const gateMatch = /[/\\]proposals[/\\](gate-\d[^/\\]*|solitary)[/\\]/.exec(filePath)

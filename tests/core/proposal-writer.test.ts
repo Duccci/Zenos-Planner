@@ -3,6 +3,7 @@ import {
   decomposeToProposals,
   calculateProposalDependencies,
 } from '../../src/core/proposal-writer.js'
+import { writeFile } from '../../src/utils/file.js'
 import path from 'path'
 
 vi.mock('../../src/utils/file.js', () => ({
@@ -301,5 +302,56 @@ describe('ProposalMetadata shape', () => {
       parallelSetIndex: 'bad',
     }
     expect(meta.parallelSetIndex).toBe('bad') // runtime value still accessible
+  })
+})
+// ---------------------------------------------------------------------------
+// SCAFFOLD comment — concrete hash + workflow references
+// ---------------------------------------------------------------------------
+describe('injectScaffoldReminder via decomposeToProposals', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('should embed the concrete proposal hash in the SCAFFOLD comment', async () => {
+    // Template with YAML frontmatter so injectScaffoldReminder can find the --- boundary.
+    const template = [
+      '---',
+      'zeno:',
+      '  hash: \'{{HASH}}\'',
+      '  gate_id: \'{{GATE_ID}}\'',
+      '---',
+      '# Proposal: {{OBJECTIVE}}',
+      'Tasks: {{TASKS}}',
+    ].join('\n')
+
+    await decomposeToProposals('gate-02', ['Build feature'], [], template, '/out')
+
+    const writtenContent = (writeFile as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as string
+    expect(writtenContent).toBeDefined()
+    // The SCAFFOLD comment should reference the concrete hash (mocked to 'abcdef12')
+    expect(writtenContent).toContain('<!-- SCAFFOLD:')
+    expect(writtenContent).toContain('#abcdef12')
+    // Must NOT use the generic placeholder string
+    expect(writtenContent).not.toContain('#<hash>')
+  })
+
+  it('should include proposal_action:start and validate hints in SCAFFOLD comment', async () => {
+    const template = '---\nzeno:\n  hash: \'{{HASH}}\'\n---\n# {{OBJECTIVE}}\n{{TASKS}}'
+
+    await decomposeToProposals('gate-03', ['Add tests'], [], template, '/out')
+
+    const writtenContent = (writeFile as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as string
+    expect(writtenContent).toContain('proposal_action:start')
+    expect(writtenContent).toContain('proposal_action:validate')
+  })
+
+  it('should substitute {{PROPOSAL_TEMPLATE_HASH}} in the rendered scaffold', async () => {
+    const template = '---\nzeno:\n  hash: \'{{HASH}}\'\n  template_hash: \'{{PROPOSAL_TEMPLATE_HASH}}\'\n---\n# {{OBJECTIVE}}\n{{TASKS}}'
+
+    await decomposeToProposals('gate-04', ['Feature work'], [], template, '/out')
+
+    const writtenContent = (writeFile as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as string
+    // The mustache placeholder must be replaced — no raw {{PROPOSAL_TEMPLATE_HASH}} in output
+    expect(writtenContent).not.toContain('{{PROPOSAL_TEMPLATE_HASH}}')
+    // Must contain a 16-char hex string for the template_hash field
+    expect(writtenContent).toMatch(/template_hash:\s*'[a-f0-9]{16}'/)
   })
 })

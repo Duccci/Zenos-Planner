@@ -384,6 +384,17 @@ export interface GuidanceOptions {
   templateInfo?: {
     name: string
     content: string
+    /**
+     * Explicit directive telling the receiving LLM what to do with the template.
+     * Co-located on the templateInfo object so the agent does not need to correlate
+     * fill instructions buried in guidance.workflow with the template content.
+     */
+    fillInstruction?: string
+    /**
+     * Canonical destination path (relative to project root) where the generated
+     * file must be written.  Reduces ambiguity between template content and target path.
+     */
+    outputPathHint?: string
   }
 }
 

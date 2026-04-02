@@ -864,6 +864,10 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         objectivesList
       )
 
+      // Strip HTML comments — they are LLM-authoring guidance in the template
+      // and add context noise for every agent that reads the gate PRD later.
+      gateContent = gateContent.replace(/<!--[\s\S]*?-->/g, '').replace(/\n{3,}/g, '\n\n').trim() + '\n'
+
       // Write gate file
       const fileName = `gate-${gateNumber.padStart(2, '0')}-${validated.name.replace(/\s+/g, '-').toLowerCase()}.md`
       const filePath = normalizePath(join(getZenoGitDir(getWorkspaceRoot()), 'gates', fileName))

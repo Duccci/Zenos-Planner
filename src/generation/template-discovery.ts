@@ -32,9 +32,10 @@ function parseFrontmatter(text: string): Record<string, string> | null {
   return out
 }
 
-export async function discoverTemplates(projectRoot?: string): Promise<Template[]> {
-  const baseDir = projectRoot ?? __installDir
-  const templatesDir = path.join(baseDir, 'templates')
+export async function discoverTemplates(_projectRoot?: string): Promise<Template[]> {
+  // Always scan from the package install directory — templates ship with the
+  // npm package and are never expected to exist in the user's project root.
+  const templatesDir = path.join(__installDir, 'templates')
   const mdDir = path.join(templatesDir, 'md-templates')
   const archDir = path.join(templatesDir, 'architecture-templates')
   const miscDir = path.join(templatesDir, 'misc-templates')
@@ -124,17 +125,4 @@ export async function loadTemplateContent(_projectRoot: string | undefined, relP
 export async function loadGitignoreTemplate(): Promise<string> {
   const full = path.join(__installDir, 'templates', 'misc-templates', 'gitignore')
   return fs.readFile(full, 'utf-8')
-}
-
-/**
- * Copies a template from the install directory into <workspacePath>/.local/zeno-templates/
- * and returns the absolute destination path. No template content is returned.
- */
-export async function copyTemplateToLocal(workspacePath: string, relPath: string): Promise<string> {
-  const srcPath = path.join(__installDir, relPath)
-  const destDir = path.join(workspacePath, '.local', 'zeno-templates')
-  await fs.mkdir(destDir, { recursive: true })
-  const destPath = path.join(destDir, path.basename(relPath))
-  await fs.copyFile(srcPath, destPath)
-  return destPath
 }

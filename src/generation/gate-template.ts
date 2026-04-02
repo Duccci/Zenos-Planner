@@ -5,12 +5,13 @@
  */
 
 import { readFileSync } from 'fs';
+import { createHash } from 'node:crypto';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { DIAGRAM_CATALOGUE } from './diagram-catalogue.js';
 
-// Install-relative __dirname so templates are found regardless of the user's CWD.
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+// Package-root directory so templates are found regardless of the user's CWD.
+const __installDir = fileURLToPath(new URL('../..', import.meta.url));
 
 export interface DiagramEntry {
   name: string;
@@ -49,7 +50,7 @@ export interface GateData {
  * Load template from file
  */
 export function loadTemplate(templateName: string): string {
-  const templatePath = join(__dirname, '../../templates/md-templates', `${templateName}.md`);
+  const templatePath = join(__installDir, 'templates', 'md-templates', `${templateName}.md`);
   return readFileSync(templatePath, 'utf-8');
 }
 
@@ -139,7 +140,15 @@ export function renderGateTemplate(template: string, data: GateData): string {
     diagramRows
   );
 
-  // For now, leave other sections as is, or add more replacements
+  // Embed template_hash in YAML frontmatter based on raw (pre-substitution) template content
+  const templateHash = createHash('sha256').update(template).digest('hex').slice(0, 16);
+  const frontmatterEnd = rendered.indexOf('\n---', 3);
+  if (frontmatterEnd !== -1) {
+    rendered =
+      rendered.slice(0, frontmatterEnd) +
+      `\n  template_hash: '${templateHash}'` +
+      rendered.slice(frontmatterEnd);
+  }
 
   return rendered;
 }

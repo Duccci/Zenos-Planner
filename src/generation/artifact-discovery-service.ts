@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { discoverTemplates, Template, copyTemplateToLocal, loadTemplateContent } from './template-discovery.js'
+import { discoverTemplates, Template, loadTemplateContent } from './template-discovery.js'
 import { discoverAgents, Agent } from './agent-discovery.js'
 import { discoverGates, Gate } from './gates-discovery.js'
 import { discoverProposals, Proposal } from './proposals-discovery.js'
@@ -45,8 +45,7 @@ export function createDiscoveryService(projectRoot: string): DiscoveryService {
           if (!found) return null
           try {
             const content = await loadTemplateContent(undefined, found.path)
-            const localPath = await copyTemplateToLocal(root, found.path).catch(() => undefined)
-            return { ...found, content, ...(localPath !== undefined && { localPath }) }
+            return { ...found, content }
           } catch {
             return found
           }

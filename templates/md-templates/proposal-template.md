@@ -7,6 +7,7 @@ zeno:
   roles: '{{ROLES}}'
   parallel_set_index: null
   created_at: '{{DATE}}'
+  template_hash: '{{PROPOSAL_TEMPLATE_HASH}}'
 ---
 
 # Proposal: [Proposal Title]
@@ -44,7 +45,7 @@ Skipping this step bypasses worktree isolation and breaks the approve/merge work
 
 **All proposals must deliver a complete, testable unit of work in a SINGLE implementation phase.**
 
-**NOT Allowed** â€” Forced sequentiality indicating multi-phased work:
+**NOT Allowed** -- Forced sequentiality indicating multi-phased work:
 
 "Phase 1: [task], Phase 2: [task]" or "Stage 1/2/3"
 
@@ -56,11 +57,11 @@ Skipping this step bypasses worktree isolation and breaks the approve/merge work
 
 Tasks that logically require strict ordering as distinct phases
 
-**Correct Approach** â€” Parallelizable work designed for one sitting:
+**Correct Approach** -- Parallelizable work designed for one sitting:
 
 Multiple independent tasks that can run in parallel (many tasks OK if independent)
 
-Create separate proposals for work with inherent sequentiality (e.g., foundation â†’ integration)
+Create separate proposals for work with inherent sequentiality (e.g., foundation -> integration)
 
 Use `Dependencies: requires` to establish ordering without forced phases
 
@@ -111,7 +112,7 @@ Never use placeholder values like "None" or "N/A" as hash references
 
 If no dependencies exist, replace the entire Dependencies section (header through table) with: `*No dependencies.*`
 
-The Description column must be self-contained â€” the apply agent reads only this table, not the dependency files
+The Description column must be self-contained -- the apply agent reads only this table, not the dependency files
 
 ---
 
@@ -135,7 +136,7 @@ NEVER use directory globs or wildcards (e.g., ~~`src/mcp/tools/*.ts`~~)
 
 NEVER use directory-only references (e.g., ~~`src/mcp/tools/`~~)
 
-If a refactoring touches many files, list each one explicitly â€” this is the cost signal that justifies splitting the proposal
+If a refactoring touches many files, list each one explicitly -- this is the cost signal that justifies splitting the proposal
 
 Each task should touch 1-3 files maximum; if more are needed, split into additional tasks
 
@@ -150,7 +151,7 @@ Each task should touch 1-3 files maximum; if more are needed, split into additio
 **File(s)**: `[path/to/file.ts]`
 **Action**: create | modify | delete | refactor
 
-[2-4 line description of what to implement. Name specific functions, interfaces, or patterns to follow. Do NOT embed code snippets â€” the apply agent reads the actual source files.]
+[2-4 line description of what to implement. Name specific functions, interfaces, or patterns to follow. Do NOT embed code snippets -- the apply agent reads the actual source files.]
 
 **Acceptance**:
 
@@ -165,7 +166,7 @@ Each task should touch 1-3 files maximum; if more are needed, split into additio
 **File(s)**: `[path/to/file.ts]`
 **Action**: create | modify | delete | refactor
 
-[2-4 line description. No code snippets â€” name types and functions, the apply agent reads actual source.]
+[2-4 line description. No code snippets -- name types and functions, the apply agent reads actual source.]
 
 **Acceptance**:
 
@@ -196,7 +197,7 @@ Each task should touch 1-3 files maximum; if more are needed, split into additio
 
 **Rules**:
 
-Every entry MUST be a fully-qualified file path â€” no directories, no globs, no wildcards
+Every entry MUST be a fully-qualified file path -- no directories, no globs, no wildcards
 
 This table is the authoritative scope boundary; the scope validator rejects modifications to unlisted files
 
@@ -205,7 +206,7 @@ Each file path must match exactly one file in the repository
 | File | Action | Description |
 |------|--------|-------------|
 | `src/[path]/[file].ts` | create/modify | [Brief change description] |
-| `tests/[path]/[file].test.ts` | create/modify | [Test description â€” include for solitary proposals only; gate-tied proposals defer tests] |
+| `tests/[path]/[file].test.ts` | create/modify | [Test description -- include for solitary proposals only; gate-tied proposals defer tests] |
 
 ---
 

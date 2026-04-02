@@ -102,10 +102,22 @@ export function gateHandlers(
             : await r.invoke('generateGates', payload)
 
           // Load gate PRD template so the LLM knows the expected structure
-          let templateInfo: { name: string; content: string } | undefined
+          let templateInfo: { name: string; content: string; fillInstruction?: string; outputPathHint?: string } | undefined
           try {
             const content = await loadTemplateContent(undefined, 'templates/md-templates/gate-prd-template.md')
-            templateInfo = { name: 'gate-prd-template', content }
+            templateInfo = {
+              name: 'gate-prd-template',
+              content,
+              fillInstruction:
+                'Open and DIRECTLY EDIT the gate PRD file that was scaffolded at outputPathHint. ' +
+                'Replace every remaining [bracketed placeholder] with concrete, project-specific content ' +
+                'drawn from the gate objectives and PRD context. ' +
+                'HTML <!-- --> comments are already stripped from the scaffolded file; do not add any. ' +
+                'All objectives must use unchecked [ ] boxes — [x] is reserved for completed gates only. ' +
+                'The validator rejects any file that still contains unfilled [bracket] placeholders. ' +
+                'Do not add sections not present in this template.',
+              outputPathHint: 'zeno/gates/gate-<XX>-<kebab-name>.md (replace <XX> with zero-padded gate number, <kebab-name> with a lowercase-kebab slug of the gate name)',
+            }
           } catch {
             // Template loading is best-effort; guidance still flows without it
           }

@@ -168,7 +168,7 @@ export function registerProposalCommands(program: Command): void {
         return
       }
 
-      const { readFile: readTemplate, writeFile } = await import('../../utils/file.js')
+      const { writeFile } = await import('../../utils/file.js')
       const { createHash } = await import('node:crypto')
 
       // Generate hash: SHA-256, first 16 hex chars
@@ -193,14 +193,9 @@ export function registerProposalCommands(program: Command): void {
       const fileName = `${date}-${slug}.md`
       const filePath = path.join(dir, fileName)
 
-      // Load template and replace placeholders
-      const templatePath = path.join(
-        projectRoot,
-        'templates',
-        'md-templates',
-        'proposal-template.md'
-      )
-      let content = await readTemplate(templatePath)
+      // Load template from the package install directory (not the user's project)
+      const { loadTemplateContent } = await import('../../generation/template-discovery.js')
+      let content = await loadTemplateContent(undefined, 'templates/md-templates/proposal-template.md')
       content = content.replace('[Proposal Title]', title)
       content = content.replace('[Generated SHA-256 first 16 chars]', hash)
       content = content.replace('[Gate ID]', gateId ?? 'solitary')

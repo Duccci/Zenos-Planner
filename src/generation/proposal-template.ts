@@ -7,9 +7,10 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
+import { logger } from '../utils/logger.js'
 
-// Install-relative __dirname so templates are found regardless of the user's CWD.
-const __dirname = fileURLToPath(new URL('.', import.meta.url))
+// Package-root directory so templates are found regardless of the user's CWD.
+const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 
 export interface Task {
   title: string
@@ -53,8 +54,12 @@ export interface ProposalData {
  * Load template from file
  */
 export function loadProposalTemplate(): string {
-  const templatePath = join(__dirname, '../../templates/md-templates/proposal-template.md')
-  return readFileSync(templatePath, 'utf-8')
+  const templatePath = join(__installDir, 'templates', 'md-templates', 'proposal-template.md')
+  const content = readFileSync(templatePath, 'utf-8')
+  if (content.includes('\uFFFD')) {
+    logger.warn('proposal-template.md contains replacement characters (\\uFFFD) — possible encoding corruption')
+  }
+  return content
 }
 
 /**

@@ -209,6 +209,17 @@ export function registerTemplateCommand(program: Command): void {
 
           const wordCount = countWords(content ?? '')
 
+          const FILL_HEADER = [
+            '> **FILL-OUT INSTRUCTIONS** — Replace every `[bracketed placeholder]` with concrete,',
+            '> project-specific content. HTML comments (`<!-- ... -->`) are LLM guidance — strip',
+            '> them before submitting. YAML frontmatter values in single quotes need real project',
+            '> values. Search for `[` to find every unfilled slot. The validator rejects files',
+            '> that still contain bracket placeholders.',
+            '',
+            '---',
+            '',
+          ].join('\n')
+
           if (options.compact) {
             // Compact format - minimal whitespace
             console.log(`# Template: ${resolvedName}`)
@@ -218,7 +229,7 @@ export function registerTemplateCommand(program: Command): void {
               console.log(`**Description**: ${metadata.description ?? ''}`)
             }
             console.log('')
-            console.log(content)
+            console.log(FILL_HEADER + (content ?? ''))
           } else {
             // Default format - readable with metadata
             console.log(`# Template Context`)
@@ -230,7 +241,7 @@ export function registerTemplateCommand(program: Command): void {
               console.log(`**Purpose**: ${metadata.description ?? ''}`)
             }
             console.log('')
-            console.log(content)
+            console.log(FILL_HEADER + (content ?? ''))
           }
         } catch (error) {
           console.error('Error loading template:', error)

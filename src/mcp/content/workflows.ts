@@ -216,7 +216,11 @@ export const PROPOSAL_GENERATION_WORKFLOW: WorkflowStep[] = [
       'Move to the next proposal file and repeat',
     ],
     guidance:
-      'Edit each file DIRECTLY — never create scripts, batch processors, or helper programs to do this. The RED proposal (first file) should describe the test suite. Implementation proposals (middle files) describe feature work. The GREEN proposal (last file) describes test verification. Preserve the existing RED/GREEN structure and requirements list; only fill in the bracketed placeholders and refine task details.',
+      'Edit each file DIRECTLY — never create scripts, batch processors, or helper programs to do this. ' +
+      'HTML comments are already stripped from scaffold files; do not add any. ' +
+      'Remove any instruction-prose sections (e.g. ## Single-Phase Requirement) that are still present — ' +
+      'these are authoring guidance delivered via templateInfo.content and must not appear in the final file. ' +
+      'The RED proposal (first file) should describe the test suite. Implementation proposals (middle files) describe feature work. The GREEN proposal (last file) describes test verification. Preserve the existing RED/GREEN structure and requirements list; only fill in the bracketed placeholders and refine task details.',
   },
   {
     order: 4,
@@ -324,10 +328,13 @@ export const GATE_GENERATION_WORKFLOW: WorkflowStep[] = [
     description:
       'Write the gate PRD markdown files. Each file must include: Objectives (unchecked [ ] boxes), Requirements, Technical Decisions, Acceptance Criteria.',
     actions: [
-      'Create zeno/gates/gate-XX-<name>.md for each gate',
+      'Edit the scaffold gate PRD at outputPathHint (already written to disk with HTML comments stripped)',
+      'Replace every [bracketed placeholder] with concrete, project-specific content',
       'All objectives use [ ] (never [x]) for new gates',
     ],
     guidance:
+      'HTML comments are already stripped from the scaffolded file — do not add any. ' +
+      'templateInfo.content carries the full template with comments for your authoring context only. ' +
       'Validated by artifact-validator.ts: unchecked [ ] boxes are required on pending gates.',
   },
   {

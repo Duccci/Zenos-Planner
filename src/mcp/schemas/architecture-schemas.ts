@@ -237,6 +237,12 @@ export const TemplateGetOutputSchema = z
     description: z.string().describe('Template description'),
     category: z.enum(['markdown', 'architecture']).describe('Category'),
     content: z.string().optional().describe('Full template content (if available)'),
+    fillDirective: z
+      .string()
+      .optional()
+      .describe(
+        'Always-present fill instruction: replace every [bracketed placeholder] before using the template'
+      ),
     _context: z
       .object({
         retrievedAt: z.string().describe('ISO timestamp when template was retrieved'),

@@ -750,6 +750,14 @@ export async function startGate(
   } catch (error) {
     logger.warn(`Failed to sync in_progress status to gate file for ${gateId}: ${String(error)}`)
   }
+
+  // Reconcile gate PRD with live DB data (requirements + proposals sections)
+  try {
+    const { reconcileGatePRD } = await import('./gate-prd-reconciler.js')
+    await reconcileGatePRD(gateId, projectRoot)
+  } catch (error) {
+    logger.warn(`Failed to reconcile gate PRD for ${gateId}: ${String(error)}`)
+  }
 }
 
 export async function regenerateGates(): Promise<void> {

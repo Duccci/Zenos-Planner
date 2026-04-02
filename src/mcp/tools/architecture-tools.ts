@@ -18,6 +18,28 @@ function getDiscovery(): ReturnType<typeof createDiscoveryService> {
 }
 
 /**
+ * Extract [bracketed] placeholder tokens from template content.
+ * Used to build fill-out instructions when includeContext is requested.
+ * Excludes Markdown links ([text](url)) and short checkbox tokens ([x]).
+ * Returns all unique placeholders — no arbitrary cap — so the LLM sees
+ * every slot that needs filling rather than a misleading partial list.
+ */
+function extractTemplatePlaceholders(content: string): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const match of content.matchAll(/\[([A-Za-z][^\]\n]{3,})\]/g)) {
+    const token = match[0]
+    const afterClose = content[content.indexOf(token, match.index) + token.length]
+    if (afterClose === '(') continue // skip Markdown links
+    if (!seen.has(token)) {
+      seen.add(token)
+      result.push(token)
+    }
+  }
+  return result
+}
+
+/**
  * Handler for list_template action
  * Returns all available templates (markdown and architecture)
  */
@@ -93,8 +115,15 @@ async function handleGetTemplate(
       path: string
       description: string
       category: 'markdown' | 'architecture'
+      content?: string
       localPath?: string
     }
+
+    const FILL_DIRECTIVE =
+      'Replace every [bracketed placeholder] with concrete, project-specific content before using this template. ' +
+      'Search for "[" in the file to find every unfilled slot. ' +
+      'Strip all HTML <!-- --> comments and any meta-commentary sections before final submission. ' +
+      'The validator rejects files that still contain unfilled bracket placeholders.'
 
     const result = {
       name: template.name,
@@ -102,11 +131,23 @@ async function handleGetTemplate(
       path: template.path,
       description: template.description,
       category: template.category,
+      content: template.content,
+      // Always present: brief fill directive so any caller gets fill guidance
+      // regardless of the includeContext flag.
+      fillDirective: FILL_DIRECTIVE,
       ...(template.localPath && { localPath: template.localPath }),
       ...(includeContext && {
-        _context: {
-          retrievedAt: new Date().toISOString(),
-          templateName: name,
+        fillInstructions: {
+          directive: FILL_DIRECTIVE,
+          // Full placeholder list — no cap — so the LLM sees every slot that
+          // needs filling rather than a misleading partial list.
+          placeholders: extractTemplatePlaceholders(template.content ?? ''),
+          rules: [
+            'Brackets denote required fields — never leave them verbatim in a submitted file.',
+            'HTML comments (<!-- ... -->) are LLM guidance — strip them before final submission.',
+            "YAML frontmatter fields enclosed in single quotes ('...') need real project values.",
+            'Search for "[" in the file to find every unfilled slot.',
+          ],
         },
       }),
     }

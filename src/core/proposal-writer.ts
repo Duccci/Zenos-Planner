@@ -1,8 +1,39 @@
+import { createHash } from 'node:crypto'
 import { ensureDir, writeFile } from '../utils/file.js'
 import { shortHash } from '../utils/hash.js'
 import { loadConfig } from '../utils/config.js'
 import { type ProposalRole } from './types.js'
 import path from 'path'
+
+/**
+ * Inject a scaffold reminder comment immediately after the YAML frontmatter close.
+ * Also strips all HTML comments from the template (authoring guidance that was
+ * delivered via templateInfo.content at generation time) before inserting the
+ * SCAFFOLD reminder, which is the only HTML comment that should survive on disk.
+ * This keeps the file lean for any LLM instance that reads it later.
+ *
+ * @param content  Rendered proposal file content ({{HASH}} already substituted).
+ * @param hash     The concrete proposal hash to embed in the validate call hint.
+ */
+function injectScaffoldReminder(content: string, hash: string): string {
+  const REMINDER =
+    `\n<!-- SCAFFOLD: This file contains [bracketed] placeholders that MUST be replaced with` +
+    ` concrete content before the proposal is valid.\n` +
+    `     Search for "[" to find every unfilled slot. The validator rejects files with unfilled placeholders.\n` +
+    `     IMPORTANT: Call proposal_action:start { "hash": "#${hash}" } BEFORE editing any files.\n` +
+    `     Run proposal_action:validate { "hash": "#${hash}" } when all placeholders are filled. -->\n`
+
+  // Strip template HTML comments (authoring guidance) before persisting.
+  // These were already delivered to the generating LLM via templateInfo.content.
+  const stripped = content.replace(/<!--[\s\S]*?-->/g, '').replace(/\n{3,}/g, '\n\n')
+
+  // Find the closing --- of the YAML frontmatter (must start after position 3 to skip opening ---)
+  const frontmatterEnd = stripped.indexOf('\n---\n', 3)
+  if (frontmatterEnd !== -1) {
+    return stripped.slice(0, frontmatterEnd + 5) + REMINDER + stripped.slice(frontmatterEnd + 5)
+  }
+  return stripped
+}
 
 export interface ProposalMetadata {
   hash: string
@@ -62,6 +93,13 @@ export async function decomposeToProposals(
   const proposals: ProposalMetadata[] = []
   let proposalIndex = 1
 
+  // Compute the hash of the raw template so each scaffold embeds it for drift detection.
+  // This mirrors the gate-prd template_hash mechanism and lets `zeno doctor` flag stale
+  // proposal files when the proposal template changes.
+  const proposalTemplateHash = createHash('sha256').update(templateContent).digest('hex').slice(0, 16)
+  // Stamp the placeholder in the template before passing it down to the phase generators.
+  const templateWithHash = templateContent.replace(/\{\{PROPOSAL_TEMPLATE_HASH\}\}/g, proposalTemplateHash)
+
   // Load config to get coverage threshold
   let coverageThreshold = 90
   try {
@@ -77,7 +115,7 @@ export async function decomposeToProposals(
       gateId,
       objectives,
       requirements,
-      templateContent,
+      templateWithHash,
       outputDir,
       proposals,
       proposalIndex,
@@ -89,7 +127,7 @@ export async function decomposeToProposals(
       gateId,
       objectives,
       requirements,
-      templateContent,
+      templateWithHash,
       outputDir,
       proposals,
       proposalIndex,
@@ -101,7 +139,7 @@ export async function decomposeToProposals(
       gateId,
       objectives,
       requirements,
-      templateContent,
+      templateWithHash,
       outputDir,
       proposals,
       proposalIndex,
@@ -113,7 +151,7 @@ export async function decomposeToProposals(
       gateId,
       objectives,
       requirements,
-      templateContent,
+      templateWithHash,
       outputDir,
       proposals,
       proposalIndex,
@@ -161,9 +199,12 @@ async function generateRedTestSuiteProposal(
   // hash even when the template doesn't contain {{OBJECTIVE}} / {{TASKS}} placeholders.
   const hash = shortHash(proposalContent + objectives.join('|') + tasks).substring(0, 8)
   const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
-  const renderedContent = proposalContent
-    .replace(/\{\{HASH\}\}/g, hash)
-    .replace(/\{\{DATE\}\}/g, today)
+  const renderedContent = injectScaffoldReminder(
+    proposalContent
+      .replace(/\{\{HASH\}\}/g, hash)
+      .replace(/\{\{DATE\}\}/g, today),
+    hash
+  )
   const filename = `${startIndex.toString().padStart(2, '0')}-red--test-suite.md`
   const fullPath = path.join(outputDir, filename)
 
@@ -225,9 +266,12 @@ async function generateImplementationProposals(
     // Include objective and tasks so each proposal in the same gate gets a distinct hash.
     const hash = shortHash(proposalContent + objective + tasks).substring(0, 8)
     const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
-    const renderedContent = proposalContent
-      .replace(/\{\{HASH\}\}/g, hash)
-      .replace(/\{\{DATE\}\}/g, today)
+    const renderedContent = injectScaffoldReminder(
+      proposalContent
+        .replace(/\{\{HASH\}\}/g, hash)
+        .replace(/\{\{DATE\}\}/g, today),
+      hash
+    )
     const filename = `${index.toString().padStart(2, '0')}-${objective
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -291,9 +335,12 @@ async function generateGreenVerificationProposal(
   // Include objectives and tasks in hash input for uniqueness across gates.
   const hash = shortHash(proposalContent + objectives.join('|') + tasks).substring(0, 8)
   const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
-  const renderedContent = proposalContent
-    .replace(/\{\{HASH\}\}/g, hash)
-    .replace(/\{\{DATE\}\}/g, today)
+  const renderedContent = injectScaffoldReminder(
+    proposalContent
+      .replace(/\{\{HASH\}\}/g, hash)
+      .replace(/\{\{DATE\}\}/g, today),
+    hash
+  )
   const filename = `${proposalIndex.toString().padStart(2, '0')}-green--test-verification.md`
   const fullPath = path.join(outputDir, filename)
 
@@ -458,9 +505,12 @@ export async function decomposeDocumentationProposals(
 
     const hash = shortHash(proposalContent + objective + tasks).substring(0, 8)
     const today = new Date().toISOString().split('T')[0] ?? new Date().toISOString()
-    const renderedContent = proposalContent
-      .replace(/\{\{HASH\}\}/g, hash)
-      .replace(/\{\{DATE\}\}/g, today)
+    const renderedContent = injectScaffoldReminder(
+      proposalContent
+        .replace(/\{\{HASH\}\}/g, hash)
+        .replace(/\{\{DATE\}\}/g, today),
+      hash
+    )
     const slug = objective.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 40)
     const filename = `${index.toString().padStart(2, '0')}-${slug}.md`
     const fullPath = path.join(outputDir, filename)

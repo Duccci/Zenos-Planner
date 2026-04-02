@@ -155,15 +155,15 @@ export async function generateProposals(
       nextSteps: [
         `1. VERIFY decomposition: ${String(objectives.length)} objective(s) extracted → ${objectives.map((o, i) => `(${String(i + 1)}) ${o}`).join('; ')}. If this does not match the gate's major deliverables, stop and re-read the gate PRD before editing any proposal.`,
         `2. Read the gate PRD: ${path.relative(projectRoot, gatePrdPath).replace(/\\/g, '/')} — gather requirements, technical decisions, and acceptance criteria`,
-        '2. For EACH scaffold proposal file (in order), open the file, read it, and directly edit it to:',
+        '3. For EACH scaffold proposal file (in order), open the file, read it, and directly edit it to:',
         '   a. Refine the proposal title if needed (scaffold title comes from the gate objective)',
         '   b. Write a concrete Summary (2-3 sentences) referencing the gate objective',
         '   c. Fill in Context / Why This Change with the rationale from the gate PRD',
         '   d. Refine the Tasks section with specific file paths, function names, and acceptance criteria',
         '   e. Populate the Files Affected table with actual source file paths',
         '   f. Set Dependencies using hash references to other proposals in this gate',
-        '3. After ALL proposals are filled in, run proposal_action:validate { hash } for each',
-        '4. Present a summary table of all proposals to the user for review',
+        '4. After ALL proposals are filled in, run proposal_action:validate { hash } for each',
+        '5. Present a summary table of all proposals to the user for review',
       ],
     }
   } catch (error) {
