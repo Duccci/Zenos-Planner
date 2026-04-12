@@ -11,7 +11,7 @@
       ".d.ts",
       ""
     ],
-    
+
     /* Emit */
     "outDir": "./dist",
     "rootDir": "./src",
@@ -20,15 +20,14 @@
     "sourceMap": true,
     "removeComments": false,
     "importHelpers": false,
-    "downlevelIteration": true,
-    
+
     /* Interop Constraints */
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
-    
+
     /* Type Checking */
     "strict": true,
     "noImplicitAny": true,
@@ -45,7 +44,7 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
-    
+
     /* Completeness */
     "skipLibCheck": true
   },
