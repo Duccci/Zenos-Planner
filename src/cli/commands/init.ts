@@ -75,18 +75,11 @@ async function runInitWorkflow(
     logger.info('Detected existing zeno/ git submodule — enabling submodule mode')
   }
 
-  // 2. Build config first so scaffold can resolve paths correctly.
-  //    In submodule mode the consumer stores planning data at the project root
-  //    (standalone layout: zenoDir = '.') to keep the submodule pristine.
-  //    The tool binary location is tracked via zenoToolDir.
+  // Build config — workspace topology is auto-detected at runtime from the
+  // filesystem (submodule vs standard layout), so no workspace fields needed.
   const config = getDefaultConfig(projectName, projectStatement)
-  if (usingSubmodule) {
-    config.zenoSubmodule = true
-    config.zenoToolDir = config.zenoDir   // e.g. 'zeno' — where the submodule is mounted
-    config.zenoDir = '.'                   // standalone layout for consumer data
-  }
 
-  // 1. Create project structure (pass config for submodule-aware path resolution)
+  // Create project structure (auto-detects layout from submodule state)
   logger.info('Creating project structure...')
   const createdPaths = await createProjectStructure(projectRoot, config)
   logger.info(`Created ${createdPaths.length.toString()} directories/files`)
@@ -107,7 +100,7 @@ async function runInitWorkflow(
   //    In submodule mode, write to consumer's planning dir (project root),
   //    not inside the submodule.
   logger.info('Generating AGENTS.md...')
-  const planningDir = getZenoGitDir(projectRoot, config)
+  const planningDir = getZenoGitDir(projectRoot)
   const agentsContent = generateAgentsMD(config)
   await writeAgentsMD(agentsContent, planningDir)
 
@@ -194,9 +187,8 @@ async function runInitWorkflow(
   // In submodule mode, also append tool-directory-specific entries that the
   // generic template cannot know (the mounted submodule path).
   if (usingSubmodule) {
-    const toolDir = config.zenoToolDir ?? 'zeno'
     const submoduleEntries = [
-      `${toolDir}/.zeno/`,
+      `zeno/.zeno/`,
     ]
     const missingSubmodule = submoduleEntries.filter((e) => !existingGitignore.includes(e))
     if (missingSubmodule.length > 0) {
@@ -215,14 +207,14 @@ async function runInitWorkflow(
   logger.info('Next steps:')
   if (usingSubmodule) {
     logger.info('  1. cd into zeno/ and install dependencies: cd zeno && npm install && npm run build')
-    logger.info('  2. Run "node zeno/bin/zeno.js mcp install" to configure the editor MCP server')
+    logger.info(`  2. Run "node zeno/bin/zeno.js mcp install" to configure the editor MCP server (server key: '${config.zenoServerName ?? 'zeno-planner'}')`)
     logger.info('  3. Commit the submodule changes: git add zeno .vscode && git commit')
     logger.info('  4. Run "node zeno/bin/zeno.js gates list" to see your roadmap')
     logger.info('  5. Start with "node zeno/bin/zeno.js gates start gate-01"')
   } else {
     logger.info('  1. Review zeno/PROJECT_PRD.md for project overview')
     logger.info('  2. Check zeno/architecture/ for system diagrams')
-    logger.info('  3. Run "zeno mcp install" to configure the editor MCP server')
+    logger.info(`  3. Run "zeno mcp install" to configure the editor MCP server (server key: '${config.zenoServerName ?? 'zeno-planner'}')`)
     logger.info('  4. Run "zeno gates list" to see your roadmap')
     logger.info('  5. Start with "zeno gates start gate-01"')
   }

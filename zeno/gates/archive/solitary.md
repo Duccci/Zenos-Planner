@@ -129,3 +129,15 @@ Implemented `zeno doctor` CLI command that audits the local environment for all 
 **Completed**: 2026-03-18
 
 Introduces Tree-sitter as an optional second parser backend in the code-analysis pipeline. The Babel parser continues to own TypeScript/JavaScript; Tree-sitter handles Python, Rust, Go, and C++ by producing normalized LOC, dependency, and complexity metrics through a shared analyzer interface. The feature is opt-in (controlled by an AnalysisOptions flag) and carries no breaking changes to existing consumers.
+
+### Unified Workspace Configuration: Standalone, Submodule, and Multi-Root Workspace Modes (#9fe231d8)
+
+**Completed**: 2026-04-13
+
+Consolidates and extends Zeno's project mounting and MCP wiring to support three clean deployment modes:
+
+1. **Standalone** — Zeno IS the project (`zenoDir: '.'`); binary at `./bin/mcp-server.js`
+2. **Submodule** — Zeno mounted at `zeno/` inside a consumer project; binary at `./zeno/bin/mcp-server.js`
+3. **VS Code multi-root workspace** — Zeno lives in a separate workspace folder or as a submodule inside each folder; MCP config in `.code-workspace` file with per-project server keys
+
+The current implementation hardcodes the MCP server key to `'zeno-planner'` and only writes `.vscode/mcp.json`. This breaks when multiple Zeno-managed projects share a VS Code workspace — the second `mcp install` silently overwrites the first project's entry. This proposal introduces per-project server naming (`zeno-<slug>`), read-merge-write support for `.code-workspace` files, and a unified `zeno mcp install` that auto-detects the mode and generates the correct config.

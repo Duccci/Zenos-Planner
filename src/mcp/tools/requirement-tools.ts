@@ -1,7 +1,7 @@
 ﻿export const requirementToolDefinitions = [
   {
     name: 'reg_action',
-    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate, regenerate. Use gate hash (from gates_action:list) for gateId/targetGateId. Use for querying requirements, managing dependencies, and DB maintenance.`,
+    description: `Registry DB: list, show, deps, transfer, search, inherit, trace, update, db_sync, db_status, purge_orphans, reset_gate, regenerate. Use gate ID (e.g. "gate-01") or hash from gates_action:list for gateId/targetGateId. Use for querying requirements, managing dependencies, and DB maintenance. NOTE: db_status, db_sync, purge_orphans, and regenerate are also available on proposal_action for discovery when managing proposals.`,
     inputSchema: ReqActionInputSchema,
   },
 ]

@@ -14,6 +14,7 @@ import {
   WorktreeRemoveInputSchema,
   WorktreeMergeInputSchema,
 } from '../schemas/worktree-schemas.js'
+import { normalizeHash } from '../../utils/normalize.js'
 
 export const worktreeToolDefinitions = [
   {
@@ -33,7 +34,12 @@ export function worktreeHandlers(
   return {
     worktree_action: async (args) => {
       const action = args['action'] as string
-      const payload = (args['payload'] ?? {}) as Record<string, unknown>
+      const rawPayload = (args['payload'] ?? {}) as Record<string, unknown>
+      // Normalize hash fields: strip leading '#' so tools work with or without it
+      const payload = { ...rawPayload }
+      if (typeof payload['hash'] === 'string') {
+        payload['hash'] = normalizeHash(payload['hash'] as string)
+      }
 
       try {
         const manager = new WorktreeManager()

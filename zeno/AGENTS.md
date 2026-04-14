@@ -26,8 +26,8 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 | ----- | ------------ | ---- |
 | `execution` | `proposal_action:start` (gate-tied) | Single proposal file only. No PRD or STRUCTURE.md. |
 | `solitary-execution` | `proposal_action:start` (solitary) | Single proposal file only. No gate PRD. No PRD or STRUCTURE.md. |
-| `gate-proposal-gen` | `proposal_action:generate` (gate-tied) | Gate PRD + `zeno/AGENTS.md` only. |
-| `solitary-generate` | `proposal_action:generate { solitary: true }` | `zeno/AGENTS.md` only. No PRD, no gate PRD. |
+| `gate-proposal-gen` | `proposal_action:scaffold` / `proposal_action:generate` (gate-tied) | Gate PRD + `zeno/AGENTS.md` only. |
+| `solitary-generate` | `proposal_action:scaffold` / `proposal_action:generate { solitary: true }` | `zeno/AGENTS.md` only. No PRD, no gate PRD. |
 | `planning` | `gates_action:generate` | `overview/PROJECT_PRD.md` + `overview/STRUCTURE.md` + `zeno/AGENTS.md`. |
 
 > Pass `operationMode` to `context_action` to declare the phase. In `execution` mode the response is DB-only. In `planning` mode `_planningContext` paths are included as load hints.
@@ -46,7 +46,7 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 | -------- | ------- | ------- |
 | `context_action` | `gate`, `proposal`, `requirement`, `repository` | Get working context or resolve any entity by hash/name |
 | `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `replan`, `cancel`, `defer` | Gate lifecycle |
-| `proposal_action` | `list`, `show`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer` | Proposal lifecycle |
+| `proposal_action` | `list`, `show`, `scaffold` (alias: `generate`), `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer`, `delete`, `db_status`, `db_sync`, `purge_orphans`, `regenerate` | Proposal lifecycle. **scaffold** stamps blank templates — fill all `[placeholders]` before validate. **delete** removes DB row + disk file atomically. **db_status/db_sync/purge_orphans** for housekeeping. |
 | `reg_action` | `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate` | Registry DB queries — all entity lookups, requirements, hashes, and dependencies |
 | `repos_action` | `list`, `detect`, `deps`, `adjust`, `add`, `remove`, `analyze` | Repository management and boundary detection |
 | `project_action` | `init`, `status` | Project initialization and status |

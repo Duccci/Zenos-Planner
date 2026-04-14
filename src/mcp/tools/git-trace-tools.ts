@@ -1,6 +1,7 @@
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../schemas/git-trace-schemas.js'
+import { normalizeHash } from '../../utils/normalize.js'
 
 /**
  * Git trace tool definitions
@@ -22,7 +23,12 @@ export function gitTraceHandlers(
   return {
     git_trace: async (args: Record<string, unknown>): Promise<CallToolResult> => {
       try {
-        const validated = GitTraceInputSchema.parse(args)
+        // Normalize artifactHash: strip leading '#' so tool works with or without it
+        const normalizedArgs = { ...args }
+        if (typeof normalizedArgs['artifactHash'] === 'string') {
+          normalizedArgs['artifactHash'] = normalizeHash(normalizedArgs['artifactHash'] as string)
+        }
+        const validated = GitTraceInputSchema.parse(normalizedArgs)
 
         const result = await registry.invoke('git_trace', validated)
 

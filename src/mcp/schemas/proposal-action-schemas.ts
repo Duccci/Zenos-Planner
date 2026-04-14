@@ -19,6 +19,7 @@ import {
   ProposalStartOutputSchema,
   ProposalCancelOutputSchema,
   ProposalDeferOutputSchema,
+  ProposalDeleteOutputSchema,
   ProposalQualitativeReviewSchema,
 } from './proposal-schemas.js'
 import { ProposalCreateOutputSchema } from './proposal-create-schemas.js'
@@ -26,27 +27,39 @@ import {
   ProposalGenerateOutputSchema,
   ProposalUpdateProgressOutputSchema,
 } from './workflow-schemas.js'
+import {
+  DbStatusOutputSchema,
+  DbSyncOutputSchema,
+  PurgeOrphansOutputSchema,
+  RegenerateOutputSchema,
+} from './reg-action-schemas.js'
 
 /**
  * Flat input schema for the proposal_action tool.
  *
  * action required for all calls:
- *   list      — list proposals; optional: gateId, status
- *   show      — get proposal details; required: hash
- *   generate  — create or generate proposals. Explicit-fields path (title + tasks → creates directly; optional: gateId, solitary, filesAffected, context, dependencies).
- *               Gate-tied AI path (gateId + preReview → decomposes gate PRD). Solitary path (solitary=true → standalone proposal).
- *               preReview required for AI decomposition and start (enforced by handler)
- *   validate  — run quality checks on a proposal; required: hash; optional: strict
- *   approve   — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
- *   reject    — reject with reason; required: hash, rejectionReason; optional: rejectedBy
- *   start     — create isolated worktree; required: hash, preReview; optional: startedBy
- *              preReview required for start (enforced by handler)
- *   progress  — update task status; required: hash, currentTask; optional: completed, notes, scopeExpansion
- *              currentTask required for every progress call (enforced by handler)
- *   cancel    — cancel a proposal (divergent/dropped); required: hash; optional: rejectionReason as reason
- *   defer     — move proposal to backlog (deferred to later); required: hash; optional: notes as reason
+ *   list          — list proposals; optional: gateId, status
+ *   show          — get proposal details; required: hash
+ *   scaffold      — stamp out blank scaffold files from template for AI filling (alias: generate).
+ *                   Explicit-fields path (title + tasks → creates directly; optional: gateId, solitary).
+ *                   Gate-tied AI path (gateId + preReview → decomposes gate PRD into scaffolds for LLM to fill).
+ *   generate      — alias for scaffold (kept for backward compatibility)
+ *   validate      — run quality checks on a proposal; required: hash; optional: strict
+ *   approve       — approve and merge a proposal; required: hash; optional: approverNotes, approvedBy
+ *   reject        — reject with reason; required: hash, rejectionReason; optional: rejectedBy
+ *   start         — create isolated worktree; required: hash, preReview; optional: startedBy
+ *                   preReview required for start (enforced by handler)
+ *   progress      — update task status; required: hash, currentTask; optional: completed, notes, scopeExpansion
+ *                   currentTask required for every progress call (enforced by handler)
+ *   cancel        — cancel a proposal (divergent/dropped); required: hash, confirmed: true
+ *   defer         — move proposal to backlog; required: hash, confirmed: true
+ *   delete        — permanently remove a proposal: DB row + disk file; required: hash, confirmed: true
+ *   db_status     — report proposal DB health (orphan count, status breakdown)
+ *   db_sync       — reconcile proposals DB with disk (upsert new files, remove orphans)
+ *   purge_orphans — delete DB rows with no matching .md file; optional: gateId, solitary, dryRun
+ *   regenerate    — delete the registry DB then re-initialise from disk
  *
- * preReview: required for `start` and `generate` actions; see PreReviewSchema for fields.
+ * preReview: required for `start` and `scaffold`/`generate` actions; see PreReviewSchema for fields.
  * currentTask: required for `progress` action; 1-based index of the task currently being applied.
  * scopeExpansion: optional for `progress` action; document files added outside filesAffected.
  */
@@ -55,6 +68,7 @@ export const ProposalActionInputSchema = z.object({
     .enum([
       'list',
       'show',
+      'scaffold',
       'generate',
       'validate',
       'approve',
@@ -63,23 +77,33 @@ export const ProposalActionInputSchema = z.object({
       'progress',
       'cancel',
       'defer',
+      'delete',
+      'db_status',
+      'db_sync',
+      'purge_orphans',
+      'regenerate',
     ])
     .optional()
     .describe(
       'Action to perform. ' +
         'list=show proposals (filter by gateId/status). ' +
         'show=get proposal details (needs: hash). ' +
-        'generate=create or generate proposals. ' +
-        'Explicit-fields path (needs: title, tasks; optional: gateId, filesAffected): creates the proposal directly. ' +
-        'Context-driven path (needs: gateId for gate-tied, or solitary=true; required: preReview with phase=generate): AI generates proposals from gate PRD. ' +
+        'scaffold=stamp out blank template files for a gate (needs: gateId + preReview for AI path, OR title + tasks for direct creation). ' +
+        '  NOTE: scaffold creates EMPTY templates — you must fill every [bracketed placeholder] before validating. ' +
+        'generate=alias for scaffold (backward compat). ' +
         'validate=run quality checks (needs: hash). ' +
         'approve=merge proposal (needs: hash; optional: writeback=true to patch status into .md file). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
         'start=create worktree for implementation (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems). ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
-        'cancel=mark proposal as cancelled/dropped (needs: hash, confirmed: true; optional: rejectionReason as reason). ' +
-        'defer=move proposal to backlog for later implementation (needs: hash, confirmed: true; optional: notes as reason). ' +
-        'IMPORTANT: cancel and defer are destructive and require confirmed: true — omitting it returns a confirmation prompt instead of executing.'
+        'cancel=mark proposal as cancelled/dropped (needs: hash, confirmed: true; optional: rejectionReason). ' +
+        'defer=move proposal to backlog (needs: hash, confirmed: true; optional: notes as reason). ' +
+        'delete=PERMANENTLY remove proposal DB row AND disk file (needs: hash, confirmed: true; optional: reason). Cannot be undone. ' +
+        'db_status=report proposal DB health — orphan count, status breakdown. Call before scaffold to detect stale state. ' +
+        'db_sync=reconcile proposals DB with disk: upsert new files, remove orphans. ' +
+        'purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). ' +
+        'regenerate=drop and recreate the registry DB from disk. ' +
+        'IMPORTANT: cancel, defer, and delete are destructive and require confirmed: true.'
     ),
 
   // --- list filters ---
@@ -92,7 +116,13 @@ export const ProposalActionInputSchema = z.object({
     .string()
     .optional()
     .describe('Proposal hash (show/validate/approve/reject/start/progress)'),
-  gateId: z.string().optional().describe('Gate hash from gates_action:list — never pass plaintext IDs like "gate-01" (list filter, create, generate)'),
+  gateId: z.string().optional().describe('Gate ID (e.g. "gate-01") or gate hash from gates_action:list. Both formats are accepted. (list filter, create, scaffold/generate)'),
+
+  // --- purge_orphans fields ---
+  dryRun: z.boolean().optional().describe('purge_orphans: when true, report orphans without deleting them'),
+  solitaryOrphans: z.boolean().optional().describe('purge_orphans: when true, only target solitary (gate_id = NULL) proposals'),
+  confirmDelete: z.boolean().optional().describe('Alias for confirmed used by purge_orphans and db_sync when combined with confirmed'),
+
 
   // --- create fields ---
   title: z.string().optional().describe('Proposal title (create)'),
@@ -285,6 +315,36 @@ export const ProposalActionOutputSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('defer'),
     result: ProposalDeferOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('delete'),
+    result: ProposalDeleteOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('scaffold'),
+    result: ProposalGenerateOrCreateOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('db_status'),
+    result: DbStatusOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('db_sync'),
+    result: DbSyncOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('purge_orphans'),
+    result: PurgeOrphansOutputSchema,
+    validation: ValidationResultSchema.optional(),
+  }),
+  z.object({
+    action: z.literal('regenerate'),
+    result: RegenerateOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
 ])

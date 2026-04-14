@@ -36,7 +36,7 @@ describe('MCP Git Trace tools', () => {
 
     const result = await handlers.git_trace({ artifactHash: '#abc123' })
 
-    expect(mockRegistry.invoke).toHaveBeenCalledWith('git_trace', { artifactHash: '#abc123' })
+    expect(mockRegistry.invoke).toHaveBeenCalledWith('git_trace', { artifactHash: 'abc123' })
     expect(result.isError).toBeFalsy()
   })
 
@@ -107,7 +107,12 @@ describe('MCP Git Trace tools', () => {
 
     const result = await handlers.git_trace(allParams)
 
-    expect(mockRegistry.invoke).toHaveBeenCalledWith('git_trace', allParams)
+    expect(mockRegistry.invoke).toHaveBeenCalledWith('git_trace', {
+      artifactHash: 'abc123',
+      branch: 'develop',
+      limit: 50,
+      dir: '/repo',
+    })
     expect(result.isError).toBeFalsy()
   })
 })

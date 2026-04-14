@@ -5,6 +5,7 @@ import {
   ArtifactValidateInputSchema,
   ArtifactValidateOutputSchema,
 } from '../schemas/artifact-validation-schemas.js'
+import { normalizeHash } from '../../utils/normalize.js'
 
 export const validationToolDefinitions = [
   {
@@ -27,8 +28,13 @@ export function validationHandlers(
       if (mock) return mock
 
       try {
+        // Normalize artifactHash: strip leading '#' so tool works with or without it
+        const normalizedArgs = { ...args }
+        if (typeof normalizedArgs['artifactHash'] === 'string') {
+          normalizedArgs['artifactHash'] = normalizeHash(normalizedArgs['artifactHash'] as string)
+        }
         const { artifactPath, artifactHash, artifactType, outputFormat } =
-          ArtifactValidateInputSchema.parse(args)
+          ArtifactValidateInputSchema.parse(normalizedArgs)
         const { ArtifactValidationService } =
           await import('../../analysis/artifact-validation-service.js')
         const svc = new ArtifactValidationService()

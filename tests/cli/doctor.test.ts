@@ -127,6 +127,13 @@ describe('checkNodeVersion', () => {
     const result = await checkNodeVersion()
     expect(result.status).toBe('fail')
   })
+
+  it('returns fail when version string is not parseable', async () => {
+    mockSpawnSync.mockReturnValue(makeSpawnResult({ stdout: 'not-a-version\n', status: 0 }))
+    const result = await checkNodeVersion()
+    expect(result.status).toBe('fail')
+    expect(result.detail).toContain('Could not parse version from')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -169,6 +176,13 @@ describe('checkGitVersion', () => {
     mockSpawnSync.mockReturnValue(makeSpawnResult({ stdout: 'something unexpected\n' }))
     const result = await checkGitVersion()
     expect(result.status).toBe('fail')
+  })
+
+  it('returns fail when Git major version is less than 2', async () => {
+    mockSpawnSync.mockReturnValue(makeSpawnResult({ stdout: 'git version 1.9.5\n', status: 0 }))
+    const result = await checkGitVersion()
+    expect(result.status).toBe('fail')
+    expect(result.detail).toContain('Git 2.0+ required')
   })
 })
 
@@ -310,5 +324,19 @@ describe('runAllChecks', () => {
     })
     const report = await runAllChecks()
     expect(report.failed).toBeGreaterThanOrEqual(1)
+  })
+
+  it('counts warned checks when node version is between 20 and 24', async () => {
+    mockSpawnSync.mockImplementation((cmd: string) => {
+      if (String(cmd) === 'node') {
+        return makeSpawnResult({ stdout: 'v22.0.0\n', status: 0 })
+      }
+      if (String(cmd) === 'git') {
+        return makeSpawnResult({ stdout: 'git version 2.43.0\n', status: 0 })
+      }
+      return makeSpawnResult({ status: 0, stderr: 'dot - graphviz version 9.0.0' })
+    })
+    const report = await runAllChecks()
+    expect(report.warned).toBeGreaterThanOrEqual(1)
   })
 })

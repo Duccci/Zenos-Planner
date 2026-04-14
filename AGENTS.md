@@ -82,7 +82,7 @@ Diagrams are stored as:
 A gate-independent, self-contained proposal that is not tied to any gate. Solitary proposals:
 
 - Live in `zeno/proposals/solitary/` (stored with `gate_id = NULL` in the database)
-- Are created via `proposal_action:generate` with `{ "solitary": true, "title": "...", "tasks": [...] }`
+- Are created via `proposal_action:scaffold` (or `generate`) with `{ "solitary": true, "title": "...", "tasks": [...] }`
 - Are listed via `proposal_action:list` with `{ "gateId": "solitary" }`
 - Combine RED and GREEN phases inline — no separate phase proposals
 - Can be started, validated, and approved with the same `proposal_action` lifecycle as gate-tied proposals
@@ -281,7 +281,7 @@ project-root/
 1. **Gate Analysis**: New gate created; review the gate PRD at `zeno/gates/gate-XX-name.md`
 2. **Review requirements**: `zeno req list --gate "<id>"` to see what must be built
 3. **Check dependencies**: `zeno req deps <hash>` for cross-gate constraints
-4. **Generate proposals**: Use `proposal_action:generate` or `zeno proposal create <title>` to scaffold proposals for each implementation concern
+4. **Generate proposals**: Use `proposal_action:scaffold` (or alias `generate`) or `zeno proposal create <title>` to scaffold proposals for each implementation concern
 5. **Architectural review**: Cross-reference `zeno/architecture/system-overview.md` to ensure proposals fit the design
 
 ### Review Phase

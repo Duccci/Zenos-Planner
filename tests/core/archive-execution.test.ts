@@ -14,8 +14,7 @@ vi.mock('../../src/utils/git.js', () => ({
 }))
 
 vi.mock('../../src/utils/config.js', () => ({
-  loadConfig: vi.fn().mockResolvedValue({ zenoSubmodule: false }),
-  getZenoGitDir: vi.fn((root: string) => root),
+  isSubmoduleLayout: vi.fn().mockReturnValue(false),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({

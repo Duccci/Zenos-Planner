@@ -119,4 +119,18 @@ describe('Repository Handlers (integration)', () => {
 
     expect(res.isError).toBe(true)
   })
+
+  it('repos_analyze without groupBy calls the analyze function', async () => {
+    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: {} }) }
+    const handlers = repositoryHandlers(fakeRegistry)
+    await handlers.repos_action({ action: 'analyze' })
+    expect(fakeRegistry.invoke).toHaveBeenCalledWith('analyze', {})
+  })
+
+  it('repos_analyze with groupBy calls the metrics function', async () => {
+    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: {} }) }
+    const handlers = repositoryHandlers(fakeRegistry)
+    await handlers.repos_action({ action: 'analyze', groupBy: 'repository' })
+    expect(fakeRegistry.invoke).toHaveBeenCalledWith('metrics', { groupBy: 'repository' })
+  })
 })

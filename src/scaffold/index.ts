@@ -20,7 +20,7 @@ import { REQUIREMENTS_MANIFEST_FILE } from '../storage/requirements-sync.js'
  */
 export async function createProjectStructure(
   projectRoot: string = process.cwd(),
-  config?: ZenoConfig
+  _config?: ZenoConfig
 ): Promise<string[]> {
   const createdPaths: string[] = []
 
@@ -44,8 +44,8 @@ export async function createProjectStructure(
       logger.info('zeno/ is a git submodule — skipping top-level directory creation')
     }
 
-    const zenoPlanningDir = getZenoGitDir(projectRoot, config)
-    const zenoInternalDir = getZenoDir(projectRoot, config)
+    const zenoPlanningDir = getZenoGitDir(projectRoot)
+    const zenoInternalDir = getZenoDir(projectRoot)
 
     // Define directory structure
     const directories = [
