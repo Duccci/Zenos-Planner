@@ -7,11 +7,18 @@ import {
   ProposalStartOutputSchema,
   ProposalCancelOutputSchema,
   ProposalDeferOutputSchema,
+  ProposalDeleteOutputSchema,
   type ProposalQualitativeReview,
 } from '../schemas/proposal-schemas.js'
 import {
   ProposalUpdateProgressOutputSchema,
 } from '../schemas/workflow-schemas.js'
+import {
+  DbStatusOutputSchema,
+  DbSyncOutputSchema,
+  PurgeOrphansOutputSchema,
+  RegenerateOutputSchema,
+} from '../schemas/reg-action-schemas.js'
 import { ProposalActionInputSchema } from '../schemas/proposal-action-schemas.js'
 import {
   validateApplyPhase,
@@ -50,17 +57,22 @@ import { loadTemplateContent } from '../../generation/template-discovery.js'
  * Unified proposal action tool definition.
  * Consolidates all proposal lifecycle operations into a single action-based entrypoint.
  *
- * Actions: list, show, generate, validate, approve, reject, start, progress, cancel, defer
+ * Actions: list, show, scaffold, generate (alias), validate, approve, reject, start, progress,
+ *          cancel, defer, delete, db_status, db_sync, purge_orphans, regenerate
  *
- * The 'generate' action intelligently routes based on payload:
+ * The 'scaffold' action (alias: 'generate') intelligently routes based on payload:
  * - Explicit-fields path (title + tasks provided): creates the proposal directly via proposal_create
  * - Gate-tied AI path (gateId only, no title/tasks): decomposes gate PRD into proposals via generateProposals
  * - Solitary proposal (solitary=true or no gateId): creates a self-contained proposal via proposal_create
  *
+ * NOTE: scaffold creates EMPTY template files with [bracketed placeholders] that must be filled.
+ * It does NOT produce finished proposals. After scaffolding, open each file and replace every
+ * placeholder with concrete content before calling validate.
+ *
  * Example usage:
  * ```json
  * {
- *   "action": "generate",
+ *   "action": "scaffold",
  *   "payload": {
  *     "title": "Add authentication",
  *     "summary": "Implement JWT-based auth",
@@ -75,13 +87,23 @@ export const proposalToolDefinitions = [
   {
     name: 'proposal_action',
     description: [
-      'Proposal lifecycle: list, show, generate, validate, approve, reject, start, progress, cancel, defer.',
+      'Proposal lifecycle: list, show, scaffold (alias: generate), validate, approve, reject, start, progress, cancel, defer, delete, db_status, db_sync, purge_orphans, regenerate.',
+      '',
+      'SCAFFOLD vs GENERATE: "scaffold" and "generate" are the same action. Both stamp out EMPTY template files with [bracketed placeholders]. The LLM must fill every placeholder before calling validate. Think of it as "create blank forms", not "produce finished proposals".',
       '',
       'USE start FIRST when asked to "start", "implement", "work on", or "execute" any proposal (gate-tied or solitary). Call start { hash } before editing any files — it transitions the proposal to in_progress and returns the worktree path. All file edits and commits must happen inside that worktree, not in the main workspace. Then validate, then approve.',
       '',
       'USE generate with { solitary: true } for work that is not tied to any gate (cross-cutting improvements, tooling, experiments). Solitary proposals live in proposals/solitary/ and have gateId=null. List them with list { gateId: "solitary" }.',
       '',
-      'generate with gateId (AI decomposition path) REQUIRES preReview with phase="generate". Read the full Gate PRD and call reg_action { action: "list", gateId } BEFORE calling generate. Then supply preReview: { phase: "generate", openQuestionsResolved (bool), questionsFound (string[]), gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), assumptionsDocumented (string[]), blockersIdentified (string[]) }. Omitting preReview returns a structured validation error.',
+      'scaffold/generate with gateId (AI decomposition path) REQUIRES preReview with phase="generate". Read the full Gate PRD and call reg_action { action: "list", gateId } BEFORE calling scaffold. Then supply preReview: { phase: "generate", openQuestionsResolved (bool), questionsFound (string[]), gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), assumptionsDocumented (string[]), blockersIdentified (string[]) }. Omitting preReview returns a structured validation error.',
+      '',
+      'DELETE: Use delete { hash, confirmed: true } to permanently remove a proposal (DB row + disk file). Cannot be undone. For stale/orphaned DB rows that have no disk file, use purge_orphans instead.',
+      '',
+      'DB HOUSEKEEPING (call before scaffold to detect stale state):',
+      '  db_status   — report orphan count and status breakdown',
+      '  db_sync     — reconcile DB with disk (add missing rows, remove orphans)',
+      '  purge_orphans — remove DB rows with no matching .md file (optional: gateId, solitary, dryRun)',
+      '  regenerate  — drop and recreate the entire registry DB from disk',
       '',
       'cancel and defer require confirmed: true — omitting confirmed returns a prompt instead of executing.',
       '',
@@ -247,6 +269,7 @@ export function proposalHandlers(
       actions: [
         'list',
         'show',
+        'scaffold',
         'generate',
         'validate',
         'approve',
@@ -255,6 +278,11 @@ export function proposalHandlers(
         'progress',
         'cancel',
         'defer',
+        'delete',
+        'db_status',
+        'db_sync',
+        'purge_orphans',
+        'regenerate',
       ] as const,
       inputSchema: ProposalActionInputSchema,
       outputSchema: ProposalActionOutputSchema,
@@ -264,6 +292,7 @@ export function proposalHandlers(
             return ProposalListOutputSchema
           case 'show':
             return ProposalDetailSchema
+          case 'scaffold':
           case 'generate':
             return ProposalGenerateOrCreateOutputSchema
           case 'validate':
@@ -280,6 +309,16 @@ export function proposalHandlers(
             return ProposalCancelOutputSchema
           case 'defer':
             return ProposalDeferOutputSchema
+          case 'delete':
+            return ProposalDeleteOutputSchema
+          case 'db_status':
+            return DbStatusOutputSchema
+          case 'db_sync':
+            return DbSyncOutputSchema
+          case 'purge_orphans':
+            return PurgeOrphansOutputSchema
+          case 'regenerate':
+            return RegenerateOutputSchema
           default:
             throw new Error(`Unknown proposal action: ${String(action)}`)
         }
@@ -344,6 +383,32 @@ export function proposalHandlers(
               } catch {
                 // best-effort: don't fail proposal generation if gate state update fails
               }
+              // Auto-warn: check for orphaned DB rows before continuing so the LLM
+              // is aware of stale state from prior (interrupted) scaffold attempts.
+              try {
+                const statusResult = await r.invoke('reg_action', { action: 'db_status', payload: {} })
+                if (statusResult.success) {
+                  const dbStatus = statusResult.data as { orphaned?: number; orphanedHashes?: string[] }
+                  if ((dbStatus.orphaned ?? 0) > 0) {
+                    invokeResult = {
+                      ...invokeResult,
+                      data: {
+                        ...(invokeResult.data as Record<string, unknown>),
+                        orphanWarning: {
+                          orphaned: dbStatus.orphaned,
+                          orphanedHashes: dbStatus.orphanedHashes,
+                          message:
+                            `${String(dbStatus.orphaned)} orphaned DB row(s) detected (DB entries with no matching .md file on disk). ` +
+                            'These are likely from an earlier interrupted scaffold session. ' +
+                            'Call proposal_action { action: "purge_orphans", dryRun: false } to clean them up.',
+                        },
+                      },
+                    }
+                  }
+                }
+              } catch {
+                // orphan check is best-effort; never block scaffold on it
+              }
               // Inject gate requirements so generated proposals utilize the prescribed specs
               const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } }).catch(() => null)
               if (reqResult?.success) {
@@ -403,6 +468,27 @@ export function proposalHandlers(
               templateInfo,
             }
           )
+        },
+        // scaffold is the canonical name; generate is kept as an alias — both do identical work
+        scaffold: async (payload, r) => {
+          // scaffold == generate: stamp out blank template files for a gate and return
+          // paths + authoring guidance. The calling LLM must then fill every [bracketed
+          // placeholder] before calling validate.
+          // Delegate to the exact same routing logic as generate by re-invoking the action.
+          // We cannot call actionHandlers.generate here at definition time (not yet bound),
+          // so we replicate the routing decision and delegate to the shared registry functions.
+          const isSolitary2 = (payload as { solitary?: boolean }).solitary === true
+          const hasGateId2 = Boolean((payload as { gateId?: string }).gateId)
+          if (isSolitary2 || !hasGateId2) {
+            return r.invoke('proposal_create', { ...(payload ?? {}), solitary: true })
+          }
+          const hasTitle2 = Boolean((payload as { title?: string }).title)
+          const explicitTasks2 = (payload as { tasks?: unknown[] }).tasks
+          const hasExplicitFields2 = hasTitle2 && Array.isArray(explicitTasks2) && explicitTasks2.length > 0
+          if (hasExplicitFields2) {
+            return r.invoke('proposal_create', payload)
+          }
+          return r.invoke('generateProposals', payload)
         },
         validate: async (payload, r) => {
           const inner = await r.invoke('proposal_validate', payload)
@@ -701,6 +787,46 @@ export function proposalHandlers(
             }
           }
           return r.invoke('proposal_defer', payload)
+        },
+        delete: async (payload, r) => {
+          const { confirmed, hash } = payload as { confirmed?: boolean; hash?: string }
+          if (!confirmed) {
+            return {
+              success: true,
+              data: {
+                requiresConfirmation: true,
+                action: 'delete' as const,
+                hash,
+                message:
+                  `Deleting proposal${hash ? ` "${hash}"` : ''} is PERMANENT and cannot be undone. ` +
+                  'This removes both the DB row and the disk file. ' +
+                  'Please confirm with the user before proceeding. ' +
+                  'To remove only orphaned DB rows (no disk file present), use purge_orphans instead. ' +
+                  'Re-call with confirmed: true once the user has explicitly approved.',
+              },
+            }
+          }
+          return r.invoke('proposal_delete', payload)
+        },
+        db_status: async (_payload, r) => {
+          return r.invoke('reg_action', { action: 'db_status', payload: {} })
+        },
+        db_sync: async (_payload, r) => {
+          return r.invoke('reg_action', { action: 'db_sync', payload: {} })
+        },
+        purge_orphans: async (payload, r) => {
+          const p = payload as { gateId?: string; solitary?: boolean; dryRun?: boolean } | undefined
+          return r.invoke('reg_action', {
+            action: 'purge_orphans',
+            payload: {
+              gateId: p?.gateId,
+              solitary: p?.solitary,
+              dryRun: p?.dryRun ?? false,
+            },
+          })
+        },
+        regenerate: async (_payload, r) => {
+          return r.invoke('reg_action', { action: 'regenerate', payload: {} })
         },
       },
 

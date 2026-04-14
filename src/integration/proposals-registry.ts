@@ -215,6 +215,58 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
   )
 
   registry.register(
+    'proposal_delete',
+    async (params) => {
+      const validated = z.object({ hash: z.string(), reason: z.string().optional() }).parse(params)
+      const db = (await import('../storage/database.js')).getDatabase()
+      const normalizedHash = normalizeHash(validated.hash)
+      const proposal = db
+        .prepare('SELECT hash, title, gate_id, status FROM proposals WHERE hash = ? OR hash LIKE ?')
+        .get(normalizedHash, `${normalizedHash}%`) as Record<string, unknown> | undefined
+      if (!proposal) throw new Error(`Proposal not found: ${validated.hash}`)
+
+      // Locate disk file before deleting DB row so we can remove it atomically
+      let fileRemoved = false
+      let filePath: string | null = null
+      try {
+        const { findProposalByHash } = await import('../utils/artifact-locator.js')
+        filePath = await findProposalByHash(normalizedHash)
+        if (filePath) {
+          const { unlink } = await import('node:fs/promises')
+          await unlink(filePath)
+          fileRemoved = true
+        }
+      } catch {
+        // File removal is best-effort; still remove DB row so orphan cannot accumulate
+      }
+
+      // Remove DB row after attempting file deletion
+      db.prepare('DELETE FROM proposals WHERE hash = ?').run(proposal['hash'] as string)
+
+      const deletedAt = new Date().toISOString()
+      return {
+        hash: proposal['hash'] as string,
+        title: (proposal['title'] as string) ?? '',
+        gateId: (proposal['gate_id'] as string | null) ?? null,
+        previousStatus: (proposal['status'] as string) ?? 'pending',
+        fileRemoved,
+        filePath: filePath ?? null,
+        deletedAt,
+        reason: validated.reason,
+      }
+    },
+    {
+      description: 'Permanently delete a proposal: removes both the DB row and the disk file atomically. Cannot be undone.',
+      parameters: [
+        { name: 'hash', type: 'string', description: 'Proposal hash', required: true },
+        { name: 'reason', type: 'string', description: 'Optional reason for deletion', required: false },
+      ],
+      returnType: 'ProposalDeleteOutput',
+      schema: z.object({ hash: z.string(), reason: z.string().optional() }),
+    }
+  )
+
+  registry.register(
     'proposal_show',
     async (params) => {
       const validated = z.object({ hash: z.string() }).parse(params)

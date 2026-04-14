@@ -78,6 +78,7 @@ export default defineConfig({
         'src/mcp/tools/architecture-tools.ts', // Architecture tools handler wrapper (50% branch coverage)
         'src/integration/command-invoker.ts', // Command execution wrapper for AI agents (63.41% branch, integration-level)
         'src/utils/dot-renderer.ts', // Thin convenience wrapper over GraphvizRenderer — no logic, tested indirectly
+        'src/cli/commands/doctor/checks/sqlite-binding.ts', // Dynamic import failure path: Vitest wraps all factory-thrown values (including non-Error) in Error, making the `String(err)` branch unreachable in tests
         'src/storage/repository-storage.ts', // @red stub — no implementation yet
         'src/storage/repository-dependencies.ts', // @red stub — no implementation yet
         'src/core/boundary-detection.ts', // @red stub — no implementation yet

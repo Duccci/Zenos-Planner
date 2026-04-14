@@ -282,6 +282,22 @@ export const ProposalDeferOutputSchema = z.object({
 export type ProposalDeferOutput = z.infer<typeof ProposalDeferOutputSchema>
 
 // ============================================================================
+// PROPOSAL_DELETE - Permanently remove a proposal (DB row + disk file)
+// ============================================================================
+
+export const ProposalDeleteOutputSchema = z.object({
+  hash: ProposalHashSchema,
+  title: z.string(),
+  gateId: z.string().nullable(),
+  previousStatus: ProposalStatusEnum,
+  fileRemoved: z.boolean().describe('True when the disk file was successfully deleted'),
+  filePath: z.string().nullable().describe('Path of the deleted file, or null if not found'),
+  deletedAt: TimestampSchema,
+  reason: z.string().optional(),
+})
+export type ProposalDeleteOutput = z.infer<typeof ProposalDeleteOutputSchema>
+
+// ============================================================================
 // ERROR RESPONSES
 // ============================================================================
 

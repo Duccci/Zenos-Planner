@@ -9,7 +9,7 @@ import { z } from 'zod'
 import type { ComplexityThresholds } from '../generation/diagram-types.js'
 import { dirname, join } from 'node:path'
 import { statSync } from 'node:fs'
-import { readJsonFile, writeJsonFile, fileExists, normalizePath } from './file.js'
+import { readJsonFile, writeJsonFile, fileExists, normalizePath, directoryExists } from './file.js'
 import { ConfigError } from './errors.js'
 
 /**
@@ -131,48 +131,38 @@ export const ZenoConfigSchema = z
       .default({ cli: 'copilot', invocationMode: 'cli' }),
 
     /**
-     * Name of the planning directory relative to the project root.
+     * MCP server key for this project.
      *
-     * Defaults to `'zeno'` so that artifacts live at `<projectRoot>/zeno/`.
-     * Set to `'.'` when Zeno is used as a standalone planning repo (i.e. the
-     * repo itself IS the planning repo, not embedded as a submodule).  In that
-     * case all artifacts live directly under the repository root.
-     *
-     * This value is used by `getZenoDir` and `getZenoGitDir` once the config
-     * has been loaded; initial project discovery still uses the `'zeno'` default.
+     * Defaults to `'zeno-' + toSlug(projectName)` when not explicitly set.
+     * Persisted to config.json so re-runs of `mcp install` use the same key.
      */
-    zenoDir: z.string().default('zeno'),
-
-    /**
-     * Set to `true` when this project uses the Zeno planning repo as a git
-     * submodule (i.e. `zeno/` is a submodule, not a plain directory).
-     *
-     * Written automatically by `zeno init --submodule`.  The flag is used by
-     * `mcp install` to generate the correct binary path (`./zeno/bin/mcp-server.js`)
-     * and to inject `ZENO_WORKSPACE` into the editor MCP config so the server
-     * always resolves files relative to the consumer project root rather than
-     * the submodule root.
-     *
-     * When true, the consumer stores planning data at the project root using
-     * standalone layout (`zenoDir: '.'`) so the submodule remains pristine.
-     */
-    zenoSubmodule: z.boolean().optional(),
-
-    /**
-     * Path to the Zeno tool directory relative to the project root.
-     *
-     * Only meaningful when `zenoSubmodule` is `true`.  In submodule mode the
-     * consumer's planning data lives at the project root (`zenoDir: '.'`) while
-     * the tool binary lives inside the submodule.  `zenoToolDir` records where
-     * that submodule is mounted (e.g. `'zeno'`) so `mcp install` and other
-     * commands can locate `bin/mcp-server.js`.
-     */
-    zenoToolDir: z.string().optional(),
+    zenoServerName: z.string().optional(),
   })
   .loose()
 
 /** TypeScript type inferred from schema */
 export type ZenoConfig = z.infer<typeof ZenoConfigSchema>
+
+/**
+ * Convert a human-readable project name into a URL/key-safe slug.
+ *
+ * - Lowercases the input
+ * - Replaces runs of non-alphanumeric characters with a single hyphen
+ * - Trims leading/trailing hyphens
+ * - Falls back to `'project'` for empty or all-symbol inputs
+ *
+ * @example
+ * toSlug('My Cool Project')     // 'my-cool-project'
+ * toSlug('Zeno---Planner!!  ')  // 'zeno-planner'
+ * toSlug('')                    // 'project'
+ */
+export function toSlug(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'project'
+}
 
 /** Unified gate entry schema — all gates in one array, status is the discriminator */
 export const ProjectGateSchema = z.object({
@@ -267,18 +257,6 @@ export interface GateSummary {
 /** Default name of the planning directory within the project root */
 const DEFAULT_ZENO_DIR = 'zeno'
 
-/**
- * Module-level cache for zenoDir, populated by loadConfig().
- * Allows getZenoDir() callers that omit the `config` argument to still
- * respect a non-default zenoDir value after the config has been loaded once.
- */
-let _cachedZenoDir: string | undefined
-
-/** @internal – for tests only */
-export function _resetCachedZenoDir(): void {
-  _cachedZenoDir = undefined
-}
-
 /** Zeno internal state directory name (nested inside zenoDir) */
 const ZENO_INTERNAL_DIR = '.zeno'
 
@@ -295,6 +273,17 @@ function isDirGitSubmodule(dir: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Detect whether the project uses submodule layout.
+ *
+ * Returns `true` when `<projectRoot>/zeno/` is a git submodule, which means
+ * planning data lives at `<projectRoot>/.zeno/` (standalone layout) while the
+ * Zeno tool binary lives inside the submodule at `<projectRoot>/zeno/bin/`.
+ */
+export function isSubmoduleLayout(projectRoot: string): boolean {
+  return isDirGitSubmodule(join(projectRoot, DEFAULT_ZENO_DIR))
 }
 
 /**
@@ -321,54 +310,97 @@ export function getWorkspaceRoot(): string {
 }
 
 /**
- * Get the path to the .zeno directory for a given project root.
- * When `config` is provided its `zenoDir` field overrides the default (`'zeno'`),
- * allowing the planning directory to be placed elsewhere (e.g. `'.'` for a
- * standalone planning repo).
+ * Get the path to the .zeno internal directory for a given project root.
+ *
+ * Auto-detects the layout:
+ * - Submodule: `<root>/.zeno/` (zeno/ is a git submodule)
+ * - Standard:  `<root>/zeno/.zeno/` (zeno/ is a regular directory)
+ * - Standalone: `<root>/.zeno/` (no zeno/ directory)
+ *
+ * During init, the submodule check determines the layout before directories
+ * exist. For existing projects, filesystem probing resolves the layout.
+ *
  * @param projectRoot - Project root directory (default: process.cwd())
- * @param config - Optional loaded config; used to resolve `zenoDir`
  * @returns Absolute path to .zeno directory
  */
-export function getZenoDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  const zenoDir = config?.zenoDir ?? _cachedZenoDir ?? DEFAULT_ZENO_DIR
-  return normalizePath(join(projectRoot, zenoDir, '.zeno'))
+export function getZenoDir(projectRoot: string = process.cwd()): string {
+  // Submodule layout: planning data at <root>/.zeno/
+  if (isSubmoduleLayout(projectRoot)) {
+    return normalizePath(join(projectRoot, ZENO_INTERNAL_DIR))
+  }
+
+  // Standard layout: <root>/zeno/.zeno/ exists
+  const standardPath = join(projectRoot, DEFAULT_ZENO_DIR, ZENO_INTERNAL_DIR)
+  if (directoryExists(standardPath)) {
+    return normalizePath(standardPath)
+  }
+
+  // Standalone layout: <root>/.zeno/ exists (no zeno/ directory)
+  const standalonePath = join(projectRoot, ZENO_INTERNAL_DIR)
+  if (directoryExists(standalonePath)) {
+    return normalizePath(standalonePath)
+  }
+
+  // Default: standard layout (for fresh init)
+  return normalizePath(standardPath)
 }
 
 /**
- * Get the git working directory root for the zeno planning directory.
- * When zeno is used as a git submodule, git operations must run from the
- * planning directory root, not the parent project root.
- * When `config` is provided its `zenoDir` field overrides the default (`'zeno'`).
- * @param projectRoot - Parent project root directory (default: process.cwd())
- * @param config - Optional loaded config; used to resolve `zenoDir`
- * @returns Absolute path to the zeno planning directory root
+ * Get the planning directory root where artifacts (gates/, proposals/, etc.) live.
+ *
+ * Auto-detects the layout:
+ * - Submodule: `<root>/` (planning artifacts at project root)
+ * - Standard:  `<root>/zeno/`
+ * - Standalone: `<root>/` (no zeno/ directory)
+ *
+ * @param projectRoot - Project root directory (default: process.cwd())
+ * @returns Absolute path to the planning directory
  */
-export function getZenoGitDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  const zenoDir = config?.zenoDir ?? _cachedZenoDir ?? DEFAULT_ZENO_DIR
-  return normalizePath(join(projectRoot, zenoDir))
+export function getZenoGitDir(projectRoot: string = process.cwd()): string {
+  // Submodule layout: planning artifacts at consumer root
+  if (isSubmoduleLayout(projectRoot)) {
+    return normalizePath(projectRoot)
+  }
+
+  // Standard layout: zeno/.zeno/ exists → artifacts at zeno/
+  const standardInternalPath = join(projectRoot, DEFAULT_ZENO_DIR, ZENO_INTERNAL_DIR)
+  if (directoryExists(standardInternalPath)) {
+    return normalizePath(join(projectRoot, DEFAULT_ZENO_DIR))
+  }
+
+  // Standalone layout: .zeno/ at root → artifacts at root
+  const standalonePath = join(projectRoot, ZENO_INTERNAL_DIR)
+  if (directoryExists(standalonePath)) {
+    return normalizePath(projectRoot)
+  }
+
+  // Default: standard layout
+  return normalizePath(join(projectRoot, DEFAULT_ZENO_DIR))
 }
 
 /**
  * Get the path to the Zeno tool binary directory.
  *
- * In submodule mode the tool binary lives inside the submodule (tracked by
- * `zenoToolDir`) while planning data lives at the project root (`zenoDir: '.'`).
- * For non-submodule projects this returns the same value as `getZenoGitDir`.
+ * In submodule mode the tool binary lives at `<root>/zeno/` (the submodule).
+ * In standard mode the tool binary is at the project root itself.
+ *
+ * @param projectRoot - Project root directory (default: process.cwd())
+ * @returns Absolute path to the directory containing `bin/mcp-server.js`
  */
-export function getZenoToolDir(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  const toolDir = config?.zenoToolDir ?? config?.zenoDir ?? _cachedZenoDir ?? DEFAULT_ZENO_DIR
-  return normalizePath(join(projectRoot, toolDir))
+export function getZenoToolDir(projectRoot: string = process.cwd()): string {
+  if (isSubmoduleLayout(projectRoot)) {
+    return normalizePath(join(projectRoot, DEFAULT_ZENO_DIR))
+  }
+  return normalizePath(projectRoot)
 }
 
 /**
  * Get the path to the config.json file.
- * When `config` is provided its `zenoDir` field is used to resolve the path.
  * @param projectRoot - Project root directory (default: process.cwd())
- * @param config - Optional loaded config; used to resolve `zenoDir`
  * @returns Absolute path to config.json
  */
-export function getConfigPath(projectRoot: string = process.cwd(), config?: ZenoConfig): string {
-  return normalizePath(join(getZenoDir(projectRoot, config), CONFIG_FILE))
+export function getConfigPath(projectRoot: string = process.cwd()): string {
+  return normalizePath(join(getZenoDir(projectRoot), CONFIG_FILE))
 }
 
 /**
@@ -496,7 +528,7 @@ export function getDefaultConfig(projectName: string, projectStatement?: string)
       cli: 'copilot',
       invocationMode: 'acp',
     },
-    zenoDir: 'zeno',
+    zenoServerName: 'zeno-' + toSlug(projectName),
   }
 }
 
@@ -529,32 +561,17 @@ export function getDefaultProject(projectName: string, projectStatement: string)
  * @throws ConfigError if config is invalid
  */
 export async function loadConfig(projectRoot: string = process.cwd()): Promise<ZenoConfig> {
-  // Try standard path first, fall back to standalone layout.
-  // When the standard path resolves inside a git submodule the config belongs
-  // to the planner tool repo, not this consumer.  Prefer standalone layout.
-  const standardPath = getConfigPath(projectRoot)
-  const standalonePath = normalizePath(join(projectRoot, ZENO_INTERNAL_DIR, CONFIG_FILE))
-
-  const submoduleBlocks = isDirGitSubmodule(join(projectRoot, _cachedZenoDir ?? DEFAULT_ZENO_DIR))
-  let configPath: string
-  if (submoduleBlocks) {
-    // Standard path is inside the submodule — only use standalone consumer config
-    configPath = standalonePath
-  } else {
-    configPath = fileExists(standardPath) ? standardPath : standalonePath
-  }
+  // getConfigPath auto-detects the layout (submodule vs standard vs standalone).
+  const configPath = getConfigPath(projectRoot)
 
   if (!fileExists(configPath)) {
-    throw new ConfigError(`Configuration file not found: ${standardPath}`, 'CONFIG_NOT_FOUND', {
-      path: standardPath,
+    throw new ConfigError(`Configuration file not found: ${configPath}`, 'CONFIG_NOT_FOUND', {
+      path: configPath,
     })
   }
 
   try {
-    const config = await readJsonFile(configPath, ZenoConfigSchema)
-    // Cache zenoDir so getZenoDir() callers without a config arg still respect it.
-    _cachedZenoDir = config.zenoDir
-    return config
+    return await readJsonFile(configPath, ZenoConfigSchema)
   } catch (error) {
     if (error instanceof ConfigError) throw error
     throw new ConfigError(
@@ -577,7 +594,7 @@ export async function saveConfig(
   config: ZenoConfig,
   projectRoot: string = process.cwd()
 ): Promise<void> {
-  const configPath = getConfigPath(projectRoot, config)
+  const configPath = getConfigPath(projectRoot)
 
   // Validate before saving
   const result = ZenoConfigSchema.safeParse(config)
@@ -643,7 +660,6 @@ export function isZenoProject(projectRoot: string = process.cwd()): boolean {
   if (fileExists(standalonePath)) return true
 
   // Standard layout — but skip if zeno/ is a submodule
-  if (isDirGitSubmodule(join(projectRoot, _cachedZenoDir ?? DEFAULT_ZENO_DIR))) return false
   return fileExists(getConfigPath(projectRoot))
 }
 

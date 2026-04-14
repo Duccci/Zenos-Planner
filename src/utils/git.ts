@@ -357,34 +357,20 @@ export async function syncWithGit(options: {
  * Call this after committing changes inside the submodule's own git repo so
  * that the parent records the new HEAD of the submodule.
  *
+ * The submodule directory is always `'zeno'` (the standard mount point).
+ *
  * @param parentDir - Parent repository root (default: process.cwd())
  * @param message   - Commit message for the pointer update
- * @param zenoDir   - Name of the submodule directory relative to parentDir.
- *                    Defaults to the value stored in the project config, or
- *                    `'zeno'` if the config cannot be loaded.
  */
 export async function updateSubmodulePointer(
   parentDir: string = process.cwd(),
-  message: string,
-  zenoDir?: string
+  message: string
 ): Promise<void> {
-  // Resolve the submodule directory name: explicit arg > config > fallback.
-  let resolvedZenoDir = zenoDir
-  if (!resolvedZenoDir) {
-    try {
-      const cfg = await loadConfig(parentDir)
-      // In submodule mode, zenoToolDir tracks the submodule mount point;
-      // zenoDir is '.' (consumer's planning root), not the submodule path.
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      resolvedZenoDir = cfg.zenoToolDir ?? cfg.zenoDir ?? 'zeno'
-    } catch {
-      resolvedZenoDir = 'zeno'
-    }
-  }
+  const submoduleDir = 'zeno'
 
   try {
     const git = getGit(parentDir)
-    await git.add(resolvedZenoDir)
+    await git.add(submoduleDir)
     const status: StatusResult = await git.status()
     if (status.isClean()) {
       return // submodule pointer unchanged, nothing to commit
@@ -394,7 +380,7 @@ export async function updateSubmodulePointer(
     throw new GitError(
       'Failed to update submodule pointer in parent repo',
       'GIT_COMMIT_FAILED',
-      { parentDir, message, zenoDir: resolvedZenoDir },
+      { parentDir, message, zenoDir: submoduleDir },
       error instanceof Error ? error : undefined
     )
   }

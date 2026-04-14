@@ -235,5 +235,29 @@ describe('ShellValidationRunner', () => {
       expect(result.passed).toBe(false)
       expect(result.stderr).toContain('spawn failed synchronously')
     })
+
+    it('uses exit code 1 when process closes with null code', async () => {
+      const mockProc = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, callback: (code: number | null) => void) => {
+          if (event === 'close') setTimeout(() => callback(null), 0)
+        }),
+      }
+      vi.mocked(spawn).mockReturnValue(mockProc as any)
+      const result = await runner.runEslint()
+      expect(result.exitCode).toBe(1)
+      expect(result.passed).toBe(false)
+    })
+
+    it('handles non-Error thrown synchronously from spawn', async () => {
+      vi.mocked(spawn).mockImplementationOnce(() => {
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        throw 'bare-string-thrown'
+      })
+      const result = await runner.runEslint()
+      expect(result.passed).toBe(false)
+      expect(result.stderr).toContain('bare-string-thrown')
+    })
   })
 })

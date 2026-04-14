@@ -12,7 +12,7 @@ import {
   loadConfig,
   saveConfig,
   isZenoProject,
-  _resetCachedZenoDir,
+  toSlug,
 } from '../../src/utils/config.js'
 
 describe('config utilities', () => {
@@ -24,7 +24,6 @@ describe('config utilities', () => {
   })
 
   afterEach(async () => {
-    _resetCachedZenoDir()
     if (existsSync(testDir)) {
       await rm(testDir, { recursive: true, force: true })
     }
@@ -245,8 +244,6 @@ describe('config utilities', () => {
       // loadConfig should load the consumer's standalone config, not the planner's
       const loaded = await loadConfig(consumerRoot.replace(/\\/g, '/'))
       expect(loaded.projectName).toBe('MyApp')
-      expect(loaded.zenoSubmodule).toBe(true)
-      expect(loaded.zenoToolDir).toBe('zeno')
     })
   })
 
@@ -267,6 +264,16 @@ describe('config utilities', () => {
 
       expect(config.projectName).toBe('My Project')
       expect(config.projectStatement).toBe('End state description')
+    })
+
+    it('populates zenoServerName from project name slug', () => {
+      const config = getDefaultConfig('My Cool Project')
+      expect(config.zenoServerName).toBe('zeno-my-cool-project')
+    })
+
+    it('zenoServerName uses slug for names with special characters', () => {
+      const config = getDefaultConfig("Zeno's Planner")
+      expect(config.zenoServerName).toBe('zeno-zeno-s-planner')
     })
   })
 
@@ -404,5 +411,57 @@ describe('config utilities', () => {
     })
   })
 
+  describe('zenoServerName field', () => {
+    it('accepts zenoServerName as optional string', () => {
+      const config = { projectName: 'Test', zenoServerName: 'zeno-my-app' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) expect(result.data.zenoServerName).toBe('zeno-my-app')
+    })
+
+    it('loads existing config without zenoServerName without error', () => {
+      const config = { projectName: 'Test', version: '0.1.0' }
+      const result = ZenoConfigSchema.safeParse(config)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data.zenoServerName).toBeUndefined()
+      }
+    })
+  })
+
+})
+
+describe('toSlug', () => {
+  it('converts spaces to hyphens', () => {
+    expect(toSlug('My Cool Project')).toBe('my-cool-project')
+  })
+
+  it('lowercases the result', () => {
+    expect(toSlug('Hello World')).toBe('hello-world')
+  })
+
+  it('collapses consecutive special chars into one hyphen', () => {
+    expect(toSlug('  Zeno---Planner!!  ')).toBe('zeno-planner')
+  })
+
+  it('trims leading and trailing hyphens', () => {
+    expect(toSlug('---hello---')).toBe('hello')
+  })
+
+  it('returns project for empty string', () => {
+    expect(toSlug('')).toBe('project')
+  })
+
+  it('returns project for all-symbol string', () => {
+    expect(toSlug('!!!')).toBe('project')
+  })
+
+  it('handles leading/trailing whitespace', () => {
+    expect(toSlug('  test  ')).toBe('test')
+  })
+
+  it('preserves numbers', () => {
+    expect(toSlug('Project 42')).toBe('project-42')
+  })
 })
 

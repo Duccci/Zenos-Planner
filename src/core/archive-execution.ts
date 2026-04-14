@@ -1,5 +1,5 @@
 import { createTag, commit, pushCurrentBranch, updateSubmodulePointer } from '../utils/git.js'
-import { loadConfig, getZenoGitDir } from '../utils/config.js'
+import { isSubmoduleLayout } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
 export function getCurrentTimestamp(): string {
@@ -27,10 +27,11 @@ export async function performGitCommitAndPush(options: {
   const { tagName, commitMessage, files, remote } = options
   const projectRoot = options.projectRoot ?? process.cwd()
 
-  const config = await loadConfig(projectRoot).catch(() => null)
-  const isSubmodule = config?.zenoSubmodule === true
-  // Use direct condition so TypeScript narrows config to non-null in the true branch
-  const gitDir = config?.zenoSubmodule === true ? getZenoGitDir(projectRoot, config) : projectRoot
+  const isSubmod = isSubmoduleLayout(projectRoot)
+  // Git operations always run from the project root — in submodule mode,
+  // getZenoGitDir returns projectRoot; in standard mode, git also operates
+  // from projectRoot since archive files are tracked at the project level.
+  const gitDir = projectRoot
 
   if (tagName) {
     // Tags live in the parent repo so they appear in implementation history
@@ -39,19 +40,17 @@ export async function performGitCommitAndPush(options: {
 
   await commit(commitMessage, files, gitDir)
 
-  if (config?.zenoSubmodule === true) {
+  if (isSubmod) {
     // Update the parent repo's submodule pointer after the submodule commit
     await updateSubmodulePointer(
       projectRoot,
-      `chore(zeno): update submodule pointer after ${commitMessage.split('\n')[0] ?? commitMessage}`,
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      config.zenoToolDir ?? config.zenoDir ?? 'zeno'
+      `chore(zeno): update submodule pointer after ${commitMessage.split('\n')[0] ?? commitMessage}`
     )
   }
 
   try {
     await pushCurrentBranch(remote ?? 'origin', gitDir)
-    if (isSubmodule) {
+    if (isSubmod) {
       await pushCurrentBranch(remote ?? 'origin', projectRoot)
     }
   } catch (error) {

@@ -83,57 +83,46 @@ export function registerMcpCommands(program: Command): void {
 
   mcpCommand
     .command('install')
-    .description('Install MCP configuration and start the MCP server in the background')
-    .option('--editor <editor>', 'Editor to target (vscode|cursor|windsurf|all)', 'vscode')
+    .description('Install MCP configuration (auto-detects workspace topology)')
+    .option('--server-name <name>', 'Override the MCP server key')
     .option('--dry-run', 'Do not modify files, only show actions')
-    .action(async (opts: { editor: string; dryRun?: boolean }) => {
+    .action(async (opts: {
+      serverName?: string
+      dryRun?: boolean
+    }) => {
       try {
-        const { ensureWorkspaceMcp, isZenoInstalled } = await import('../../mcp/editor-adapters.js')
-        const { findProjectRoot, getWorkspaceRoot, loadConfig } = await import('../../utils/config.js')
+        const { installMcpConfig } = await import('../../mcp/editor-adapters.js')
+        const { findProjectRoot, getWorkspaceRoot, loadConfig, saveConfig } = await import('../../utils/config.js')
 
         const projectRoot = findProjectRoot(getWorkspaceRoot()) ?? process.cwd()
 
-        // Detect whether the project uses Zeno as a git submodule and resolve
-        // the correct binary directory and workspace path for mcp.json.
-        let zenoDir = '.'
-        try {
-          const cfg = await loadConfig(projectRoot)
-          if (cfg.zenoSubmodule === true) {
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            zenoDir = cfg.zenoToolDir ?? cfg.zenoDir ?? 'zeno'
-          }
-        } catch {
-          // Config not found or not yet initialised — fall back to standalone defaults.
-        }
-
-        // Check if Zeno is installed first (binary location differs for submodules)
-        const zeroInstallCheck = isZenoInstalled(projectRoot, zenoDir)
-        if (!zeroInstallCheck.valid) {
-          const reason = zeroInstallCheck.reason ?? 'Unknown reason'
-          logger.error(`zeno is not properly installed: ${reason}. run "npm install" to restore dependencies.`)
-          process.exit(1)
-        }
+        const result = await installMcpConfig(projectRoot, {
+          serverName: opts.serverName,
+          dryRun: opts.dryRun,
+        })
 
         if (opts.dryRun) {
-          const binaryPath = zenoDir === '.' ? './bin/mcp-server.js' : `./${zenoDir}/bin/mcp-server.js`
-          console.log('Dry run: actions that would be performed:')
-          console.log(`  - Ensure workspace .vscode/mcp.json exists`)
-          console.log(`  - MCP server binary: ${binaryPath}`)
-          if (zenoDir !== '.') {
-            console.log(`  - ZENO_WORKSPACE: ${projectRoot}`)
-          }
+          console.log('Dry run: no files modified.')
           process.exit(0)
         }
 
-        const written = ensureWorkspaceMcp(projectRoot, zenoDir)
-        if (written) console.log('[mcp-install] Wrote .vscode/mcp.json to workspace')
-        else console.log('[mcp-install] Workspace MCP config already exists')
+        if (result.written) {
+          console.log(`[mcp-install] Wrote MCP entry '${result.serverName}' to ${result.targetPath}`)
+        } else {
+          console.log(`[mcp-install] MCP entry '${result.serverName}' already up to date in ${result.targetPath}`)
+        }
 
-        // Note: The MCP server is launched by the editor via mcp.json stdio config.
-        // We no longer spawn a detached background server here — that caused orphaned
-        // node processes to accumulate because each `mcp install` call spawned a new
-        // child without checking if one was already running, and detached processes
-        // on Windows are not reliably cleaned up via SIGINT/SIGTERM.
+        // Persist server name back to config if it changed.
+        try {
+          const cfg = await loadConfig(projectRoot)
+          if (cfg.zenoServerName !== result.serverName) {
+            cfg.zenoServerName = result.serverName
+            await saveConfig(cfg, projectRoot)
+          }
+        } catch {
+          // Config may not exist yet — skip persistence.
+        }
+
         console.log('[mcp-install] Editor MCP config installed.')
         console.log('[mcp-install] The editor will start the MCP server automatically via stdio.')
         process.exit(0)

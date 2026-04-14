@@ -115,7 +115,7 @@ describe('reconcileGatePRD', () => {
 
   it('embeds template_hash into YAML frontmatter when absent', async () => {
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toMatch(/template_hash:\s*'[a-f0-9]{16}'/)
   })
 
@@ -126,7 +126,7 @@ describe('reconcileGatePRD', () => {
       ])
       .mockReturnValueOnce([])
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toContain('ZENO:AUTO:START:requirements')
     expect(written).toContain('#aabbccddeeff0011')
     expect(written).toContain('Validate input')
@@ -139,7 +139,7 @@ describe('reconcileGatePRD', () => {
         { hash: '1122334455667788', title: 'Build API layer', status: 'in_progress' },
       ])
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toContain('ZENO:AUTO:START:proposals')
     expect(written).toContain('Build API layer')
     expect(written).toContain('#1122334455667788')
@@ -155,7 +155,7 @@ describe('reconcileGatePRD', () => {
         { hash: 'newproph00000001', title: 'New Proposal', status: 'pending' },
       ])
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toContain('New Req')
     expect(written).toContain('New Proposal')
     expect(written).not.toContain('Old Req')
@@ -165,7 +165,7 @@ describe('reconcileGatePRD', () => {
   it('writes valid tables for gate with no requirements or proposals', async () => {
     mockDbAll.mockReturnValue([])
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toContain('ZENO:AUTO:START:requirements')
     expect(written).toContain('ZENO:AUTO:START:proposals')
     expect(written).toContain('No requirements generated yet')
@@ -176,7 +176,7 @@ describe('reconcileGatePRD', () => {
     mockReadFile.mockResolvedValue(FIXTURE_WITH_MARKERS)
     mockDbAll.mockReturnValue([])
     await reconcileGatePRD('gate-01', '/project')
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toContain('# Gate 01: Test Gate')
     expect(written).toContain('id: gate-01')
   })
@@ -184,7 +184,7 @@ describe('reconcileGatePRD', () => {
   it('still writes template_hash when DB query fails', async () => {
     mockDbPrepare.mockImplementation(() => { throw new Error('DB unavailable') })
     await expect(reconcileGatePRD('gate-01', '/project')).resolves.toBeUndefined()
-    const written: string = (mockWriteFile.mock.calls[0] as [string, string])[1]
+    const written: string = (mockWriteFile.mock.calls[0] as unknown as [string, string])[1]
     expect(written).toMatch(/template_hash:\s*'[a-f0-9]{16}'/)
   })
 })

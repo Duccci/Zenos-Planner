@@ -16,9 +16,12 @@ const mockCreateFunctionRegistry = vi.fn().mockReturnValue({
     },
   ]),
 })
-const mockEnsureWorkspaceMcp = vi.fn()
-const mockIsZenoInstalled = vi.fn()
+const mockInstallMcpConfig = vi.fn()
 const mockStopServer = vi.fn()
+const mockLoadConfig = vi.fn()
+const mockSaveConfig = vi.fn()
+const mockFindProjectRoot = vi.fn()
+const mockGetWorkspaceRoot = vi.fn().mockReturnValue(process.cwd())
 
 vi.mock('../../../src/utils/logger.js', () => ({
   logger: {
@@ -38,12 +41,18 @@ vi.mock('../../../src/integration/function-implementations.js', () => ({
 }))
 
 vi.mock('../../../src/mcp/editor-adapters.js', () => ({
-  ensureWorkspaceMcp: (...args: unknown[]) => mockEnsureWorkspaceMcp(...args),
-  isZenoInstalled: (...args: unknown[]) => mockIsZenoInstalled(...args),
+  installMcpConfig: (...args: unknown[]) => mockInstallMcpConfig(...args),
 }))
 
 vi.mock('../../../src/mcp/manager.js', () => ({
   stopServer: (...args: unknown[]) => mockStopServer(...args),
+}))
+
+vi.mock('../../../src/utils/config.js', () => ({
+  findProjectRoot: (...args: unknown[]) => mockFindProjectRoot(...args),
+  getWorkspaceRoot: (...args: unknown[]) => mockGetWorkspaceRoot(...args),
+  loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
+  saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }))
 
 describe('MCP commands action coverage', () => {
@@ -60,6 +69,11 @@ describe('MCP commands action coverage', () => {
       throw new Error('process.exit')
     })
     consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    // Default: config load fails (no project initialised) — CLI falls back gracefully
+    mockLoadConfig.mockRejectedValue(new Error('config not found'))
+    mockFindProjectRoot.mockReturnValue(process.cwd())
+    mockGetWorkspaceRoot.mockReturnValue(process.cwd())
+    mockSaveConfig.mockResolvedValue(undefined)
   })
 
   describe('diagnostics subcommand', () => {
@@ -141,53 +155,71 @@ describe('MCP commands action coverage', () => {
 
   describe('install subcommand', () => {
     it('should install MCP config with written=true', async () => {
-      mockIsZenoInstalled.mockReturnValue({ valid: true })
-      mockEnsureWorkspaceMcp.mockReturnValue(true)
+      mockInstallMcpConfig.mockResolvedValue({
+        target: 'mcp-json',
+        targetPath: '.vscode/mcp.json',
+        serverName: 'zeno-planner',
+        written: true,
+      })
 
       await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
       // process.exit(0) is called after install
       expect(exitSpy).toHaveBeenCalledWith(0)
-      expect(consoleSpy).toHaveBeenCalledWith('[mcp-install] Wrote .vscode/mcp.json to workspace')
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Wrote MCP entry 'zeno-planner'")
+      )
     })
 
     it('should handle already existing config', async () => {
-      mockIsZenoInstalled.mockReturnValue({ valid: true })
-      mockEnsureWorkspaceMcp.mockReturnValue(false)
+      mockInstallMcpConfig.mockResolvedValue({
+        target: 'mcp-json',
+        targetPath: '.vscode/mcp.json',
+        serverName: 'zeno-planner',
+        written: false,
+      })
 
       await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
-      expect(consoleSpy).toHaveBeenCalledWith('[mcp-install] Workspace MCP config already exists')
-    })
-
-    it('should handle zeno not installed', async () => {
-      mockIsZenoInstalled.mockReturnValue({ valid: false, reason: 'node_modules missing' })
-
-      await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
-      expect(exitSpy).toHaveBeenCalledWith(1)
-    })
-
-    it('should use Unknown reason when zeno not installed without reason', async () => {
-      mockIsZenoInstalled.mockReturnValue({ valid: false })
-
-      await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
-      expect(exitSpy).toHaveBeenCalledWith(1)
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('already up to date')
+      )
     })
 
     it('should dry-run', async () => {
-      mockIsZenoInstalled.mockReturnValue({ valid: true })
+      mockInstallMcpConfig.mockResolvedValue({
+        target: 'mcp-json',
+        targetPath: '.vscode/mcp.json',
+        serverName: 'zeno-planner',
+        written: false,
+      })
 
       await expect(
         program.parseAsync(['node', 'test', 'mcp', 'install', '--dry-run'])
       ).rejects.toThrow()
       expect(exitSpy).toHaveBeenCalledWith(0)
+      expect(consoleSpy).toHaveBeenCalledWith('Dry run: no files modified.')
     })
 
     it('should handle install errors', async () => {
-      mockIsZenoInstalled.mockImplementation(() => {
-        throw new Error('install check failed')
-      })
+      mockInstallMcpConfig.mockRejectedValue(new Error('install failed'))
 
       await expect(program.parseAsync(['node', 'test', 'mcp', 'install'])).rejects.toThrow()
       expect(exitSpy).toHaveBeenCalledWith(1)
+    })
+
+    it('should persist server name to config when changed', async () => {
+      mockInstallMcpConfig.mockResolvedValue({
+        target: 'mcp-json',
+        targetPath: '.vscode/mcp.json',
+        serverName: 'custom-name',
+        written: true,
+      })
+      mockLoadConfig.mockResolvedValue({ zenoServerName: 'zeno-planner' })
+
+      await expect(
+        program.parseAsync(['node', 'test', 'mcp', 'install', '--server-name', 'custom-name'])
+      ).rejects.toThrow()
+      expect(exitSpy).toHaveBeenCalledWith(0)
+      expect(mockSaveConfig).toHaveBeenCalled()
     })
   })
 

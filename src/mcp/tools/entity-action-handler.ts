@@ -12,6 +12,35 @@ import {
 } from './handler-factory.js'
 import type { ValidationResult } from './handler-factory.js'
 import { logger } from '../../utils/logger.js'
+import { normalizeHash } from '../../utils/normalize.js'
+
+/**
+ * Fields that contain entity hashes and should have leading '#' stripped.
+ * Applied at the MCP boundary so all downstream code receives clean values.
+ */
+const HASH_FIELDS = new Set([
+  'hash',
+  'artifactHash',
+  'proposalHash',
+  'gateHash',
+  'targetHash',
+  'gateId',
+  'targetGateId',
+])
+
+/**
+ * Strip leading '#' from any known hash/ID field in the payload.
+ * Ensures MCP tools work whether the caller includes '#' or not.
+ */
+function normalizePayloadHashes(payload: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...payload }
+  for (const key of HASH_FIELDS) {
+    if (typeof result[key] === 'string') {
+      result[key] = normalizeHash(result[key])
+    }
+  }
+  return result
+}
 
 export interface EntityActionConfig<T extends string> {
   entity: string
@@ -103,13 +132,14 @@ export function createEntityActionHandler<T extends string>(
       if (mock) return mock
 
       // Args without the `action` discriminator passed as the payload to handlers
-      const { action: _action, ...payload } = validated
+      const { action: _action, ...rawPayload } = validated
+      const payload = normalizePayloadHashes(rawPayload)
 
       // Run validators if provided
       if (config.validators?.[action] !== undefined) {
         const vFactory = config.validators[action]
         if (vFactory) {
-          const validators = vFactory(payload as Record<string, unknown>, registry)
+          const validators = vFactory(payload, registry)
           const validationResults = await runValidators(validators)
 
           if (!validationResults.allowed) {
@@ -122,7 +152,7 @@ export function createEntityActionHandler<T extends string>(
       const handler = config.actionHandlers[action]
       if (!handler) throw new Error(`Handler for action ${action} not found`)
 
-      const invokeResult = await handler(payload as Record<string, unknown>, registry)
+      const invokeResult = await handler(payload, registry)
 
       if (!invokeResult.success) {
         const err = invokeResult.error
