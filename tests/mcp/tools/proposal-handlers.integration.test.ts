@@ -1,4 +1,5 @@
-﻿import { describe, it, expect, vi } from 'vitest'
+﻿import { describe, it, expect, vi, afterAll } from 'vitest'
+import { simpleGit } from 'simple-git'
 import { proposalHandlers } from '../../../src/mcp/tools/proposal-tools.js'
 import { ProposalListOutputSchema, ProposalDetailSchema } from '../../../src/mcp/schemas/proposal-schemas.js'
 
@@ -678,5 +679,10 @@ describe('Proposal Handlers (integration)', () => {
     expect(createCall).toBeDefined()
     expect((createCall?.payload as Record<string, unknown>)['gateId']).toBeUndefined()
     expect((createCall?.payload as Record<string, unknown>)['solitary']).toBe(true)
+  })
+
+  afterAll(async () => {
+    const git = simpleGit(process.cwd())
+    await git.raw(['worktree', 'prune']).catch(() => {})
   })
 })

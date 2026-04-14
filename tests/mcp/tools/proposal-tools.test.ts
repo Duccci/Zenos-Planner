@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterAll } from 'vitest'
+import { simpleGit } from 'simple-git'
 
 describe('MCP Proposal tools (integration)', () => {
   it('proposal_list returns structured result or structured error', async () => {
@@ -653,5 +654,10 @@ describe('MCP Proposal tools (integration)', () => {
       const text = result.content?.[0]?.text ? String(result.content[0].text) : ''
       expect(text.toLowerCase()).not.toContain('currenttask is required')
     }
+  })
+
+  afterAll(async () => {
+    const git = simpleGit(process.cwd())
+    await git.raw(['worktree', 'prune']).catch(() => {})
   })
 })

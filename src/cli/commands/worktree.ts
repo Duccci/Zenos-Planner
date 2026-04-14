@@ -74,31 +74,22 @@ export function registerWorktreeCommands(program: Command): void {
 
   worktree
     .command('prune')
-    .description('Remove expired and/or orphaned worktrees')
-    .option('--expire-days <days>', 'Remove worktrees older than N days (default: 7)', '7')
-    .option('--orphaned', 'Also remove worktrees with no matching proposal in the registry', false)
+    .description('Remove orphaned worktrees with no matching proposal in the registry')
     .option('--dry-run', 'List what would be deleted without deleting', false)
-    .action(async (options: { expireDays: string; orphaned: boolean; dryRun: boolean }) => {
+    .action(async (options: { dryRun: boolean }) => {
       try {
         const manager = new WorktreeManager()
-        const maxAgeMs = parseInt(options.expireDays, 10) * 24 * 3600 * 1000
         const list = await manager.list()
-        const now = Date.now()
         const known = knownProposalHashes(process.cwd())
 
-        const toRemove = list.filter((w) => {
-          const expired = now - w.createdAt.getTime() >= maxAgeMs
-          const orphaned = options.orphaned && !known.has(w.proposalHash)
-          return expired || orphaned
-        })
+        const toRemove = list.filter((w) => !known.has(w.proposalHash))
 
         if (options.dryRun) {
           if (toRemove.length === 0) {
             logger.info('No worktrees would be pruned.')
           } else {
             const rows = toRemove.map((w) => {
-              const reason = !known.has(w.proposalHash) ? 'orphaned' : 'expired'
-              return `  ${w.proposalHash}  [${reason}]  (created: ${w.createdAt.getTime() === 0 ? 'unknown' : w.createdAt.toISOString()})`
+              return `  ${w.proposalHash}  [orphaned]  (created: ${w.createdAt.getTime() === 0 ? 'unknown' : w.createdAt.toISOString()})`
             })
             logger.info(`Would prune ${String(toRemove.length)} worktree(s):\n${rows.join('\n')}`)
           }

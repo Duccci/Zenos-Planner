@@ -133,12 +133,11 @@ export class WorktreeManager {
     this.worktrees.delete(proposalHash)
   }
 
-  async prune(maxAgeMs: number): Promise<void> {
+  async prune(knownHashes: Set<string>): Promise<void> {
     await this.syncFromGit()
-    const now = Date.now()
     const toRemove: string[] = []
-    for (const [hash, info] of this.worktrees) {
-      if (now - info.createdAt.getTime() >= maxAgeMs) {
+    for (const [hash] of this.worktrees) {
+      if (!knownHashes.has(hash)) {
         toRemove.push(hash)
       }
     }

@@ -44,13 +44,11 @@ export const WorktreeListOutputSchema = z.object({
 export type WorktreeListOutput = z.infer<typeof WorktreeListOutputSchema>
 
 // ============================================================================
-// WORKTREE_PRUNE - Remove expired/orphaned worktrees
+// WORKTREE_PRUNE - Remove orphaned worktrees
 // ============================================================================
 
 export const WorktreePruneInputSchema = z.object({
   dryRun: z.boolean().optional().default(false).describe('If true, list what would be deleted without deleting'),
-  expireDays: z.number().int().min(1).optional().describe('Override default expiration days (default: 7)'),
-  minDiskSpaceGB: z.number().min(0).optional().describe('Force cleanup if disk space below threshold')
 })
 export type WorktreePruneInput = z.infer<typeof WorktreePruneInputSchema>
 
@@ -59,7 +57,7 @@ export const WorktreePruneOutputSchema = z.object({
   pruned: z.array(z.object({
     hash: ProposalHashSchema,
     path: z.string(),
-    reason: z.enum(['expired', 'orphaned', 'disk_space_threshold']),
+    reason: z.enum(['orphaned']),
     deletedAt: TimestampSchema
   })),
   summary: z.object({

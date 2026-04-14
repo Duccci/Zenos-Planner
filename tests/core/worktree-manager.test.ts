@@ -148,68 +148,49 @@ describe('WorktreeManager', () => {
   });
 
   describe('prune()', () => {
-    it('should remove only expired worktrees', async () => {
-      vi.useFakeTimers();
-      const now = new Date('2026-03-16T12:00:00Z');
-      vi.setSystemTime(now);
+    it('should remove only orphaned worktrees', async () => {
+      const knownHash = 'known-proposal';
+      const orphanHash = 'orphan-proposal';
+      await manager.create(knownHash);
+      await manager.create(orphanHash);
 
-      const oldHash = 'old-worktree';
-      await manager.create(oldHash);
-
-      // Advance time by 2 hours
-      vi.setSystemTime(new Date(now.getTime() + 2 * 3600000));
-      const newHash = 'new-worktree';
-      await manager.create(newHash);
-
-      // Prune with max age of 1 hour
-      await manager.prune(3600000);
+      // Prune with only knownHash in the known set
+      await manager.prune(new Set([knownHash]));
 
       const list = await manager.list();
 
-      expect(list.some(w => w.proposalHash === oldHash)).toBe(false);
-      expect(list.some(w => w.proposalHash === newHash)).toBe(true);
-
-      vi.useRealTimers();
+      expect(list.some(w => w.proposalHash === knownHash)).toBe(true);
+      expect(list.some(w => w.proposalHash === orphanHash)).toBe(false);
     });
 
-    it('should skip worktrees younger than max age', async () => {
-      vi.useFakeTimers();
-      const now = new Date('2026-03-16T12:00:00Z');
-      vi.setSystemTime(now);
-
-      const youngHash = 'young-worktree';
-      await manager.create(youngHash);
-
-      // Prune with max age of 1 hour (recent worktree is only a few ms old)
-      await manager.prune(3600000);
-
-      const list = await manager.list();
-
-      expect(list.some(w => w.proposalHash === youngHash)).toBe(true);
-
-      vi.useRealTimers();
-    });
-
-    it('should preserve all worktrees when none are expired', async () => {
-      vi.useFakeTimers();
-      const now = new Date('2026-03-16T12:00:00Z');
-      vi.setSystemTime(now);
-
+    it('should preserve worktrees that have a matching proposal', async () => {
       const hash1 = 'wt-preserve-1';
       const hash2 = 'wt-preserve-2';
       await manager.create(hash1);
       await manager.create(hash2);
 
-      // Prune with very long max age (everything is younger)
-      await manager.prune(24 * 3600000); // 24 hours
+      // Both hashes are known — nothing should be pruned
+      await manager.prune(new Set([hash1, hash2]));
 
       const list = await manager.list();
 
       expect(list).toHaveLength(2);
       expect(list.map(w => w.proposalHash)).toContain(hash1);
       expect(list.map(w => w.proposalHash)).toContain(hash2);
+    });
 
-      vi.useRealTimers();
+    it('should remove all worktrees when known set is empty', async () => {
+      const hash1 = 'wt-orphan-1';
+      const hash2 = 'wt-orphan-2';
+      await manager.create(hash1);
+      await manager.create(hash2);
+
+      // Empty known set — all are orphaned
+      await manager.prune(new Set());
+
+      const list = await manager.list();
+
+      expect(list).toHaveLength(0);
     });
   });
 

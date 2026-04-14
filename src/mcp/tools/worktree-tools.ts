@@ -8,6 +8,7 @@ import type { FunctionRegistry } from '../../integration/function-registry.js'
 import { WorktreeManager } from '../../core/worktree-manager.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
+import { getDatabase } from '../../storage/database.js'
 import {
   WorktreeListInputSchema,
   WorktreePruneInputSchema,
@@ -20,7 +21,7 @@ export const worktreeToolDefinitions = [
   {
     name: 'worktree_action',
     description:
-      'Manage isolated git worktrees for proposals. Actions: list (active/orphaned/all), remove (by hash, optional --force), prune (expired/orphaned, supports dry-run), merge (proposal branch into main, strategies: rebase|squash|merge, supports dry-run).',
+      'Manage isolated git worktrees for proposals. Actions: list (active/orphaned/all), remove (by hash, optional --force), prune (remove orphaned worktrees with no matching proposal, supports dry-run), merge (proposal branch into main, strategies: rebase|squash|merge, supports dry-run).',
     inputSchema: z.object({
       action: z.enum(['list', 'remove', 'prune', 'merge']),
       payload: z.record(z.string(), z.unknown()).optional().default({}),
@@ -102,16 +103,23 @@ export function worktreeHandlers(
 
         if (action === 'prune') {
           const input = WorktreePruneInputSchema.parse(payload)
-          const expireDays = input.expireDays ?? 7
-          const maxAgeMs = expireDays * 24 * 3600 * 1000
           const before = await manager.list()
-          const now = Date.now()
+
+          let knownHashes: Set<string>
+          try {
+            const db = getDatabase(process.cwd())
+            const rows = db.prepare('SELECT hash FROM proposals').all() as { hash: string }[]
+            knownHashes = new Set(rows.map((r) => r.hash))
+          } catch {
+            knownHashes = new Set()
+          }
+
           const wouldPrune = before.filter(
-            (w) => now - w.createdAt.getTime() >= maxAgeMs
+            (w) => !knownHashes.has(w.proposalHash)
           )
 
           if (!input.dryRun) {
-            await manager.prune(maxAgeMs)
+            await manager.prune(knownHashes)
           }
 
           const after = input.dryRun ? before : await manager.list()
@@ -127,7 +135,7 @@ export function worktreeHandlers(
                       : wouldPrune.map((w) => ({
                           hash: w.proposalHash,
                           path: w.path,
-                          reason: 'expired' as const,
+                          reason: 'orphaned' as const,
                           deletedAt: new Date().toISOString(),
                         })),
                     summary: {

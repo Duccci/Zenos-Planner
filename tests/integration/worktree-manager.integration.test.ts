@@ -104,28 +104,26 @@ describe('WorktreeManager (integration)', () => {
   // ─── prune() ───────────────────────────────────────────────────────────────
 
   describe('prune()', () => {
-    it('removes worktrees older than maxAgeMs', async () => {
-      await manager.create('old-worktree')
-      // wait a tick so createdAt is measurably in the past
-      await new Promise((r) => setTimeout(r, 5))
+    it('removes orphaned worktrees not in known set', async () => {
+      await manager.create('orphan-worktree')
 
-      await manager.prune(1) // maxAgeMs=1ms, everything older is pruned
+      await manager.prune(new Set()) // empty known set — all are orphaned
 
       const list = await manager.list()
-      expect(list.find((w) => w.proposalHash === 'old-worktree')).toBeUndefined()
+      expect(list.find((w) => w.proposalHash === 'orphan-worktree')).toBeUndefined()
     })
 
-    it('keeps worktrees younger than maxAgeMs', async () => {
-      await manager.create('young-worktree')
+    it('keeps worktrees that have a matching proposal in known set', async () => {
+      await manager.create('known-worktree')
 
-      await manager.prune(60_000) // 1 minute — nothing is that old
+      await manager.prune(new Set(['known-worktree']))
 
       const list = await manager.list()
-      expect(list.find((w) => w.proposalHash === 'young-worktree')).toBeDefined()
+      expect(list.find((w) => w.proposalHash === 'known-worktree')).toBeDefined()
     })
 
     it('resolves without error when no worktrees exist', async () => {
-      await expect(manager.prune(1000)).resolves.toBeUndefined()
+      await expect(manager.prune(new Set())).resolves.toBeUndefined()
     })
   })
 
