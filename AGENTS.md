@@ -217,6 +217,33 @@ project-root/
 - Register handler factories via `registerTools()` (already implemented) so they override function-based tools.
 - Add tests that mock the `FunctionRegistry` to assert handlers return validated `structuredContent`.
 
+### MCP Parameter Conventions
+
+**Flat parameters only** — pass all fields alongside `action` at the top level. Never nest in `payload`.
+
+```json
+{ "action": "show", "hash": "p03api" }          // ✅ correct
+{ "action": "show", "payload": { "hash": "..." } } // ❌ wrong
+```
+
+**`#` prefix is optional** — the MCP layer auto-strips leading `#` from: `hash`, `gateId`, `targetGateId`, `artifactHash`, `proposalHash`, `gateHash`, `targetHash`.
+
+**Identifier field per tool:**
+
+| Tool | Field | Scope |
+|------|-------|-------|
+| `gates_action` | `gateId` | All gate operations (`"gate-01"` or gate hash) |
+| `proposal_action` | `hash` | All single-proposal operations |
+| `proposal_action` | `gateId` | List filter / scaffold target |
+| `reg_action` | `hash` | All single-requirement operations |
+| `reg_action` | `gateId` | List/search filter, inherit/reset_gate target |
+| `reg_action` | `targetGateId` | Transfer destination |
+| `context_action` | `hash` or `gateId` | Universal resolver (gates accept either; others need `hash`) |
+| `worktree_action` | `hash` | remove, merge |
+| `diagram_action` | `diagramType` / `name` | show / get_template (not hashes) |
+
+Full schemas: `docs/MCP-TOOLS.md`.
+
 ## Complete Command Reference
 
 | Category | Command | Description |
@@ -363,12 +390,13 @@ Zeno provides project-level planning (gates, roadmap) with architecture as a fir
 
 ## For More Details
 
-> **CRITICAL — MCP Tools Only**: Never query `registry.db` directly (`Get-Content`, `better-sqlite3`, raw SQL, `node -e`). The schema changes between gates; direct reads return stale data. Use MCP tools exclusively.
+> **MCP Tools Only** — never query `registry.db` directly. Use MCP tools exclusively.
 
-- `gates_action` / `reg_action` / `proposal_action` for project state queries
-- `context_action` to resolve any `#hash` to its entity
-- `config_get` for quality thresholds and project configuration
-- See `PROJECT_PRD.md` for project scope, technical decisions, and architecture principles
+- `gates_action` / `reg_action` / `proposal_action` — project state queries (see [MCP Parameter Conventions](#mcp-parameter-conventions))
+- `context_action` — resolve any entity by hash
+- `config_get` — quality thresholds and project config
+- `docs/MCP-TOOLS.md` — full input/output schemas, validators, error codes
+- `PROJECT_PRD.md` — project scope, decisions, architecture
 
 ---
 

@@ -24,6 +24,42 @@ The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI
 
 ---
 
+## Parameter Conventions
+
+### Flat Top-Level Parameters
+
+All fields sit alongside `action` at the top level. The handler extracts everything except `action` as the payload. **Never wrap in `payload`.**
+
+```json
+{ "action": "show", "hash": "p03api" }          // ✅ correct
+{ "action": "show", "payload": { "hash": "..." } } // ❌ wrong
+```
+
+### Hash Normalization
+
+Leading `#` is **optional** on all hash/ID fields — auto-stripped at the MCP boundary.
+
+Normalized fields: `hash`, `artifactHash`, `proposalHash`, `gateHash`, `targetHash`, `gateId`, `targetGateId`.
+
+### Per-Tool Identifier Reference
+
+| Tool | Field | Actions | Notes |
+| ---- | ----- | ------- | ----- |
+| `gates_action` | `gateId` | show, start, complete, validate, generate, regenerate, cancel, defer | `"gate-01"` format or gate hash |
+| `proposal_action` | `hash` | show, start, validate, approve, reject, progress, cancel, defer, delete | Proposal hash |
+| `proposal_action` | `gateId` | list, scaffold/generate | Filter or assignment |
+| `reg_action` | `hash` | show, deps, transfer, inherit, trace, update | Requirement hash |
+| `reg_action` | `gateId` | list, search, inherit, reset_gate | Filter or target |
+| `reg_action` | `targetGateId` | transfer | Destination gate |
+| `context_action` | `hash` | gate, proposal, requirement, repository | Universal resolver |
+| `context_action` | `gateId` | gate | Alternative to `hash` for gates |
+| `context_action` | `name` | repository | Alternative to `hash` for repos |
+| `worktree_action` | `hash` | remove, merge | Proposal hash |
+| `diagram_action` | `diagramType` | show | Enum, not a hash |
+| `diagram_action` | `name` | get_template | Template name, not a hash |
+
+---
+
 ## gates_action – Gate Lifecycle Management
 
 **Tool Name:** `gates_action`

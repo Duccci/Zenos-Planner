@@ -4,21 +4,20 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 
 ## Quick Navigation
 
-| What I Need | How to Get It |
+| What I Need | MCP Call |
 | --- | --- |
-| Project scope, goals, decisions | `overview/PROJECT_PRD.md` *(planning/generation only)* |
-| Repo map, modules, naming | `overview/STRUCTURE.md` *(planning/generation only)* |
-| Architecture diagrams | `diagram_action:show { type }` *(on-demand only)* |
-| Current gate status | `gates_action:list` |
-| Gate details & objectives | `context_action:gate { gateId }` |
-| Proposal working context | `context_action:proposal { hash }` |
-| List solitary proposals | `proposal_action:list { gateId: 'solitary' }` |
-| Requirements for gate | `reg_action:list { gateId }` |
-| Specific requirement | `reg_action:show { hash }` |
-| Proposal details | `proposal_action:show { hash }` |
+| Project scope & decisions | Read `overview/PROJECT_PRD.md` *(planning only)* |
+| Repo structure & naming | Read `overview/STRUCTURE.md` *(planning only)* |
+| Architecture diagram | `diagram_action` → `show` with `diagramType` |
+| All gates | `gates_action` → `list` |
+| Gate context | `context_action` → `gate` with `gateId` |
+| Proposal context | `context_action` → `proposal` with `hash` |
+| Solitary proposals | `proposal_action` → `list` with `gateId: "solitary"` |
+| Gate requirements | `reg_action` → `list` with `gateId` |
+| Single requirement | `reg_action` → `show` with `hash` |
+| Proposal details | `proposal_action` → `show` with `hash` |
 | Quality thresholds | `config_get` |
-| Hash lookup | `context_action { hash, action: 'requirement'\|'repository'\|'gate'\|'proposal' }` |
-| Project config | `config_get` |
+| Resolve any hash | `context_action` → `gate`/`proposal`/`requirement`/`repository` with `hash` |
 
 ## Context Phase Rules
 
@@ -55,6 +54,31 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 | `worktree_action` | `list`, `remove`, `prune`, `merge` | Git worktree management for proposals |
 | `artifact_validate` | — | Unified artifact validator (format/quality/dependency) |
 | `git_trace` | — | Trace git commits for artifacts (gates, proposals, requirements) |
+
+### Parameter Conventions
+
+**Flat parameters only** — every field sits alongside `action` at the top level. **Never wrap in `payload`.**
+
+```json
+{ "action": "show", "hash": "p03api" }          // ✅ correct
+{ "action": "show", "payload": { "hash": "..." } } // ❌ wrong
+```
+
+**`#` prefix is optional** — auto-stripped from `hash`, `gateId`, `targetGateId`, and other hash fields.
+
+**Identifier field per tool:**
+
+| Tool | Field | Scope | Example Call |
+| ---- | ----- | ----- | ------------ |
+| `gates_action` | `gateId` | All gate ops | `{ "action": "start", "gateId": "gate-03" }` |
+| `proposal_action` | `hash` | Single-proposal ops | `{ "action": "show", "hash": "p03api" }` |
+| `proposal_action` | `gateId` | List filter / scaffold target | `{ "action": "list", "gateId": "gate-03" }` |
+| `reg_action` | `hash` | Single-requirement ops | `{ "action": "show", "hash": "g03req1" }` |
+| `reg_action` | `gateId` | List/search filter | `{ "action": "list", "gateId": "gate-03" }` |
+| `reg_action` | `targetGateId` | Transfer destination | `{ "action": "transfer", "hash": "g03req1", "targetGateId": "gate-04" }` |
+| `context_action` | `hash` or `gateId` | Universal resolver | `{ "action": "gate", "gateId": "gate-03" }` |
+| `worktree_action` | `hash` | remove / merge | `{ "action": "remove", "hash": "p03api" }` |
+| `diagram_action` | `diagramType` / `name` | show / get_template | `{ "action": "show", "diagramType": "system-overview" }` |
 
 ## Proposal Execution Protocol
 
