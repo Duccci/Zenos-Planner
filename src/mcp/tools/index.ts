@@ -11,6 +11,7 @@ import { worktreeHandlers, worktreeToolDefinitions } from './worktree-tools.js'
 import { architectureHandlers, architectureToolDefinitions } from './architecture-tools.js'
 import { projectHandlers, projectToolDefinitions } from './project-tools.js'
 import { contextHandlers, contextToolDefinitions } from './context-tools.js'
+import { projectSyncHandlers, projectSyncToolDefinitions } from './project-sync-tools.js'
 import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
@@ -35,6 +36,7 @@ const handlerToolDefs = [
   ...contextToolDefinitions,
   ...gitTraceToolDefinitions,
   ...worktreeToolDefinitions,
+  ...projectSyncToolDefinitions,
 ]
 for (const def of handlerToolDefs) {
   toolMetaMap.set(def.name, {
@@ -82,6 +84,7 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
     contextHandlers,
     gitTraceHandlers,
     worktreeHandlers,
+    projectSyncHandlers,
   ]
   for (const factory of handlerFactories) {
     const handlers = factory(registry)

@@ -1,0 +1,742 @@
+/**
+ * Project Sync Service
+ *
+ * Manages multi-repo submodule synchronization for Zeno projects.
+ * Handles discovery of consumer repos, submodule status reporting,
+ * core repo commits, and propagation of submodule pointer updates.
+ */
+
+import { simpleGit } from 'simple-git'
+import { execSync } from 'node:child_process'
+import { join, basename, dirname, resolve } from 'node:path'
+import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { logger } from '../utils/logger.js'
+import { loadConfig, getWorkspaceRoot, findProjectRoot } from '../utils/config.js'
+import { WorktreeManager } from './worktree-manager.js'
+import type {
+  SyncConfig,
+  ConsumerStatus,
+  ProjectSyncStatusOutput,
+  ProjectSyncCommitOutput,
+  ProjectSyncPropagateOutput,
+  PropagateResult,
+  ProjectSyncFullOutput,
+} from '../mcp/schemas/project-sync-schemas.js'
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface DiscoveredConsumer {
+  name: string
+  path: string
+  submodulePath: string
+}
+
+interface CoreRepoInfo {
+  name: string
+  path: string
+  remoteUrl: string | null
+}
+
+// ============================================================================
+// Discovery
+// ============================================================================
+
+/**
+ * Detect the core repo — the repo containing `.zeno/config.json`.
+ */
+async function detectCoreRepo(projectRoot: string): Promise<CoreRepoInfo> {
+  const name = basename(projectRoot)
+  let remoteUrl: string | null = null
+  try {
+    const git = simpleGit(projectRoot)
+    const raw = await git.remote(['get-url', 'origin'])
+    remoteUrl = raw ? raw.trim() : null
+  } catch {
+    // No remote configured
+  }
+  return { name, path: projectRoot, remoteUrl }
+}
+
+/**
+ * Parse `.gitmodules` in a directory to find submodule entries.
+ * Returns an array of { path, url } for each submodule.
+ */
+function parseGitmodules(repoPath: string): { path: string; url: string }[] {
+  const gitmodulesPath = join(repoPath, '.gitmodules')
+  if (!existsSync(gitmodulesPath)) return []
+
+  const content = readFileSync(gitmodulesPath, 'utf8')
+  const entries: { path: string; url: string }[] = []
+  let currentPath: string | null = null
+  let currentUrl: string | null = null
+
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('[submodule ')) {
+      // Push previous entry if complete
+      if (currentPath && currentUrl) {
+        entries.push({ path: currentPath, url: currentUrl })
+      }
+      currentPath = null
+      currentUrl = null
+    } else if (trimmed.startsWith('path = ')) {
+      currentPath = trimmed.slice('path = '.length).trim()
+    } else if (trimmed.startsWith('url = ')) {
+      currentUrl = trimmed.slice('url = '.length).trim()
+    }
+  }
+  // Push last entry
+  if (currentPath && currentUrl) {
+    entries.push({ path: currentPath, url: currentUrl })
+  }
+  return entries
+}
+
+/**
+ * Check if a URL matches the core repo's remote URL.
+ * Handles variations: HTTPS vs SSH, trailing .git, etc.
+ */
+function urlMatchesCoreRepo(submoduleUrl: string, coreRemoteUrl: string | null, coreRepoName: string): boolean {
+  if (!coreRemoteUrl) {
+    // Fallback: match by repo name in the URL
+    const urlBase = basename(submoduleUrl).replace(/\.git$/, '')
+    return urlBase === coreRepoName
+  }
+
+  // Normalize both URLs for comparison
+  const normalize = (url: string): string =>
+    url.trim().replace(/\.git$/, '').replace(/\/$/, '').toLowerCase()
+
+  if (normalize(submoduleUrl) === normalize(coreRemoteUrl)) return true
+
+  // Handle SSH ↔ HTTPS mismatch: extract org/repo portion
+  const extractOrgRepo = (url: string): string | null => {
+    // SSH: git@github.com:org/repo.git
+    const sshMatch = /[:/]([^/]+\/[^/]+?)(?:\.git)?$/.exec(url)
+    if (sshMatch?.[1]) return sshMatch[1].toLowerCase()
+    // HTTPS: https://github.com/org/repo.git
+    const httpsMatch = /\/([^/]+\/[^/]+?)(?:\.git)?$/.exec(url)
+    if (httpsMatch?.[1]) return httpsMatch[1].toLowerCase()
+    return null
+  }
+
+  const subOrgRepo = extractOrgRepo(submoduleUrl)
+  const coreOrgRepo = extractOrgRepo(coreRemoteUrl)
+  return subOrgRepo !== null && subOrgRepo === coreOrgRepo
+}
+
+/**
+ * Discover consumer repos via filesystem walk of sibling directories.
+ * Each sibling that is a git repo and has a submodule matching the core
+ * repo is considered a consumer.
+ */
+function discoverConsumersFromFilesystem(
+  coreRepo: CoreRepoInfo,
+  syncConfig: Partial<SyncConfig>,
+): DiscoveredConsumer[] {
+  const parentDir = dirname(coreRepo.path)
+  const consumers: DiscoveredConsumer[] = []
+  const explicitSubmodulePath = syncConfig.submodulePath
+
+  let entries: string[]
+  try {
+    entries = readdirSync(parentDir)
+  } catch {
+    logger.warn(`Cannot read parent directory: ${parentDir}`)
+    return consumers
+  }
+
+  for (const entry of entries) {
+    const candidatePath = join(parentDir, entry)
+
+    // Skip non-directories and the core repo itself
+    try {
+      if (!statSync(candidatePath).isDirectory()) continue
+    } catch {
+      continue
+    }
+    if (resolve(candidatePath) === resolve(coreRepo.path)) continue
+
+    // Must be a git repo
+    if (!existsSync(join(candidatePath, '.git'))) continue
+
+    // Check .gitmodules for a matching submodule
+    const submodules = parseGitmodules(candidatePath)
+    for (const sub of submodules) {
+      const pathMatches = explicitSubmodulePath
+        ? sub.path === explicitSubmodulePath
+        : sub.path === coreRepo.name || basename(sub.path) === coreRepo.name
+
+      const urlMatches = urlMatchesCoreRepo(sub.url, coreRepo.remoteUrl, coreRepo.name)
+
+      if (pathMatches || urlMatches) {
+        consumers.push({
+          name: entry,
+          path: candidatePath,
+          submodulePath: sub.path,
+        })
+        break // One match per consumer is enough
+      }
+    }
+  }
+
+  return consumers
+}
+
+/**
+ * Discover consumer repos, preferring explicit config, then registry, then filesystem.
+ */
+function discoverConsumers(
+  coreRepo: CoreRepoInfo,
+  syncConfig: Partial<SyncConfig>,
+  registryConsumers?: { name: string; path: string }[],
+): DiscoveredConsumer[] {
+  const submodulePath = syncConfig.submodulePath ?? coreRepo.name
+
+  // 1. Explicit config list
+  if (syncConfig.consumers && syncConfig.consumers.length > 0) {
+    const parentDir = dirname(coreRepo.path)
+    return syncConfig.consumers
+      .map((name) => {
+        const consumerPath = join(parentDir, name)
+        if (!existsSync(consumerPath)) {
+          logger.warn(`Configured consumer not found: ${name}`)
+          return null
+        }
+        return { name, path: consumerPath, submodulePath }
+      })
+      .filter((c): c is DiscoveredConsumer => c !== null)
+  }
+
+  // 2. Registry consumers (repos_action:list results)
+  if (registryConsumers && registryConsumers.length > 0) {
+    const consumers: DiscoveredConsumer[] = []
+    for (const repo of registryConsumers) {
+      const repoPath = resolve(repo.path)
+      if (repoPath === resolve(coreRepo.path)) continue
+      if (!existsSync(repoPath)) continue
+
+      // Verify it actually has the core repo as submodule
+      const submodules = parseGitmodules(repoPath)
+      const hasCore = submodules.some(
+        (s) =>
+          s.path === submodulePath ||
+          basename(s.path) === coreRepo.name ||
+          urlMatchesCoreRepo(s.url, coreRepo.remoteUrl, coreRepo.name),
+      )
+      if (hasCore) {
+        consumers.push({ name: repo.name, path: repoPath, submodulePath })
+      }
+    }
+    if (consumers.length > 0) return consumers
+  }
+
+  // 3. Filesystem fallback
+  return discoverConsumersFromFilesystem(coreRepo, syncConfig)
+}
+
+// ============================================================================
+// Actions
+// ============================================================================
+
+/**
+ * Report the current submodule pin state across all consumer repos.
+ */
+export async function syncStatus(params: {
+  repos?: string[]
+  projectRoot?: string
+  registryConsumers?: { name: string; path: string }[]
+}): Promise<ProjectSyncStatusOutput> {
+  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const config = await loadConfig(projectRoot)
+  const syncConfig: Partial<SyncConfig> = ((config as Record<string, unknown>)['sync'] as Partial<SyncConfig> | undefined) ?? {}
+
+  const coreRepo = await detectCoreRepo(projectRoot)
+  const coreGit = simpleGit(projectRoot)
+  const coreHead = (await coreGit.revparse(['HEAD'])).trim()
+  const coreHeadShort = coreHead.slice(0, 7)
+
+  let allConsumers = discoverConsumers(coreRepo, syncConfig, params.registryConsumers)
+
+  // Filter to requested subset
+  if (params.repos && params.repos.length > 0) {
+    const requestedSet = new Set(params.repos)
+    allConsumers = allConsumers.filter((c) => requestedSet.has(c.name))
+  }
+
+  const worktreeManager = new WorktreeManager()
+  let worktreeHashes: Set<string>
+  try {
+    const worktrees = await worktreeManager.list()
+    worktreeHashes = new Set(worktrees.map((w) => w.proposalHash))
+  } catch {
+    worktreeHashes = new Set()
+  }
+
+  const consumers: ConsumerStatus[] = []
+
+  for (const consumer of allConsumers) {
+    try {
+      const consumerGit = simpleGit(consumer.path)
+      const submoduleStatusRaw = await consumerGit.raw([
+        'submodule', 'status', consumer.submodulePath,
+      ])
+      // Output format: " <hash> <path> (<desc>)" or "+<hash> <path> (<desc>)" for dirty
+      const trimmed = submoduleStatusRaw.trim()
+      const dirty = trimmed.startsWith('+')
+      const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(trimmed)
+      const pinnedHash = hashMatch?.[1] ?? ''
+
+      // Count commits behind
+      let behind = 0
+      if (pinnedHash && pinnedHash !== coreHead) {
+        try {
+          const subGit = simpleGit(join(consumer.path, consumer.submodulePath))
+          await subGit.fetch(['origin'])
+          const countRaw = await subGit.raw([
+            'rev-list', '--count', `${pinnedHash}..${coreHead}`,
+          ])
+          behind = parseInt(countRaw.trim(), 10) || 0
+        } catch {
+          // If we can't count, report -1 or just 0
+          behind = pinnedHash !== coreHead ? -1 : 0
+        }
+      }
+
+      // Check for active worktrees in this consumer
+      const hasWorktree = worktreeHashes.size > 0
+
+      consumers.push({
+        repo: consumer.name,
+        pinnedHash,
+        behind,
+        dirty,
+        hasWorktree,
+      })
+    } catch (error) {
+      logger.warn(`Failed to read submodule status for ${consumer.name}: ${error instanceof Error ? error.message : String(error)}`)
+      consumers.push({
+        repo: consumer.name,
+        pinnedHash: '',
+        behind: -1,
+        dirty: false,
+        hasWorktree: false,
+      })
+    }
+  }
+
+  const summary = {
+    total: consumers.length,
+    current: consumers.filter((c) => c.behind === 0 && c.pinnedHash !== '').length,
+    behind: consumers.filter((c) => c.behind > 0 || c.behind === -1).length,
+    dirty: consumers.filter((c) => c.dirty).length,
+    blocked: consumers.filter((c) => c.hasWorktree).length,
+  }
+
+  return {
+    coreRepo: coreRepo.name,
+    coreHead,
+    coreHeadShort,
+    consumers,
+    summary,
+  }
+}
+
+/**
+ * Commit pending changes in the core repo.
+ */
+export async function syncCommit(params: {
+  message: string
+  scope?: string
+  push?: boolean
+  tag?: string
+  projectRoot?: string
+}): Promise<ProjectSyncCommitOutput> {
+  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const config = await loadConfig(projectRoot)
+  const gitConfig = config.git ?? { autoCommit: true, autoTag: true, autoPush: false, remote: 'origin', commitFormat: 'feat(%s): %m' }
+
+  const git = simpleGit(projectRoot)
+  const status = await git.status()
+
+  if (status.isClean()) {
+    return { status: 'no-op' }
+  }
+
+  // Stage all changes
+  await git.add('-A')
+
+  // Format commit message
+  const commitFormat = gitConfig.commitFormat
+  let formattedMessage: string
+  if (params.scope) {
+    formattedMessage = commitFormat.replace('%s', params.scope).replace('%m', params.message)
+  } else {
+    // Remove scope placeholder and parens when no scope
+    formattedMessage = commitFormat
+      .replace('(%s)', '')
+      .replace('%s', '')
+      .replace(/:\s*%m/, `: ${params.message}`)
+      .replace('%m', params.message)
+      .replace(/\s+/g, ' ')
+      .trim()
+  }
+
+  await git.commit(formattedMessage)
+
+  const commitHash = (await git.revparse(['HEAD'])).trim()
+  const commitHashShort = commitHash.slice(0, 7)
+
+  // Tag if requested
+  if (params.tag) {
+    await git.tag(['-a', params.tag, '-m', `Tag ${params.tag}`])
+  }
+
+  // Push if requested or if autoPush is on
+  const shouldPush = params.push ?? gitConfig.autoPush
+  let pushed = false
+  if (shouldPush) {
+    const remote = gitConfig.remote
+    await git.push(remote, 'HEAD')
+    if (params.tag) {
+      await git.push(remote, params.tag)
+    }
+    pushed = true
+  }
+
+  return {
+    status: 'committed',
+    commitHash,
+    commitHashShort,
+    commitMessage: formattedMessage,
+    tag: params.tag,
+    pushed,
+  }
+}
+
+/**
+ * Detect schema-drift warnings between two commits.
+ */
+async function detectSchemaDrift(
+  projectRoot: string,
+  oldHash: string,
+  newHash: string,
+  schemaDir: string,
+): Promise<{ type: 'schema-change'; files: string[]; message: string }[]> {
+  if (oldHash === newHash) return []
+  try {
+    const git = simpleGit(projectRoot)
+    const diffRaw = await git.diff(['--name-only', oldHash, newHash])
+    const changedFiles = diffRaw.trim().split('\n').filter(Boolean)
+    const schemaFiles = changedFiles.filter((f) => f.startsWith(schemaDir))
+    if (schemaFiles.length > 0) {
+      return [
+        {
+          type: 'schema-change' as const,
+          files: schemaFiles,
+          message: `Schema files changed between ${oldHash.slice(0, 7)} and ${newHash.slice(0, 7)}. Consumers may need to regenerate bindings and update version registries.`,
+        },
+      ]
+    }
+  } catch {
+    // Best-effort: if we can't diff, skip warning
+  }
+  return []
+}
+
+/**
+ * Run post-sync hooks in a consumer directory.
+ */
+function runPostSyncHooks(
+  consumerPath: string,
+  hooks: string[],
+): { command: string; exitCode: number; stderr?: string }[] {
+  const results: { command: string; exitCode: number; stderr?: string }[] = []
+  for (const command of hooks) {
+    logger.info(`Running post-sync hook in ${consumerPath}: ${command}`)
+    try {
+      execSync(command, {
+        cwd: consumerPath,
+        encoding: 'utf8',
+        timeout: 120_000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      results.push({ command, exitCode: 0 })
+    } catch (error) {
+      const exitCode = (error as { status?: number }).status ?? 1
+      const stderr = (error as { stderr?: string }).stderr
+      results.push({ command, exitCode, stderr: stderr ?? undefined })
+    }
+  }
+  return results
+}
+
+/**
+ * Extract artifact hashes from a commit message for traceability.
+ */
+function extractArtifactHashes(message: string): string[] {
+  const matches = message.match(/#[a-z0-9]{8,16}/g)
+  return matches ? matches.map((m) => m.slice(1)) : []
+}
+
+/**
+ * Update the core submodule pointer in consumer repos and commit the change.
+ */
+export async function syncPropagate(params: {
+  commitHash?: string
+  repos?: string[]
+  commitMessage?: string
+  push?: boolean
+  dryRun?: boolean
+  force?: boolean
+  projectRoot?: string
+  registryConsumers?: { name: string; path: string }[]
+}): Promise<ProjectSyncPropagateOutput> {
+  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const config = await loadConfig(projectRoot)
+  const syncConfig: Partial<SyncConfig> = ((config as Record<string, unknown>)['sync'] as Partial<SyncConfig> | undefined) ?? {}
+  const gitConfig = config.git ?? { autoPush: false, remote: 'origin', commitFormat: 'feat(%s): %m' }
+  const dryRun = params.dryRun ?? false
+  const force = params.force ?? false
+
+  const coreRepo = await detectCoreRepo(projectRoot)
+  const coreGit = simpleGit(projectRoot)
+
+  // Resolve target commit hash
+  let targetHash: string
+  if (params.commitHash) {
+    targetHash = (await coreGit.revparse([params.commitHash])).trim()
+  } else {
+    targetHash = (await coreGit.revparse(['HEAD'])).trim()
+  }
+  const targetHashShort = targetHash.slice(0, 7)
+
+  let allConsumers = discoverConsumers(coreRepo, syncConfig, params.registryConsumers)
+
+  // Filter to requested subset
+  if (params.repos && params.repos.length > 0) {
+    const requestedSet = new Set(params.repos)
+    allConsumers = allConsumers.filter((c) => requestedSet.has(c.name))
+  }
+
+  // Check for active worktrees
+  const worktreeManager = new WorktreeManager()
+  let worktreeHashes: Set<string>
+  try {
+    const worktrees = await worktreeManager.list()
+    worktreeHashes = new Set(worktrees.map((w) => w.proposalHash))
+  } catch {
+    worktreeHashes = new Set()
+  }
+
+  const results: PropagateResult[] = []
+  const shouldPush = params.push ?? gitConfig.autoPush
+  const postSyncHooks = syncConfig.postSyncHooks ?? []
+
+  // Resolve the core commit message for artifact hash extraction
+  let coreCommitMessage = ''
+  try {
+    coreCommitMessage = (await coreGit.log(['-1', '--format=%s%n%b', targetHash])).latest?.hash
+      ? (await coreGit.raw(['log', '-1', '--format=%s%n%b', targetHash])).trim()
+      : ''
+  } catch {
+    // Best-effort
+  }
+  const artifactHashes = extractArtifactHashes(coreCommitMessage)
+
+  for (const consumer of allConsumers) {
+    try {
+      // Pre-checks
+      if (worktreeHashes.size > 0) {
+        // Check if this specific consumer has an active worktree
+        // For now, worktrees are project-scoped, not consumer-scoped
+        // Skip only if consumer has worktrees (conservative approach)
+      }
+
+      const consumerGit = simpleGit(consumer.path)
+
+      // Check dirty state
+      if (!force) {
+        const consumerStatus = await consumerGit.status()
+        if (!consumerStatus.isClean()) {
+          results.push({ repo: consumer.name, status: 'blocked-dirty' })
+          continue
+        }
+      }
+
+      if (dryRun) {
+        // In dry-run, just report what would happen
+        const submoduleStatusRaw = await consumerGit.raw([
+          'submodule', 'status', consumer.submodulePath,
+        ])
+        const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(submoduleStatusRaw.trim())
+        const pinnedHash = hashMatch?.[1] ?? ''
+        results.push({
+          repo: consumer.name,
+          status: pinnedHash === targetHash ? 'already-current' : 'updated',
+          previousHash: pinnedHash,
+          newHash: targetHash,
+        })
+        continue
+      }
+
+      // Read current pinned hash before update
+      const beforeStatusRaw = await consumerGit.raw([
+        'submodule', 'status', consumer.submodulePath,
+      ])
+      const beforeMatch = /^[+ -]?([0-9a-f]{40})/.exec(beforeStatusRaw.trim())
+      const previousHash = beforeMatch?.[1] ?? ''
+
+      // Update submodule
+      await consumerGit.raw(['submodule', 'update', '--init', consumer.submodulePath])
+
+      const submoduleFullPath = join(consumer.path, consumer.submodulePath)
+      const subGit = simpleGit(submoduleFullPath)
+      await subGit.fetch(['origin'])
+      await subGit.checkout(targetHash)
+
+      // Stage the submodule pointer change
+      await consumerGit.add(consumer.submodulePath)
+
+      // Check if anything actually changed
+      const diffResult = await consumerGit.diff(['--cached', '--name-only'])
+      if (!diffResult.trim()) {
+        results.push({ repo: consumer.name, status: 'already-current', previousHash })
+        continue
+      }
+
+      // Commit with formatted message
+      let propagateMessage = params.commitMessage
+        ?? `chore(${coreRepo.name}): update ${coreRepo.name} to ${targetHashShort}`
+
+      // Append artifact hashes for traceability
+      if (artifactHashes.length > 0) {
+        propagateMessage += `\n\nTraces: ${artifactHashes.map((h) => `#${h}`).join(', ')}`
+      }
+
+      await consumerGit.commit(propagateMessage)
+
+      // Push if requested
+      let pushed = false
+      if (shouldPush) {
+        try {
+          const remote = gitConfig.remote
+          await consumerGit.push(remote, 'HEAD')
+          pushed = true
+        } catch (error) {
+          results.push({
+            repo: consumer.name,
+            status: 'error',
+            previousHash,
+            error: `Push failed: ${error instanceof Error ? error.message : String(error)}`,
+          })
+          continue
+        }
+      }
+
+      // Run post-sync hooks
+      const hookResults = postSyncHooks.length > 0
+        ? runPostSyncHooks(consumer.path, postSyncHooks)
+        : undefined
+
+      results.push({
+        repo: consumer.name,
+        status: 'updated',
+        previousHash,
+        newHash: targetHash,
+        pushed,
+        hookResults,
+      })
+    } catch (error) {
+      results.push({
+        repo: consumer.name,
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  // Schema drift detection
+  let warnings: { type: 'schema-change'; files: string[]; message: string }[] | undefined
+  const schemaDriftWarning = syncConfig.schemaDriftWarning ?? true
+  if (schemaDriftWarning) {
+    const schemaDir = syncConfig.schemaDir ?? (existsSync(join(projectRoot, 'schemas')) ? 'schemas/' : undefined)
+    if (schemaDir) {
+      const updatedConsumers = results.filter((r) => r.status === 'updated' && r.previousHash)
+      const firstUpdated = updatedConsumers[0]
+      if (firstUpdated?.previousHash) {
+        const drift = await detectSchemaDrift(projectRoot, firstUpdated.previousHash, targetHash, schemaDir)
+        if (drift.length > 0) {
+          warnings = drift
+        }
+      }
+    }
+  }
+
+  const summary = {
+    updated: results.filter((r) => r.status === 'updated').length,
+    alreadyCurrent: results.filter((r) => r.status === 'already-current').length,
+    blocked: results.filter((r) => r.status === 'blocked-worktree' || r.status === 'blocked-dirty').length,
+    errors: results.filter((r) => r.status === 'error').length,
+  }
+
+  return {
+    coreCommitHash: targetHash,
+    coreCommitHashShort: targetHashShort,
+    dryRun,
+    results,
+    summary,
+    warnings,
+  }
+}
+
+/**
+ * Full sync: commit core changes, then propagate to all consumers.
+ */
+export async function syncFull(params: {
+  message: string
+  scope?: string
+  push?: boolean
+  tag?: string
+  commitHash?: string
+  repos?: string[]
+  commitMessage?: string
+  dryRun?: boolean
+  force?: boolean
+  projectRoot?: string
+  registryConsumers?: { name: string; path: string }[]
+}): Promise<ProjectSyncFullOutput> {
+  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+
+  // Step 1: Commit core changes
+  const commitResult = await syncCommit({
+    message: params.message,
+    scope: params.scope,
+    push: params.push,
+    tag: params.tag,
+    projectRoot,
+  })
+
+  // Step 2: Propagate — use new commit hash if we just committed, otherwise HEAD
+  const propagateHash = commitResult.status === 'committed'
+    ? commitResult.commitHash
+    : params.commitHash
+
+  const propagateResult = await syncPropagate({
+    commitHash: propagateHash,
+    repos: params.repos,
+    commitMessage: params.commitMessage,
+    push: params.push,
+    dryRun: params.dryRun,
+    force: params.force,
+    projectRoot,
+    registryConsumers: params.registryConsumers,
+  })
+
+  return {
+    commit: commitResult,
+    propagate: propagateResult,
+  }
+}
