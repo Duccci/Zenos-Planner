@@ -436,4 +436,145 @@ describe('WorktreeManager', () => {
       expect(branchDeleteCall![2]).toBe('proposal/branch-cleanup-test');
     });
   });
+
+  describe('merge() - worktree uncommitted changes guard', () => {
+    it('should refuse to merge when the worktree has uncommitted changes', async () => {
+      // The worktree git instance reports dirty status; the main repo is clean.
+      const mainMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'proposal/dirty-wt' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const m = new WorktreeManager();
+      await m.create('dirty-wt');
+      const result = await m.merge('dirty-wt', 'main');
+
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts![0]).toContain('uncommitted changes');
+    });
+
+    it('should not remove the worktree when it has uncommitted changes', async () => {
+      const rawCalls: string[][] = [];
+      const mainMockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'proposal/preserved-wt' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const m = new WorktreeManager();
+      await m.create('preserved-wt');
+      rawCalls.length = 0;
+
+      await m.merge('preserved-wt', 'main');
+
+      // Worktree should NOT have been removed
+      const removeCall = rawCalls.find(c => c[0] === 'worktree' && c[1] === 'remove');
+      expect(removeCall).toBeUndefined();
+
+      const list = await m.list();
+      expect(list.some(w => w.proposalHash === 'preserved-wt')).toBe(true);
+    });
+
+    it('should proceed with merge when worktree is clean', async () => {
+      const mainMockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          if (args[0][0] === 'rev-list') return Promise.resolve('1');
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ conflicts: [] }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'proposal/clean-wt' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const m = new WorktreeManager();
+      await m.create('clean-wt');
+      const result = await m.merge('clean-wt', 'main');
+
+      // Should merge successfully, no conflicts
+      expect(result.conflicts ?? []).toHaveLength(0);
+    });
+
+    it('should refuse squash merge when worktree has uncommitted changes', async () => {
+      const mainMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'proposal/dirty-squash-wt' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const m = new WorktreeManager();
+      await m.create('dirty-squash-wt');
+      const result = await m.merge('dirty-squash-wt', 'main', 'squash');
+
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts![0]).toContain('uncommitted changes');
+    });
+
+    it('should refuse rebase merge when worktree has uncommitted changes', async () => {
+      const mainMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'proposal/dirty-rebase-wt' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const m = new WorktreeManager();
+      await m.create('dirty-rebase-wt');
+      const result = await m.merge('dirty-rebase-wt', 'main', 'rebase');
+
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts![0]).toContain('uncommitted changes');
+    });
+  });
 });

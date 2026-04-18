@@ -174,6 +174,23 @@ export class WorktreeManager {
 
     const git = simpleGit(this.projectRoot)
 
+    // Guard: refuse to merge/remove if the worktree itself has uncommitted changes.
+    // Without this check, `git worktree remove --force` silently destroys any
+    // work that was written to disk but never committed to the proposal branch.
+    try {
+      const worktreeGit = simpleGit(info.path)
+      const worktreeStatus = await worktreeGit.status()
+      if (!worktreeStatus.isClean()) {
+        return {
+          conflicts: [
+            `Worktree at ${info.path} has uncommitted changes. Commit or stash them before merging.`,
+          ],
+        }
+      }
+    } catch {
+      // Worktree directory may already be gone; proceed with normal flow.
+    }
+
     // Guard: refuse to switch branches if the main working tree has uncommitted changes.
     if (strategy === 'rebase' || strategy === 'squash') {
       const status = await git.status()
