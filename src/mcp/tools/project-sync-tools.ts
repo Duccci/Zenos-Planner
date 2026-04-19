@@ -7,7 +7,7 @@
 
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { syncStatus, syncCommit, syncPropagate, syncFull } from '../../core/project-sync-service.js'
+import { syncStatus, syncCommit, syncPropagate, syncFull, syncDiff } from '../../core/project-sync-service.js'
 import { ProjectSyncActionInputSchema } from '../schemas/project-sync-schemas.js'
 import { getWorkspaceRoot, findProjectRoot } from '../../utils/config.js'
 
@@ -15,7 +15,7 @@ export const projectSyncToolDefinitions = [
   {
     name: 'project_sync',
     description:
-      'Multi-repo submodule synchronization. Actions: status (report submodule pin state across consumers), commit (commit pending changes in core repo), propagate (update submodule pointer in consumer repos and commit), full (commit + propagate). Discovers consumer repos via repos_action registry or filesystem .gitmodules fallback.',
+      'Multi-repo submodule synchronization. Actions: status (report submodule pin state across consumers), commit (commit pending changes in core repo), propagate (update submodule pointer in consumer repos and commit), full (commit + propagate), diff (show file-level changes between core HEAD and each consumer\'s pinned submodule commit). Discovers consumer repos via repos_action registry or filesystem .gitmodules fallback.',
     inputSchema: ProjectSyncActionInputSchema,
   },
 ]
@@ -55,6 +55,18 @@ export function projectSyncHandlers(
         if (action === 'status') {
           const result = await syncStatus({
             repos: parsed.repos,
+            projectRoot,
+            registryConsumers,
+          })
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+          }
+        }
+
+        if (action === 'diff') {
+          const result = await syncDiff({
+            repos: parsed.repos,
+            detailed: parsed.detailed,
             projectRoot,
             registryConsumers,
           })

@@ -321,40 +321,143 @@ describe('WorktreeManager', () => {
       expect(rawCalls[commitIdx]).toEqual(expect.arrayContaining(['commit', '-m', expect.stringContaining('squash')]));
     });
 
-    it('should refuse squash merge when working tree is dirty', async () => {
-      const mockGit = {
-        raw: vi.fn().mockResolvedValue(''),
+    it('should auto-stash and succeed squash merge when main working tree is dirty', async () => {
+      const rawCalls: string[][] = [];
+      const mainMockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
         merge: vi.fn().mockResolvedValue({ ok: true }),
         status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'main' }),
       };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'proposal/dirty-squash' }),
+      };
 
-      vi.mocked(simpleGit).mockReturnValue(mockGit as any);
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
 
       const proposalHash = 'dirty-squash';
-      await manager.create(proposalHash);
+      const m = new WorktreeManager();
+      await m.create(proposalHash);
+      rawCalls.length = 0;
 
-      const result = await manager.merge(proposalHash, 'main', 'squash');
+      const result = await m.merge(proposalHash, 'main', 'squash');
 
-      expect(result.conflicts).toBeDefined();
-      expect(result.conflicts![0]).toContain('uncommitted changes');
+      // Should succeed (no conflicts) because stash made the tree clean
+      expect(result.conflicts ?? []).toHaveLength(0);
+
+      // Should have called stash push before the merge
+      const stashPushIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'push');
+      expect(stashPushIdx).toBeGreaterThanOrEqual(0);
+
+      // Should have called stash pop after the merge
+      const stashPopIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'pop');
+      expect(stashPopIdx).toBeGreaterThan(stashPushIdx);
     });
 
-    it('should refuse rebase merge when working tree is dirty', async () => {
-      const mockGit = {
-        raw: vi.fn().mockResolvedValue(''),
+    it('should auto-stash and succeed rebase merge when main working tree is dirty', async () => {
+      const rawCalls: string[][] = [];
+      const mainMockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
         merge: vi.fn().mockResolvedValue({ ok: true }),
         status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'proposal/dirty-rebase' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const proposalHash = 'dirty-rebase';
+      const m = new WorktreeManager();
+      await m.create(proposalHash);
+      rawCalls.length = 0;
+
+      const result = await m.merge(proposalHash, 'main', 'rebase');
+
+      // Should succeed because stash made the tree clean
+      expect(result.conflicts ?? []).toHaveLength(0);
+
+      const stashPushIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'push');
+      expect(stashPushIdx).toBeGreaterThanOrEqual(0);
+
+      const stashPopIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'pop');
+      expect(stashPopIdx).toBeGreaterThan(stashPushIdx);
+    });
+
+    it('should not stash when main working tree is clean', async () => {
+      const rawCalls: string[][] = [];
+      const mockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'main' }),
       };
 
       vi.mocked(simpleGit).mockReturnValue(mockGit as any);
 
-      const proposalHash = 'dirty-rebase';
+      const proposalHash = 'clean-squash';
       await manager.create(proposalHash);
+      rawCalls.length = 0;
 
-      const result = await manager.merge(proposalHash, 'main', 'rebase');
+      await manager.merge(proposalHash, 'main', 'squash');
 
-      expect(result.conflicts).toBeDefined();
-      expect(result.conflicts![0]).toContain('uncommitted changes');
+      const stashCall = rawCalls.find(c => c[0] === 'stash');
+      expect(stashCall).toBeUndefined();
+    });
+
+    it('should auto-stash dirty main tree for default merge strategy', async () => {
+      const rawCalls: string[][] = [];
+      const mainMockGit = {
+        raw: vi.fn().mockImplementation((...args: string[][]) => {
+          rawCalls.push(args[0]);
+          if (args[0][0] === 'rev-list') return Promise.resolve('1');
+          return Promise.resolve('');
+        }),
+        merge: vi.fn().mockResolvedValue({ conflicts: [] }),
+        status: vi.fn().mockResolvedValue({ isClean: () => false, current: 'main' }),
+      };
+      const worktreeMockGit = {
+        raw: vi.fn().mockResolvedValue(''),
+        merge: vi.fn().mockResolvedValue({ ok: true }),
+        status: vi.fn().mockResolvedValue({ isClean: () => true, current: 'proposal/dirty-default-merge' }),
+      };
+
+      vi.mocked(simpleGit).mockImplementation((path?: string) => {
+        if (path && path.includes('.local')) return worktreeMockGit as any;
+        return mainMockGit as any;
+      });
+
+      const proposalHash = 'dirty-default-merge';
+      const m = new WorktreeManager();
+      await m.create(proposalHash);
+      rawCalls.length = 0;
+
+      const result = await m.merge(proposalHash, 'main');
+
+      expect(result.conflicts ?? []).toHaveLength(0);
+
+      const stashPushIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'push');
+      expect(stashPushIdx).toBeGreaterThanOrEqual(0);
+
+      const stashPopIdx = rawCalls.findIndex(c => c[0] === 'stash' && c[1] === 'pop');
+      expect(stashPopIdx).toBeGreaterThan(stashPushIdx);
     });
 
     it('should restore previous branch after squash merge', async () => {

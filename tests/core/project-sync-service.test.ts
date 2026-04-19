@@ -308,12 +308,49 @@ describe('project-sync-service', () => {
 
       expect(result.pushed).toBe(true)
     })
+
+    it('should return no-op when on a Zeno worktree branch', async () => {
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'symbolic-ref' && args[1] === '--short' && args[2] === 'HEAD') {
+          return 'proposal/abc12345'
+        }
+        return ''
+      })
+      mockGitInstance.status.mockResolvedValue({ isClean: () => false })
+
+      const result = await syncCommit({
+        message: 'should be blocked',
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.status).toBe('no-op')
+      expect(mockGitInstance.commit).not.toHaveBeenCalled()
+    })
   })
 
   // ==========================================================================
   // syncPropagate
   // ==========================================================================
   describe('syncPropagate', () => {
+    it('should skip consumers on a Zeno worktree branch', async () => {
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'symbolic-ref' && args[1] === '--short' && args[2] === 'HEAD') {
+          return 'proposal/xyz99999'
+        }
+        if (args[0] === 'log') return 'test'
+        return ''
+      })
+      mockGitInstance.status.mockResolvedValue({ isClean: () => true })
+
+      const result = await syncPropagate({
+        repos: ['ConsumerA'],
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.results[0]!.status).toBe('blocked-worktree')
+      expect(result.summary.blocked).toBe(1)
+    })
+
     it('should skip consumers with dirty working trees by default', async () => {
       mockGitInstance.status.mockResolvedValue({ isClean: () => false })
 

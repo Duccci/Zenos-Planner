@@ -191,18 +191,32 @@ export class WorktreeManager {
       // Worktree directory may already be gone; proceed with normal flow.
     }
 
-    // Guard: refuse to switch branches if the main working tree has uncommitted changes.
-    if (strategy === 'rebase' || strategy === 'squash') {
-      const status = await git.status()
-      if (!status.isClean()) {
-        return {
-          conflicts: [
-            'Working tree has uncommitted changes. Commit or stash them before merging.',
-          ],
-        }
-      }
+    // Auto-stash uncommitted changes in the main working tree so the merge can
+    // proceed even when a prior step (e.g. approveProposal writing .md metadata)
+    // has left the tree dirty.  The stash is popped in the finally block.
+    let didStash = false
+    const mainStatus = await git.status()
+    if (!mainStatus.isClean()) {
+      await git.raw(['stash', 'push', '-m', `zeno-merge-auto-stash/${proposalHash}`])
+      didStash = true
     }
 
+    try {
+      return await this.mergeInner(git, proposalHash, targetBranch, strategy, info)
+    } finally {
+      if (didStash) {
+        try { await git.raw(['stash', 'pop']) } catch { /* best-effort: stash may conflict */ }
+      }
+    }
+  }
+
+  private async mergeInner(
+    git: ReturnType<typeof simpleGit>,
+    proposalHash: string,
+    targetBranch: string,
+    strategy: 'rebase' | 'squash' | 'merge',
+    info: WorktreeInfo,
+  ): Promise<MergeResult> {
     // Remember current branch so we can restore it after merge/squash.
     const previousBranch = await this.getCurrentBranch(git)
 
@@ -249,17 +263,6 @@ export class WorktreeManager {
       // Nothing to integrate — just clean up the worktree.
       await this.remove(proposalHash, true)
       return {}
-    }
-
-    // Proposal branch has new commits; merge requires checking out targetBranch.
-    // Guard: working tree must be clean to allow checkout.
-    const defaultStatus = await git.status()
-    if (!defaultStatus.isClean()) {
-      return {
-        conflicts: [
-          'Working tree has uncommitted changes. Commit or stash them before merging.',
-        ],
-      }
     }
 
     const defaultPreviousBranch = await this.getCurrentBranch(git)

@@ -20,8 +20,15 @@ export type SyncConfig = z.infer<typeof SyncConfigSchema>
 
 export const ProjectSyncActionInputSchema = z.object({
   action: z
-    .enum(['status', 'commit', 'propagate', 'full'])
-    .describe('Action to perform. status: report submodule pin state. commit: commit core changes. propagate: update submodule pointers in consumers. full: commit + propagate.'),
+    .enum(['status', 'commit', 'propagate', 'full', 'diff'])
+    .describe('Action to perform. status: report submodule pin state. commit: commit core changes. propagate: update submodule pointers in consumers. full: commit + propagate. diff: show file-level changes between core HEAD and each consumer\'s pinned submodule commit.'),
+
+  // diff
+  detailed: z
+    .boolean()
+    .optional()
+    .default(false)
+    .describe('Include full unified diff patch output per consumer. Default: false (summary only). (diff)'),
 
   // status / propagate
   repos: z
@@ -159,6 +166,49 @@ export const ProjectSyncFullOutputSchema = z.object({
 })
 export type ProjectSyncFullOutput = z.infer<typeof ProjectSyncFullOutputSchema>
 
+// --- diff ---
+
+export const DiffFileEntrySchema = z.object({
+  file: z.string(),
+  status: z.enum(['added', 'modified', 'deleted', 'renamed', 'copied']),
+  additions: z.number().int().min(0),
+  deletions: z.number().int().min(0),
+})
+export type DiffFileEntry = z.infer<typeof DiffFileEntrySchema>
+
+export const ConsumerDiffSchema = z.object({
+  repo: z.string(),
+  pinnedHash: z.string(),
+  pinnedHashShort: z.string(),
+  coreHead: z.string(),
+  coreHeadShort: z.string(),
+  status: z.enum(['behind', 'current', 'error']),
+  behind: z.number().int(),
+  files: z.array(DiffFileEntrySchema),
+  totalAdditions: z.number().int().min(0),
+  totalDeletions: z.number().int().min(0),
+  patch: z.string().optional(),
+  error: z.string().optional(),
+})
+export type ConsumerDiff = z.infer<typeof ConsumerDiffSchema>
+
+export const ProjectSyncDiffOutputSchema = z.object({
+  coreRepo: z.string(),
+  coreHead: z.string(),
+  coreHeadShort: z.string(),
+  consumers: z.array(ConsumerDiffSchema),
+  summary: z.object({
+    total: z.number().int().min(0),
+    current: z.number().int().min(0),
+    behind: z.number().int().min(0),
+    totalFiles: z.number().int().min(0),
+    totalAdditions: z.number().int().min(0),
+    totalDeletions: z.number().int().min(0),
+    errors: z.number().int().min(0),
+  }),
+})
+export type ProjectSyncDiffOutput = z.infer<typeof ProjectSyncDiffOutputSchema>
+
 // --- discriminated union for all actions ---
 
 export const ProjectSyncActionOutputSchema = z.discriminatedUnion('action', [
@@ -166,5 +216,6 @@ export const ProjectSyncActionOutputSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('commit'), result: ProjectSyncCommitOutputSchema }),
   z.object({ action: z.literal('propagate'), result: ProjectSyncPropagateOutputSchema }),
   z.object({ action: z.literal('full'), result: ProjectSyncFullOutputSchema }),
+  z.object({ action: z.literal('diff'), result: ProjectSyncDiffOutputSchema }),
 ])
 export type ProjectSyncActionOutput = z.infer<typeof ProjectSyncActionOutputSchema>

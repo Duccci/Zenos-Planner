@@ -33,6 +33,37 @@ vi.mock('../../../src/core/project-sync-service', () => ({
       summary: { updated: 0, alreadyCurrent: 0, blocked: 0, errors: 0 },
     },
   }),
+  syncDiff: vi.fn().mockResolvedValue({
+    coreRepo: 'CoreRepo',
+    coreHead: 'abc1234567890def1234567890abcdef12345678',
+    coreHeadShort: 'abc1234',
+    consumers: [
+      {
+        repo: 'ConsumerA',
+        pinnedHash: 'def5678567890abc1234567890abcdef12345678',
+        pinnedHashShort: 'def5678',
+        coreHead: 'abc1234567890def1234567890abcdef12345678',
+        coreHeadShort: 'abc1234',
+        status: 'behind',
+        behind: 3,
+        files: [
+          { file: 'src/index.ts', status: 'modified', additions: 10, deletions: 2 },
+          { file: 'README.md', status: 'added', additions: 20, deletions: 0 },
+        ],
+        totalAdditions: 30,
+        totalDeletions: 2,
+      },
+    ],
+    summary: {
+      total: 1,
+      current: 0,
+      behind: 1,
+      totalFiles: 2,
+      totalAdditions: 30,
+      totalDeletions: 2,
+      errors: 0,
+    },
+  }),
 }))
 
 vi.mock('../../../src/utils/config', () => ({
@@ -143,5 +174,58 @@ describe('project-sync-handlers (integration)', () => {
         registryConsumers: [{ name: 'ConsumerA', path: '/project/ConsumerA' }],
       }),
     )
+  })
+
+  it('handles diff action', async () => {
+    const handlers = projectSyncHandlers(fakeRegistry)
+    const res = await handlers.project_sync({ action: 'diff' })
+
+    expect(res.isError).toBeUndefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(parsed.coreRepo).toBe('CoreRepo')
+    expect(parsed.consumers).toHaveLength(1)
+    expect(parsed.consumers[0].repo).toBe('ConsumerA')
+    expect(parsed.consumers[0].status).toBe('behind')
+    expect(parsed.consumers[0].files).toHaveLength(2)
+    expect(parsed.summary.totalFiles).toBe(2)
+    expect(parsed.summary.totalAdditions).toBe(30)
+  })
+
+  it('handles diff action with repos filter', async () => {
+    const handlers = projectSyncHandlers(fakeRegistry)
+    const res = await handlers.project_sync({ action: 'diff', repos: ['ConsumerA'] })
+
+    expect(res.isError).toBeUndefined()
+    const { syncDiff } = await import('../../../src/core/project-sync-service')
+    expect(vi.mocked(syncDiff)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repos: ['ConsumerA'],
+      }),
+    )
+  })
+
+  it('handles diff action with detailed flag', async () => {
+    const handlers = projectSyncHandlers(fakeRegistry)
+    const res = await handlers.project_sync({ action: 'diff', detailed: true })
+
+    expect(res.isError).toBeUndefined()
+    const { syncDiff } = await import('../../../src/core/project-sync-service')
+    expect(vi.mocked(syncDiff)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detailed: true,
+      }),
+    )
+  })
+
+  it('catches diff errors and returns error result', async () => {
+    const { syncDiff } = await import('../../../src/core/project-sync-service')
+    vi.mocked(syncDiff).mockRejectedValueOnce(new Error('git diff failed'))
+
+    const handlers = projectSyncHandlers(fakeRegistry)
+    const res = await handlers.project_sync({ action: 'diff' })
+
+    expect(res.isError).toBe(true)
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(parsed.error).toContain('git diff failed')
   })
 })

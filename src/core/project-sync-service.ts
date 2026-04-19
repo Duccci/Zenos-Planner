@@ -21,6 +21,9 @@ import type {
   ProjectSyncPropagateOutput,
   PropagateResult,
   ProjectSyncFullOutput,
+  ProjectSyncDiffOutput,
+  ConsumerDiff,
+  DiffFileEntry,
 } from '../mcp/schemas/project-sync-schemas.js'
 
 // ============================================================================
@@ -238,6 +241,35 @@ function discoverConsumers(
 }
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Resolve the path of the main (non-worktree) working tree.  When the
+ * given `projectRoot` is itself a Zeno-generated worktree
+ * (`.local/worktrees/<hash>`), we walk up to the real project root so
+ * that all sync operations read the user's checked-out branch, not a
+ * transient proposal branch.
+ */
+function resolveMainWorktreeRoot(projectRoot: string): string {
+  const normalized = projectRoot.replace(/\\/g, '/')
+  const match = /^(.+)\/\.local\/worktrees\/[^/]+\/?$/.exec(normalized)
+  return match?.[1] ?? projectRoot
+}
+
+/**
+ * Check whether the current branch is a Zeno-generated worktree branch.
+ */
+async function isOnWorktreeBranch(git: ReturnType<typeof simpleGit>): Promise<boolean> {
+  try {
+    const branch = (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim()
+    return branch.startsWith('proposal/')
+  } catch {
+    return false // detached HEAD or other non-branch state
+  }
+}
+
+// ============================================================================
 // Actions
 // ============================================================================
 
@@ -249,7 +281,8 @@ export async function syncStatus(params: {
   projectRoot?: string
   registryConsumers?: { name: string; path: string }[]
 }): Promise<ProjectSyncStatusOutput> {
-  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const rawProjectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const projectRoot = resolveMainWorktreeRoot(rawProjectRoot)
   const config = await loadConfig(projectRoot)
   const syncConfig: Partial<SyncConfig> = ((config as Record<string, unknown>)['sync'] as Partial<SyncConfig> | undefined) ?? {}
 
@@ -267,12 +300,12 @@ export async function syncStatus(params: {
   }
 
   const worktreeManager = new WorktreeManager()
-  let worktreeHashes: Set<string>
+  let worktreePaths: Set<string>
   try {
     const worktrees = await worktreeManager.list()
-    worktreeHashes = new Set(worktrees.map((w) => w.proposalHash))
+    worktreePaths = new Set(worktrees.map((w) => resolve(w.path)))
   } catch {
-    worktreeHashes = new Set()
+    worktreePaths = new Set()
   }
 
   const consumers: ConsumerStatus[] = []
@@ -305,8 +338,8 @@ export async function syncStatus(params: {
         }
       }
 
-      // Check for active worktrees in this consumer
-      const hasWorktree = worktreeHashes.size > 0
+      // Check if this specific consumer directory is inside an active worktree
+      const hasWorktree = worktreePaths.has(resolve(consumer.path))
 
       consumers.push({
         repo: consumer.name,
@@ -344,6 +377,208 @@ export async function syncStatus(params: {
   }
 }
 
+// ============================================================================
+// Diff
+// ============================================================================
+
+/**
+ * Parse a git --numstat line into a DiffFileEntry.
+ * Format: "additions\tdeletions\tfilename" (binary files show "-\t-\tfile").
+ */
+function parseNumstatLine(line: string): DiffFileEntry | null {
+  const parts = line.split('\t')
+  if (parts.length < 3) return null
+  const [addStr, delStr, ...fileParts] = parts
+  const file = fileParts.join('\t') // handle paths with tabs (rare)
+  const additions = addStr === '-' ? 0 : parseInt(addStr ?? '', 10) || 0
+  const deletions = delStr === '-' ? 0 : parseInt(delStr ?? '', 10) || 0
+  return { file, status: 'modified', additions, deletions }
+}
+
+/**
+ * Parse a git --name-status line to determine the file change type.
+ * Format: "M\tfilename" or "R100\told\tnew"
+ */
+function parseNameStatusLine(line: string): { file: string; status: DiffFileEntry['status'] } | null {
+  const parts = line.split('\t')
+  if (parts.length < 2) return null
+  const code = (parts[0] ?? '').charAt(0)
+  const file = parts.length >= 3 ? (parts[2] ?? '') : (parts[1] ?? '') // renames use 3rd column
+  const statusMap: Record<string, DiffFileEntry['status']> = {
+    A: 'added',
+    M: 'modified',
+    D: 'deleted',
+    R: 'renamed',
+    C: 'copied',
+  }
+  return { file, status: statusMap[code] ?? 'modified' }
+}
+
+/**
+ * Report file-level diff between core HEAD and each consumer's pinned submodule commit.
+ */
+export async function syncDiff(params: {
+  repos?: string[]
+  detailed?: boolean
+  projectRoot?: string
+  registryConsumers?: { name: string; path: string }[]
+}): Promise<ProjectSyncDiffOutput> {
+  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const config = await loadConfig(projectRoot)
+  const syncConfig: Partial<SyncConfig> = ((config as Record<string, unknown>)['sync'] as Partial<SyncConfig> | undefined) ?? {}
+  const detailed = params.detailed ?? false
+
+  const coreRepo = await detectCoreRepo(projectRoot)
+  const coreGit = simpleGit(projectRoot)
+  const coreHead = (await coreGit.revparse(['HEAD'])).trim()
+  const coreHeadShort = coreHead.slice(0, 7)
+
+  let allConsumers = discoverConsumers(coreRepo, syncConfig, params.registryConsumers)
+
+  if (params.repos && params.repos.length > 0) {
+    const requestedSet = new Set(params.repos)
+    allConsumers = allConsumers.filter((c) => requestedSet.has(c.name))
+  }
+
+  const consumers: ConsumerDiff[] = []
+
+  for (const consumer of allConsumers) {
+    try {
+      const consumerGit = simpleGit(consumer.path)
+      const submoduleStatusRaw = await consumerGit.raw([
+        'submodule', 'status', consumer.submodulePath,
+      ])
+      const trimmed = submoduleStatusRaw.trim()
+      const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(trimmed)
+      const pinnedHash = hashMatch?.[1] ?? ''
+      const pinnedHashShort = pinnedHash.slice(0, 7)
+
+      if (!pinnedHash || pinnedHash === coreHead) {
+        consumers.push({
+          repo: consumer.name,
+          pinnedHash,
+          pinnedHashShort,
+          coreHead,
+          coreHeadShort,
+          status: 'current',
+          behind: 0,
+          files: [],
+          totalAdditions: 0,
+          totalDeletions: 0,
+        })
+        continue
+      }
+
+      const submoduleFullPath = join(consumer.path, consumer.submodulePath)
+      const subGit = simpleGit(submoduleFullPath)
+
+      // Fetch so both commits are available locally
+      try {
+        await subGit.fetch(['origin'])
+      } catch {
+        // Best-effort; commits may already be local
+      }
+
+      // Count commits behind
+      let behind = 0
+      try {
+        const countRaw = await subGit.raw(['rev-list', '--count', `${pinnedHash}..${coreHead}`])
+        behind = parseInt(countRaw.trim(), 10) || 0
+      } catch {
+        behind = -1
+      }
+
+      // Get file-level numstat diff
+      const numstatRaw = await subGit.raw([
+        'diff', '--numstat', pinnedHash, coreHead,
+      ])
+
+      // Get file-level name-status diff for change types
+      const nameStatusRaw = await subGit.raw([
+        'diff', '--name-status', pinnedHash, coreHead,
+      ])
+
+      // Parse name-status into a lookup
+      const statusLookup = new Map<string, DiffFileEntry['status']>()
+      for (const line of nameStatusRaw.trim().split('\n').filter(Boolean)) {
+        const parsed = parseNameStatusLine(line)
+        if (parsed) statusLookup.set(parsed.file, parsed.status)
+      }
+
+      // Parse numstat and merge with statuses
+      const files: DiffFileEntry[] = []
+      let totalAdditions = 0
+      let totalDeletions = 0
+      for (const line of numstatRaw.trim().split('\n').filter(Boolean)) {
+        const entry = parseNumstatLine(line)
+        if (!entry) continue
+        // Override status from name-status if available
+        const fileStatus = statusLookup.get(entry.file)
+        if (fileStatus) entry.status = fileStatus
+        files.push(entry)
+        totalAdditions += entry.additions
+        totalDeletions += entry.deletions
+      }
+
+      // Optionally include full unified diff patch
+      let patch: string | undefined
+      if (detailed) {
+        try {
+          patch = await subGit.raw(['diff', pinnedHash, coreHead])
+        } catch {
+          // Patch retrieval is best-effort
+        }
+      }
+
+      consumers.push({
+        repo: consumer.name,
+        pinnedHash,
+        pinnedHashShort,
+        coreHead,
+        coreHeadShort,
+        status: 'behind',
+        behind,
+        files,
+        totalAdditions,
+        totalDeletions,
+        patch,
+      })
+    } catch (error) {
+      consumers.push({
+        repo: consumer.name,
+        pinnedHash: '',
+        pinnedHashShort: '',
+        coreHead,
+        coreHeadShort,
+        status: 'error',
+        behind: -1,
+        files: [],
+        totalAdditions: 0,
+        totalDeletions: 0,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const summary = {
+    total: consumers.length,
+    current: consumers.filter((c) => c.status === 'current').length,
+    behind: consumers.filter((c) => c.status === 'behind').length,
+    totalFiles: consumers.reduce((sum, c) => sum + c.files.length, 0),
+    totalAdditions: consumers.reduce((sum, c) => sum + c.totalAdditions, 0),
+    totalDeletions: consumers.reduce((sum, c) => sum + c.totalDeletions, 0),
+    errors: consumers.filter((c) => c.status === 'error').length,
+  }
+
+  return {
+    coreRepo: coreRepo.name,
+    coreHead,
+    coreHeadShort,
+    consumers,
+    summary,
+  }
+}
+
 /**
  * Commit pending changes in the core repo.
  */
@@ -354,11 +589,19 @@ export async function syncCommit(params: {
   tag?: string
   projectRoot?: string
 }): Promise<ProjectSyncCommitOutput> {
-  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const rawProjectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const projectRoot = resolveMainWorktreeRoot(rawProjectRoot)
   const config = await loadConfig(projectRoot)
   const gitConfig = config.git ?? { autoCommit: true, autoTag: true, autoPush: false, remote: 'origin', commitFormat: 'feat(%s): %m' }
 
   const git = simpleGit(projectRoot)
+
+  // Refuse to commit from a Zeno worktree branch; sync should only
+  // operate on the user's checked-out branch.
+  if (await isOnWorktreeBranch(git)) {
+    return { status: 'no-op' }
+  }
+
   const status = await git.status()
 
   if (status.isClean()) {
@@ -399,7 +642,15 @@ export async function syncCommit(params: {
   let pushed = false
   if (shouldPush) {
     const remote = gitConfig.remote
-    await git.push(remote, 'HEAD')
+    // Push the current branch by name; never push bare HEAD which could
+    // resolve to a Zeno worktree branch.
+    let branchRef = 'HEAD'
+    try {
+      branchRef = (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim() || 'HEAD'
+    } catch {
+      // detached HEAD — fall back
+    }
+    await git.push(remote, branchRef)
     if (params.tag) {
       await git.push(remote, params.tag)
     }
@@ -494,7 +745,8 @@ export async function syncPropagate(params: {
   projectRoot?: string
   registryConsumers?: { name: string; path: string }[]
 }): Promise<ProjectSyncPropagateOutput> {
-  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const rawProjectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const projectRoot = resolveMainWorktreeRoot(rawProjectRoot)
   const config = await loadConfig(projectRoot)
   const syncConfig: Partial<SyncConfig> = ((config as Record<string, unknown>)['sync'] as Partial<SyncConfig> | undefined) ?? {}
   const gitConfig = config.git ?? { autoPush: false, remote: 'origin', commitFormat: 'feat(%s): %m' }
@@ -504,7 +756,8 @@ export async function syncPropagate(params: {
   const coreRepo = await detectCoreRepo(projectRoot)
   const coreGit = simpleGit(projectRoot)
 
-  // Resolve target commit hash
+  // Resolve target commit hash from the main working tree's HEAD,
+  // never from a transient Zeno worktree.
   let targetHash: string
   if (params.commitHash) {
     targetHash = (await coreGit.revparse([params.commitHash])).trim()
@@ -521,15 +774,8 @@ export async function syncPropagate(params: {
     allConsumers = allConsumers.filter((c) => requestedSet.has(c.name))
   }
 
-  // Check for active worktrees
-  const worktreeManager = new WorktreeManager()
-  let worktreeHashes: Set<string>
-  try {
-    const worktrees = await worktreeManager.list()
-    worktreeHashes = new Set(worktrees.map((w) => w.proposalHash))
-  } catch {
-    worktreeHashes = new Set()
-  }
+  // Worktree check removed — sync operates on the default branch commit,
+  // not on worktree branches, so active worktrees do not block propagation.
 
   const results: PropagateResult[] = []
   const shouldPush = params.push ?? gitConfig.autoPush
@@ -549,13 +795,13 @@ export async function syncPropagate(params: {
   for (const consumer of allConsumers) {
     try {
       // Pre-checks
-      if (worktreeHashes.size > 0) {
-        // Check if this specific consumer has an active worktree
-        // For now, worktrees are project-scoped, not consumer-scoped
-        // Skip only if consumer has worktrees (conservative approach)
-      }
-
       const consumerGit = simpleGit(consumer.path)
+
+      // Skip consumers that are on a Zeno worktree branch
+      if (await isOnWorktreeBranch(consumerGit)) {
+        results.push({ repo: consumer.name, status: 'blocked-worktree' })
+        continue
+      }
 
       // Check dirty state
       if (!force) {
@@ -623,7 +869,14 @@ export async function syncPropagate(params: {
       if (shouldPush) {
         try {
           const remote = gitConfig.remote
-          await consumerGit.push(remote, 'HEAD')
+          // Push by branch name, not bare HEAD
+          let branchRef = 'HEAD'
+          try {
+            branchRef = (await consumerGit.raw(['symbolic-ref', '--short', 'HEAD'])).trim() || 'HEAD'
+          } catch {
+            // detached HEAD fallback
+          }
+          await consumerGit.push(remote, branchRef)
           pushed = true
         } catch (error) {
           results.push({
@@ -708,7 +961,8 @@ export async function syncFull(params: {
   projectRoot?: string
   registryConsumers?: { name: string; path: string }[]
 }): Promise<ProjectSyncFullOutput> {
-  const projectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const rawProjectRoot = params.projectRoot ?? findProjectRoot() ?? getWorkspaceRoot()
+  const projectRoot = resolveMainWorktreeRoot(rawProjectRoot)
 
   // Step 1: Commit core changes
   const commitResult = await syncCommit({
