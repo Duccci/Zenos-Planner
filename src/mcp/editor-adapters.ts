@@ -190,12 +190,9 @@ export function ensureCodeWorkspaceMcp(
   const serverEntry = buildMcpServerEntry(binaryPath, workspace)
 
   // Read the existing file or start with a minimal skeleton.
-  let existingContent: string
-  if (existsSync(workspaceFilePath)) {
-    existingContent = readFileSync(workspaceFilePath, 'utf-8')
-  } else {
-    existingContent = JSON.stringify({ folders: [], settings: {} }, null, 2)
-  }
+  const existingContent = existsSync(workspaceFilePath)
+    ? readFileSync(workspaceFilePath, 'utf-8')
+    : JSON.stringify({ folders: [], settings: {} }, null, 2)
 
   // Check if the entry already exists and is identical — idempotency guard.
   try {

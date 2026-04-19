@@ -133,7 +133,7 @@ export function createEntityActionHandler<T extends string>(
 
       // Args without the `action` discriminator passed as the payload to handlers
       const { action: _action, ...rawPayload } = validated
-      const payload = normalizePayloadHashes(rawPayload)
+      const payload = normalizePayloadHashes(rawPayload as Record<string, unknown>)
 
       // Run validators if provided
       if (config.validators?.[action] !== undefined) {
