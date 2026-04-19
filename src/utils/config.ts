@@ -544,7 +544,7 @@ export function getDefaultProject(projectName: string, projectStatement: string)
       totalGatesPlanned: 0,
     },
     gates: [],
-    lastUpdated: new Date().toISOString(),
+    lastUpdated: new Date().toISOString().slice(0, 10),
     status: 'awaiting_review',
   }
 }

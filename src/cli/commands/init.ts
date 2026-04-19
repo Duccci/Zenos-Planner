@@ -146,7 +146,7 @@ async function runInitWorkflow(
     const project = await readProject(projectRoot)
     project.gates = projectGates
     project.project.totalGatesPlanned = projectGates.length
-    project.lastUpdated = now
+    project.lastUpdated = now.slice(0, 10)
     await saveProject(project, projectRoot)
     logger.info(`Saved ${projectGates.length.toString()} gates to project.json`)
   } else {

@@ -51,7 +51,7 @@ export async function updateCurrentGateInState(
     const gate = project.gates.find((g) => g.id === gateId)
     if (gate) gate.status = 'in_progress'
     project.status = 'gate_in_progress'
-    project.lastUpdated = new Date().toISOString()
+    project.lastUpdated = new Date().toISOString().slice(0, 10)
     await saveProject(project, projectRoot)
     logger.debug(`Updated project.json for gate start: ${gateId}`)
   } catch (error) {
@@ -99,7 +99,7 @@ export async function archiveCompletedGateInState(
     }
 
     project.status = 'gate_completed'
-    project.lastUpdated = now
+    project.lastUpdated = now.slice(0, 10)
     await saveProject(project, projectRoot)
     logger.debug(`Archived completed gate in project.json: ${gateId}`)
   } catch (error) {
@@ -159,7 +159,7 @@ export async function upsertPlannedGateInState(
     }
 
     project.gates.sort((a, b) => a.sequence - b.sequence)
-    project.lastUpdated = now
+    project.lastUpdated = now.slice(0, 10)
     await saveProject(project, projectRoot)
     logger.debug(`Upserted planned gate in project.json: ${gateId}`)
   } catch (error) {
@@ -228,7 +228,7 @@ export async function syncUpcomingGatesToState(
 
     project.gates.sort((a, b) => a.sequence - b.sequence)
     project.project.totalGatesPlanned = project.gates.length
-    project.lastUpdated = now
+    project.lastUpdated = now.slice(0, 10)
     await saveProject(project, projectRoot)
     logger.debug(`Synced ${String(suggestedGates.length)} upcoming gates to project.json`)
   } catch (error) {
@@ -251,7 +251,7 @@ export async function markPrdGeneratedInState(
     const gate = project.gates.find((g) => g.id === gateId)
     if (gate) {
       gate.prdGenerated = true
-      project.lastUpdated = new Date().toISOString()
+      project.lastUpdated = new Date().toISOString().slice(0, 10)
       await saveProject(project, projectRoot)
       logger.debug(`Marked prdGenerated=true for ${gateId} in project.json`)
     }
