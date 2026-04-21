@@ -178,7 +178,7 @@ export const ProposalApproveOutputSchema = z.object({
   newStatus: z.literal('completed'),
   approvedAt: TimestampSchema,
   nextSteps: z.string().optional(),
-  wroteBack: z.boolean().optional().describe('True when writeback=true was passed and the .md file was updated with completed status'),
+  wroteBack: z.boolean().optional().describe('True when the proposal .md file status was synchronized successfully'),
 })
 export type ProposalApproveOutput = z.infer<typeof ProposalApproveOutputSchema>
 

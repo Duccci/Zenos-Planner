@@ -16,6 +16,7 @@ import { findProjectRoot, loadConfig, saveConfig, getWorkspaceRoot, getZenoGitDi
 import { ConfigError, DatabaseError, ValidationError } from '../utils/errors.js'
 import { bumpSemver, type VersionBump } from '../utils/version.js'
 import { initializeDatabase, getDatabase } from '../storage/database.js'
+import { patchZenoStatus } from '../storage/frontmatter.js'
 import {
   consolidateGateProposals,
   generateConsolidationMarkdown,
@@ -247,14 +248,7 @@ export async function approveProposal(
         const content = await readFile(filePath)
         if (content.includes(`**Hash**: #${proposalHash}`)) {
           const completedAt = new Date().toISOString()
-          let updatedContent = content
-
-          if (/\*\*Status\*\*:\s*\w+/i.test(updatedContent)) {
-            updatedContent = updatedContent.replace(
-              /\*\*Status\*\*:\s*\w+/i,
-              '**Status**: completed'
-            )
-          }
+          let updatedContent = patchZenoStatus(content, 'completed')
 
           if (!updatedContent.includes('**Implemented**:')) {
             updatedContent = updatedContent.replace(
@@ -414,13 +408,25 @@ export async function completeGate(
     // Gate files are named gate-NN-full-name.md; resolve via prefix scan.
     const gatePrdPath = await findGateByGateId(gateId, projectRoot)
     let gateContent = ''
-    try {
-      if (gatePrdPath) gateContent = await readFile(gatePrdPath)
-    } catch {
-      // If no PRD exists, create basic one
+    if (!gatePrdPath) {
+      const dateStr: string = new Date().toISOString().split('T')[0] ?? ''
+      gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
+    } else {
+      try {
+        gateContent = await readFile(gatePrdPath)
+      } catch {
+        // If the PRD is unreadable, create a basic fallback archive body.
+        const dateStr: string = new Date().toISOString().split('T')[0] ?? ''
+        gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
+      }
+    }
+
+    if (!gateContent) {
       const dateStr: string = new Date().toISOString().split('T')[0] ?? ''
       gateContent = `# ${gate.name}\n\n**Status**: completed\n**Completed**: ${dateStr}\n\n## Overview\n\n${gate.name} implementation.\n`
     }
+
+    gateContent = patchZenoStatus(gateContent, 'completed')
 
     // Append consolidation
     const newGateContent = gateContent + '\n\n' + consolidationMd
@@ -624,7 +630,7 @@ export async function startProposal(
     const filePath = await findProposalByHash(proposalHash, projectRoot)
     if (filePath) {
       const content = await readFile(filePath)
-      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1in_progress')
+      const updated = patchZenoStatus(content, 'in_progress')
       await writeFile(filePath, updated)
     }
   } catch (error) {
@@ -677,7 +683,7 @@ export async function rejectProposal(
     const filePath = await findProposalByHash(proposalHash, projectRoot)
     if (filePath) {
       const content = await readFile(filePath)
-      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1rejected')
+      const updated = patchZenoStatus(content, 'rejected')
       await writeFile(filePath, updated)
     }
   } catch (error) {
@@ -744,7 +750,7 @@ export async function startGate(
     const gatePath = await findGateByGateId(gateId, projectRoot)
     if (gatePath) {
       const content = await readFile(gatePath)
-      const updated = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1in_progress')
+      const updated = patchZenoStatus(content, 'in_progress')
       await writeFile(gatePath, updated)
     }
   } catch (error) {

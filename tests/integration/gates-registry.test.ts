@@ -12,7 +12,28 @@ const mockReaddirSync = vi.fn()
 const mockReadFileSync = vi.fn()
 const mockFindGateByGateId = vi.fn().mockResolvedValue(null)
 const mockReadFileFsPromises = vi.fn().mockResolvedValue('')
+const mockReadFileUtil = vi.fn().mockResolvedValue('')
+const mockWriteFileUtil = vi.fn().mockResolvedValue(undefined)
 const mockSyncProposalsFromDisk = vi.fn()
+const mockStartGate = vi.fn().mockResolvedValue(undefined)
+const mockCompleteGate = vi.fn().mockResolvedValue({
+  projectRoot: '/project',
+  gateId: 'gate-01',
+  gateName: 'Setup',
+  previousVersion: '1.0.0',
+  newVersion: '1.1.0',
+  bump: 'minor' as const,
+  gitInstructions: {
+    commitMessage: 'feat(gate-01): complete Setup\n\nVersion: 1.1.0\n',
+    tagName: 'v1.1.0-gate-01',
+    tagMessage: 'Gate gate-01: Setup (version 1.1.0)',
+    commands: [
+      'git add -A',
+      'git commit -m "feat(gate-01): complete Setup\\n\\nVersion: 1.1.0\\n"',
+      'git tag -a v1.1.0-gate-01 -m "Gate gate-01: Setup (version: 1.1.0)"',
+    ],
+  },
+})
 const mockReplanGates = vi.fn().mockResolvedValue({
   mode: 'multi',
   trigger: 'regenerate',
@@ -52,6 +73,12 @@ vi.mock('../../src/utils/artifact-locator.js', () => ({
   findGateByGateId: (...args: unknown[]) => mockFindGateByGateId(...args),
 }))
 
+vi.mock('../../src/utils/file.js', () => ({
+  normalizePath: vi.fn((value: string) => value),
+  readFile: (...args: unknown[]) => mockReadFileUtil(...args),
+  writeFile: (...args: unknown[]) => mockWriteFileUtil(...args),
+}))
+
 vi.mock('node:fs/promises', () => ({
   readFile: (...args: unknown[]) => mockReadFileFsPromises(...args),
 }))
@@ -75,27 +102,32 @@ vi.mock('../../src/generation/requirement-storage.js', () => ({
 }))
 
 vi.mock('../../src/core/completions.js', () => ({
-  startGate: vi.fn().mockResolvedValue(undefined),
-  completeGate: vi.fn().mockResolvedValue({
-    projectRoot: '/project',
-    gateId: 'gate-01',
-    gateName: 'Setup',
-    previousVersion: '1.0.0',
-    newVersion: '1.1.0',
-    bump: 'minor' as const,
-    gitInstructions: {
-      commitMessage: 'feat(gate-01): complete Setup\n\nVersion: 1.1.0\n',
-      tagName: 'v1.1.0-gate-01',
-      tagMessage: 'Gate gate-01: Setup (version 1.1.0)',
-      commands: [
-        'git add -A',
-        'git commit -m "feat(gate-01): complete Setup\\n\\nVersion: 1.1.0\\n"',
-        'git tag -a v1.1.0-gate-01 -m "Gate gate-01: Setup (version 1.1.0)"',
-      ],
-    },
-  }),
+  startGate: (...args: unknown[]) => mockStartGate(...args),
+  completeGate: (...args: unknown[]) => mockCompleteGate(...args),
   regenerateGates: vi.fn().mockResolvedValue(undefined),
 }))
+
+function makeGateContent(status: string): string {
+  return [
+    '---',
+    'zeno:',
+    '  id: gate-01',
+    '  name: Setup',
+    '  sequence: 1',
+    '  type: feature',
+    `  status: ${status}`,
+    '  hash: g01setup',
+    '---',
+    '',
+    '# Gate 01: Setup',
+    '',
+    `**Status**: ${status}`,
+    '',
+    '## Overview',
+    '',
+    'Gate overview.',
+  ].join('\n')
+}
 
 describe('gates-registry coverage', () => {
   let registry: FunctionRegistry
@@ -114,10 +146,32 @@ describe('gates-registry coverage', () => {
     mockExistsSync.mockReturnValue(false)
     mockReaddirSync.mockReturnValue([])
     mockReadFileSync.mockReturnValue('')
+    mockPrepare.mockReturnValue({ get: vi.fn(), all: vi.fn().mockReturnValue([]), run: vi.fn() })
     // Default: no gate file found, empty file content
     mockFindGateByGateId.mockResolvedValue(null)
     mockReadFileFsPromises.mockResolvedValue('')
+    mockReadFileUtil.mockResolvedValue('')
+    mockWriteFileUtil.mockResolvedValue(undefined)
     mockSyncProposalsFromDisk.mockReturnValue(undefined)
+    mockStartGate.mockResolvedValue(undefined)
+    mockCompleteGate.mockResolvedValue({
+      projectRoot: '/project',
+      gateId: 'gate-01',
+      gateName: 'Setup',
+      previousVersion: '1.0.0',
+      newVersion: '1.1.0',
+      bump: 'minor' as const,
+      gitInstructions: {
+        commitMessage: 'feat(gate-01): complete Setup\n\nVersion: 1.1.0\n',
+        tagName: 'v1.1.0-gate-01',
+        tagMessage: 'Gate gate-01: Setup (version 1.1.0)',
+        commands: [
+          'git add -A',
+          'git commit -m "feat(gate-01): complete Setup\\n\\nVersion: 1.1.0\\n"',
+          'git tag -a v1.1.0-gate-01 -m "Gate gate-01: Setup (version 1.1.0)"',
+        ],
+      },
+    })
 
     registerGatesOps(registry)
   })
@@ -365,13 +419,44 @@ describe('gates-registry coverage', () => {
     })
   })
 
+  describe('gates_set_validated', () => {
+    it('syncs gate frontmatter and header status to validated', async () => {
+      mockReadProjectOverview.mockResolvedValue({
+        project: { name: 'Test', version: '1.0.0', projectStatement: '', totalGatesPlanned: 1 },
+        gates: [{ id: 'gate-01', sequence: 1, name: 'Setup', status: 'pending', hash: 'h1' }],
+        lastUpdated: new Date().toISOString(),
+        status: 'awaiting_review',
+      })
+      mockSaveProjectOverview.mockResolvedValue(undefined)
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-setup.md')
+      mockReadFileUtil.mockResolvedValue(makeGateContent('pending'))
+
+      const result = (await registry.invoke('gates_set_validated', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { newStatus: string }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('validated')
+      expect(mockWriteFileUtil).toHaveBeenCalledWith(
+        '/project/zeno/gates/gate-01-setup.md',
+        expect.stringContaining('  status: validated')
+      )
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('**Status**: validated')
+    })
+  })
+
   describe('gates_start', () => {
     it('should start a gate', async () => {
       mockPrepare.mockReturnValue({ get: vi.fn().mockReturnValue({ status: 'validated' }) })
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-setup.md')
+      mockReadFileUtil.mockResolvedValue(makeGateContent('validated'))
       const result = (await registry.invoke('gates_start', { gateId: 'gate-01' })) as {
         success: boolean
       }
       expect(result.success).toBe(true)
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('  status: in_progress')
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('**Status**: in_progress')
     })
   })
 
@@ -403,6 +488,8 @@ describe('gates-registry coverage', () => {
         lastUpdated: new Date().toISOString(),
         status: 'awaiting_review',
       })
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-setup.md')
+      mockReadFileUtil.mockResolvedValue(makeGateContent('pending'))
 
       const result = (await registry.invoke('gate_cancel', { gateId: 'gate-01' })) as {
         success: boolean
@@ -413,6 +500,8 @@ describe('gates-registry coverage', () => {
       expect(result.data.newStatus).toBe('cancelled')
       expect(result.data.previousStatus).toBe('pending')
       expect(mockSaveProjectOverview).toHaveBeenCalledOnce()
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('  status: cancelled')
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('**Status**: cancelled')
     })
 
     it('cancels the current in-progress gate', async () => {
@@ -461,6 +550,8 @@ describe('gates-registry coverage', () => {
         lastUpdated: new Date().toISOString(),
         status: 'awaiting_review',
       })
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-03-optimisation.md')
+      mockReadFileUtil.mockResolvedValue(makeGateContent('pending').replace(/gate-01/g, 'gate-03').replace(/Setup/g, 'Optimisation').replace(/g01setup/g, 'g03optimisation'))
 
       const result = (await registry.invoke('gate_defer', { gateId: 'gate-03' })) as {
         success: boolean
@@ -471,6 +562,8 @@ describe('gates-registry coverage', () => {
       expect(result.data.newStatus).toBe('backlog')
       expect(result.data.previousStatus).toBe('pending')
       expect(mockSaveProjectOverview).toHaveBeenCalledOnce()
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('  status: backlog')
+      expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('**Status**: backlog')
     })
 
     it('defers the current in-progress gate to backlog', async () => {

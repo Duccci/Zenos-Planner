@@ -211,9 +211,9 @@ export const APPLY_PHASE_GUARDRAILS: GuardrailEntry[] = [
   {
     id: 'apply-027',
     topic: 'apply-phase',
-    rule: 'Call proposal_action:approve to mark the proposal as "completed" BEFORE making any git commit. Never commit implementation work while the proposal is still in "in_progress" status.',
+    rule: 'Before making any git commit, ensure the final proposal_action:progress call has transitioned the proposal to "completed". If a legacy proposal remains "in_progress" after the last step, use proposal_action:approve only as a recovery path.',
     mustHaveValidator: false,
-    reason: 'Ordering invariant: the proposal status must be persisted to "completed" in both the DB and the markdown file before the implementation commit lands in git history. This ensures git log and Zeno state are always consistent — a commit found in history implies the proposal is already completed.',
+    reason: 'Ordering invariant: the proposal status must be persisted to "completed" in both the DB and the markdown file before the implementation commit lands in git history. The normal path is the last apply/progress step; approval remains available only for legacy recovery.',
     agentRef: ['09-meta-orchestration/workflow-orchestrator', '09-meta-orchestration/error-coordinator'],
   },
 ]

@@ -91,8 +91,7 @@ export const ProposalActionInputSchema = z.object({
         'scaffold=stamp out blank template files for a gate (needs: gateId + preReview for AI path, OR title + tasks for direct creation). ' +
         '  NOTE: scaffold creates EMPTY templates — you must fill every [bracketed placeholder] before validating. ' +
         'generate=alias for scaffold (backward compat). ' +
-        'validate=run quality checks (needs: hash). ' +
-        'approve=merge proposal (needs: hash; optional: writeback=true to patch status into .md file). ' +
+        'approve=merge proposal (needs: hash; zeno frontmatter/header status sync is automatic). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
         'start=create worktree for implementation (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems). ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
@@ -163,9 +162,8 @@ export const ProposalActionInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      'approve: when true, patches **Status**: completed back into the proposal .md file. ' +
-        'Default false. The .md file is the user\'s source of truth — only pass writeback: true ' +
-        'when the user explicitly asks for DB↔file reconciliation after an approval.'
+      'Deprecated compatibility flag. Proposal approval now updates the zeno frontmatter ' +
+        'and markdown header status automatically; writeback is no longer required.'
     ),
 
   // --- reject fields ---

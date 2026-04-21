@@ -82,7 +82,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 5,
     title: 'Implement Tasks',
     description:
-      'Execute each numbered task in the proposal in sequence. Report progress after each task with proposal_action:progress.',
+      'Execute each numbered task in the proposal in sequence. Report progress after each task with proposal_action:progress; the final task completion automatically transitions the proposal to completed.',
     prerequisites: ['Proposal in_progress'],
     actions: [
       'Implement changes only to files listed in Files Affected',
@@ -112,7 +112,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
       'Requirement lifecycle is tracked automatically. Gate-tied proposals: requirements are updated at gate completion. Solitary proposals: no separate requirement update step needed.',
     actions: [
       'Gate-tied: no action — handled at gates_action:complete',
-      'Solitary: no action — proposal lifecycle (task checkboxes + approval) is the tracking mechanism',
+      'Solitary: no action — proposal lifecycle (task checkboxes + final progress completion) is the tracking mechanism',
     ],
     guidance:
       'The zeno req status CLI command has been removed. Requirement progression is inferred from proposal and gate completion states.',
@@ -134,40 +134,43 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
   },
   {
     order: 9,
-    title: 'Request Approval',
+    title: 'Share Validation Results',
     description:
-      'Submit the proposal for human review. Present the validation results and wait for explicit human sign-off before proceeding.',
-    actions: ['proposal_action:validate { hash } — present results to user'],
+      'Present the validation results to the user when they ask for a review checkpoint or want the evidence behind the completed work. Apply phase assumes implementation was already approved before start, so this is informational rather than a second approval gate.',
+    actions: ['proposal_action:validate { hash } — summarize the result for the user when requested'],
     errorHandling:
-      'If human rejects: rework per feedback, then restart from step 5 (or step 1 if scope changes).',
+      'If the user requests follow-up changes, rework per feedback, then restart from step 5 (or step 1 if scope changes).',
     guidance:
-      'Do not self-approve. Do NOT commit or push until step 10 (Approve Proposal) has completed successfully.',
+      'Do not introduce a second approval ceremony unless the user explicitly asks for one. Do NOT commit or push until step 10 confirms the proposal is completed.',
   },
   {
     order: 10,
-    title: 'Approve Proposal',
+    title: 'Verify Proposal Completion',
     description:
-      'Once human sign-off is received, call proposal_action:approve to mark the proposal as completed. This MUST happen before any git commit. Approval transitions the proposal from in_progress → completed, writes the status into the proposal markdown file, and — if a worktree exists — automatically merges the worktree branch back into main then removes the worktree directory.',
-    prerequisites: ['Human sign-off received (step 9)'],
-    actions: ['proposal_action:approve { hash } — marks proposal completed, merges worktree branch to main (if applicable), and removes the worktree'],
+      'The final proposal_action:progress call is the normal completion path: it should transition the proposal from in_progress → completed and persist that status to both the DB and the proposal markdown file. Verify that state before any git commit.',
+    prerequisites: ['All tasks implemented', 'Validation complete'],
+    actions: [
+      'proposal_action:show { hash } — confirm status === "completed"',
+      'If a legacy proposal still shows in_progress after the final task: proposal_action:approve { hash } as recovery',
+    ],
     errorHandling:
-      'If approve detects merge conflicts: the worktree is preserved (not deleted) so no work is lost. Resolve conflicts manually in the worktree directory, commit the resolution, then re-run proposal_action:approve. If approve is rejected because quality checks are still failing: fix the issues and re-run step 8 before retrying.',
+      'If the proposal is still not completed after the last progress update, stop and fix the transition before committing. Use proposal_action:approve only for legacy recovery paths.',
     guidance:
-      'Gate-tied proposals: approval triggers worktree merge → cleanup automatically. Solitary proposals: approval finalises proposal status only (no worktree). Either way, the proposal must be in "completed" status before the commit in step 11. Do NOT manually delete the worktree directory — approval handles cleanup after a successful merge.',
+      'The apply workflow should not depend on a separate manual approval step. The important invariant is that proposal status is "completed" before the commit in step 11.',
   },
   {
     order: 11,
     title: 'Commit Changes',
     description:
-      'After the proposal is marked completed (step 10), commit all implementation changes. For gate-tied proposals the merge into main happened during approval (step 10); stage and commit from main. For worktree commits the pre-commit hook automatically runs scoped tests (vitest --changed HEAD) instead of the full suite, so unrelated in-progress failures on other branches will not block this commit.',
-    prerequisites: ['Proposal status === "completed" (step 10)', 'Worktree merged to main (gate-tied) or working directory is main (solitary)'],
+      'After the proposal is marked completed (normally by the final proposal_action:progress call), commit all implementation changes. For worktree commits the pre-commit hook automatically runs scoped tests (vitest --changed HEAD) instead of the full suite, so unrelated in-progress failures on other branches will not block this commit.',
+    prerequisites: ['Proposal status === "completed" (step 10)'],
     actions: [
       'config_get() to retrieve git.commitFormat',
       'git add <files listed in Files Affected>',
       'Commit: chore(proposal): implement <title> (#<hash>)',
     ],
     errorHandling:
-      'If proposal is not yet "completed", do not commit — call proposal_action:approve first. Never commit before proposal status is "completed". If the pre-commit hook fails on scoped tests, fix the specific failing tests before retrying.',
+      'If proposal is not yet "completed", do not commit — verify the last progress update succeeded, and use proposal_action:approve only if you are recovering a legacy in_progress proposal. Never commit before proposal status is "completed". If the pre-commit hook fails on scoped tests, fix the specific failing tests before retrying.',
     guidance:
       'Use chore(proposal): scope for implementation commits. Include the proposal hash in the commit message for traceability. Gate-level archival commits (feat(gate-XX):) are separate and happen later at gates_action:complete. The pre-commit hook distinguishes worktree commits (scoped tests), merge commits (scoped tests), and main commits (full coverage suite) automatically — no manual override needed.',
   },

@@ -83,6 +83,8 @@ export const ProposalUpdateProgressOutputSchema = z.object({
   }).optional(),
   /** File paths extracted from all fully-completed task sections in the proposal. */
   completedFiles: z.array(z.string()).optional(),
+  /** True when the final progress update also transitioned the proposal to completed. */
+  proposalCompleted: z.boolean().optional(),
   /** True when all tasks are complete and the gate's Proposal Status table was updated. */
   gateStatusUpdated: z.boolean().optional(),
   message: z.string(),

@@ -399,6 +399,70 @@ describe('completeGate', () => {
     const result = await completeGate('gate-01')
     expect(result.gateId).toBe('gate-01')
   })
+
+  it('completeGate writes completed status into the archived gate markdown', async () => {
+    const mockDb = mockGetDatabase()
+    const mockRun = vi.fn()
+
+    mockDb.prepare.mockImplementation((q: string) => {
+      const normalized = q.replace(/\s+/g, ' ').toLowerCase()
+      if (normalized.includes('from gates') && normalized.includes('where id')) {
+        return {
+          get: vi.fn().mockReturnValue(makeGateDbRow({ name: 'Setup', hash: 'g01setup' })),
+          run: mockRun,
+        }
+      }
+      if (normalized.includes('count(*)')) {
+        return { get: vi.fn().mockReturnValue({ count: 1 }) }
+      }
+      if (normalized.includes('select id, hash from proposals')) {
+        return { all: vi.fn().mockReturnValue([]) }
+      }
+      if (normalized.includes('select hash from proposals')) {
+        return { all: vi.fn().mockReturnValue([]) }
+      }
+      return { run: mockRun, get: vi.fn(), all: vi.fn().mockReturnValue([]) }
+    })
+    mockDb.transaction.mockImplementation((fn: (...args: unknown[]) => void) => fn)
+
+    mockReaddir.mockImplementation(async (dir: string) => {
+      const normalizedDir = dir.replace(/\\/g, '/')
+      if (normalizedDir.includes('/project/zeno/gates')) return ['gate-01-setup.md']
+      return []
+    })
+    mockReadFile.mockResolvedValue(
+      [
+        '---',
+        'zeno:',
+        '  id: gate-01',
+        '  name: Setup',
+        '  sequence: 1',
+        '  type: feature',
+        '  status: in_progress',
+        '  hash: g01setup',
+        '---',
+        '',
+        '# Gate 01: Setup',
+        '',
+        '**Status**: in_progress',
+        '',
+        '## Overview',
+        '',
+        'Gate overview.',
+      ].join('\n')
+    )
+
+    const { completeGate } = await import('../../src/core/completions.js')
+    await completeGate('gate-01')
+
+    const archiveWrite = mockWriteFile.mock.calls.find((call) => {
+      const target = String(call[0])
+      return target.includes('archive') && target.endsWith('.md')
+    })
+    expect(archiveWrite).toBeDefined()
+    expect(String(archiveWrite?.[1])).toContain('  status: completed')
+    expect(String(archiveWrite?.[1])).toContain('**Status**: completed')
+  })
 })
 
 describe('approveProposal', () => {

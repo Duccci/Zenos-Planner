@@ -1,8 +1,8 @@
 /**
  * Proposal Frontmatter Sync Tests
  *
- * Verifies that YAML frontmatter `status:` is kept in sync with the DB
- * across all five proposal state transitions.
+ * Verifies that zeno frontmatter `status:` and the human-readable header
+ * stay in sync across proposal lifecycle transitions.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -253,6 +253,38 @@ describe('proposal frontmatter status sync', () => {
   })
 
   // -------------------------------------------------------------------------
+  // proposal_validate
+  // -------------------------------------------------------------------------
+  describe('proposal_validate', () => {
+    it('updates frontmatter and body status to validated when validation passes', async () => {
+      const content = makeProposalContent('pending')
+      mockGet.mockReturnValue({
+        hash: 'abc12345',
+        title: 'Valid Proposal',
+        dependencies: null,
+        gate_id: 'gate-01',
+        quality_metrics: null,
+        files_affected: null,
+        created_at: '2026-01-01T00:00:00Z',
+        status: 'pending',
+      })
+      mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/test.md')
+      mockReadFile.mockResolvedValue(content)
+
+      const result = (await registry.invoke('proposal_validate', { hash: 'abc12345' })) as {
+        success: boolean; data: { newStatus?: string }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.newStatus).toBe('validated')
+
+      const written = mockWriteFile.mock.calls.at(-1)?.[1] as string
+      expect(written).toMatch(/^status: validated$/m)
+      expect(written).toContain('**Status**: validated')
+    })
+  })
+
+  // -------------------------------------------------------------------------
   // proposal_start
   // -------------------------------------------------------------------------
   describe('proposal_start', () => {
@@ -275,7 +307,7 @@ describe('proposal frontmatter status sync', () => {
       expect(written).toMatch(/^status: in_progress$/m)
     })
 
-    it('does not update body **Status**: field on start', async () => {
+    it('also updates body **Status**: field on start', async () => {
       const content = makeProposalContent('pending')
       mockGet
         .mockReturnValueOnce({ hash: 'abc12345', gate_id: 'gate-01', title: 'Test' })
@@ -287,8 +319,7 @@ describe('proposal frontmatter status sync', () => {
       await registry.invoke('proposal_start', { hash: 'abc12345' })
 
       const written = mockWriteFile.mock.calls[0]?.[1] as string
-      // Body **Status**: unchanged (still 'pending')
-      expect(written).toContain('**Status**: pending')
+      expect(written).toContain('**Status**: in_progress')
     })
   })
 
@@ -305,7 +336,7 @@ describe('proposal frontmatter status sync', () => {
       status: 'in_progress',
     }
 
-    it('always syncs YAML frontmatter status to completed (no writeback flag)', async () => {
+    it('always syncs YAML frontmatter and body status to completed (no writeback flag)', async () => {
       const content = makeProposalContent('in_progress')
       mockGet.mockReturnValue(approveProposalRow)
       mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/test.md')
@@ -318,10 +349,11 @@ describe('proposal frontmatter status sync', () => {
 
       const written = mockWriteFile.mock.calls[0]?.[1] as string
       expect(written).toMatch(/^status: completed$/m)
-      expect(result.data.wroteBack).toBe(false)
+      expect(written).toContain('**Status**: completed')
+      expect(result.data.wroteBack).toBe(true)
     })
 
-    it('also updates body **Status**: when writeback is true', async () => {
+    it('still accepts writeback=true and syncs status fields', async () => {
       const content = makeProposalContent('in_progress')
       mockGet.mockReturnValue(approveProposalRow)
       mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/test.md')
@@ -339,7 +371,7 @@ describe('proposal frontmatter status sync', () => {
       expect(result.data.wroteBack).toBe(true)
     })
 
-    it('does not update body **Status**: when writeback is false', async () => {
+    it('updates body **Status**: even when writeback is false', async () => {
       const content = makeProposalContent('in_progress')
       mockGet.mockReturnValue(approveProposalRow)
       mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/test.md')
@@ -348,7 +380,7 @@ describe('proposal frontmatter status sync', () => {
       await registry.invoke('proposal_approve', { hash: 'abc12345', writeback: false })
 
       const written = mockWriteFile.mock.calls[0]?.[1] as string
-      expect(written).toContain('**Status**: in_progress')
+      expect(written).toContain('**Status**: completed')
     })
   })
 
@@ -373,7 +405,7 @@ describe('proposal frontmatter status sync', () => {
       expect(written).toMatch(/^status: rejected$/m)
     })
 
-    it('does not update body **Status**: field on reject', async () => {
+    it('also updates body **Status**: field on reject', async () => {
       const content = makeProposalContent('in_progress')
       mockGet.mockReturnValue({ hash: 'abc12345', status: 'in_progress' })
       mockFindProposalByHash.mockResolvedValue('zeno/proposals/gate-01/test.md')
@@ -382,7 +414,7 @@ describe('proposal frontmatter status sync', () => {
       await registry.invoke('proposal_reject', { hash: 'abc12345' })
 
       const written = mockWriteFile.mock.calls[0]?.[1] as string
-      expect(written).toContain('**Status**: in_progress')
+      expect(written).toContain('**Status**: rejected')
     })
 
     it('does not write when proposal file is not found', async () => {

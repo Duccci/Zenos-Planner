@@ -81,6 +81,29 @@ interface RawFrontmatter {
 /** Matches the opening ---…--- frontmatter block (must start at line 1). */
 const FENCE_RE = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/
 
+/** Replace the YAML/frontmatter status line when a zeno block is present. */
+function patchFrontmatterStatusLine(content: string, status: string): string {
+  const match = FENCE_RE.exec(content)
+  if (!match?.[0] || !match[1]) return content
+
+  const patchedInner = match[1].replace(/^(\s*status:\s*).+$/m, `$1${status}`)
+  if (patchedInner === match[1]) return content
+
+  return content.replace(match[0], match[0].replace(match[1], patchedInner))
+}
+
+/** Replace the top-level markdown header status line before the first section. */
+function patchHeaderStatusLine(content: string, status: string): string {
+  const frontmatterLength = FENCE_RE.exec(content)?.[0].length ?? 0
+  const firstSectionIndex = content.indexOf('\n## ', frontmatterLength)
+  const headerEnd = firstSectionIndex === -1 ? content.length : firstSectionIndex
+  const header = content.slice(frontmatterLength, headerEnd)
+  const patchedHeader = header.replace(/^(\*\*Status\*\*:\s*).+$/m, `$1${status}`)
+
+  if (patchedHeader === header) return content
+  return content.slice(0, frontmatterLength) + patchedHeader + content.slice(headerEnd)
+}
+
 /**
  * Remove the frontmatter fence (if present) and return the rest of the file.
  */
@@ -147,6 +170,14 @@ export function serializeGateFrontmatter(data: ZenoGateFrontmatter): string {
 export function patchFrontmatter(content: string, data: ZenoFrontmatter): string {
   const body = stripFrontmatter(content)
   return serialize(data) + body
+}
+
+/**
+ * Keep the machine-readable zeno frontmatter and the human-readable markdown
+ * header aligned for lifecycle status transitions.
+ */
+export function patchZenoStatus(content: string, status: string): string {
+  return patchHeaderStatusLine(patchFrontmatterStatusLine(content, status), status)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

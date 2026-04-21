@@ -8,6 +8,9 @@ const mockUpdateTaskStatus = vi.fn()
 const mockCalculateCompletionSummary = vi.fn()
 const mockUpdateCompletionSummary = vi.fn()
 const mockExtractAllCompletedTaskFiles = vi.fn().mockReturnValue([])
+const mockDbRun = vi.fn()
+const mockDbPrepare = vi.fn(() => ({ run: (...args: unknown[]) => mockDbRun(...args) }))
+const mockGetDatabase = vi.fn(() => ({ prepare: (...args: unknown[]) => mockDbPrepare(...args) }))
 
 vi.mock('../../src/utils/file.js', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
@@ -24,6 +27,10 @@ vi.mock('../../src/core/proposal-progress.js', () => ({
   calculateCompletionSummary: (...args: unknown[]) => mockCalculateCompletionSummary(...args),
   updateCompletionSummary: (...args: unknown[]) => mockUpdateCompletionSummary(...args),
   extractAllCompletedTaskFiles: (...args: unknown[]) => mockExtractAllCompletedTaskFiles(...args),
+}))
+
+vi.mock('../../src/storage/database.js', () => ({
+  getDatabase: (...args: unknown[]) => mockGetDatabase(...args),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({
@@ -46,7 +53,10 @@ vi.mock('../../src/utils/errors.js', () => ({
 }))
 
 describe('proposal-application coverage', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDbRun.mockReturnValue({ changes: 1 })
+  })
 
   it('should update proposal progress successfully', async () => {
     const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
@@ -136,10 +146,79 @@ describe('proposal-application coverage', () => {
       completed: true,
     })
 
+    expect(result.proposalCompleted).toBe(true)
     expect(result.gateStatusUpdated).toBe(true)
     // writeFile called: task update, completion summary, and gate update
     expect(mockWriteFile).toHaveBeenCalledTimes(3)
+    expect(mockWriteFile).toHaveBeenNthCalledWith(
+      2,
+      '/project/zeno/proposals/gate-01/01-test.md',
+      expect.stringContaining('**Status**: completed')
+    )
+    expect(mockWriteFile).toHaveBeenNthCalledWith(
+      3,
+      '/project/zeno/gates/gate-01-some-gate.md',
+      expect.stringContaining('| Test | #abc123 | completed | Some notes |')
+    )
+    expect(mockDbPrepare).toHaveBeenCalledWith(expect.stringContaining("SET status = 'completed'"))
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      'abc123',
+      'abc123%'
+    )
     expect(mockFindGateByGateId).toHaveBeenCalledWith('gate-01', expect.any(String))
+  })
+
+  it('writes completed lifecycle metadata into proposal frontmatter on the final task', async () => {
+    const { updateProposalProgress } = await import('../../src/core/proposal-application.js')
+
+    const frontmatterProposal = `---
+hash: abc123
+status: in_progress
+---
+
+# Proposal: Test
+
+**Hash**: #abc123
+**Gate**: Solitary
+**Status**: in_progress
+
+- [x] Task 1`
+
+    mockFindProposalByHash.mockResolvedValue('/project/zeno/proposals/solitary/test.md')
+    mockReadFile.mockResolvedValueOnce(frontmatterProposal)
+    mockUpdateTaskStatus.mockReturnValue(frontmatterProposal)
+    mockCalculateCompletionSummary.mockReturnValue({
+      tasksCompleted: 1,
+      tasksTotal: 1,
+      filesModified: 0,
+    })
+    mockUpdateCompletionSummary.mockReturnValue(frontmatterProposal + '\n\n## Completion Summary')
+    mockWriteFile.mockResolvedValue(undefined)
+
+    const result = await updateProposalProgress({
+      hash: 'abc123',
+      taskIndex: 0,
+      completed: true,
+    })
+
+    expect(result.proposalCompleted).toBe(true)
+    expect(mockWriteFile).toHaveBeenNthCalledWith(
+      2,
+      '/project/zeno/proposals/solitary/test.md',
+      expect.stringContaining('status: completed')
+    )
+    expect(mockWriteFile).toHaveBeenNthCalledWith(
+      2,
+      '/project/zeno/proposals/solitary/test.md',
+      expect.stringContaining('approved_at: ')
+    )
+    expect(mockWriteFile).toHaveBeenNthCalledWith(
+      2,
+      '/project/zeno/proposals/solitary/test.md',
+      expect.stringContaining('implemented_at: ')
+    )
   })
 
   it('skips gate sync for solitary proposals (no gate ID in metadata)', async () => {
@@ -166,6 +245,7 @@ describe('proposal-application coverage', () => {
       completed: true,
     })
 
+    expect(result.proposalCompleted).toBe(true)
     expect(result.gateStatusUpdated).toBe(false)
     expect(mockFindGateByGateId).not.toHaveBeenCalled()
   })

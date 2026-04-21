@@ -7,6 +7,7 @@
 
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
+import { patchZenoStatus } from '../storage/frontmatter.js'
 import { normalizeGateId, resolveGateIdentifier } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
@@ -18,6 +19,18 @@ import { getZenoDir, getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 // Install-relative directory so templates are found regardless of the user's CWD.
 const __installDir = fileURLToPath(new URL('../..', import.meta.url))
 import { normalizePath } from '../utils/file.js'
+
+async function syncGateArtifactStatus(gateId: string, status: string): Promise<boolean> {
+  const { findGateByGateId } = await import('../utils/artifact-locator.js')
+  const { readFile, writeFile } = await import('../utils/file.js')
+
+  const filePath = await findGateByGateId(gateId)
+  if (!filePath) return false
+
+  const content = await readFile(filePath)
+  await writeFile(filePath, patchZenoStatus(content, status))
+  return true
+}
 
 export function registerGatesOps(registry: FunctionRegistry): void {
   // In-process implementation for listing gates (faster than spawning CLI)
@@ -417,6 +430,13 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         overview.lastUpdated = new Date().toISOString()
         await saveProjectOverview(overview, getWorkspaceRoot())
       }
+
+      try {
+        await syncGateArtifactStatus(normalizedId, 'validated')
+      } catch {
+        // Best-effort artifact sync; DB/project overview state remains authoritative.
+      }
+
       return { gateId: normalizedId, newStatus: 'validated' as const }
     },
     {
@@ -462,6 +482,12 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         .get(normalizedId) as { status?: string } | undefined
       const previousStatus = (gateRow?.status ?? 'pending') as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
       await startGate(normalizedId, { startedBy })
+
+      try {
+        await syncGateArtifactStatus(normalizedId, 'in_progress')
+      } catch {
+        // Best-effort artifact sync; do not fail the start operation.
+      }
 
       return {
         gateId: normalizedId,
@@ -636,6 +662,12 @@ export function registerGatesOps(registry: FunctionRegistry): void {
 
       await saveProjectOverview(overview, getWorkspaceRoot())
 
+      try {
+        await syncGateArtifactStatus(normalizedId, 'cancelled')
+      } catch {
+        // Best-effort artifact sync; overview state remains authoritative.
+      }
+
       return { gateId: normalizedId, previousStatus, newStatus: 'cancelled', cancelledAt, reason: validated.reason }
     },
     {
@@ -674,6 +706,12 @@ export function registerGatesOps(registry: FunctionRegistry): void {
       gate.status = 'backlog'
 
       await saveProjectOverview(overview, getWorkspaceRoot())
+
+      try {
+        await syncGateArtifactStatus(normalizedId, 'backlog')
+      } catch {
+        // Best-effort artifact sync; overview state remains authoritative.
+      }
 
       const deferredAt = new Date().toISOString()
       return { gateId: normalizedId, previousStatus, newStatus: 'backlog', deferredAt, reason: validated.reason }

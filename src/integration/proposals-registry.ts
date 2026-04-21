@@ -9,6 +9,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
+import { patchZenoStatus } from '../storage/frontmatter.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
@@ -18,6 +19,18 @@ import { resolveGateIdentifier, normalizeHash } from '../utils/normalize.js'
 
 // Install-relative directory so templates are found regardless of user CWD.
 const __installDir = fileURLToPath(new URL('../..', import.meta.url))
+
+async function syncProposalArtifactStatus(hash: string, status: string): Promise<boolean> {
+  const { findProposalByHash } = await import('../utils/artifact-locator.js')
+  const { readFile, writeFile } = await import('../utils/file.js')
+
+  const filePath = await findProposalByHash(hash)
+  if (!filePath) return false
+
+  const content = await readFile(filePath)
+  await writeFile(filePath, patchZenoStatus(content, status))
+  return true
+}
 
 export function registerProposalsOps(registry: FunctionRegistry): void {
   registry.register(
@@ -146,18 +159,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const cancelledAt = new Date().toISOString()
       db.prepare("UPDATE proposals SET status = 'cancelled', updated_at = ? WHERE hash = ?").run(cancelledAt, proposal['hash'] as string)
       try {
-        const { findProposalByHash } = await import('../utils/artifact-locator.js')
-        const { readFile, writeFile } = await import('../utils/file.js')
-        const filePath = await findProposalByHash(normalizedHash)
-        if (filePath) {
-          let content = await readFile(filePath)
-          const fmEnd = content.indexOf('\n---', 3)
-          if (fmEnd !== -1) {
-            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1cancelled') + content.slice(fmEnd)
-          }
-          content = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1cancelled')
-          await writeFile(filePath, content)
-        }
+        await syncProposalArtifactStatus(normalizedHash, 'cancelled')
       } catch {
         // writeback is best-effort; do not fail the cancel operation
       }
@@ -186,18 +188,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const deferredAt = new Date().toISOString()
       db.prepare("UPDATE proposals SET status = 'backlog', updated_at = ? WHERE hash = ?").run(deferredAt, proposal['hash'] as string)
       try {
-        const { findProposalByHash } = await import('../utils/artifact-locator.js')
-        const { readFile, writeFile } = await import('../utils/file.js')
-        const filePath = await findProposalByHash(normalizedHash)
-        if (filePath) {
-          let content = await readFile(filePath)
-          const fmEnd = content.indexOf('\n---', 3)
-          if (fmEnd !== -1) {
-            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1backlog') + content.slice(fmEnd)
-          }
-          content = content.replace(/(\*\*Status\*\*:\s*)\w+/i, '$1backlog')
-          await writeFile(filePath, content)
-        }
+        await syncProposalArtifactStatus(normalizedHash, 'backlog')
       } catch {
         // writeback is best-effort; do not fail the defer operation
       }
@@ -778,15 +769,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { startProposal } = await import('../core/completions.js')
       await startProposal(normalizedHash, { startedBy })
 
-      // Sync YAML frontmatter status: in_progress (best-effort)
+      // Sync zeno frontmatter and header status: in_progress (best-effort)
       try {
-        const { readFile, writeFile } = await import('../utils/file.js')
-        let content = await readFile(resolvedPath)
-        const fmEnd = content.indexOf('\n---', 3)
-        if (fmEnd !== -1) {
-          content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1in_progress') + content.slice(fmEnd)
-          await writeFile(resolvedPath, content)
-        }
+        await syncProposalArtifactStatus(normalizedHash, 'in_progress')
       } catch {
         // Frontmatter sync is best-effort; do not fail the start operation
       }
@@ -1379,6 +1364,14 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         }
       }
 
+      if (newStatus === 'validated') {
+        try {
+          await syncProposalArtifactStatus(normalizedHash, 'validated')
+        } catch {
+          // Best-effort status sync; validation result remains authoritative.
+        }
+      }
+
       return {
         hash: normalizedHash,
         passedQuantitative,
@@ -1528,28 +1521,11 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const { approveProposal } = await import('../core/completions.js')
       await approveProposal(normalizedHash, { approver: approvedBy })
 
-      // Option 5: writeback — patch **Status**: completed into the .md source file when
-      // the caller explicitly opts in.  The .md is the user's source of truth; we never
-      // mutate it automatically so as not to surprise users who track the file in git.
+      // Sync zeno frontmatter and header status: completed.
+      // writeback is retained for backward compatibility but no longer gates status sync.
       let wroteBack = false
-      // Always sync YAML frontmatter status: completed (best-effort)
       try {
-        const { findProposalByHash } = await import('../utils/artifact-locator.js')
-        const { readFile, writeFile } = await import('../utils/file.js')
-        const filePath = await findProposalByHash(normalizedHash)
-        if (filePath) {
-          let content = await readFile(filePath)
-          const fmEnd = content.indexOf('\n---', 3)
-          if (fmEnd !== -1) {
-            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1completed') + content.slice(fmEnd)
-          }
-          // Only patch **Status**: body field when caller opts in
-          if (validated.writeback) {
-            content = content.replace(/(\*\*Status\*\*:\s*)[a-z_]+/, '$1completed')
-            wroteBack = true
-          }
-          await writeFile(filePath, content)
-        }
+        wroteBack = await syncProposalArtifactStatus(normalizedHash, 'completed')
       } catch {
         // Non-fatal: writeback failure should not abort the approval result
       }
@@ -1575,8 +1551,8 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           name: 'writeback',
           type: 'boolean',
           description:
-            'When true, patch **Status**: completed back into the proposal .md file. ' +
-            'Only pass when user explicitly requests file\u2194DB reconciliation. Default false.',
+            'Deprecated: proposal status/header sync now happens automatically. ' +
+            'Retained for backward compatibility.',
           required: false,
         },
       ],
@@ -1594,6 +1570,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const validated = z
         .object({ hash: z.string(), rejectionReason: z.string().optional(), rejectedBy: z.string().optional() })
         .parse(params)
+      const normalizedHash = normalizeHash(validated.hash)
 
       const { getGitUserInfo } = await import('../utils/git.js')
 
@@ -1612,31 +1589,21 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       const db = (await import('../storage/database.js')).getDatabase()
       const currentRow = db
         .prepare('SELECT status FROM proposals WHERE hash = ? OR hash LIKE ?')
-        .get(validated.hash, `${validated.hash}%`) as { status: string } | undefined
+        .get(normalizedHash, `${normalizedHash}%`) as { status: string } | undefined
       const previousStatus = currentRow?.status ?? 'in_progress'
 
       const { rejectProposal } = await import('../core/completions.js')
-      await rejectProposal(validated.hash, { rejectedBy, rejectionReason: validated.rejectionReason })
+      await rejectProposal(normalizedHash, { rejectedBy, rejectionReason: validated.rejectionReason })
 
-      // Sync YAML frontmatter status: rejected (best-effort)
+      // Sync zeno frontmatter and header status: rejected (best-effort)
       try {
-        const { findProposalByHash } = await import('../utils/artifact-locator.js')
-        const { readFile, writeFile } = await import('../utils/file.js')
-        const filePath = await findProposalByHash(validated.hash)
-        if (filePath) {
-          let content = await readFile(filePath)
-          const fmEnd = content.indexOf('\n---', 3)
-          if (fmEnd !== -1) {
-            content = content.slice(0, fmEnd).replace(/^(\s*status:\s*).+$/m, '$1rejected') + content.slice(fmEnd)
-            await writeFile(filePath, content)
-          }
-        }
+        await syncProposalArtifactStatus(normalizedHash, 'rejected')
       } catch {
         // Frontmatter sync is best-effort; do not fail the reject operation
       }
 
       return {
-        hash: validated.hash,
+        hash: normalizedHash,
         previousStatus,
         newStatus: 'rejected' as const,
         rejectedAt: new Date().toISOString(),
