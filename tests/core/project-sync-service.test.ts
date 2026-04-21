@@ -85,7 +85,7 @@ vi.mock('node:fs', async () => {
     readFileSync: vi.fn((p: string) => {
       if (typeof p === 'string' && n(p).endsWith('.gitmodules')) {
         return `[submodule "CoreRepo"]
-\tpath = CoreRepo
+	path = zeno
 \turl = https://github.com/org/CoreRepo.git
 `
       }
@@ -154,11 +154,26 @@ describe('project-sync-service', () => {
       expect(result.summary.total).toBeGreaterThan(0)
     })
 
+    it('should ignore non-zeno submodules even if they point to the core repo URL', async () => {
+      const fs = await import('node:fs')
+      const nonZenoGitmodules = `[submodule "CoreRepo"]\n\tpath = vendor/planner\n\turl = https://github.com/org/CoreRepo.git\n`
+      vi.mocked(fs.readFileSync)
+        .mockImplementationOnce(() => nonZenoGitmodules as never)
+        .mockImplementationOnce(() => nonZenoGitmodules as never)
+
+      const result = await syncStatus({ projectRoot: '/project/CoreRepo' })
+
+      expect(result.consumers).toHaveLength(0)
+      expect(result.summary.total).toBe(0)
+    })
+
     it('should detect dirty submodule state', async () => {
       mockGitInstance.raw.mockImplementation(async (args: string[]) => {
         if (args[0] === 'submodule' && args[1] === 'status') {
-          // '+' prefix means dirty
-          return '+abc1234567890def1234567890abcdef12345678 CoreRepo (v1.0)'
+          return ' abc1234567890def1234567890abcdef12345678 CoreRepo (v1.0)'
+        }
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ' M CoreRepo'
         }
         if (args[0] === 'rev-list') return '0'
         return ''
@@ -351,8 +366,14 @@ describe('project-sync-service', () => {
       expect(result.summary.blocked).toBe(1)
     })
 
-    it('should skip consumers with dirty working trees by default', async () => {
-      mockGitInstance.status.mockResolvedValue({ isClean: () => false })
+    it('should skip consumers with dirty submodule state by default', async () => {
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ' M CoreRepo'
+        }
+        if (args[0] === 'log') return 'test'
+        return ''
+      })
 
       const result = await syncPropagate({
         repos: ['ConsumerA'],
@@ -363,18 +384,39 @@ describe('project-sync-service', () => {
       expect(result.summary.blocked).toBe(1)
     })
 
-    it('should proceed with dirty consumer when force=true', async () => {
-      let callCount = 0
-      mockGitInstance.status.mockImplementation(async () => {
-        callCount++
-        // First call is for the consumer dirty check — report dirty
-        return { isClean: () => false }
-      })
-      // After force=true, the submodule update proceeds
+    it('should ignore unrelated repo dirtiness when the submodule is clean', async () => {
+      mockGitInstance.status.mockResolvedValue({ isClean: () => false })
       mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ''
+        }
         if (args[0] === 'submodule' && args[1] === 'status') {
           return ' 0000000000000000000000000000000000000000 CoreRepo'
         }
+        if (args[0] === 'submodule' && args[1] === 'update') return ''
+        if (args[0] === 'log') return 'test'
+        return ''
+      })
+      mockGitInstance.diff.mockResolvedValue('CoreRepo')
+
+      const result = await syncPropagate({
+        repos: ['ConsumerA'],
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.results[0]!.status).not.toBe('blocked-dirty')
+      expect(mockGitInstance.status).not.toHaveBeenCalled()
+    })
+
+    it('should proceed with dirty consumer when force=true', async () => {
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ' M CoreRepo'
+        }
+        if (args[0] === 'submodule' && args[1] === 'status') {
+          return ' 0000000000000000000000000000000000000000 CoreRepo'
+        }
+        if (args[0] === 'submodule' && args[1] === 'update') return ''
         return ''
       })
       mockGitInstance.diff.mockResolvedValue('CoreRepo')
@@ -510,7 +552,15 @@ describe('project-sync-service', () => {
 
     it('should use default core HEAD when no commitHash specified', async () => {
       mockGitInstance.status.mockResolvedValue({ isClean: () => true })
-      mockGitInstance.raw.mockResolvedValue(' 0000000000000000000000000000000000000000 CoreRepo')
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ''
+        }
+        if (args[0] === 'submodule' && args[1] === 'status') {
+          return ' 0000000000000000000000000000000000000000 CoreRepo'
+        }
+        return ''
+      })
       mockGitInstance.diff.mockResolvedValue('')
 
       const result = await syncPropagate({
@@ -657,7 +707,7 @@ describe('project-sync-schemas', async () => {
     const result = SyncConfigSchema.safeParse({
       coreRepo: 'CoreRepo',
       consumers: ['ConsumerA'],
-      submodulePath: 'CoreRepo',
+      submodulePath: 'zeno',
       postSyncHooks: ['npm run build'],
       schemaDir: 'schemas/',
       schemaDriftWarning: true,

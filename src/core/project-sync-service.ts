@@ -6,7 +6,7 @@
  * core repo commits, and propagation of submodule pointer updates.
  */
 
-import { simpleGit } from 'simple-git'
+import { simpleGit, type SimpleGit } from 'simple-git'
 import { execSync } from 'node:child_process'
 import { join, basename, dirname, resolve } from 'node:path'
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
@@ -41,6 +41,8 @@ interface CoreRepoInfo {
   path: string
   remoteUrl: string | null
 }
+
+const DEFAULT_ZENO_SUBMODULE_PATH = 'zeno'
 
 // ============================================================================
 // Discovery
@@ -97,37 +99,11 @@ function parseGitmodules(repoPath: string): { path: string; url: string }[] {
   return entries
 }
 
-/**
- * Check if a URL matches the core repo's remote URL.
- * Handles variations: HTTPS vs SSH, trailing .git, etc.
- */
-function urlMatchesCoreRepo(submoduleUrl: string, coreRemoteUrl: string | null, coreRepoName: string): boolean {
-  if (!coreRemoteUrl) {
-    // Fallback: match by repo name in the URL
-    const urlBase = basename(submoduleUrl).replace(/\.git$/, '')
-    return urlBase === coreRepoName
-  }
-
-  // Normalize both URLs for comparison
-  const normalize = (url: string): string =>
-    url.trim().replace(/\.git$/, '').replace(/\/$/, '').toLowerCase()
-
-  if (normalize(submoduleUrl) === normalize(coreRemoteUrl)) return true
-
-  // Handle SSH ↔ HTTPS mismatch: extract org/repo portion
-  const extractOrgRepo = (url: string): string | null => {
-    // SSH: git@github.com:org/repo.git
-    const sshMatch = /[:/]([^/]+\/[^/]+?)(?:\.git)?$/.exec(url)
-    if (sshMatch?.[1]) return sshMatch[1].toLowerCase()
-    // HTTPS: https://github.com/org/repo.git
-    const httpsMatch = /\/([^/]+\/[^/]+?)(?:\.git)?$/.exec(url)
-    if (httpsMatch?.[1]) return httpsMatch[1].toLowerCase()
-    return null
-  }
-
-  const subOrgRepo = extractOrgRepo(submoduleUrl)
-  const coreOrgRepo = extractOrgRepo(coreRemoteUrl)
-  return subOrgRepo !== null && subOrgRepo === coreOrgRepo
+function getTrackedZenoSubmodulePath(syncConfig: Partial<SyncConfig>): string {
+  const configuredPath = syncConfig.submodulePath?.trim()
+  return configuredPath && configuredPath.length > 0
+    ? configuredPath
+    : DEFAULT_ZENO_SUBMODULE_PATH
 }
 
 /**
@@ -141,7 +117,7 @@ function discoverConsumersFromFilesystem(
 ): DiscoveredConsumer[] {
   const parentDir = dirname(coreRepo.path)
   const consumers: DiscoveredConsumer[] = []
-  const explicitSubmodulePath = syncConfig.submodulePath
+  const trackedZenoSubmodulePath = getTrackedZenoSubmodulePath(syncConfig)
 
   let entries: string[]
   try {
@@ -168,17 +144,11 @@ function discoverConsumersFromFilesystem(
     // Check .gitmodules for a matching submodule
     const submodules = parseGitmodules(candidatePath)
     for (const sub of submodules) {
-      const pathMatches = explicitSubmodulePath
-        ? sub.path === explicitSubmodulePath
-        : sub.path === coreRepo.name || basename(sub.path) === coreRepo.name
-
-      const urlMatches = urlMatchesCoreRepo(sub.url, coreRepo.remoteUrl, coreRepo.name)
-
-      if (pathMatches || urlMatches) {
+      if (sub.path === trackedZenoSubmodulePath) {
         consumers.push({
           name: entry,
           path: candidatePath,
-          submodulePath: sub.path,
+          submodulePath: trackedZenoSubmodulePath,
         })
         break // One match per consumer is enough
       }
@@ -196,7 +166,7 @@ function discoverConsumers(
   syncConfig: Partial<SyncConfig>,
   registryConsumers?: { name: string; path: string }[],
 ): DiscoveredConsumer[] {
-  const submodulePath = syncConfig.submodulePath ?? coreRepo.name
+  const submodulePath = getTrackedZenoSubmodulePath(syncConfig)
 
   // 1. Explicit config list
   if (syncConfig.consumers && syncConfig.consumers.length > 0) {
@@ -223,12 +193,7 @@ function discoverConsumers(
 
       // Verify it actually has the core repo as submodule
       const submodules = parseGitmodules(repoPath)
-      const hasCore = submodules.some(
-        (s) =>
-          s.path === submodulePath ||
-          basename(s.path) === coreRepo.name ||
-          urlMatchesCoreRepo(s.url, coreRepo.remoteUrl, coreRepo.name),
-      )
+      const hasCore = submodules.some((s) => s.path === submodulePath)
       if (hasCore) {
         consumers.push({ name: repo.name, path: repoPath, submodulePath })
       }
@@ -267,6 +232,24 @@ async function isOnWorktreeBranch(git: ReturnType<typeof simpleGit>): Promise<bo
   } catch {
     return false // detached HEAD or other non-branch state
   }
+}
+
+function parsePinnedSubmoduleHash(submoduleStatusRaw: string): string {
+  const trimmed = submoduleStatusRaw.trim()
+  const hashMatch = /^(?:[-+U ])?([0-9a-f]{40})/.exec(trimmed)
+  return hashMatch?.[1] ?? ''
+}
+
+async function isSubmoduleDirty(git: SimpleGit, submodulePath: string): Promise<boolean> {
+  // Restrict the check to the gitlink so unrelated consumer repo changes do not block sync.
+  const porcelain = await git.raw([
+    'status',
+    '--porcelain=v1',
+    '--ignore-submodules=none',
+    '--',
+    submodulePath,
+  ])
+  return porcelain.trim().length > 0
 }
 
 // ============================================================================
@@ -316,11 +299,8 @@ export async function syncStatus(params: {
       const submoduleStatusRaw = await consumerGit.raw([
         'submodule', 'status', consumer.submodulePath,
       ])
-      // Output format: " <hash> <path> (<desc>)" or "+<hash> <path> (<desc>)" for dirty
-      const trimmed = submoduleStatusRaw.trim()
-      const dirty = trimmed.startsWith('+')
-      const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(trimmed)
-      const pinnedHash = hashMatch?.[1] ?? ''
+      const pinnedHash = parsePinnedSubmoduleHash(submoduleStatusRaw)
+      const dirty = await isSubmoduleDirty(consumerGit, consumer.submodulePath)
 
       // Count commits behind
       let behind = 0
@@ -448,9 +428,7 @@ export async function syncDiff(params: {
       const submoduleStatusRaw = await consumerGit.raw([
         'submodule', 'status', consumer.submodulePath,
       ])
-      const trimmed = submoduleStatusRaw.trim()
-      const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(trimmed)
-      const pinnedHash = hashMatch?.[1] ?? ''
+      const pinnedHash = parsePinnedSubmoduleHash(submoduleStatusRaw)
       const pinnedHashShort = pinnedHash.slice(0, 7)
 
       if (!pinnedHash || pinnedHash === coreHead) {
@@ -803,10 +781,10 @@ export async function syncPropagate(params: {
         continue
       }
 
-      // Check dirty state
+      // Check the configured submodule path only; unrelated repo changes should not block sync.
       if (!force) {
-        const consumerStatus = await consumerGit.status()
-        if (!consumerStatus.isClean()) {
+        const submoduleDirty = await isSubmoduleDirty(consumerGit, consumer.submodulePath)
+        if (submoduleDirty) {
           results.push({ repo: consumer.name, status: 'blocked-dirty' })
           continue
         }
@@ -817,8 +795,7 @@ export async function syncPropagate(params: {
         const submoduleStatusRaw = await consumerGit.raw([
           'submodule', 'status', consumer.submodulePath,
         ])
-        const hashMatch = /^[+ -]?([0-9a-f]{40})/.exec(submoduleStatusRaw.trim())
-        const pinnedHash = hashMatch?.[1] ?? ''
+        const pinnedHash = parsePinnedSubmoduleHash(submoduleStatusRaw)
         results.push({
           repo: consumer.name,
           status: pinnedHash === targetHash ? 'already-current' : 'updated',
@@ -832,8 +809,7 @@ export async function syncPropagate(params: {
       const beforeStatusRaw = await consumerGit.raw([
         'submodule', 'status', consumer.submodulePath,
       ])
-      const beforeMatch = /^[+ -]?([0-9a-f]{40})/.exec(beforeStatusRaw.trim())
-      const previousHash = beforeMatch?.[1] ?? ''
+      const previousHash = parsePinnedSubmoduleHash(beforeStatusRaw)
 
       // Update submodule
       await consumerGit.raw(['submodule', 'update', '--init', consumer.submodulePath])
