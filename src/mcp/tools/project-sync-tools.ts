@@ -26,11 +26,12 @@ export const projectSyncToolDefinitions = [
  */
 async function getRegistryConsumers(
   registry: FunctionRegistry,
+  projectRoot: string,
 ): Promise<{ name: string; path: string }[] | undefined> {
   try {
     const result = await registry.invoke<{
       repositories: { name: string; path: string }[]
-    }>('repos_list', {})
+    }>('repos_list', { projectRoot })
     if (result.success) {
       return result.data.repositories
     }
@@ -50,7 +51,7 @@ export function projectSyncHandlers(
       const projectRoot = findProjectRoot() ?? getWorkspaceRoot()
 
       try {
-        const registryConsumers = await getRegistryConsumers(registry)
+        const registryConsumers = await getRegistryConsumers(registry, projectRoot)
 
         if (action === 'status') {
           const result = await syncStatus({

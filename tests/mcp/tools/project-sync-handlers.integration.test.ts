@@ -168,6 +168,9 @@ describe('project-sync-handlers (integration)', () => {
     const res = await handlers.project_sync({ action: 'status' })
 
     expect(res.isError).toBeUndefined()
+    expect(successRegistry.invoke).toHaveBeenCalledWith('repos_list', {
+      projectRoot: '/project/CoreRepo',
+    })
     const { syncStatus } = await import('../../../src/core/project-sync-service')
     expect(vi.mocked(syncStatus)).toHaveBeenCalledWith(
       expect.objectContaining({

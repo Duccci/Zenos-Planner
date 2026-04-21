@@ -116,9 +116,11 @@ async function buildDiagramContext(): Promise<DiagramContext> {
 
 export function registerRepositoryOps(registry: FunctionRegistry): void {
   registry.register('repos_list', (params) => {
-    const { type } = params as { type?: string }
-    const projectRoot = getWorkspaceRoot()
-    const repos = listRepositories(type, projectRoot)
+    const { type, projectRoot } = params as { type?: string; projectRoot?: string }
+    const targetProjectRoot = projectRoot && projectRoot.trim().length > 0
+      ? projectRoot
+      : getWorkspaceRoot()
+    const repos = listRepositories(type, targetProjectRoot)
     return {
       repositories: repos.map(r => ({
         id: r.hash,
@@ -135,7 +137,10 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
       { name: 'type', type: 'string', description: 'Optional type filter', required: false },
     ],
     returnType: 'ReposListOutput',
-    schema: z.object({ type: z.string().optional() })
+    schema: z.object({
+      type: z.string().optional(),
+      projectRoot: z.string().optional(),
+    })
   })
 
   registry.register('repos_deps', (_params) => {

@@ -87,6 +87,12 @@ describe('schema-registry operations', () => {
       expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_list')
     })
 
+    it('uses an explicit projectRoot override when provided', async () => {
+      await registry.invoke('repos_list', { projectRoot: '/consumer/project' })
+
+      expect(mockListRepositories).toHaveBeenCalledWith(undefined, '/consumer/project')
+    })
+
     it('returns empty repositories when storage is empty', async () => {
       const result = (await registry.invoke('repos_list', {})) as {
         success: boolean
