@@ -130,7 +130,7 @@ describe('schema-registry operations', () => {
       })
       mockShortHash.mockReturnValue('det11111')
 
-      const result = (await registry.invoke('repos_detect', {})) as {
+      const result = (await registry.invoke('repos_detect', { reanalyzeCrossRepo: true })) as {
         success: boolean
         data: { detected: { repoId: string; name: string; type: string }[]; summary: string }
       }
@@ -138,8 +138,23 @@ describe('schema-registry operations', () => {
       expect(result.data.detected).toHaveLength(1)
       expect(result.data.detected[0]).toMatchObject({ name: 'svc-a', type: 'service', path: 'src/svc-a' })
       expect(result.data.summary).toContain('1')
-      expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), { persist: false })
+      expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), {
+        persist: false,
+        reanalyzeCrossRepo: true,
+      })
       expect(mockInvokeCommand).not.toHaveBeenCalledWith('repos_detect')
+    })
+
+    it('accepts repos_detect calls without optional parameters', async () => {
+      const result = (await registry.invoke('repos_detect', {})) as {
+        success: boolean
+      }
+
+      expect(result.success).toBe(true)
+      expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), {
+        persist: false,
+        reanalyzeCrossRepo: false,
+      })
     })
 
     it('coerces unknown boundary type to service', async () => {
@@ -161,6 +176,21 @@ describe('schema-registry operations', () => {
 
       const result = (await registry.invoke('repos_detect', {})) as { success: boolean }
       expect(result.success).toBe(false)
+    })
+
+    it('returns detailed parameter errors for invalid repos_detect input', async () => {
+      const result = (await registry.invoke('repos_detect', {
+        reanalyzeCrossRepo: 'true' as unknown as boolean,
+      })) as {
+        success: boolean
+        error: { code: string; message: string; context?: Record<string, unknown> }
+      }
+
+      expect(result.success).toBe(false)
+      expect(result.error.code).toBe('INVALID_PARAMETERS')
+      expect(result.error.message).toContain("function 'repos_detect'")
+      expect(result.error.message).toContain('reanalyzeCrossRepo')
+      expect(result.error.context).toHaveProperty('functionName', 'repos_detect')
     })
   })
 

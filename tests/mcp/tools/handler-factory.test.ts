@@ -104,7 +104,7 @@ describe('Handler Factory', () => {
     expect(res.isError).toBe(true)
     const sc = res.structuredContent as any
     expect(sc.error).toBeDefined()
-    expect(String((sc.error.message as string)).toLowerCase()).toContain('boom')
+    expect(String((sc.error.error as string)).toLowerCase()).toContain('boom')
   })
 
   it('runValidators treats thrown validator as warning and continues', async () => {

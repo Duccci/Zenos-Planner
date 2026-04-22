@@ -50,7 +50,7 @@ describe('Repository Handlers (integration)', () => {
     const mockData = { detected: [{ repoId: 'r1', name: 'repo-1', type: 'service' as const, path: 'src/repo-1' }] }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_action({ action: 'detect', payload: { reanalyzeCrossRepo: false } })
+    const res = await handlers.repos_action({ action: 'detect', reanalyzeCrossRepo: false })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -58,6 +58,7 @@ describe('Repository Handlers (integration)', () => {
     const parsed = JSON.parse(res.content[0]!.text as string)
     const ok = ReposDetectOutputSchema.safeParse(parsed)
     expect(ok.success).toBe(true)
+    expect(fakeRegistry.invoke).toHaveBeenCalledWith('repos_detect', { reanalyzeCrossRepo: false })
   })
 
   it('repos_deps returns structured dependency graph', async () => {

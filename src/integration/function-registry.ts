@@ -9,6 +9,27 @@
 import { z } from 'zod'
 import { logger } from '../utils/logger.js'
 
+function formatIssuePath(path: PropertyKey[]): string {
+  const stringPath = path.filter((p): p is string | number => typeof p !== 'symbol')
+  return stringPath.length === 0 ? '(root)' : stringPath.join('.')
+}
+
+function summarizeValidationIssues(issues: z.core.$ZodIssue[]): string {
+  const summary = issues
+    .slice(0, 3)
+    .map((issue) => {
+      const path = formatIssuePath(issue.path)
+      return path === '(root)' ? issue.message : `${path}: ${issue.message}`
+    })
+    .join('; ')
+
+  if (issues.length <= 3) {
+    return summary
+  }
+
+  return `${summary}; (+${String(issues.length - 3)} more issue(s))`
+}
+
 export interface FunctionParameter {
   name: string
   type: string
@@ -162,18 +183,22 @@ export class FunctionRegistry {
         validatedParams = func.schema.parse(params) as Record<string, unknown>
       } catch (error) {
         const zodError = error as z.ZodError
+        const issues = zodError.issues.map((issue) => ({
+          path: formatIssuePath(issue.path),
+          message: issue.message,
+          code: issue.code,
+        }))
         return {
           success: false,
           error: {
             code: 'INVALID_PARAMETERS',
-            message: 'Parameter validation failed',
+            message: `Parameter validation failed for function '${name}': ${summarizeValidationIssues(zodError.issues)}`,
             context: {
-              issues: zodError.issues.map((issue) => ({
-                path: issue.path.join('.'),
-                message: issue.message,
-                code: issue.code,
-              })),
+              functionName: name,
+              receivedKeys: Object.keys(params),
+              issues,
             },
+            timestamp: new Date().toISOString(),
           },
         }
       }

@@ -141,7 +141,7 @@ export function parseBoundaryRecommendations(llmResponse: string): BoundaryRecom
  */
 export async function detectRepositoryBoundaries(
   rootPath: string,
-  _opts: { persist: boolean },
+  _opts: { persist: boolean; reanalyzeCrossRepo?: boolean },
   analyzer: BoundaryAnalyzer = new ArchitectReviewerBoundaryAnalyzer()
 ): Promise<BoundaryDetectionResult> {
   const codeAnalyzer = new CodeAnalyzer()

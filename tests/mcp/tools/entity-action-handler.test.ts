@@ -49,7 +49,14 @@ describe('createEntityActionHandler (unit)', () => {
   it('returns error when action handler reports failure', async () => {
     const registry = { dummy: true } as any
     const actionHandlers = {
-      alpha: async () => ({ success: false, error: { message: 'boom', code: 'ERR' } } as FunctionResult),
+      alpha: async () => ({
+        success: false,
+        error: {
+          message: 'boom',
+          code: 'ERR',
+          context: { functionName: 'alpha_impl', issues: [{ path: 'flag', message: 'Expected boolean', code: 'invalid_type' }] },
+        },
+      } as FunctionResult),
       beta: async () => ({ success: true, data: { ok: true } } as FunctionResult),
     }
 
@@ -65,8 +72,15 @@ describe('createEntityActionHandler (unit)', () => {
     const res = await handler({ action: 'alpha' })
     expect(res.isError).toBe(true)
     const textContent = res.content?.find((c: any) => c.type === 'text') as { type: 'text'; text: string } | undefined
-    const text = String(textContent?.text ?? '')
-    expect(text.toLowerCase()).toContain('boom')
+    const parsed = JSON.parse(String(textContent?.text ?? '{}'))
+    expect(String(parsed.error).toLowerCase()).toContain('boom')
+    expect(parsed.code).toBe('ERR')
+    expect(parsed.context).toMatchObject({
+      tool: 'test_action',
+      action: 'alpha',
+      functionName: 'alpha_impl',
+    })
+    expect((parsed.context.issues as Array<{ path: string }>)[0]?.path).toBe('flag')
   })
 
   it('runs validators and returns validation error when validators fail', async () => {

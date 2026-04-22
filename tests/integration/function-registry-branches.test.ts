@@ -39,7 +39,10 @@ describe('FunctionRegistry - branch coverage', () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       expect(result.error.code).toBe('INVALID_PARAMETERS')
+      expect(result.error.message).toContain("function 'test_fn_schema'")
+      expect(result.error.message).toContain('id:')
       expect(result.error.context).toHaveProperty('issues')
+      expect(result.error.context).toHaveProperty('functionName', 'test_fn_schema')
     }
   })
 

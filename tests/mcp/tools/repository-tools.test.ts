@@ -16,12 +16,12 @@ describe('MCP Repository tools (integration)', () => {
     }
   })
 
-  it('repos_detect with invalid param returns an error response', async () => {
+it('repos_detect with invalid param returns an error response', async () => {
     const { createFunctionRegistry } = await import('../../../src/integration/function-implementations.js')
     const { createToolHandler } = await import('../../../src/mcp/tool-handlers.js')
     const registry = createFunctionRegistry()
     const handler = createToolHandler(registry, 'repos_detect')
-    const result = await handler({ root: 123 })
+    const result = await handler({ reanalyzeCrossRepo: 'not-a-boolean' })
     expect(result).toBeDefined()
     expect(result.isError).toBe(true)
     const text = result.content?.[0]?.text ? String(result.content?.[0]?.text) : ''

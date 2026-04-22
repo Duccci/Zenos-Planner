@@ -138,28 +138,34 @@ export function createSchemaValidatingHandler(
       } else {
         // Non-success result: return structured error envelope per unified schema
         const err: FunctionErrorResponse = result.error
+        const errorContext = {
+          functionName,
+          ...(err.context ?? {}),
+        }
         const errorPayload = {
-          code: err.code,
-          message: err.message,
-          context: err.context,
-          timestamp: err.timestamp ?? new Date().toISOString(),
-          operations: err.operations,
+          error: err.message,
+          ...(err.code ? { code: err.code } : {}),
+          context: errorContext,
+          ...(err.timestamp ? { timestamp: err.timestamp } : {}),
+          ...(err.operations !== undefined ? { operations: err.operations } : {}),
         }
         return {
           content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+          structuredContent: { error: errorPayload },
           isError: true,
         }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const payload = {
+        error: `Handler error: ${errorMessage}`,
         code: 'INTERNAL_ERROR',
-        message: `Handler error: ${errorMessage}`,
         timestamp: new Date().toISOString(),
         context: { functionName },
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        structuredContent: { error: payload },
         isError: true,
       }
     }
@@ -200,29 +206,35 @@ export function createBasicHandler(
         }
       } else {
         const err: FunctionErrorResponse = result.error
+        const errorContext = {
+          functionName,
+          ...(err.context ?? {}),
+        }
         const errorPayload = {
-          code: err.code,
-          message: err.message,
-          context: err.context,
-          timestamp: err.timestamp ?? new Date().toISOString(),
-          operations: err.operations,
+          error: err.message,
+          ...(err.code ? { code: err.code } : {}),
+          context: errorContext,
+          ...(err.timestamp ? { timestamp: err.timestamp } : {}),
+          ...(err.operations !== undefined ? { operations: err.operations } : {}),
         }
 
         return {
           content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
+          structuredContent: { error: errorPayload },
           isError: true,
         }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const payload = {
+        error: `Handler error: ${errorMessage}`,
         code: 'INTERNAL_ERROR',
-        message: `Handler error: ${errorMessage}`,
         timestamp: new Date().toISOString(),
         context: { functionName },
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+        structuredContent: { error: payload },
         isError: true,
       }
     }
@@ -355,8 +367,8 @@ export function handleError(error: unknown, context?: Record<string, unknown>): 
   }
 
   const payload: Record<string, unknown> = {
+    error: `Handler error: ${errorMessage}`,
     code: error instanceof ZodError ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR',
-    message: `Handler error: ${errorMessage}`,
     timestamp: new Date().toISOString(),
     context: context ?? {},
     ...(zodIssues ? { zodIssues } : {}),

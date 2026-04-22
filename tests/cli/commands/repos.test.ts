@@ -69,7 +69,7 @@ describe('Repos command coverage', () => {
   it('repos detect calls detectRepositoryBoundaries with persist:false', async () => {
     await program.parseAsync(['node', 'test', 'repos', 'detect'])
 
-    expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), { persist: false })
+    expect(mockDetectRepositoryBoundaries).toHaveBeenCalledWith(expect.any(String), { persist: false, reanalyzeCrossRepo: false })
     expect(vi.mocked(logger.info)).toHaveBeenCalledWith('No boundary recommendations generated.')
   })
 

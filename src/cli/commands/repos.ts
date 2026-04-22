@@ -54,10 +54,14 @@ export function registerReposCommands(program: Command): void {
       'Re-analyze cross-repository dependencies (true/false)',
       'false'
     )
-    .action(async () => {
+    .action(async (opts: { reanalyzeCrossRepo?: string }) => {
       const projectRoot = process.cwd()
+      const reanalyzeCrossRepo = (opts.reanalyzeCrossRepo ?? 'false').toLowerCase() === 'true'
       logger.info('Running boundary detection...')
-      const result = await detectRepositoryBoundaries(projectRoot, { persist: false })
+      const result = await detectRepositoryBoundaries(projectRoot, {
+        persist: false,
+        reanalyzeCrossRepo,
+      })
       if (result.recommendations.length === 0) {
         logger.info('No boundary recommendations generated.')
         return

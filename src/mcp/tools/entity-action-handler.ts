@@ -156,10 +156,23 @@ export function createEntityActionHandler<T extends string>(
 
       if (!invokeResult.success) {
         const err = invokeResult.error
+        const errorContext = {
+          tool: `${config.entity}_action`,
+          action,
+          ...(err?.context ?? {}),
+        }
+        const errorPayload = {
+          error: err?.message ?? 'Unknown',
+          ...(err?.code ? { code: err.code } : {}),
+          context: errorContext,
+          ...(err?.timestamp ? { timestamp: err.timestamp } : {}),
+          ...(err?.operations !== undefined ? { operations: err.operations } : {}),
+        }
         return {
           content: [
-            { type: 'text', text: JSON.stringify({ error: err?.message ?? 'Unknown' }, null, 2) },
+            { type: 'text', text: JSON.stringify(errorPayload, null, 2) },
           ],
+          structuredContent: { error: errorPayload },
           isError: true,
         }
       }
@@ -191,7 +204,11 @@ export function createEntityActionHandler<T extends string>(
           stack: e instanceof Error ? e.stack : undefined,
         })
       }
-      return handleError(e)
+      return handleError(e, {
+        tool: `${config.entity}_action`,
+        entity: config.entity,
+        ...(typeof args['action'] === 'string' ? { action: args['action'] } : {}),
+      })
     }
   }
 }

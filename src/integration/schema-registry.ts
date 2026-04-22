@@ -18,6 +18,7 @@ import { listRepositories, saveRepository, deleteRepository, getRepositoryByHash
 import { detectRepositoryBoundaries } from '../core/boundary-detection.js'
 import { shortHash } from '../utils/hash.js'
 import { GitTraceInputSchema, GitTraceOutputSchema } from '../mcp/schemas/git-trace-schemas.js'
+import { ReposDetectInputSchema } from '../mcp/schemas/repository-schemas.js'
 import { DiagramSelector } from '../generation/diagram-selector.js'
 import type { DiagramContext } from '../generation/diagram-generator-base.js'
 import { isValidDiagramType, getCatalogueEntry } from '../generation/diagram-catalogue.js'
@@ -158,9 +159,13 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
     schema: z.object({ repositoryId: z.string().optional() })
   })
 
-  registry.register('repos_detect', async () => {
+  registry.register('repos_detect', async (params) => {
     const projectRoot = getWorkspaceRoot()
-    const result = await detectRepositoryBoundaries(projectRoot, { persist: false })
+    const reanalyzeCrossRepo = params['reanalyzeCrossRepo'] === true
+    const result = await detectRepositoryBoundaries(projectRoot, {
+      persist: false,
+      reanalyzeCrossRepo,
+    })
     const validTypes = new Set(['main', 'service', 'library', 'tool', 'app'])
     return {
       detected: result.recommendations.map(rec => ({
@@ -175,7 +180,7 @@ export function registerRepositoryOps(registry: FunctionRegistry): void {
     description: 'Re-run repository boundary detection',
     parameters: [],
     returnType: 'ReposDetectOutput',
-    schema: z.object({}).strict()
+    schema: ReposDetectInputSchema
   })
 
   registry.register('repos_adjust', async () => {
