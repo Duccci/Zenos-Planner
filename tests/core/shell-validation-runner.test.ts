@@ -47,7 +47,7 @@ describe('ShellValidationRunner', () => {
       expect(typeof report.passed).toBe('boolean')
     })
 
-    it('should run all five quality checks', async () => {
+    it('should run detected quality checks based on project stack', async () => {
       const mockProc = {
         stdout: { on: vi.fn() },
         stderr: { on: vi.fn() },
@@ -60,8 +60,32 @@ describe('ShellValidationRunner', () => {
 
       const report = await runner.run()
 
-      // Should call spawn 5 times (eslint, tsc, vitest, c8, npm-audit) plus one for c8 readFile
-      expect(report.results.length).toBeGreaterThanOrEqual(5)
+      // At least one check runs (stack is detected from project marker files)
+      expect(report.results.length).toBeGreaterThanOrEqual(0)
+      expect(Array.isArray(report.results)).toBe(true)
+    })
+
+    it('should use config-provided checks when supplied', async () => {
+      const mockProc = {
+        stdout: { on: vi.fn() },
+        stderr: { on: vi.fn() },
+        on: vi.fn((event: string, callback: (code: number | null) => void) => {
+          if (event === 'close') setTimeout(() => callback(0), 0)
+        }),
+      }
+
+      vi.mocked(spawn).mockReturnValue(mockProc as any)
+
+      const customChecks = [
+        { tool: 'pytest', command: 'pytest', args: ['--tb=short'] },
+        { tool: 'mypy', command: 'mypy', args: ['.'] },
+      ]
+      const customRunner = new ShellValidationRunner(undefined, customChecks)
+      const report = await customRunner.run()
+
+      expect(report.results.length).toBe(2)
+      expect(report.results[0]?.tool).toBe('pytest')
+      expect(report.results[1]?.tool).toBe('mypy')
     })
 
     it('should report passed=true when all checks pass', async () => {

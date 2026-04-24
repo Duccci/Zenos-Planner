@@ -1,42 +1,124 @@
 /**
  * Shell-based validation runner for quality checks.
  *
- * Spawns real tool processes (ESLint, TypeScript, Vitest, c8, npm audit)
- * and aggregates results into a structured ValidationReport.
+ * Spawns quality-check processes and aggregates results into a structured ValidationReport.
+ * The set of checks to run is determined by either:
+ *   1. An explicit list passed at construction time (from config.json `validation.checks`), or
+ *   2. Auto-detection from project marker files (package.json → Node/TS tools,
+ *      pyproject.toml → Python tools, Cargo.toml → Rust tools, go.mod → Go tools,
+ *      CMakeLists.txt → C++ tools).
  *
  * Each tool runs independently; if a tool is not found (ENOENT),
  * the check is marked as failed without throwing.
  */
 
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { readFile as fsReadFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { CheckResult, ValidationReport } from '../types/validation-runner.js'
+import type { CheckConfig, CheckResult, ValidationReport } from '../types/validation-runner.js'
+
+/** Marker-file → default checks mapping for each supported stack. */
+const STACK_CHECKS: {
+  markers: string[]
+  checks: readonly (CheckConfig | { tool: 'c8'; command: ''; args: [] })[]
+}[] = [
+  {
+    markers: ['package.json'],
+    checks: [
+      { tool: 'eslint', command: 'eslint', args: ['src', '--max-warnings', '0', '--format', 'json'] },
+      { tool: 'tsc', command: 'tsc', args: ['--strict', '--noEmit'] },
+      { tool: 'vitest', command: 'vitest', args: ['run', '--coverage', '--coverage.reporter=json-summary'] },
+      { tool: 'c8', command: '', args: [] }, // special: reads coverage-summary.json
+      { tool: 'npm-audit', command: 'npm', args: ['audit', '--json'] },
+    ],
+  },
+  {
+    markers: ['pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt'],
+    checks: [
+      { tool: 'pytest', command: 'pytest', args: ['--tb=short'] },
+      { tool: 'mypy', command: 'mypy', args: ['.', '--ignore-missing-imports'] },
+      { tool: 'ruff', command: 'ruff', args: ['check', '.'] },
+      { tool: 'pip-audit', command: 'pip-audit', args: [] },
+    ],
+  },
+  {
+    markers: ['Cargo.toml'],
+    checks: [
+      { tool: 'cargo-test', command: 'cargo', args: ['test'] },
+      { tool: 'cargo-clippy', command: 'cargo', args: ['clippy', '--', '-D', 'warnings'] },
+      { tool: 'cargo-audit', command: 'cargo', args: ['audit'] },
+    ],
+  },
+  {
+    markers: ['go.mod'],
+    checks: [
+      { tool: 'go-test', command: 'go', args: ['test', './...'] },
+      { tool: 'go-vet', command: 'go', args: ['vet', './...'] },
+    ],
+  },
+  {
+    markers: ['CMakeLists.txt'],
+    checks: [
+      { tool: 'ctest', command: 'ctest', args: ['--test-dir', '.', '--output-on-failure'] },
+    ],
+  },
+]
 
 export class ShellValidationRunner {
   private projectRoot: string
+  private configChecks: CheckConfig[] | undefined
 
-  constructor(projectRoot?: string) {
+  constructor(projectRoot?: string, configChecks?: CheckConfig[]) {
     this.projectRoot = projectRoot ?? process.cwd()
+    this.configChecks = configChecks
   }
 
   /**
-   * Run all five quality checks in sequence and return aggregated report.
+   * Run quality checks and return aggregated report.
+   *
+   * Uses config-provided checks when available; otherwise auto-detects
+   * the project stack from marker files and selects applicable tools.
+   * Returns passed=true with empty results when no applicable tools are found.
    */
   async run(): Promise<ValidationReport> {
+    const checks = this.configChecks?.length ? this.configChecks : this.detectChecks()
     const results: CheckResult[] = []
 
-    results.push(await this.runEslint())
-    results.push(await this.runTsc())
-    results.push(await this.runVitest())
-    results.push(await this.runC8())
-    results.push(await this.runNpmAudit())
+    for (const check of checks) {
+      if (check.tool === 'c8') {
+        results.push(await this.runC8())
+      } else {
+        results.push(await this.runTool(check.command, check.args, check.tool))
+      }
+    }
 
     return {
       results,
-      passed: results.every((r) => r.passed),
+      passed: results.length === 0 || results.every((r) => r.passed),
       timestamp: new Date().toISOString(),
     }
+  }
+
+  /**
+   * Detect applicable quality checks by probing for stack marker files.
+   * Returns checks for every detected stack (projects can use multiple stacks).
+   */
+  detectChecks(): CheckConfig[] {
+    const checks: CheckConfig[] = []
+
+    for (const stack of STACK_CHECKS) {
+      const detected = stack.markers.some((marker) =>
+        existsSync(join(this.projectRoot, marker))
+      )
+      if (detected) {
+        for (const check of stack.checks) {
+          checks.push({ tool: check.tool, command: check.command, args: [...check.args] })
+        }
+      }
+    }
+
+    return checks
   }
 
   /**

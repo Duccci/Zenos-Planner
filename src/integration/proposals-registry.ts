@@ -1031,7 +1031,17 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         if (process.env['ZENO_SKIP_SHELL_CHECKS'] !== '1') {
           try {
             const { ShellValidationRunner } = await import('../core/shell-validation-runner.js')
-            const runner = new ShellValidationRunner(getWorkspaceRoot())
+            const { loadConfig, findProjectRoot } = await import('../utils/config.js')
+            let configChecks: { tool: string; command: string; args: string[] }[] | undefined
+            try {
+              const wsRoot = getWorkspaceRoot()
+              const projectRoot = findProjectRoot(wsRoot) ?? wsRoot
+              const cfg = await loadConfig(projectRoot)
+              configChecks = cfg.validation?.checks
+            } catch {
+              // non-fatal: fall back to auto-detection
+            }
+            const runner = new ShellValidationRunner(getWorkspaceRoot(), configChecks)
             const report = await runner.run()
 
             // Extract metrics from validation report

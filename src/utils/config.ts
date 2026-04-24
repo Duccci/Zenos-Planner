@@ -137,6 +137,30 @@ export const ZenoConfigSchema = z
      * Persisted to config.json so re-runs of `mcp install` use the same key.
      */
     zenoServerName: z.string().optional(),
+
+    /**
+     * Validation configuration for shell-based quality checks.
+     * When omitted, checks are auto-detected from project marker files
+     * (package.json → Node/TS tools, pyproject.toml → Python tools, etc.).
+     */
+    validation: z
+      .object({
+        /**
+         * Explicit list of quality check commands to run.
+         * When provided, overrides stack auto-detection entirely.
+         * Each entry defines a tool identifier, the executable, and its arguments.
+         */
+        checks: z
+          .array(
+            z.object({
+              tool: z.string(),
+              command: z.string(),
+              args: z.array(z.string()).default([]),
+            })
+          )
+          .optional(),
+      })
+      .optional(),
   })
   .loose()
 
