@@ -26,8 +26,9 @@ export const worktreeToolDefinitions = [
       'list=show active/orphaned worktrees (optional: status="active"|"orphaned"|"all", default "active"). ' +
       'remove=explicitly delete a worktree by hash (needs: hash; optional: force=true to discard uncommitted changes). Use when a proposal was rejected or abandoned. ' +
       'prune=batch-remove all orphaned worktrees that have no matching proposal in the DB (optional: dryRun=true to preview). ' +
-      'merge=manually merge a proposal branch into main (needs: hash; optional: strategy="rebase"|"squash"|"merge" default "rebase", dryRun=true). ' +
-      'IMPORTANT for merge: proposal_action:approve already merges the worktree automatically — only call worktree_action:merge directly when approve returns MERGE_CONFLICT errors or when you need an explicit strategy. ' +
+      'merge=merge a proposal branch into main (needs: hash; optional: strategy="rebase"|"squash"|"merge" default "rebase", dryRun=true). ' +
+      'COLLAPSE WORKFLOW: use strategy="squash" to collapse all worktree commits into a single commit before merging — useful when the branch contains many WIP or fixup commits. Always run with dryRun=true first to preview the result. ' +
+      'MERGE WORKFLOW: proposal_action:approve is the preferred merge path (merges + removes worktree automatically). Call worktree_action:merge directly ONLY when approve returns MERGE_CONFLICT errors, or when a specific strategy (squash, merge) is required. ' +
       'On success, merge also removes the worktree. On conflict, the worktree is preserved for manual resolution and conflicts are listed in the response. ' +
       'merge refuses if the worktree has uncommitted changes; commit or stash them first.',
     inputSchema: z.object({

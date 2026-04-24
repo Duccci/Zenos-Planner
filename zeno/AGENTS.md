@@ -82,7 +82,15 @@ Project-specific guide for AI agents. For general Zeno dispatch rules, see `../A
 
 ## Proposal Execution Protocol
 
-**When asked to "start", "implement", "work on", or "execute" a proposal**: extract its `#hash` from the `**Hash**:` line, then call `proposal_action:start { hash }` before touching any files. The response returns the worktree path — all edits and commits belong there, not in the main workspace. Finish with `proposal_action:validate` → `proposal_action:approve`.
+**When asked to "start", "implement", "work on", or "execute" a proposal**: extract its `#hash` from the `**Hash**:` line, then call `proposal_action:start { hash }` before touching any files. The response returns the worktree path — all edits and commits belong there, not in the main workspace. Finish with `proposal_action:validate` → commit inside the worktree → `proposal_action:approve`.
+
+**Collapse & merge (gate-tied proposals):**
+
+- **Collapse (optional):** `worktree_action:merge { action:"merge", hash, strategy:"squash", dryRun:true }` → then without `dryRun`. Use when the branch has many WIP commits.
+- **Merge (normal):** `proposal_action:approve { hash }` — merges worktree branch into main and removes the worktree automatically.
+- **Merge (conflict recovery):** resolve conflicts in the worktree dir → commit → `proposal_action:approve { hash }` again.
+- **Strategies:** `rebase` (default, linear history), `squash` (single commit), `merge` (three-way). Pass via `worktree_action:merge { strategy }`.
+- Solitary proposals skip merge — `approve` finalises status only.
 
 ## Reading Artifacts
 

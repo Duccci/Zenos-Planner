@@ -1,4 +1,5 @@
-import { stat } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { simpleGit } from 'simple-git'
 
 export interface WorktreeInfo {
@@ -121,7 +122,24 @@ export class WorktreeManager {
     const args = force
       ? ['worktree', 'remove', '--force', info.path]
       : ['worktree', 'remove', info.path]
-    await git.raw(args)
+    try {
+      await git.raw(args)
+    } catch (err) {
+      // On Windows, 'git worktree remove' can fail with "Filename too long" when the
+      // worktree contains paths that exceed MAX_PATH (260 chars). Fall back to manual
+      // directory removal using the \\?\ UNC prefix to bypass the limit, then prune
+      // git's internal worktree reference.
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/filename too long|path too long/i.test(msg)) {
+        const absPath = resolve(this.projectRoot, info.path)
+        const longPath =
+          process.platform === 'win32' ? `\\\\?\\${absPath.replace(/\//g, '\\')}` : absPath
+        await rm(longPath, { recursive: true, force: true })
+        await git.raw(['worktree', 'prune'])
+      } else {
+        throw err
+      }
+    }
 
     // Delete the proposal branch to prevent stale branches from accumulating.
     try {

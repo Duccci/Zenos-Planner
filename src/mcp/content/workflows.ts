@@ -162,7 +162,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     order: 11,
     title: 'Commit Changes',
     description:
-      'After the proposal is marked completed (normally by the final proposal_action:progress call), commit all implementation changes. For worktree commits the pre-commit hook automatically runs scoped tests (vitest --changed HEAD) instead of the full suite, so unrelated in-progress failures on other branches will not block this commit.',
+      'After the proposal is marked completed (normally by the final proposal_action:progress call), commit all implementation changes inside the worktree (gate-tied) or working directory (solitary). For worktree commits the pre-commit hook automatically runs scoped tests (vitest --changed HEAD) instead of the full suite, so unrelated in-progress failures on other branches will not block this commit.',
     prerequisites: ['Proposal status === "completed" (step 10)'],
     actions: [
       'config_get() to retrieve git.commitFormat',
@@ -173,6 +173,45 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
       'If proposal is not yet "completed", do not commit — verify the last progress update succeeded, and use proposal_action:approve only if you are recovering a legacy in_progress proposal. Never commit before proposal status is "completed". If the pre-commit hook fails on scoped tests, fix the specific failing tests before retrying.',
     guidance:
       'Use chore(proposal): scope for implementation commits. Include the proposal hash in the commit message for traceability. Gate-level archival commits (feat(gate-XX):) are separate and happen later at gates_action:complete. The pre-commit hook distinguishes worktree commits (scoped tests), merge commits (scoped tests), and main commits (full coverage suite) automatically — no manual override needed.',
+  },
+  {
+    order: 12,
+    title: 'Collapse Worktree Commits (Gate-Tied, Optional)',
+    description:
+      'For gate-tied proposals only: optionally squash all proposal commits into a single clean commit before merging into main. Skip this step for solitary proposals (no worktree) or when the worktree already contains a single well-scoped commit.',
+    prerequisites: [
+      'Proposal status === "completed" (step 10)',
+      'All changes committed inside the worktree (step 11)',
+    ],
+    actions: [
+      'Preview: worktree_action:merge { action: "merge", hash, strategy: "squash", dryRun: true }',
+      'Apply:   worktree_action:merge { action: "merge", hash, strategy: "squash" }',
+    ],
+    errorHandling:
+      'Squash merge refuses if the worktree has uncommitted changes (error: "uncommitted changes"). Commit everything in step 11 first, then retry.',
+    guidance:
+      'Use squash when the worktree contains many WIP or fixup commits and a clean, linear history is preferred. Squash produces a single merge commit on main; rebase (step 13 default) replays individual commits. Choose squash for noisy branches; rebase for clean, story-telling commits.',
+  },
+  {
+    order: 13,
+    title: 'Merge Worktree into Main',
+    description:
+      'For gate-tied proposals: merge the completed worktree branch into main, then clean up the worktree directory. The preferred path is proposal_action:approve which merges and removes the worktree automatically. Use worktree_action:merge directly only when approve returns MERGE_CONFLICT errors or when a specific strategy (squash, merge) is required. Solitary proposals skip this step — approval only finalises proposal status.',
+    prerequisites: [
+      'Proposal status === "completed" (step 10)',
+      'All changes committed inside the worktree (step 11)',
+      'Optional collapse done if desired (step 12)',
+    ],
+    actions: [
+      'Fast path — proposal_action:approve { hash }: merges worktree branch → main, removes worktree, updates DB status',
+      'Manual path — dry-run first: worktree_action:merge { action: "merge", hash, strategy: "rebase"|"squash"|"merge", dryRun: true }',
+      'Manual path — apply: worktree_action:merge { action: "merge", hash, strategy: "rebase"|"squash"|"merge" }',
+      'On conflict: resolve conflicts in the worktree directory, commit the resolution, then re-run proposal_action:approve',
+    ],
+    errorHandling:
+      'If approve returns MERGE_CONFLICT: the worktree is preserved (not deleted) so no work is lost. Resolve conflicts manually inside the worktree directory, commit the resolution, then call proposal_action:approve again. Do NOT call worktree_action:remove after a conflict — approval handles cleanup once the merge succeeds.',
+    guidance:
+      'Never delete the worktree manually with worktree_action:remove after a successful merge — approval handles cleanup. Gate completion (gates_action:complete) cannot proceed until all gate proposals have their worktrees merged and removed.',
   },
 ]
 
