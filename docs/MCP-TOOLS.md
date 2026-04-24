@@ -2214,6 +2214,178 @@ See the architecture document for preconditions and postconditions on each trans
 
 ---
 
+## worktree_action – Isolated Git Worktree Management
+
+**Tool Name:** `worktree_action`
+**Purpose:** Manage the isolated git worktrees that Zeno creates per proposal. Each worktree lives at `.local/worktrees/{proposal-hash}/` on a branch named `proposal/{hash}`. All parameters are flat — do **not** nest them inside a `payload` object.
+
+> **When to use `worktree_action:merge` vs `proposal_action:approve`**
+>
+> `proposal_action:approve` is the normal path for completing a proposal. It updates the DB, patches the proposal markdown, and then **automatically calls the merge internally** using the default `merge` strategy.
+>
+> Use `worktree_action:merge` only when:
+>
+> - `proposal_action:approve` returns a `MERGE_CONFLICT` error and you need to resolve or retry with a different strategy.
+> - You need explicit control over the merge strategy (`rebase` or `squash`).
+> - You are performing manual worktree cleanup outside the normal approval flow.
+
+### Supported Actions
+
+#### worktree_action: list
+
+**Description:** List active (or all) worktrees.
+
+**Input:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `action` | `"list"` | yes | — | |
+| `status` | `"active"\|"orphaned"\|"all"` | no | `"active"` | Filter worktrees by lifecycle status |
+
+**Output:**
+
+```json
+{
+  "worktrees": [
+    {
+      "hash": "p03api",
+      "path": ".local/worktrees/p03api",
+      "branch": "proposal/p03api",
+      "status": "active",
+      "created": "2026-04-23T10:00:00.000Z",
+      "lastAccessed": "2026-04-23T10:00:00.000Z",
+      "commitCount": 0,
+      "filesModified": 0
+    }
+  ],
+  "summary": { "total": 1, "active": 1, "orphaned": 0, "diskUsageMB": 0 }
+}
+```
+
+---
+
+#### worktree_action: remove
+
+**Description:** Explicitly delete a worktree by proposal hash. Use when a proposal was rejected or abandoned and you want to reclaim disk space. `force` discards any uncommitted changes.
+
+**Input:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `action` | `"remove"` | yes | — | |
+| `hash` | string | yes | — | Proposal hash. Leading `#` stripped automatically. |
+| `force` | boolean | no | `false` | Discard uncommitted changes and force-remove |
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "hash": "p03api",
+  "path": ".local/worktrees/p03api",
+  "message": "Worktree for proposal p03api removed."
+}
+```
+
+**Preconditions:**
+
+- Worktree exists (verified via `git worktree list`)
+- If `force` is false, worktree must be clean
+
+---
+
+#### worktree_action: prune
+
+**Description:** Batch-remove all orphaned worktrees — worktrees whose proposal hash no longer exists in the database. Use `dryRun: true` to preview what would be deleted.
+
+**Input:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `action` | `"prune"` | yes | — | |
+| `dryRun` | boolean | no | `false` | Preview without deleting |
+
+**Output:**
+
+```json
+{
+  "success": true,
+  "pruned": [
+    { "hash": "old1234", "path": ".local/worktrees/old1234", "reason": "orphaned", "deletedAt": "2026-04-23T10:00:00.000Z" }
+  ],
+  "summary": { "prunedCount": 1, "diskFreedMB": 0, "worktreesRemaining": 2 },
+  "message": "Pruned 1 worktree(s). 2 remaining."
+}
+```
+
+---
+
+#### worktree_action: merge
+
+**Description:** Merge a proposal branch into `main` with an explicit strategy. On success the worktree is automatically removed. On conflict, the worktree is **preserved** and the conflicting files are listed so you can resolve them manually.
+
+> **Prefer `proposal_action:approve` in the normal flow.** Use this action only for conflict recovery or when a specific merge strategy is required.
+
+**Input:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `action` | `"merge"` | yes | — | |
+| `hash` | string | yes | — | Proposal hash. Leading `#` stripped automatically. |
+| `strategy` | `"rebase"\|"squash"\|"merge"` | no | `"rebase"` | Git merge strategy |
+| `dryRun` | boolean | no | `false` | Show what would happen without merging |
+| `autoResolveConflicts` | boolean | no | `false` | Attempt auto-resolution of simple conflicts |
+
+**Strategy behavior:**
+
+| Strategy | Effect |
+|----------|--------|
+| `rebase` | Rebases `proposal/{hash}` onto `main`; produces linear history |
+| `squash` | Squashes all proposal commits into one on `main` |
+| `merge` | Standard merge commit; checks for new commits first — skips if already up-to-date |
+
+**Guards:**
+
+- Refuses if the worktree itself has uncommitted changes. Commit or stash them before merging.
+- Auto-stashes uncommitted changes in the main worktree and restores them after the merge.
+
+**Success output:**
+
+```json
+{
+  "success": true,
+  "hash": "p03api",
+  "branch": "proposal/p03api",
+  "strategy": "rebase",
+  "mergedAt": "2026-04-23T10:00:00.000Z",
+  "conflicts": [],
+  "message": "Worktree for proposal p03api merged into main using rebase."
+}
+```
+
+**Conflict output** (`success: false`, worktree preserved):
+
+```json
+{
+  "success": false,
+  "hash": "p03api",
+  "branch": "proposal/p03api",
+  "strategy": "merge",
+  "conflicts": ["src/core/completions.ts", "src/mcp/tools/proposal-tools.ts"],
+  "message": "Merge failed with conflicts in: src/core/completions.ts, src/mcp/tools/proposal-tools.ts"
+}
+```
+
+**Error codes:**
+
+| Code | HTTP | Meaning |
+|------|------|---------|
+| `NOT_FOUND` | 404 | No worktree found for the given proposal hash |
+| `UNCOMMITTED_CHANGES` | 409 | Worktree has uncommitted changes; commit or stash first |
+| `MERGE_CONFLICT` | 409 | Conflicts detected; worktree preserved for manual resolution |
+
+---
+
 ## Known Gaps (as of 2026-03-18)
 
 The following actions and tools are implemented but not yet fully documented in this reference.
@@ -2236,7 +2408,6 @@ A dedicated documentation gate will address these.
 
 | Tool | Description |
 |------|-------------|
-| `worktree_action` | Manage isolated git worktrees for proposals. Actions: `list`, `remove`, `prune`, `merge` |
 | `diagram_action` | Generate and retrieve architecture diagrams. Actions: `catalogue`, `select`, `generate`, `show`, `render`, `list_template`, `get_template` |
 
 ---

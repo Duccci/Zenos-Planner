@@ -21,10 +21,27 @@ export const worktreeToolDefinitions = [
   {
     name: 'worktree_action',
     description:
-      'Manage isolated git worktrees for proposals. Actions: list (active/orphaned/all), remove (by hash, optional --force), prune (remove orphaned worktrees with no matching proposal, supports dry-run), merge (proposal branch into main, strategies: rebase|squash|merge, supports dry-run).',
+      'Manage isolated git worktrees for proposals. All params are flat — do NOT nest inside a payload object. ' +
+      'Actions: ' +
+      'list=show active/orphaned worktrees (optional: status="active"|"orphaned"|"all", default "active"). ' +
+      'remove=explicitly delete a worktree by hash (needs: hash; optional: force=true to discard uncommitted changes). Use when a proposal was rejected or abandoned. ' +
+      'prune=batch-remove all orphaned worktrees that have no matching proposal in the DB (optional: dryRun=true to preview). ' +
+      'merge=manually merge a proposal branch into main (needs: hash; optional: strategy="rebase"|"squash"|"merge" default "rebase", dryRun=true). ' +
+      'IMPORTANT for merge: proposal_action:approve already merges the worktree automatically — only call worktree_action:merge directly when approve returns MERGE_CONFLICT errors or when you need an explicit strategy. ' +
+      'On success, merge also removes the worktree. On conflict, the worktree is preserved for manual resolution and conflicts are listed in the response. ' +
+      'merge refuses if the worktree has uncommitted changes; commit or stash them first.',
     inputSchema: z.object({
       action: z.enum(['list', 'remove', 'prune', 'merge']),
-      payload: z.record(z.string(), z.unknown()).optional().default({}),
+      // list
+      status: z.enum(['active', 'orphaned', 'all']).optional().describe('Filter for list action (default: active)'),
+      // remove / merge
+      hash: z.string().optional().describe('Proposal hash (required for remove and merge). Leading # is stripped automatically.'),
+      force: z.boolean().optional().describe('Force removal even with uncommitted changes (remove action only)'),
+      // prune / merge dry-run
+      dryRun: z.boolean().optional().describe('Preview what would happen without making changes (prune and merge actions)'),
+      // merge
+      strategy: z.enum(['rebase', 'squash', 'merge']).optional().describe('Git merge strategy (merge action, default: rebase)'),
+      autoResolveConflicts: z.boolean().optional().describe('Attempt auto-resolution of simple conflicts (merge action)'),
     }),
   },
 ]
@@ -35,18 +52,19 @@ export function worktreeHandlers(
   return {
     worktree_action: async (args) => {
       const action = args['action'] as string
-      const rawPayload = (args['payload'] ?? {}) as Record<string, unknown>
+      // Flat params — read directly from args, with legacy payload fallback for back-compat
+      const legacyPayload = (args['payload'] ?? {}) as Record<string, unknown>
+      const flatArgs = { ...legacyPayload, ...args }
       // Normalize hash fields: strip leading '#' so tools work with or without it
-      const payload = { ...rawPayload }
-      if (typeof payload['hash'] === 'string') {
-        payload['hash'] = normalizeHash(payload['hash'])
+      if (typeof flatArgs['hash'] === 'string') {
+        flatArgs['hash'] = normalizeHash(flatArgs['hash'])
       }
 
       try {
         const manager = new WorktreeManager()
 
         if (action === 'list') {
-          WorktreeListInputSchema.parse(payload)
+          WorktreeListInputSchema.parse(flatArgs)
           const list = await manager.list()
           return {
             content: [
@@ -80,7 +98,7 @@ export function worktreeHandlers(
         }
 
         if (action === 'remove') {
-          const input = WorktreeRemoveInputSchema.parse(payload)
+          const input = WorktreeRemoveInputSchema.parse(flatArgs)
           await manager.remove(input.hash, input.force)
           return {
             content: [
@@ -102,7 +120,7 @@ export function worktreeHandlers(
         }
 
         if (action === 'prune') {
-          const input = WorktreePruneInputSchema.parse(payload)
+          const input = WorktreePruneInputSchema.parse(flatArgs)
           const before = await manager.list()
 
           let knownHashes: Set<string>
@@ -156,7 +174,7 @@ export function worktreeHandlers(
         }
 
         if (action === 'merge') {
-          const input = WorktreeMergeInputSchema.parse(payload)
+          const input = WorktreeMergeInputSchema.parse(flatArgs)
           const strategy = input.strategy
           const result = await manager.merge(
             input.hash,
