@@ -314,14 +314,16 @@ async function negotiateWorkspaceFromRoots(
       return
     }
 
-    // Multi-root workspaces: scan every reported root and pick the first that
-    // hosts a Zeno project (either directly or via an embedded planner
-    // submodule).  Without this, a user-level MCP install bound to a workspace
-    // whose first folder isn't the planner would silently fall back to default
-    // thresholds because `loadConfig` couldn't find `.zeno/config.json`.
+    // Multi-root workspaces: prefer a root that *is* a Zeno project directly
+    // over a consumer root that merely embeds the planner as a submodule.
+    // Without this two-pass selection, a user-level MCP install would pick
+    // `Pterosaur-Bone` (embedding `Pterosaur-Core`) instead of the standalone
+    // `Pterosaur-Core` folder when both are present in the workspace.
     let negotiated: string | undefined
     let resolved: string | undefined
     let embeddedFor: string | undefined
+
+    // Pass 1: direct Zeno projects (standalone or standard layout).
     for (const root of fileRoots) {
       const candidate = fileURLToPath(root.uri)
       if (isZenoProject(candidate)) {
@@ -329,12 +331,19 @@ async function negotiateWorkspaceFromRoots(
         resolved = candidate
         break
       }
-      const embedded = findEmbeddedPlannerSubmodule(candidate)
-      if (embedded) {
-        negotiated = candidate
-        resolved = embedded
-        embeddedFor = candidate
-        break
+    }
+
+    // Pass 2: consumer roots that embed a planner submodule.
+    if (!negotiated) {
+      for (const root of fileRoots) {
+        const candidate = fileURLToPath(root.uri)
+        const embedded = findEmbeddedPlannerSubmodule(candidate)
+        if (embedded) {
+          negotiated = candidate
+          resolved = embedded
+          embeddedFor = candidate
+          break
+        }
       }
     }
 
