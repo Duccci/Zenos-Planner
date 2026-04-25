@@ -13,6 +13,9 @@ import {
   saveConfig,
   isZenoProject,
   toSlug,
+  getWorkspaceRoot,
+  setActiveWorkspaceRoot,
+  getActiveWorkspaceRoot,
 } from '../../src/utils/config.js'
 
 describe('config utilities', () => {
@@ -462,6 +465,48 @@ describe('toSlug', () => {
 
   it('preserves numbers', () => {
     expect(toSlug('Project 42')).toBe('project-42')
+  })
+})
+
+describe('getWorkspaceRoot precedence', () => {
+  const originalEnv = process.env['ZENO_WORKSPACE']
+
+  beforeEach(() => {
+    delete process.env['ZENO_WORKSPACE']
+    setActiveWorkspaceRoot(undefined)
+  })
+
+  afterEach(() => {
+    if (originalEnv === undefined) {
+      delete process.env['ZENO_WORKSPACE']
+    } else {
+      process.env['ZENO_WORKSPACE'] = originalEnv
+    }
+    setActiveWorkspaceRoot(undefined)
+  })
+
+  it('falls back to process.cwd() when no env var or override is set', () => {
+    expect(getWorkspaceRoot()).toBe(process.cwd())
+    expect(getActiveWorkspaceRoot()).toBeUndefined()
+  })
+
+  it('returns the active override when no env var is set', () => {
+    setActiveWorkspaceRoot('/some/negotiated/root')
+    expect(getWorkspaceRoot()).toBe('/some/negotiated/root')
+    expect(getActiveWorkspaceRoot()).toBe('/some/negotiated/root')
+  })
+
+  it('prefers ZENO_WORKSPACE env var over the active override', () => {
+    process.env['ZENO_WORKSPACE'] = '/explicit/env/root'
+    setActiveWorkspaceRoot('/negotiated/root')
+    expect(getWorkspaceRoot()).toBe('/explicit/env/root')
+  })
+
+  it('clearing the override restores the cwd fallback', () => {
+    setActiveWorkspaceRoot('/transient/root')
+    expect(getWorkspaceRoot()).toBe('/transient/root')
+    setActiveWorkspaceRoot(undefined)
+    expect(getWorkspaceRoot()).toBe(process.cwd())
   })
 })
 

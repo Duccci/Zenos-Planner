@@ -173,6 +173,24 @@ describe('editor adapters', () => {
       expect(entry.args[0]).toContain('zeno')
       expect(entry.args[0]).toContain('bin/mcp-server.js')
     })
+
+    it('injects ZENO_WORKSPACE=${workspaceFolder} by default for portability', () => {
+      const result = ensureWorkspaceMcp(tmpDir)
+      expect(result).toBe(true)
+      const content = JSON.parse(readFileSync(join(tmpDir, '.vscode', 'mcp.json'), 'utf-8')) as Record<string, unknown>
+      const servers = (content as { servers: Record<string, unknown> }).servers
+      const entry = servers['zeno-planner'] as { env?: Record<string, string> }
+      expect(entry.env).toEqual({ ZENO_WORKSPACE: '${workspaceFolder}' })
+    })
+
+    it('honours an explicit zenoWorkspace override over the default variable', () => {
+      const result = ensureWorkspaceMcp(tmpDir, '.', '/abs/project/root')
+      expect(result).toBe(true)
+      const content = JSON.parse(readFileSync(join(tmpDir, '.vscode', 'mcp.json'), 'utf-8')) as Record<string, unknown>
+      const servers = (content as { servers: Record<string, unknown> }).servers
+      const entry = servers['zeno-planner'] as { env?: Record<string, string> }
+      expect(entry.env).toEqual({ ZENO_WORKSPACE: '/abs/project/root' })
+    })
   })
 })
 

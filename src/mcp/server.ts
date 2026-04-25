@@ -8,9 +8,11 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { RootsListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import { fileURLToPath } from 'url'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
 import { initializeDatabase } from '../storage/database.js'
-import { loadConfig } from '../utils/config.js'
+import { loadConfig, setActiveWorkspaceRoot } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
 /**
@@ -128,6 +130,23 @@ export async function main(): Promise<void> {
 
     await server.connect(transport)
 
+    // Negotiate the active workspace from the connected client's `roots`
+    // capability when ZENO_WORKSPACE was not set explicitly.  This lets a
+    // single user-level install correctly target whichever workspace the
+    // editor (VS Code, Cursor, etc.) currently has open.
+    if (!process.env['ZENO_WORKSPACE']) {
+      // Wait until the client's `initialize` handshake completes so
+      // `getClientCapabilities()` and `listRoots()` have valid data.
+      server.server.oninitialized = () => {
+        void negotiateWorkspaceFromRoots(server, workspacePath)
+      }
+
+      // React to live workspace changes (multi-root toggling, folder add/remove).
+      server.server.setNotificationHandler(RootsListChangedNotificationSchema, () => {
+        void negotiateWorkspaceFromRoots(server, workspacePath)
+      })
+    }
+
     // Pre-import modules needed for cleanup so they're available synchronously
     // in signal handlers (dynamic import in signal handlers is unreliable on Windows)
     const { writePid, removePid: removePidFn } = await import('./manager.js')
@@ -238,6 +257,71 @@ export async function main(): Promise<void> {
   } catch (error) {
     logger.error('Failed to start MCP server:', error)
     process.exit(1)
+  }
+}
+
+/**
+ * Track the workspace path most recently activated via roots negotiation so
+ * we only re-initialise the database when the resolved root actually changes.
+ */
+let _lastNegotiatedRoot: string | undefined
+
+/**
+ * Query the connected client's `roots` capability and, when a usable workspace
+ * is returned, install it as the active workspace override.  Re-initialises the
+ * database for the new root so subsequent tool calls see the correct gates,
+ * proposals, and requirements.
+ *
+ * Best-effort: silently no-ops when the client does not advertise the `roots`
+ * capability, returns no roots, or returns a non-`file://` URI.
+ *
+ * @param server          - The connected MCP server instance.
+ * @param fallbackRoot    - The workspace path used at startup, returned to the
+ *                          caller for parity with `listRoots`-less clients.
+ */
+async function negotiateWorkspaceFromRoots(
+  server: McpServer,
+  fallbackRoot: string
+): Promise<void> {
+  try {
+    const capabilities = server.server.getClientCapabilities()
+    if (!capabilities?.roots) {
+      logger.debug('Client did not advertise roots capability — using startup workspace')
+      return
+    }
+
+    const result = await server.server.listRoots()
+    const firstFileRoot = result.roots.find((r) => r.uri.startsWith('file://'))
+    if (!firstFileRoot) {
+      logger.debug('Client returned no file:// roots — using startup workspace')
+      return
+    }
+
+    const resolved = fileURLToPath(firstFileRoot.uri)
+    if (resolved === _lastNegotiatedRoot) {
+      return
+    }
+
+    _lastNegotiatedRoot = resolved
+    setActiveWorkspaceRoot(resolved)
+    logger.info(`Workspace negotiated from MCP roots: ${resolved} (fallback: ${fallbackRoot})`)
+
+    // Re-run DB init for the negotiated root so proposals/requirements are
+    // synced from the correct .zeno directory.  Best-effort — the project may
+    // not be initialised yet.
+    try {
+      await loadConfig(resolved)
+      await initializeDatabase(resolved, {
+        syncGates: true,
+        syncProposals: true,
+        syncRequirements: true,
+      })
+      logger.info('Database re-initialised for negotiated workspace')
+    } catch (err) {
+      logger.warn('Database re-initialisation skipped for negotiated workspace', err)
+    }
+  } catch (err) {
+    logger.debug('Failed to negotiate workspace from MCP roots', err)
   }
 }
 

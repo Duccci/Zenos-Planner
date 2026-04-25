@@ -108,8 +108,11 @@ export function buildMcpServerEntry(
  * @param zenoDir       - Planning directory name relative to projectRoot.
  *                        `'.'` means standalone (binary at `./bin/mcp-server.js`).
  *                        Any other value (e.g. `'zeno'`) means submodule mode.
- * @param zenoWorkspace - Absolute path to set as `ZENO_WORKSPACE`.  Defaults to
- *                        `projectRoot` when `zenoDir !== '.'` (submodule mode).
+ * @param zenoWorkspace - Optional explicit workspace path to set as `ZENO_WORKSPACE`.
+ *                        When omitted, defaults to the VS Code variable
+ *                        `${workspaceFolder}` so the same `mcp.json` works
+ *                        regardless of where the project lives on disk and
+ *                        for any window opening the folder.
  * @param serverName    - MCP server key (default: `'zeno-planner'`).
  */
 export function ensureWorkspaceMcp(
@@ -136,8 +139,11 @@ export function ensureWorkspaceMcp(
         zenoDir === '.' ? './bin/mcp-server.js' : `./${zenoDir}/bin/mcp-server.js`
 
       // Inject ZENO_WORKSPACE so the MCP server targets the consumer project
-      // root regardless of the working directory it is started in.
-      const workspace = zenoWorkspace ?? (zenoDir !== '.' ? projectRoot : undefined)
+      // root regardless of the working directory it is started in.  Default
+      // to the VS Code `${workspaceFolder}` variable so the file is portable
+      // (same `mcp.json` works on every machine and for every window that
+      // opens the folder).
+      const workspace = zenoWorkspace ?? '${workspaceFolder}'
 
       const serverEntry = buildMcpServerEntry(binaryPath, workspace)
 
@@ -382,11 +388,13 @@ export async function installMcpConfig(
     const binaryPath = toolDir === '.' ? './bin/mcp-server.js' : `./${toolDir}/bin/mcp-server.js`
     logger.info(`Dry run: would write .vscode/mcp.json`)
     logger.info(`  Binary: ${binaryPath}`)
-    if (isSubmod) logger.info(`  ZENO_WORKSPACE: ${projectRoot}`)
+    logger.info(`  ZENO_WORKSPACE: \${workspaceFolder}`)
     return { target: 'mcp-json', targetPath, serverName, written: false }
   }
 
-  const workspace = isSubmod ? projectRoot : undefined
-  const written = ensureWorkspaceMcp(projectRoot, toolDir, workspace, serverName)
+  // Always inject ZENO_WORKSPACE via ${workspaceFolder} for portability.
+  // ensureWorkspaceMcp defaults to that variable when no explicit value is
+  // passed, so we omit the third argument here.
+  const written = ensureWorkspaceMcp(projectRoot, toolDir, undefined, serverName)
   return { target: 'mcp-json', targetPath, serverName, written }
 }

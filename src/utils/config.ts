@@ -320,17 +320,45 @@ const ZENO_DIR = join(DEFAULT_ZENO_DIR, ZENO_INTERNAL_DIR)
 const CONFIG_FILE = 'config.json'
 
 /**
+ * Runtime workspace override.  Set by the MCP server once the client's
+ * `roots` have been negotiated, so a single user-level server installation
+ * can target whichever workspace is currently calling it.
+ */
+let _activeWorkspaceOverride: string | undefined
+
+/**
+ * Set (or clear) the active workspace override.  Intended for the MCP server
+ * after it queries `roots` from the connected client.  `getWorkspaceRoot()`
+ * will surface this value when `ZENO_WORKSPACE` is not set.
+ */
+export function setActiveWorkspaceRoot(path: string | undefined): void {
+  _activeWorkspaceOverride = path
+}
+
+/**
+ * Read the active workspace override, if any.  Useful for diagnostics.
+ */
+export function getActiveWorkspaceRoot(): string | undefined {
+  return _activeWorkspaceOverride
+}
+
+/**
  * Resolve the active workspace root.
  *
- * Precedence: ZENO_WORKSPACE env var → process.cwd()
+ * Precedence:
+ *   1. `ZENO_WORKSPACE` env var (explicit, highest priority — typically
+ *      injected by per-workspace `mcp.json` via `${workspaceFolder}`)
+ *   2. Active workspace override set via `setActiveWorkspaceRoot()` (negotiated
+ *      from the MCP client's `roots` capability at server startup)
+ *   3. `process.cwd()` (fallback when neither signal is available — useful
+ *      for CLI invocations and tests)
  *
  * Use this instead of a bare `process.cwd()` anywhere a registry or tool
  * needs to locate user-project files (gates, proposals, requirements, etc.)
- * so that the MCP server correctly targets the configured workspace when
- * ZENO_WORKSPACE is set by the editor/client.
+ * so that the MCP server correctly targets the configured workspace.
  */
 export function getWorkspaceRoot(): string {
-  return process.env['ZENO_WORKSPACE'] ?? process.cwd()
+  return process.env['ZENO_WORKSPACE'] ?? _activeWorkspaceOverride ?? process.cwd()
 }
 
 /**
