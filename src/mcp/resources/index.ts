@@ -8,6 +8,7 @@
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { pathToFileURL, fileURLToPath } from 'node:url'
 import { glob } from 'glob'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { getZenoGitDir, isZenoProject as isZenoProjectFromConfig } from '../../utils/config.js'
@@ -58,9 +59,14 @@ function isZenoProject(dirPath: string): boolean {
 }
 const RESOURCE_TYPES = {
   prd: {
-    pattern: '**/overview/PROJECT_PRD.md',
+    pattern: '**/overview/*PRD.md',
     mimeType: 'text/markdown',
     description: 'Project Requirements Document',
+  },
+  gate: {
+    pattern: '**/gates/**/gate-*.md',
+    mimeType: 'text/markdown',
+    description: 'Gate PRD',
   },
   proposal: {
     pattern: '**/proposals/**/*.md',
@@ -98,7 +104,7 @@ async function discoverResources(basePath: string): Promise<DiscoveredResource[]
         for (const fullPath of files) {
           const relPath = relative(projectPath, fullPath)
           resources.push({
-            uri: `file://${fullPath}`,
+            uri: pathToFileURL(fullPath).href,
             name: `${projectName}:${type}:${relPath}`,
             description: `${config.description} (${projectName}): ${relPath}`,
             mimeType: config.mimeType,
@@ -126,7 +132,7 @@ async function discoverResources(basePath: string): Promise<DiscoveredResource[]
 function makeReadCallback(res: DiscoveredResource) {
   return () => {
     if (res.uri.startsWith('file://')) {
-      const filePath = res.uri.replace('file://', '')
+      const filePath = fileURLToPath(res.uri)
       if (!existsSync(filePath)) {
         throw new Error(`Resource not available: ${res.name}`)
       }
@@ -153,15 +159,31 @@ function makeReadCallback(res: DiscoveredResource) {
 }
 
 /**
+ * Manager returned from `registerResources` when watching is enabled.
+ *
+ * - `count`   – number of resources currently registered
+ * - `close()` – stop the filesystem watcher; safe to call multiple times
+ * - `rebind(newBasePath)` – tear down all currently registered resources +
+ *   stop the watcher, then re-discover and re-register at `newBasePath`.
+ *   Used by the MCP server when the workspace is renegotiated via the
+ *   client's `roots` capability.
+ */
+export interface ResourceManager {
+  count: number
+  watcher?: { close: () => void }
+  close: () => void
+  rebind: (newBasePath: string) => Promise<number>
+}
+
+/**
  * Register MCP resources on the server
  */
 export async function registerResources(
   server: McpServer,
   workspacePath?: string,
   options?: { watch?: boolean }
-): Promise<number | { count: number; watcher?: { close: () => void } }> {
+): Promise<number | ResourceManager> {
   const basePath = workspacePath ?? process.cwd()
-  const resources = await discoverResources(basePath)
 
   // Ensure server supports resource registration
   if (
@@ -170,64 +192,83 @@ export async function registerResources(
     logger.warn(
       'MCP server does not support resource registration; skipping resource registration.'
     )
-    logger.info(`Discovered ${String(resources.length)} resources but did not register them`)
     return 0
   }
 
-  // Track registered resources so the watcher can remove stale ones.
-  // Maps URI → the handle returned by server.registerResource (which has .remove())
-  const registeredHandles = new Map<string, { remove: () => void }>()
+  // Tracks the active registration's resource handles + watcher so we can
+  // tear them down on `close()` or `rebind()`.
+  const state: {
+    handles: Map<string, { remove: () => void }>
+    watcher?: { close: () => void }
+    basePath: string
+  } = {
+    handles: new Map(),
+    basePath,
+  }
 
-  for (const resource of resources) {
-    try {
-      const handle = server.registerResource(
-        resource.name,
-        resource.uri,
-        {
-          description: resource.description,
-          mimeType: resource.mimeType,
-        },
-        makeReadCallback(resource)
-      )
-      registeredHandles.set(resource.uri, handle as unknown as { remove: () => void })
-    } catch {
-      // registerResource throws on duplicate URI — skip silently
-      logger.debug(`Skipped duplicate resource: ${resource.uri}`)
+  /** Register resources discovered under `path` and update internal state. */
+  async function registerAt(path: string): Promise<number> {
+    state.basePath = path
+    const resources = await discoverResources(path)
+
+    for (const resource of resources) {
+      try {
+        const handle = server.registerResource(
+          resource.name,
+          resource.uri,
+          {
+            description: resource.description,
+            mimeType: resource.mimeType,
+          },
+          makeReadCallback(resource)
+        )
+        state.handles.set(resource.uri, handle as unknown as { remove: () => void })
+      } catch (err) {
+        // registerResource throws on duplicate URI or invalid args
+        logger.warn(
+          `Failed to register MCP resource ${resource.name} (${resource.uri}): ${err instanceof Error ? err.message : String(err)}`
+        )
+      }
+    }
+
+    logger.info(
+      `Registered ${String(state.handles.size)} MCP resources from workspace: ${path}`
+    )
+    return state.handles.size
+  }
+
+  /** Remove every currently-registered handle. */
+  function removeAllHandles(): void {
+    for (const [uri, handle] of state.handles) {
+      try {
+        handle.remove()
+      } catch {
+        // ignore — may already be removed
+      }
+      state.handles.delete(uri)
     }
   }
 
-  logger.info(
-    `Registered ${String(registeredHandles.size)} MCP resources from workspace: ${basePath}`
-  )
-
-  // If watcher requested, start a filesystem watcher to detect new/removed resources
-  if (options?.watch) {
+  /** Start a filesystem watcher on the .md files under the planning dir. */
+  async function startWatcher(path: string): Promise<{ close: () => void } | undefined> {
     const { watch } = await import('node:fs')
-    // Use the configured zenoDir (via module cache) so standalone repos
-    // (zenoDir = '.') are watched at the correct path instead of '<root>/zeno'.
-    const watchDir = getZenoGitDir(basePath)
+    const watchDir = getZenoGitDir(path)
     if (!existsSync(watchDir)) {
       logger.warn(`Resource watcher skipped: watch directory does not exist: ${watchDir}`)
-      return { count: registeredHandles.size }
+      return undefined
     }
     let debounce: NodeJS.Timeout | null = null
     let refreshInFlight = false
-
-    // Rate-limit: suppress refreshes during bursts (e.g., git operations,
-    // bulk file writes). Allow at most 1 refresh per 10-second window.
     let lastRefreshTime = 0
     const MIN_REFRESH_INTERVAL_MS = 10_000
 
     const watcher = watch(watchDir, { recursive: true }, (_evt, filename) => {
       if (!filename) return
-      // Only react to .md file changes to avoid spurious refreshes
       if (!filename.endsWith('.md')) return
 
       if (debounce) clearTimeout(debounce)
       debounce = setTimeout(() => {
         if (refreshInFlight) return
-
-        // Rate-limit: skip if we refreshed too recently
         const now = Date.now()
         if (now - lastRefreshTime < MIN_REFRESH_INTERVAL_MS) {
           return
@@ -237,25 +278,23 @@ export async function registerResources(
 
         void (async () => {
           try {
-            const updated = await discoverResources(basePath)
+            const updated = await discoverResources(state.basePath)
             const updatedUris = new Set(updated.map((r) => r.uri))
 
-            // Remove resources that no longer exist on disk
-            for (const [uri, handle] of registeredHandles) {
+            for (const [uri, handle] of state.handles) {
               if (!updatedUris.has(uri)) {
                 try {
                   handle.remove()
                 } catch {
-                  // ignore — may already be removed
+                  // ignore
                 }
-                registeredHandles.delete(uri)
+                state.handles.delete(uri)
                 logger.info(`Resource removed: ${uri}`)
               }
             }
 
-            // Add resources that are new
             for (const res of updated) {
-              if (!registeredHandles.has(res.uri)) {
+              if (!state.handles.has(res.uri)) {
                 try {
                   const handle = server.registerResource(
                     res.name,
@@ -263,10 +302,12 @@ export async function registerResources(
                     { description: res.description, mimeType: res.mimeType },
                     makeReadCallback(res)
                   )
-                  registeredHandles.set(res.uri, handle as unknown as { remove: () => void })
+                  state.handles.set(res.uri, handle as unknown as { remove: () => void })
                   logger.info(`New resource discovered: ${res.name}`)
-                } catch {
-                  // duplicate or registration error — skip
+                } catch (err) {
+                  logger.warn(
+                    `Failed to register MCP resource ${res.name} (${res.uri}): ${err instanceof Error ? err.message : String(err)}`
+                  )
                 }
               }
             }
@@ -276,29 +317,65 @@ export async function registerResources(
             refreshInFlight = false
           }
         })()
-      }, 2000) // 2s debounce — long enough to batch rapid file changes
+      }, 2000)
     })
 
-    // Handle watcher errors gracefully (e.g., watched directory deleted)
     watcher.on('error', (err) => {
       logger.warn('Resource watcher error:', err)
     })
 
     logger.info(`Resource watcher started on ${watchDir}`)
     return {
-      count: registeredHandles.size,
-      watcher: {
-        close: () => {
-          if (debounce) clearTimeout(debounce)
-          try {
-            watcher.close()
-          } catch {
-            // ignore
-          }
-        },
+      close: () => {
+        if (debounce) clearTimeout(debounce)
+        try {
+          watcher.close()
+        } catch {
+          // ignore
+        }
       },
     }
   }
 
-  return registeredHandles.size
+  await registerAt(basePath)
+
+  if (!options?.watch) {
+    return state.handles.size
+  }
+
+  state.watcher = await startWatcher(basePath)
+
+  const manager: ResourceManager = {
+    get count() {
+      return state.handles.size
+    },
+    get watcher() {
+      return state.watcher
+    },
+    close() {
+      try {
+        state.watcher?.close()
+      } catch {
+        // ignore
+      }
+      state.watcher = undefined
+    },
+    async rebind(newBasePath: string) {
+      logger.info(`Rebinding MCP resources to new workspace: ${newBasePath}`)
+      // Stop the current watcher first so its debounced refresh callback
+      // doesn't race with the upcoming registerAt.
+      try {
+        state.watcher?.close()
+      } catch {
+        // ignore
+      }
+      state.watcher = undefined
+      removeAllHandles()
+      await registerAt(newBasePath)
+      state.watcher = await startWatcher(newBasePath)
+      return state.handles.size
+    },
+  }
+
+  return manager
 }

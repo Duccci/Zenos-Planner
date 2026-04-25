@@ -89,15 +89,27 @@ Always specify the project path when working with project-specific tools. Follow
     typeof resourceResult === 'number' ? resourceResult : resourceResult.count
   logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)
 
-  // Store resource watcher for cleanup on server shutdown
-  let resourceWatcher: { close: () => void } | undefined
-  if (typeof resourceResult === 'object' && 'watcher' in resourceResult) {
-    resourceWatcher = resourceResult.watcher
+  // Store resource manager for cleanup on server shutdown and for rebinding
+  // when the active workspace is renegotiated via the MCP `roots` capability.
+  let resourceManager:
+    | { close: () => void; rebind?: (newBasePath: string) => Promise<number> }
+    | undefined
+  if (typeof resourceResult === 'object') {
+    resourceManager = resourceResult
   }
 
-  // Attach watcher to server for lifecycle management
-  ;(server as unknown as { _resourceWatcher?: { close: () => void } })._resourceWatcher =
-    resourceWatcher
+  // Attach manager to server for lifecycle management
+  ;(
+    server as unknown as {
+      _resourceWatcher?: { close: () => void }
+      _resourceManager?: { close: () => void; rebind?: (p: string) => Promise<number> }
+    }
+  )._resourceWatcher = resourceManager
+  ;(
+    server as unknown as {
+      _resourceManager?: { close: () => void; rebind?: (p: string) => Promise<number> }
+    }
+  )._resourceManager = resourceManager
 
   return server
 }
@@ -346,6 +358,22 @@ async function negotiateWorkspaceFromRoots(
       } else {
         logger.warn('Database re-initialisation skipped for negotiated workspace', err)
       }
+    }
+
+    // Re-bind MCP resources (PRDs, proposals, …) to the negotiated workspace
+    // so editor "Add Context" panels surface the correct project's artifacts.
+    try {
+      const manager = (
+        server as unknown as {
+          _resourceManager?: { rebind?: (p: string) => Promise<number> }
+        }
+      )._resourceManager
+      if (manager?.rebind) {
+        const count = await manager.rebind(resolved)
+        logger.info(`Re-registered ${String(count)} MCP resources for negotiated workspace`)
+      }
+    } catch (err) {
+      logger.warn('Failed to re-register resources for negotiated workspace', err)
     }
   } catch (err) {
     logger.debug('Failed to negotiate workspace from MCP roots', err)
