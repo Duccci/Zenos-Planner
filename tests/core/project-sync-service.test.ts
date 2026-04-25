@@ -167,6 +167,103 @@ describe('project-sync-service', () => {
       expect(result.summary.total).toBe(0)
     })
 
+    it('should discover registry consumer even when .gitmodules path differs from default', async () => {
+      // Consumer has Zeno mounted at "tools/zeno" instead of "zeno"
+      const fs = await import('node:fs')
+      const savedExists = vi.mocked(fs.existsSync).getMockImplementation()
+      const savedRead = vi.mocked(fs.readFileSync).getMockImplementation()
+      // Strip drive letters so mocks work on both Windows and Linux
+      const stripDrive = (p: string): string => norm(p).replace(/^[a-z]:\//i, '/')
+      try {
+        vi.mocked(fs.existsSync).mockImplementation((p: unknown) => {
+          const np = stripDrive(String(p))
+          if (np === '/project/ExternalConsumer') return true
+          if (np === '/project/ExternalConsumer/.gitmodules') return true
+          return false
+        })
+        vi.mocked(fs.readFileSync).mockImplementation((p: unknown) => {
+          if (typeof p === 'string' && stripDrive(p).endsWith('.gitmodules')) {
+            return `[submodule "zenos-planner"]\n\tpath = tools/zeno\n\turl = https://github.com/org/CoreRepo.git\n` as never
+          }
+          return '' as never
+        })
+        mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+          if (args[0] === 'submodule' && args[1] === 'status') {
+            return ' abc1234567890def1234567890abcdef12345678 tools/zeno'
+          }
+          if (args[0] === 'rev-list') return '0'
+          return ''
+        })
+
+        const registryConsumers = [{ name: 'ExternalConsumer', path: '/project/ExternalConsumer' }]
+        const result = await syncStatus({
+          projectRoot: '/project/CoreRepo',
+          registryConsumers,
+        })
+
+        expect(result.consumers).toHaveLength(1)
+        expect(result.consumers[0]!.repo).toBe('ExternalConsumer')
+        // Verify the URL-inferred path was passed to `git submodule status`
+        expect(mockGitInstance.raw).toHaveBeenCalledWith(
+          expect.arrayContaining(['submodule', 'status', 'tools/zeno'])
+        )
+      } finally {
+        if (savedExists) vi.mocked(fs.existsSync).mockImplementation(savedExists)
+        if (savedRead) vi.mocked(fs.readFileSync).mockImplementation(savedRead)
+      }
+    })
+
+    it('should discover registry consumer when .gitmodules is absent (trust registration)', async () => {
+      const fs = await import('node:fs')
+      const savedExists = vi.mocked(fs.existsSync).getMockImplementation()
+      const stripDrive = (p: string): string => norm(p).replace(/^[a-z]:\//i, '/')
+      try {
+        vi.mocked(fs.existsSync).mockImplementation((p: unknown) => {
+          const np = stripDrive(String(p))
+          // Repo directory exists but .gitmodules has not been initialised yet
+          if (np === '/project/ExternalConsumer') return true
+          return false
+        })
+        mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+          if (args[0] === 'submodule' && args[1] === 'status') {
+            return ' abc1234567890def1234567890abcdef12345678 zeno'
+          }
+          if (args[0] === 'rev-list') return '0'
+          return ''
+        })
+
+        const registryConsumers = [{ name: 'ExternalConsumer', path: '/project/ExternalConsumer' }]
+        const result = await syncStatus({
+          projectRoot: '/project/CoreRepo',
+          registryConsumers,
+        })
+
+        // Consumer is included even without .gitmodules; falls back to the configured 'zeno' path
+        expect(result.consumers).toHaveLength(1)
+        expect(result.consumers[0]!.repo).toBe('ExternalConsumer')
+        expect(mockGitInstance.raw).toHaveBeenCalledWith(
+          expect.arrayContaining(['submodule', 'status', 'zeno'])
+        )
+      } finally {
+        if (savedExists) vi.mocked(fs.existsSync).mockImplementation(savedExists)
+      }
+    })
+
+    it('should skip registry consumer whose path does not exist on disk', async () => {
+      const fs = await import('node:fs')
+      // Suppress filesystem fallback so only the registry is checked
+      vi.mocked(fs.readdirSync).mockReturnValueOnce([] as unknown as ReturnType<typeof fs.readdirSync>)
+
+      const registryConsumers = [{ name: 'GhostConsumer', path: '/does/not/exist' }]
+      // Default existsSync returns false for unknown paths — ghost is skipped
+      const result = await syncStatus({
+        projectRoot: '/project/CoreRepo',
+        registryConsumers,
+      })
+
+      expect(result.consumers).toHaveLength(0)
+    })
+
     it('should detect dirty submodule state', async () => {
       mockGitInstance.raw.mockImplementation(async (args: string[]) => {
         if (args[0] === 'submodule' && args[1] === 'status') {

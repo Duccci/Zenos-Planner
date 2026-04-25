@@ -65,6 +65,18 @@ async function detectCoreRepo(projectRoot: string): Promise<CoreRepoInfo> {
 }
 
 /**
+ * Normalize a git remote URL for comparison.
+ * Strips trailing `.git`, lowercases, and trims whitespace so that
+ * `https://github.com/org/Repo.git` and `https://github.com/org/repo`
+ * are treated as equal. Relative URLs (e.g. `../../Repo`) are returned
+ * as-is after trimming because they cannot be canonicalized without
+ * knowing the consumer's location on disk.
+ */
+function normalizeGitUrl(url: string): string {
+  return url.trim().toLowerCase().replace(/\.git$/, '')
+}
+
+/**
  * Parse `.gitmodules` in a directory to find submodule entries.
  * Returns an array of { path, url } for each submodule.
  */
@@ -184,6 +196,17 @@ function discoverConsumers(
   }
 
   // 2. Registry consumers (repos_action:list results)
+  //
+  // Registered consumers are trusted — the user explicitly added them, so we
+  // do not gate inclusion on a strict .gitmodules path check.  Instead we
+  // *infer* the actual submodule mount path from .gitmodules so that
+  // downstream git operations target the right directory:
+  //   a) Exact path match against the configured submodulePath.
+  //   b) URL match against the core repo's remote URL (handles consumers that
+  //      mount Zeno at a non-default path, e.g. `tools/zeno`).
+  //   c) Fall back to the configured submodulePath when neither matches
+  //      (e.g. .gitmodules is absent or the submodule hasn't been initialised
+  //      yet — the git operations will surface the real error).
   if (registryConsumers && registryConsumers.length > 0) {
     const consumers: DiscoveredConsumer[] = []
     for (const repo of registryConsumers) {
@@ -191,12 +214,18 @@ function discoverConsumers(
       if (repoPath === resolve(coreRepo.path)) continue
       if (!existsSync(repoPath)) continue
 
-      // Verify it actually has the core repo as submodule
       const submodules = parseGitmodules(repoPath)
-      const hasCore = submodules.some((s) => s.path === submodulePath)
-      if (hasCore) {
-        consumers.push({ name: repo.name, path: repoPath, submodulePath })
-      }
+      const byPath = submodules.find((s) => s.path === submodulePath)
+      const coreRemoteUrl = coreRepo.remoteUrl
+      const byUrl =
+        byPath == null && coreRemoteUrl != null
+          ? submodules.find(
+              (s) =>
+                normalizeGitUrl(s.url) === normalizeGitUrl(coreRemoteUrl)
+            )
+          : undefined
+      const actualSubmodulePath = byPath?.path ?? byUrl?.path ?? submodulePath
+      consumers.push({ name: repo.name, path: repoPath, submodulePath: actualSubmodulePath })
     }
     if (consumers.length > 0) return consumers
   }

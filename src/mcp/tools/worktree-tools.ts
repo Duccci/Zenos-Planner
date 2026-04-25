@@ -22,6 +22,10 @@ export const worktreeToolDefinitions = [
     name: 'worktree_action',
     description:
       'Manage isolated git worktrees for proposals. All params are flat — do NOT nest inside a payload object. ' +
+      'CRITICAL: All worktree lifecycle operations (list, merge, remove, prune) MUST use this MCP tool or proposal_action. ' +
+      'Never run git worktree commands, the zeno worktree CLI, or manually delete .local/worktrees/* directories — ' +
+      'these bypass registry tracking, branch metadata, and cleanup safeguards. ' +
+      'Editing files inside an active worktree directory is safe; managing worktree lifecycle outside MCP is not. ' +
       'Actions: ' +
       'list=show active/orphaned worktrees (optional: status="active"|"orphaned"|"all", default "active"). ' +
       'remove=explicitly delete a worktree by hash (needs: hash; optional: force=true to discard uncommitted changes). Use when a proposal was rejected or abandoned. ' +
