@@ -14,6 +14,7 @@ import { createFunctionRegistry } from '../integration/function-implementations.
 import { initializeDatabase } from '../storage/database.js'
 import {
   findEmbeddedPlannerSubmodule,
+  isZenoProject,
   loadConfig,
   setActiveWorkspaceRoot,
 } from '../utils/config.js'
@@ -307,26 +308,52 @@ async function negotiateWorkspaceFromRoots(
     }
 
     const result = await server.server.listRoots()
-    const firstFileRoot = result.roots.find((r) => r.uri.startsWith('file://'))
-    if (!firstFileRoot) {
+    const fileRoots = result.roots.filter((r) => r.uri.startsWith('file://'))
+    if (fileRoots.length === 0) {
       logger.debug('Client returned no file:// roots — using startup workspace')
       return
     }
 
-    const negotiated = fileURLToPath(firstFileRoot.uri)
+    // Multi-root workspaces: scan every reported root and pick the first that
+    // hosts a Zeno project (either directly or via an embedded planner
+    // submodule).  Without this, a user-level MCP install bound to a workspace
+    // whose first folder isn't the planner would silently fall back to default
+    // thresholds because `loadConfig` couldn't find `.zeno/config.json`.
+    let negotiated: string | undefined
+    let resolved: string | undefined
+    let embeddedFor: string | undefined
+    for (const root of fileRoots) {
+      const candidate = fileURLToPath(root.uri)
+      if (isZenoProject(candidate)) {
+        negotiated = candidate
+        resolved = candidate
+        break
+      }
+      const embedded = findEmbeddedPlannerSubmodule(candidate)
+      if (embedded) {
+        negotiated = candidate
+        resolved = embedded
+        embeddedFor = candidate
+        break
+      }
+    }
+
+    // Nothing matched — fall back to the first file root so behaviour for
+    // non-Zeno workspaces (e.g. fresh folders) is unchanged from before.
+    if (!negotiated || !resolved) {
+      const first = fileRoots[0]
+      if (!first) return
+      negotiated = fileURLToPath(first.uri)
+      resolved = negotiated
+    }
+
     if (negotiated === _lastNegotiatedRoot) {
       return
     }
 
-    // Some consumers embed a shared planner repo as a child git submodule
-    // (e.g. `Pterosaur-Core` inside `Pterosaur-Bone`).  When the negotiated
-    // root has no Zeno config of its own but contains exactly such a
-    // submodule, use the submodule's directory as the workspace root.
-    const embedded = findEmbeddedPlannerSubmodule(negotiated)
-    const resolved = embedded ?? negotiated
-    if (embedded) {
+    if (embeddedFor) {
       logger.info(
-        `Embedded planner submodule detected: ${embedded} (consumer root: ${negotiated})`
+        `Embedded planner submodule detected: ${resolved} (consumer root: ${embeddedFor})`
       )
     }
 
