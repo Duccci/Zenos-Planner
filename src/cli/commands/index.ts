@@ -22,6 +22,7 @@ import { registerRegistryCommands } from './registry.js'
 import { registerWorktreeCommands } from './worktree.js'
 import { registerDoctorCommand } from './doctor.js'
 import { registerRefreshCommand } from './refresh.js'
+import { registerSyncCommand } from './sync.js'
 
 /**
  * Register all commands with the CLI program
@@ -36,6 +37,7 @@ export function registerCommands(program: Command): void {
   registerTraceCommand(program)
   registerDoctorCommand(program)
   registerRefreshCommand(program)
+  registerSyncCommand(program)
 
   // Register command categories
   registerGatesCommands(program)
