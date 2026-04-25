@@ -85,9 +85,34 @@ export function gateHandlers(
         list: async (payload, r) => r.invoke('gates_list', payload),
         show: async (payload, r) => r.invoke('gates_show', payload),
         generate: async (payload, r) => {
-          const p = payload as { name?: string; objectives?: string[]; preReview?: unknown }
+          const p = payload as { name?: string; objectives?: string[]; preReview?: unknown; gateId?: string }
           const hasExplicitFields =
             Boolean(p.name) && Array.isArray(p.objectives) && (p.objectives ?? []).length > 0
+
+          // Pre-dispatch validation: AI-decomposition path REQUIRES preReview.
+          // Without it, the inner generateGates function fails with a cryptic
+          // schema error. Surface a structured error here instead so the LLM
+          // is told exactly what is missing and which routing branch was selected.
+          if (!hasExplicitFields && !p.preReview) {
+            return {
+              success: false,
+              error: {
+                code: 'GENERATE_MISSING_PREREVIEW',
+                message:
+                  'gates_action:generate AI-decomposition path requires preReview (phase="generate"). ' +
+                  'Read the full project PRD and call reg_action { action: "list" } first, then supply: ' +
+                  'preReview: { phase: "generate", openQuestionsResolved (bool), questionsFound (string[]), ' +
+                  'gateReviewed (bool), requirementsVerified (bool), vagueRequirements (string[]), ' +
+                  'assumptionsDocumented (string[]), blockersIdentified (string[]) }. ' +
+                  'To use the explicit-fields path instead, supply gateId + name + objectives (and omit preReview).',
+                context: {
+                  receivedKeys: Object.keys(payload ?? {}),
+                  routingDecision: 'ai-decomposition',
+                },
+              },
+            }
+          }
+
           let invokePayload = payload ?? {}
           if (hasExplicitFields && !invokePayload['sequence']) {
             // Auto-derive sequence from gateId (e.g. "gate-01" → 1) when caller omits it

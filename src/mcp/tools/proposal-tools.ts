@@ -337,8 +337,44 @@ export function proposalHandlers(
           const hasGateId = Boolean((payload as { gateId?: string }).gateId)
           const gateId = (payload as { gateId?: string }).gateId
           const hasTitle = Boolean((payload as { title?: string }).title)
+          const hasSummary = Boolean((payload as { summary?: string }).summary)
           const explicitTasks = (payload as { tasks?: unknown[] }).tasks
-          const hasExplicitFields = hasTitle && Array.isArray(explicitTasks) && explicitTasks.length > 0
+          const hasTasks = Array.isArray(explicitTasks) && explicitTasks.length > 0
+          const hasExplicitFields = hasTitle && hasTasks
+
+          // Pre-dispatch validation: catch missing required fields for the
+          // direct-creation path before the inner proposal_create schema rejects
+          // with a cryptic parameter validation error.
+          const isDirectCreatePath = isSolitary || !hasGateId || hasExplicitFields
+          if (isDirectCreatePath) {
+            const missing: string[] = []
+            if (!hasTitle) missing.push('title')
+            if (!hasSummary) missing.push('summary')
+            if (!hasTasks) missing.push('tasks')
+            if (missing.length > 0) {
+              return {
+                success: false,
+                error: {
+                  code: 'SCAFFOLD_DIRECT_CREATE_MISSING_FIELDS',
+                  message:
+                    `proposal_action:generate (alias of scaffold) direct-creation path requires title + summary + tasks. Missing: ${missing.join(', ')}. ` +
+                    'The direct-creation path is selected when solitary=true, when no gateId is provided, ' +
+                    'or when title+tasks are supplied alongside a gateId. ' +
+                    'Provide ALL of: title (string), summary (2-3 sentence description), tasks (array of {description, acceptanceCriteria?, phase?, files?, action?}). ' +
+                    'To use the AI decomposition path instead, omit title/tasks and supply gateId + preReview (phase="generate").',
+                  context: {
+                    missingFields: missing,
+                    receivedKeys: Object.keys(payload ?? {}),
+                    routingDecision: isSolitary
+                      ? 'solitary'
+                      : !hasGateId
+                        ? 'no-gateId-defaulted-to-solitary'
+                        : 'gate-tied-explicit-fields',
+                  },
+                },
+              }
+            }
+          }
 
           let invokeResult
           if (isSolitary || !hasGateId) {
@@ -479,12 +515,50 @@ export function proposalHandlers(
           // so we replicate the routing decision and delegate to the shared registry functions.
           const isSolitary2 = (payload as { solitary?: boolean }).solitary === true
           const hasGateId2 = Boolean((payload as { gateId?: string }).gateId)
+          const hasTitle2 = Boolean((payload as { title?: string }).title)
+          const hasSummary2 = Boolean((payload as { summary?: string }).summary)
+          const explicitTasks2 = (payload as { tasks?: unknown[] }).tasks
+          const hasTasks2 = Array.isArray(explicitTasks2) && explicitTasks2.length > 0
+          const hasExplicitFields2 = hasTitle2 && hasTasks2
+
+          // Pre-dispatch validation: surface a clear, actionable error when the
+          // direct-creation path (solitary OR title+tasks) is missing required
+          // fields, instead of letting the inner proposal_create schema reject
+          // with a cryptic "summary: expected string, received undefined".
+          const isDirectCreatePath = isSolitary2 || !hasGateId2 || hasExplicitFields2
+          if (isDirectCreatePath) {
+            const missing: string[] = []
+            if (!hasTitle2) missing.push('title')
+            if (!hasSummary2) missing.push('summary')
+            if (!hasTasks2) missing.push('tasks')
+            if (missing.length > 0) {
+              return {
+                success: false,
+                error: {
+                  code: 'SCAFFOLD_DIRECT_CREATE_MISSING_FIELDS',
+                  message:
+                    `proposal_action:scaffold direct-creation path requires title + summary + tasks. Missing: ${missing.join(', ')}. ` +
+                    'The direct-creation path is selected when solitary=true, when no gateId is provided, ' +
+                    'or when title+tasks are supplied alongside a gateId. ' +
+                    'Provide ALL of: title (string), summary (2-3 sentence description), tasks (array of {description, acceptanceCriteria?, phase?, files?, action?}). ' +
+                    'To use the AI decomposition path instead, omit title/tasks and supply gateId + preReview (phase="generate").',
+                  context: {
+                    missingFields: missing,
+                    receivedKeys: Object.keys(payload ?? {}),
+                    routingDecision: isSolitary2
+                      ? 'solitary'
+                      : !hasGateId2
+                        ? 'no-gateId-defaulted-to-solitary'
+                        : 'gate-tied-explicit-fields',
+                  },
+                },
+              }
+            }
+          }
+
           if (isSolitary2 || !hasGateId2) {
             return r.invoke('proposal_create', { ...(payload ?? {}), solitary: true })
           }
-          const hasTitle2 = Boolean((payload as { title?: string }).title)
-          const explicitTasks2 = (payload as { tasks?: unknown[] }).tasks
-          const hasExplicitFields2 = hasTitle2 && Array.isArray(explicitTasks2) && explicitTasks2.length > 0
           if (hasExplicitFields2) {
             return r.invoke('proposal_create', payload)
           }
@@ -606,6 +680,7 @@ export function proposalHandlers(
         reject: async (payload, r) => {
           // Idempotent: if already rejected, return success without re-invoking CLI
           const hash = (payload as { hash?: string }).hash ?? ''
+          const reason = (payload as { rejectionReason?: string }).rejectionReason
           const showResult = await r.invoke('proposal_show', { hash })
           if (showResult.success) {
             const currentStatus = (showResult.data as { status?: string }).status
@@ -622,6 +697,24 @@ export function proposalHandlers(
                   reason: 'Proposal already rejected (no-op)',
                 },
               }
+            }
+          }
+          // Pre-dispatch validation: rejection without a reason loses critical
+          // rework context. The inner CLI silently defaults to 'No reason
+          // provided'; surface a structured error instead so the LLM is forced
+          // to supply actionable feedback.
+          if (!reason?.trim()) {
+            return {
+              success: false,
+              error: {
+                code: 'REJECT_MISSING_REASON',
+                message:
+                  'proposal_action:reject requires a non-empty rejectionReason. Provide a concrete explanation of why the proposal is being rejected so the rework cycle has actionable feedback. Optional fields: rejectedBy.',
+                context: {
+                  hash,
+                  receivedKeys: Object.keys(payload ?? {}),
+                },
+              },
             }
           }
           const rejectResult = await r.invoke('proposal_reject', payload)

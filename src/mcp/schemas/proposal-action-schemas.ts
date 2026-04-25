@@ -41,7 +41,8 @@ import {
  *   list          — list proposals; optional: gateId, status
  *   show          — get proposal details; required: hash
  *   scaffold      — stamp out blank scaffold files from template for AI filling (alias: generate).
- *                   Explicit-fields path (title + tasks → creates directly; optional: gateId, solitary).
+ *                   Direct-creation path (title + summary + tasks → creates directly; optional: gateId, solitary).
+ *                     All three of title, summary, tasks are REQUIRED for direct creation.
  *                   Gate-tied AI path (gateId + preReview → decomposes gate PRD into scaffolds for LLM to fill).
  *   generate      — alias for scaffold (kept for backward compatibility)
  *   validate      — run quality checks on a proposal; required: hash; optional: strict
@@ -88,7 +89,7 @@ export const ProposalActionInputSchema = z.object({
       'Action to perform. ' +
         'list=show proposals (filter by gateId/status). ' +
         'show=get proposal details (needs: hash). ' +
-        'scaffold=stamp out blank template files for a gate (needs: gateId + preReview for AI path, OR title + tasks for direct creation). ' +
+        'scaffold=stamp out blank template files for a gate (needs: gateId + preReview for the AI decomposition path, OR title + summary + tasks for direct/solitary creation — all three required, summary is a 2-3 sentence description). ' +
         '  NOTE: scaffold creates EMPTY templates — you must fill every [bracketed placeholder] before validating. ' +
         'generate=alias for scaffold (backward compat). ' +
         'approve=merge proposal (needs: hash; zeno frontmatter/header status sync is automatic). ' +
@@ -124,9 +125,9 @@ export const ProposalActionInputSchema = z.object({
 
 
   // --- create fields ---
-  title: z.string().optional().describe('Proposal title (create)'),
-  summary: z.string().optional().describe('Short 2-3 sentence summary (create)'),
-  solitary: z.boolean().optional().describe('True if not tied to a gate (create)'),
+  title: z.string().optional().describe('Proposal title. REQUIRED for scaffold direct-creation path (title + summary + tasks) and for solitary scaffolds.'),
+  summary: z.string().optional().describe('Short 2-3 sentence summary describing what this proposal does and why. REQUIRED for scaffold direct-creation path (title + summary + tasks) and for solitary scaffolds. Optional at the dispatcher level only because other actions (list/show/etc.) do not use it.'),
+  solitary: z.boolean().optional().describe('True if not tied to a gate. When true, scaffold requires title + summary + tasks.'),
   tasks: z
     .array(
       z.object({
@@ -167,7 +168,7 @@ export const ProposalActionInputSchema = z.object({
     ),
 
   // --- reject fields ---
-  rejectionReason: z.string().optional().describe('Required reason for rejection (reject)'),
+  rejectionReason: z.string().min(1).optional().describe("REQUIRED for 'reject' action (the dispatcher marks it optional only because other actions do not use it). Provide a non-empty explanation of why the proposal is being rejected so the rework cycle has actionable feedback. Omitting this field on reject returns a structured error."),
   rejectedBy: z.string().optional().describe('Rejector identifier (reject)'),
 
   // --- destructive action guard ---
@@ -191,9 +192,12 @@ export const ProposalActionInputSchema = z.object({
    * then submit findings here. The handler returns a structured error if absent.
    */
   qualitativeReview: ProposalQualitativeReviewSchema.optional().describe(
-    "Required for 'start' action. Evaluate the qualitative checklist from proposal_action:validate, " +
-      'then submit: { taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, ' +
-      'noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems }.'
+    "REQUIRED for 'start' action (the dispatcher marks it optional only because other actions do not use it). " +
+      'Only safe to omit when the proposal is already in_progress (idempotent re-invocation). ' +
+      'Run proposal_action:validate first, evaluate every checklist item with your own judgment, then submit: ' +
+      '{ taskDescriptionsSpecific, acceptanceCriteriaMeasurable, filesAffectedVerified, ' +
+      'noUnresolvedMarkers, scopeFocused, rollbackSpecific, flaggedItems }. ' +
+      'Omitting this field returns a structured QUALITATIVE_REVIEW_REQUIRED error.'
   ),
 
   // --- progress fields ---

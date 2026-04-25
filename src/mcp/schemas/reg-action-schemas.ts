@@ -116,7 +116,7 @@ export const ReqActionInputSchema = z.object({
   reason: z.string().optional().describe('Reason for transfer (transfer)'),
 
   // --- update fields ---
-  title: z.string().optional().describe('New title / description for the requirement (update)'),
+  title: z.string().optional().describe('New title / description for the requirement. REQUIRED for update if no other mutable field (type/priority/acceptance) is supplied.'),
   priority: z
     .enum(['must', 'should', 'could', 'wont'])
     .optional()
@@ -155,6 +155,22 @@ export const ReqActionInputSchema = z.object({
       path: ['hash'],
       message: 'hash is required for action "update"',
     })
+  }
+  if (val.action === 'update' && val.hash) {
+    // At least one mutable field must be supplied for update to be meaningful.
+    const hasAnyUpdateField =
+      val.title !== undefined ||
+      val.type !== undefined ||
+      val.priority !== undefined ||
+      val.acceptance !== undefined
+    if (!hasAnyUpdateField) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['title'],
+        message:
+          'reg_action:update requires at least one of: title, type, priority, acceptance. Supplying only hash performs no change.',
+      })
+    }
   }
   if (val.action === 'reset_gate' && !val.gateId) {
     ctx.addIssue({

@@ -77,7 +77,15 @@ describe('mcp resources coverage', () => {
 
     const { registerResources } = await import('../../src/mcp/resources/index.js')
     const count = await registerResources(mockServer as never, '/nonexistent')
-    expect(count).toBe(0)
+    // A workspace-independent placeholder template is always registered so that
+    // the MCP `resources` capability is declared before transport connect.
+    expect(count).toBe(1)
+    expect(mockServer.registerResource).toHaveBeenCalledWith(
+      'zeno:template:placeholder',
+      'template://zeno/placeholder',
+      expect.any(Object),
+      expect.any(Function)
+    )
   })
 
   it('should handle file read for file:// resources', async () => {

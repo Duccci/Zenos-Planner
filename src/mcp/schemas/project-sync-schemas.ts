@@ -40,7 +40,7 @@ export const ProjectSyncActionInputSchema = z.object({
   message: z
     .string()
     .optional()
-    .describe('Commit message subject line. (commit, full)'),
+    .describe('Commit message subject line. REQUIRED for "commit" and "full" actions (the dispatcher marks it optional only because other actions do not use it). Omitting it on those actions returns a runtime error.'),
   scope: z
     .string()
     .optional()

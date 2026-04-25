@@ -159,9 +159,12 @@ export const GatesActionInputSchema = z.object({
    * then submit findings here before calling start.
    */
   qualitativeReview: GateQualitativeReviewSchema.optional().describe(
-    "Required for 'start' action. Evaluate the qualitative checklist from gates_action:validate, " +
-      'then submit: { objectivesConfirmed, requirementsMapped, proposalCountAppropriate, ' +
-      'testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems }.'
+    "REQUIRED for 'start' action (the dispatcher marks it optional only because other actions do not use it). " +
+      'Only safe to omit when the gate is already in_progress (idempotent re-invocation). ' +
+      'Evaluate the qualitative checklist from gates_action:validate, then submit: ' +
+      '{ objectivesConfirmed, requirementsMapped, proposalCountAppropriate, ' +
+      'testFirstOrderingVerified, dependenciesConfirmed, scopeAchievable, flaggedItems }. ' +
+      'Omitting this field returns a structured QUALITATIVE_REVIEW_REQUIRED error.'
   ),
 
   // --- preReview field (generate) ---
@@ -171,8 +174,10 @@ export const GatesActionInputSchema = z.object({
    * Must use phase='generate'.
    */
   preReview: PreReviewSchema.optional().describe(
-    "Pre-work review evidence (required for 'generate' action). " +
-      "phase must be 'generate'. Read the full project PRD and requirements before generating gates."
+    "REQUIRED for the 'generate' AI-decomposition path (no name/objectives supplied). " +
+      "phase must be 'generate'. Read the full project PRD and call reg_action { action: 'list' } before generating gates. " +
+      'Not required for the explicit-fields path (gateId + name + objectives). ' +
+      'Omitting this field on the AI path returns a structured GENERATE_MISSING_PREREVIEW error.'
   ),
 })
 

@@ -90,6 +90,22 @@ interface DiscoveredResource {
 async function discoverResources(basePath: string): Promise<DiscoveredResource[]> {
   const resources: DiscoveredResource[] = []
 
+  // Always include a workspace-independent placeholder template. This ensures
+  // that `registerResources` registers at least one entry on every call, which
+  // forces the MCP SDK to initialise its resource request handlers (and the
+  // accompanying `resources` capability) before the server's stdio transport
+  // is connected. Without this, a workspace that initially has no Zeno
+  // projects would defer capability registration until after `connect()`, at
+  // which point a later rebind would fail with:
+  //   "Cannot register capabilities after connecting to transport"
+  resources.push({
+    uri: 'template://zeno/placeholder',
+    name: 'zeno:template:placeholder',
+    description:
+      'Placeholder template ensuring the MCP resources capability is declared before transport connect.',
+    mimeType: 'text/markdown',
+  })
+
   // Find all Zeno projects in the workspace
   const projectPaths = findZenoProjects(basePath)
 

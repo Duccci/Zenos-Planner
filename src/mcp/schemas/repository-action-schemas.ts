@@ -58,8 +58,8 @@ export const RepositoryActionInputSchema = z.object({
   repositoryId: z.string().optional().describe('Scope dependency graph to this repo (deps)'),
 
   // --- add fields ---
-  name: z.string().optional().describe('Repository name (add)'),
-  path: z.string().optional().describe('Repository root path (add); file or directory path to analyze (analyze)'),
+  name: z.string().optional().describe('Repository name. REQUIRED for the "add" action (the dispatcher marks it optional only because other actions do not use it).'),
+  path: z.string().optional().describe('Repository root path. REQUIRED for the "add" action (file or directory path to analyze for the "analyze" action). The dispatcher marks it optional only because other actions do not use it.'),
 
   // --- analyze fields ---
   includeMetrics: z.boolean().optional().describe('Include code metrics in analysis result (analyze, default true)'),

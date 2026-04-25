@@ -61,7 +61,29 @@ export function repositoryHandlers(
         detect: async (payload, r) => r.invoke('repos_detect', payload),
         deps: async (payload, r) => r.invoke('repos_deps', payload),
         adjust: async (payload, r) => r.invoke('repos_adjust', payload),
-        add: async (payload, r) => r.invoke('repos_add', payload),
+        add: async (payload, r) => {
+          const name = (payload as { name?: string }).name
+          const path = (payload as { path?: string }).path
+          const missing: string[] = []
+          if (!name?.trim()) missing.push('name')
+          if (!path?.trim()) missing.push('path')
+          if (missing.length > 0) {
+            return {
+              success: false,
+              error: {
+                code: 'ADD_MISSING_FIELDS',
+                message:
+                  `repos_action:add requires name and path. Missing: ${missing.join(', ')}. ` +
+                  'Supply: name (repository identifier), type (service/library/tool/app), path (root directory).',
+                context: {
+                  missingFields: missing,
+                  receivedKeys: Object.keys(payload ?? {}),
+                },
+              },
+            }
+          }
+          return r.invoke('repos_add', payload)
+        },
         remove: async (payload, r) => r.invoke('repos_remove', payload),
         analyze: async (payload, r) => {
           if (payload?.['groupBy'] !== undefined) {

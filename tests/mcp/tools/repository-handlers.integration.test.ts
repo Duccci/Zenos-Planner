@@ -89,7 +89,7 @@ describe('Repository Handlers (integration)', () => {
     const mockData = { id: 'repo-new', name: 'new-service', type: 'service', path: 'src/new-service' }
     const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
     const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_action({ action: 'add', payload: { name: 'new-service', type: 'service', path: 'src/new-service' } })
+    const res = await handlers.repos_action({ action: 'add', name: 'new-service', type: 'service', path: 'src/new-service' })
 
     expect(res).toBeDefined()
     expect(res.isError).toBeUndefined()
@@ -116,7 +116,7 @@ describe('Repository Handlers (integration)', () => {
       invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'Invalid path: traversal detected' } }),
     }
     const handlers = repositoryHandlers(fakeRegistry)
-    const res = await handlers.repos_action({ action: 'add', payload: { name: 'evil', type: 'service', path: '../etc/passwd' } })
+    const res = await handlers.repos_action({ action: 'add', name: 'evil', type: 'service', path: '../etc/passwd' })
 
     expect(res.isError).toBe(true)
   })

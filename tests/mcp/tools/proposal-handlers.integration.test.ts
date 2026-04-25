@@ -660,6 +660,13 @@ describe('Proposal Handlers (integration)', () => {
       solitary: true,
       gateId: 'gate-01',
       title: 'Solitary Gen',
+      summary: 'A solitary proposal that exercises the routing logic for solitary=true with gateId provided.',
+      tasks: [
+        {
+          description: 'Verify routing strips gateId when solitary=true',
+          acceptanceCriteria: ['proposal_create receives solitary=true and no gateId'],
+        },
+      ],
       description: 'A solitary proposal',
       filesAffected: [],
       preReview: {
