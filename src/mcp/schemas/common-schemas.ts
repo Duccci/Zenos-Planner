@@ -88,8 +88,19 @@ export type RequirementPriority = z.infer<typeof RequirementPriorityEnum>
 // IDENTIFIERS - Validated ID and hash types
 // ============================================================================
 
-/** Gate identifier (e.g., "gate-01", "gate-02") */
-export const GateIdSchema = z.string().regex(/^gate-\d{2}$/, 'Gate ID must be format gate-XX')
+/**
+ * Gate identifier (e.g., "gate-01", "gate-02").
+ *
+ * Accepts either the canonical form (`gate-XX`) or a slugged form
+ * (`gate-XX-some-slug`, e.g., from a gate PRD filename like
+ * `gate-02-internal-interface-contracts`). Slug suffixes are stripped
+ * during parsing so the validated output is always canonical `gate-XX`.
+ */
+export const GateIdSchema = z
+  .preprocess(
+    (val) => (typeof val === 'string' ? val.replace(/^(gate-\d{2})(?:-.*)?$/, '$1') : val),
+    z.string().regex(/^gate-\d{2}$/, 'Gate ID must be format gate-XX'),
+  )
 export type GateId = z.infer<typeof GateIdSchema>
 
 /** Requirement hash identifier (e.g., "02e2ad5d6ecd6f46") */
