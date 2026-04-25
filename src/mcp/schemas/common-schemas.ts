@@ -118,10 +118,13 @@ export type FilePath = z.infer<typeof FilePathSchema>
 // TIMESTAMPS - ISO string validation
 // ============================================================================
 
-/** ISO 8601 timestamp string (e.g., 2024-02-18T10:30:45.000Z) */
+/** ISO 8601 or SQLite datetime string (e.g., 2024-02-18T10:30:45.000Z or 2024-02-18 10:30:45) */
 export const TimestampSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z?$/, 'Invalid ISO 8601 datetime format')
+  .regex(
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?$/,
+    'Invalid ISO 8601 datetime format',
+  )
 export type Timestamp = z.infer<typeof TimestampSchema>
 
 /** Optional timestamp (for fields that may be null) */

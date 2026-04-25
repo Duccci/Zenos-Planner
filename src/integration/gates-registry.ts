@@ -10,7 +10,7 @@ import { FunctionRegistry } from './function-registry.js'
 import { patchZenoStatus } from '../storage/frontmatter.js'
 import { normalizeGateId, resolveGateIdentifier } from '../utils/normalize.js'
 import { listArchivedGates } from '../utils/gate-consolidation.js'
-import { resolveLastUpdated } from '../utils/datetime.js'
+import { resolveLastUpdated, normalizeDateTime } from '../utils/datetime.js'
 
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -170,7 +170,7 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         for (const row of dbRows) {
           prdGeneratedMap[row.id] = row.prd_generated_at !== null
           if (row.description) dbDescriptionMap[row.id] = row.description
-          archivedAtMap[row.id] = row.archived_at ?? null
+          archivedAtMap[row.id] = row.archived_at ? normalizeDateTime(row.archived_at) : null
         }
       } catch {
         // DB unavailable — default all to true (unknown) to avoid false alarms

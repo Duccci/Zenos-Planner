@@ -475,7 +475,10 @@ export async function completeGate(
     // Clear proposal_hashes from the gate record and stamp archived_at now that
     // consolidation is fully complete and the archive file has been written.
     // archived_at distinguishes "completed + archived" from "completed but consolidation pending".
-    db.prepare('UPDATE gates SET proposal_hashes = NULL, archived_at = CURRENT_TIMESTAMP WHERE id = ?').run(gate.id)
+    db.prepare('UPDATE gates SET proposal_hashes = NULL, archived_at = ? WHERE id = ?').run(
+      new Date().toISOString(),
+      gate.id,
+    )
 
     // Delete proposal files and remove the gate proposals directory
     const gateDir = path.join(proposalsDir, gateId)
