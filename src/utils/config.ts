@@ -8,7 +8,7 @@
 import { z } from 'zod'
 import type { ComplexityThresholds } from '../generation/diagram-types.js'
 import { dirname, join } from 'node:path'
-import { statSync } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { readJsonFile, writeJsonFile, fileExists, normalizePath, directoryExists } from './file.js'
 import { ConfigError } from './errors.js'
 
@@ -534,6 +534,58 @@ export function findProjectRoot(startDir: string = process.cwd()): string | null
   }
 
   return null
+}
+
+/**
+ * Discover an embedded Zeno planning submodule inside the given directory.
+ *
+ * Some consumers embed a shared planning repo (e.g. `Pterosaur-Core`) as a
+ * git submodule containing the actual `.zeno/config.json`.  When the MCP
+ * client negotiates the consumer's repo as the workspace root, the config
+ * cannot be found at any of the standard locations directly under that root.
+ *
+ * This helper scans the immediate children of `parentDir` (alphabetically) and
+ * returns the first child that is a git submodule AND contains a Zeno config
+ * at either `<child>/.zeno/config.json` or `<child>/zeno/.zeno/config.json`.
+ *
+ * Search is non-recursive and skips dot-directories, `node_modules`, and any
+ * worktree/cache folders to keep the probe cheap.
+ *
+ * @param parentDir - Directory whose immediate children should be scanned.
+ * @returns Absolute path to the planning submodule root, or null if none.
+ */
+export function findEmbeddedPlannerSubmodule(parentDir: string): string | null {
+  let entries: string[]
+  try {
+    entries = readdirSync(parentDir).sort((a, b) => a.localeCompare(b))
+  } catch {
+    return null
+  }
+
+  const matches: string[] = []
+  for (const name of entries) {
+    if (name.startsWith('.') || name === 'node_modules') continue
+    const child = join(parentDir, name)
+    let isDir: boolean
+    try {
+      isDir = statSync(child).isDirectory()
+    } catch {
+      continue
+    }
+    if (!isDir) continue
+    if (!isDirGitSubmodule(child)) continue
+
+    // Prefer standalone layout inside the submodule, then standard layout.
+    if (
+      fileExists(join(child, ZENO_INTERNAL_DIR, CONFIG_FILE)) ||
+      fileExists(join(child, ZENO_DIR, CONFIG_FILE))
+    ) {
+      matches.push(normalizePath(child))
+    }
+  }
+
+  if (matches.length === 0) return null
+  return matches[0] ?? null
 }
 
 /**

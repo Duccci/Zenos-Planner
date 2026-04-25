@@ -12,7 +12,11 @@ import { RootsListChangedNotificationSchema } from '@modelcontextprotocol/sdk/ty
 import { fileURLToPath } from 'url'
 import { createFunctionRegistry } from '../integration/function-implementations.js'
 import { initializeDatabase } from '../storage/database.js'
-import { loadConfig, setActiveWorkspaceRoot } from '../utils/config.js'
+import {
+  findEmbeddedPlannerSubmodule,
+  loadConfig,
+  setActiveWorkspaceRoot,
+} from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
 /**
@@ -297,12 +301,24 @@ async function negotiateWorkspaceFromRoots(
       return
     }
 
-    const resolved = fileURLToPath(firstFileRoot.uri)
-    if (resolved === _lastNegotiatedRoot) {
+    const negotiated = fileURLToPath(firstFileRoot.uri)
+    if (negotiated === _lastNegotiatedRoot) {
       return
     }
 
-    _lastNegotiatedRoot = resolved
+    // Some consumers embed a shared planner repo as a child git submodule
+    // (e.g. `Pterosaur-Core` inside `Pterosaur-Bone`).  When the negotiated
+    // root has no Zeno config of its own but contains exactly such a
+    // submodule, use the submodule's directory as the workspace root.
+    const embedded = findEmbeddedPlannerSubmodule(negotiated)
+    const resolved = embedded ?? negotiated
+    if (embedded) {
+      logger.info(
+        `Embedded planner submodule detected: ${embedded} (consumer root: ${negotiated})`
+      )
+    }
+
+    _lastNegotiatedRoot = negotiated
     setActiveWorkspaceRoot(resolved)
     logger.info(`Workspace negotiated from MCP roots: ${resolved} (fallback: ${fallbackRoot})`)
 
@@ -318,7 +334,18 @@ async function negotiateWorkspaceFromRoots(
       })
       logger.info('Database re-initialised for negotiated workspace')
     } catch (err) {
-      logger.warn('Database re-initialisation skipped for negotiated workspace', err)
+      // CONFIG_NOT_FOUND is expected when the negotiated workspace is not a
+      // Zeno-initialised project (e.g. user opened an unrelated folder).
+      // Log at debug to avoid noise; surface other errors as warnings.
+      const code = (err as { code?: string } | undefined)?.code
+      if (code === 'CONFIG_NOT_FOUND') {
+        logger.debug(
+          'Database re-initialisation skipped: negotiated workspace is not Zeno-initialised',
+          err
+        )
+      } else {
+        logger.warn('Database re-initialisation skipped for negotiated workspace', err)
+      }
     }
   } catch (err) {
     logger.debug('Failed to negotiate workspace from MCP roots', err)
