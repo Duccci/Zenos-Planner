@@ -256,36 +256,56 @@ export const ProposalStartOutputSchema = z.object({
 export type ProposalStartOutput = z.infer<typeof ProposalStartOutputSchema>
 
 // ============================================================================
+// CONFIRMATION REQUIRED - Returned when a destructive action needs explicit user permission
+// ============================================================================
+
+export const ProposalConfirmationRequiredSchema = z.object({
+  requiresConfirmation: z.literal(true),
+  action: z.enum(['cancel', 'defer', 'delete']),
+  hash: z.string().optional(),
+  message: z.string(),
+})
+export type ProposalConfirmationRequired = z.infer<typeof ProposalConfirmationRequiredSchema>
+
+// ============================================================================
 // PROPOSAL_CANCEL - Cancel a proposal (divergent/dropped)
 // ============================================================================
 
-export const ProposalCancelOutputSchema = z.object({
+export const ProposalCancelSuccessSchema = z.object({
   hash: ProposalHashSchema,
   previousStatus: ProposalStatusEnum,
   newStatus: z.literal('cancelled'),
   cancelledAt: TimestampSchema,
   reason: z.string().optional(),
 })
+export const ProposalCancelOutputSchema = z.union([
+  ProposalCancelSuccessSchema,
+  ProposalConfirmationRequiredSchema,
+])
 export type ProposalCancelOutput = z.infer<typeof ProposalCancelOutputSchema>
 
 // ============================================================================
 // PROPOSAL_DEFER - Defer a proposal to backlog (off main path, revisit later)
 // ============================================================================
 
-export const ProposalDeferOutputSchema = z.object({
+export const ProposalDeferSuccessSchema = z.object({
   hash: ProposalHashSchema,
   previousStatus: ProposalStatusEnum,
   newStatus: z.literal('backlog'),
   deferredAt: TimestampSchema,
   reason: z.string().optional(),
 })
+export const ProposalDeferOutputSchema = z.union([
+  ProposalDeferSuccessSchema,
+  ProposalConfirmationRequiredSchema,
+])
 export type ProposalDeferOutput = z.infer<typeof ProposalDeferOutputSchema>
 
 // ============================================================================
 // PROPOSAL_DELETE - Permanently remove a proposal (DB row + disk file)
 // ============================================================================
 
-export const ProposalDeleteOutputSchema = z.object({
+export const ProposalDeleteSuccessSchema = z.object({
   hash: ProposalHashSchema,
   title: z.string(),
   gateId: z.string().nullable(),
@@ -295,6 +315,10 @@ export const ProposalDeleteOutputSchema = z.object({
   deletedAt: TimestampSchema,
   reason: z.string().optional(),
 })
+export const ProposalDeleteOutputSchema = z.union([
+  ProposalDeleteSuccessSchema,
+  ProposalConfirmationRequiredSchema,
+])
 export type ProposalDeleteOutput = z.infer<typeof ProposalDeleteOutputSchema>
 
 // ============================================================================

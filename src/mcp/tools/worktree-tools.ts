@@ -9,6 +9,7 @@ import { WorktreeManager } from '../../core/worktree-manager.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { getDatabase } from '../../storage/database.js'
+import { getWorkspaceRoot } from '../../utils/config.js'
 import {
   WorktreeListInputSchema,
   WorktreePruneInputSchema,
@@ -130,7 +131,7 @@ export function worktreeHandlers(
 
           let knownHashes: Set<string>
           try {
-            const db = getDatabase(process.cwd())
+            const db = getDatabase(getWorkspaceRoot())
             const rows = db.prepare('SELECT hash FROM proposals').all() as { hash: string }[]
             knownHashes = new Set(rows.map((r) => r.hash))
           } catch {

@@ -9,7 +9,7 @@ import { extractRequirementCandidates, validateCandidates } from './requirement-
 import { RequirementStorage } from './requirement-storage.js'
 import { Requirement, GenerationResult, RequirementCandidate } from './types.js'
 import { scanProjectFiles } from './project-file-scanner.js'
-import { getZenoGitDir } from '../utils/config.js'
+import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 
 /**
  * Main requirement generator class
@@ -194,7 +194,7 @@ export class RequirementGenerator {
     // Find gate PRD file under zeno/gates starting with gateId
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
-    const gatesDir = path.join(getZenoGitDir(process.cwd()), 'gates')
+    const gatesDir = path.join(getZenoGitDir(getWorkspaceRoot()), 'gates')
 
     const files = await fs.readdir(gatesDir)
     const gateFile = files.find((f) => f.startsWith(gateId))

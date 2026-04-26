@@ -17,6 +17,7 @@ import { existsSync } from 'node:fs'
 import { readFile as fsReadFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { CheckConfig, CheckResult, ValidationReport } from '../types/validation-runner.js'
+import { getWorkspaceRoot } from '../utils/config.js'
 
 /** Marker-file → default checks mapping for each supported stack. */
 const STACK_CHECKS: {
@@ -70,7 +71,7 @@ export class ShellValidationRunner {
   private configChecks: CheckConfig[] | undefined
 
   constructor(projectRoot?: string, configChecks?: CheckConfig[]) {
-    this.projectRoot = projectRoot ?? process.cwd()
+    this.projectRoot = projectRoot ?? getWorkspaceRoot()
     this.configChecks = configChecks
   }
 

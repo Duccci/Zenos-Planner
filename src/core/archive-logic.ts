@@ -320,7 +320,7 @@ export async function archiveProposal(
     await mkdir(archiveDir, { recursive: true })
 
     // Step 5: Prepare archival metadata
-    const archiveLocation = relative(process.cwd(), archiveDir).replace(/\\/g, '/')
+    const archiveLocation = relative(getWorkspaceRoot(), archiveDir).replace(/\\/g, '/')
     const archiveMetadata = `
 
 ---
@@ -364,9 +364,9 @@ ${completionNotes !== undefined ? `- Completion Notes: ${completionNotes}` : ''}
 
   // Step 8: Git commit (stage archive creation + source deletion)
   const zenoGitDir = getZenoGitDir(getWorkspaceRoot())
-  const relSolitaryPath = relative(process.cwd(), join(zenoGitDir, 'gates', 'archive', 'solitary.md')).replace(/\\/g, '/')
-  const relProposalsArchive = relative(process.cwd(), join(zenoGitDir, 'proposals', 'archive')).replace(/\\/g, '/')
-  const relGateProposalsDir = relative(process.cwd(), join(zenoGitDir, 'proposals', proposalInfo.gateId ?? 'solitary')).replace(/\\/g, '/')
+  const relSolitaryPath = relative(getWorkspaceRoot(), join(zenoGitDir, 'gates', 'archive', 'solitary.md')).replace(/\\/g, '/')
+  const relProposalsArchive = relative(getWorkspaceRoot(), join(zenoGitDir, 'proposals', 'archive')).replace(/\\/g, '/')
+  const relGateProposalsDir = relative(getWorkspaceRoot(), join(zenoGitDir, 'proposals', proposalInfo.gateId ?? 'solitary')).replace(/\\/g, '/')
   const archiveDestination = proposalInfo.type === 'solitary'
     ? relSolitaryPath
     : `${relProposalsArchive}/`

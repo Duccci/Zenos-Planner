@@ -8,7 +8,7 @@ import path from 'path'
 import { simpleGit } from 'simple-git'
 import type { Module, CodeMetrics } from '../analysis/types.js'
 
-import { findProjectRoot } from '../utils/config.js'
+import { findProjectRoot, getWorkspaceRoot } from '../utils/config.js'
 import { getDatabase } from '../storage/database.js'
 
 interface GateRow {
@@ -46,7 +46,7 @@ export async function analyzeGateChanges(gateId: string): Promise<GateAnalysisRe
   const errors: string[] = []
 
   try {
-    const projectRoot = findProjectRoot(process.cwd())
+    const projectRoot = findProjectRoot(getWorkspaceRoot())
     if (!projectRoot) {
       throw new Error('Not in a Zeno project')
     }

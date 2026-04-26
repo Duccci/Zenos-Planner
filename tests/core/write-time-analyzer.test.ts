@@ -40,6 +40,7 @@ vi.mock('../../src/storage/database.js', () => ({
 // Mock config
 vi.mock('../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn(() => '/mock/project'),
+  getWorkspaceRoot: vi.fn(() => '/mock/workspace'),
 }))
 
 // Mock CodeAnalyzer using shared mockAnalyzer state (plain function — not arrow — for constructor use)

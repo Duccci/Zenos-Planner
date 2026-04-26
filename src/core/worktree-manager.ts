@@ -1,6 +1,7 @@
 import { rm, stat } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { simpleGit } from 'simple-git'
+import { getWorkspaceRoot } from '../utils/config.js'
 
 export interface WorktreeInfo {
   path: string
@@ -18,7 +19,7 @@ export class WorktreeManager {
   private readonly worktrees = new Map<string, WorktreeInfo>()
 
   constructor(projectRoot?: string) {
-    this.projectRoot = projectRoot ?? process.cwd()
+    this.projectRoot = projectRoot ?? getWorkspaceRoot()
   }
 
   /**

@@ -1,5 +1,5 @@
 import { createTag, commit, pushCurrentBranch, updateSubmodulePointer } from '../utils/git.js'
-import { isSubmoduleLayout } from '../utils/config.js'
+import { isSubmoduleLayout, getWorkspaceRoot } from '../utils/config.js'
 import { logger } from '../utils/logger.js'
 
 export function getCurrentTimestamp(): string {
@@ -25,7 +25,7 @@ export async function performGitCommitAndPush(options: {
   projectRoot?: string
 }): Promise<void> {
   const { tagName, commitMessage, files, remote } = options
-  const projectRoot = options.projectRoot ?? process.cwd()
+  const projectRoot = options.projectRoot ?? getWorkspaceRoot()
 
   const isSubmod = isSubmoduleLayout(projectRoot)
   // Git operations always run from the project root — in submodule mode,

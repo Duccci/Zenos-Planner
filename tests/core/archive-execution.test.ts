@@ -15,6 +15,7 @@ vi.mock('../../src/utils/git.js', () => ({
 
 vi.mock('../../src/utils/config.js', () => ({
   isSubmoduleLayout: vi.fn().mockReturnValue(false),
+  getWorkspaceRoot: vi.fn().mockReturnValue('/mock/workspace'),
 }))
 
 vi.mock('../../src/utils/logger.js', () => ({

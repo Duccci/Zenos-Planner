@@ -8,10 +8,11 @@
 import { FunctionRegistry } from './function-registry.js'
 import { generateProposals, updateProposalProgress, generateGates } from '../core/workflow-logic.js'
 import { logger } from '../utils/logger.js'
-import { 
-  ProposalGenerateInputSchema, 
-  ProposalUpdateProgressInputSchema, 
-  GateGenerateInputSchema 
+import { getWorkspaceRoot } from '../utils/config.js'
+import {
+  ProposalGenerateInputSchema,
+  ProposalUpdateProgressInputSchema,
+  GateGenerateInputSchema
 } from '../mcp/schemas/workflow-schemas.js'
 
 export function registerWorkflowOps(registry: FunctionRegistry): void {
@@ -23,7 +24,7 @@ export function registerWorkflowOps(registry: FunctionRegistry): void {
     if (validated.gateId) {
       try {
         const { reconcileGatePRD } = await import('../core/gate-prd-reconciler.js')
-        await reconcileGatePRD(validated.gateId, process.cwd())
+        await reconcileGatePRD(validated.gateId, getWorkspaceRoot())
       } catch (err) {
         logger.warn(`Failed to reconcile gate PRD after proposal generation for ${validated.gateId}: ${String(err)}`)
       }
