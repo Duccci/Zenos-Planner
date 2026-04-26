@@ -444,6 +444,7 @@ vi.mock('../../../src/core/completions.js', () => ({
 
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: vi.fn().mockReturnValue('project-root'),
+  resolveCliProjectRoot: vi.fn().mockReturnValue('project-root'),
   getZenoGitDir: vi.fn().mockReturnValue('project-root/zeno'),
   loadConfig: vi.fn(),
 }))

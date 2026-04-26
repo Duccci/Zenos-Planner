@@ -7,7 +7,7 @@
 
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { ensureDir } from '../utils/file.js'
 import { getZenoDir } from '../utils/config.js'
 import { DatabaseError } from '../utils/errors.js'
@@ -44,9 +44,19 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
 
   try {
     const dbPath = getDatabasePath(projectRoot)
+    const zenoDir = getZenoDir(projectRoot)
 
-    // Ensure directory exists
-    mkdirSync(getZenoDir(projectRoot), { recursive: true })
+    // Refuse to auto-create the .zeno directory.  Only the explicit init flow
+    // (`initializeDatabase` / `createProjectStructure`) is allowed to create
+    // it; other callers that hit a missing project must fail loudly so we do
+    // not generate stray `.zeno/` directories in arbitrary working folders.
+    if (!existsSync(zenoDir)) {
+      throw new DatabaseError(
+        `No Zeno project found at ${projectRoot} (expected ${zenoDir}). Run \`zeno init\` first.`,
+        'DB_NOT_INITIALISED',
+        { path: zenoDir }
+      )
+    }
 
     // Create database connection
     dbInstance = new Database(dbPath)
@@ -62,6 +72,7 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
 
     return dbInstance
   } catch (error) {
+    if (error instanceof DatabaseError) throw error
     throw new DatabaseError(
       'Failed to connect to database',
       'DB_CONNECTION_FAILED',

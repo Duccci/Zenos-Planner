@@ -69,6 +69,7 @@ vi.mock('../../../src/core/project-sync-service', () => ({
 vi.mock('../../../src/utils/config', () => ({
   findProjectRoot: vi.fn().mockReturnValue('/project/CoreRepo'),
   getWorkspaceRoot: vi.fn().mockReturnValue('/project/CoreRepo'),
+  findAllZenoProjects: vi.fn().mockReturnValue(['/project/CoreRepo']),
 }))
 
 describe('project-sync-handlers (integration)', () => {

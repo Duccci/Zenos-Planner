@@ -14,6 +14,7 @@ import { createFunctionRegistry } from '../integration/function-implementations.
 import { initializeDatabase } from '../storage/database.js'
 import {
   findEmbeddedPlannerSubmodule,
+  findProjectRoot,
   isZenoProject,
   loadConfig,
   setActiveWorkspaceRoot,
@@ -24,7 +25,15 @@ import { logger } from '../utils/logger.js'
  * Create and configure the MCP server
  */
 export async function createMcpServer(workspacePath?: string): Promise<McpServer> {
-  const projectRoot = workspacePath ?? process.cwd()
+  const startPath = workspacePath ?? process.cwd()
+
+  // Resolve the real project root before any DB init.  When the workspace is
+  // a consumer directory that embeds the planner under a non-default name
+  // (e.g. Pterosaur-Core/ instead of zeno/), using the raw startPath would
+  // cause getZenoDir() to fall through to the default standard layout and
+  // create a spurious zeno/.zeno/ directory via ensureDir inside initializeDatabase.
+  const projectRoot =
+    findProjectRoot(startPath) ?? findEmbeddedPlannerSubmodule(startPath) ?? startPath
 
   // Pre-load config to warm the zenoDir cache before any path resolution so
   // that a non-default zenoDir value in config.json is honoured by all
@@ -35,16 +44,19 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
     // Non-fatal: project may not be initialised yet.
   }
 
-  // Run DB migrations (including the proposal status CHECK constraint patch)
-  // before registering tools so that syncProposalsFromDisk never encounters
-  // the stale constraint that is missing 'validated'.
-  try {
-    await initializeDatabase(projectRoot, { syncGates: true, syncProposals: true, syncRequirements: true })
-    logger.info('Database initialised and migrations applied')
-  } catch (err) {
-    // Non-fatal: the project root may not have a .zeno dir yet (first-run or
-    // plain workspace). Individual tool calls will create the DB on demand.
-    logger.warn('Database pre-initialisation skipped (project may not be initialised yet)', err)
+  // Run DB migrations only when the workspace is an initialised Zeno project.
+  // Skipping when no .zeno exists guarantees the server never creates a stray
+  // .zeno directory in an unrelated workspace folder.  Per-tool calls handle
+  // missing projects by returning structured errors.
+  if (isZenoProject(projectRoot)) {
+    try {
+      await initializeDatabase(projectRoot, { syncGates: true, syncProposals: true, syncRequirements: true })
+      logger.info('Database initialised and migrations applied')
+    } catch (err) {
+      logger.warn('Database pre-initialisation failed', err)
+    }
+  } else {
+    logger.debug(`Skipping database pre-init: no Zeno project at ${projectRoot}`)
   }
 
   const server = new McpServer(
@@ -371,8 +383,12 @@ async function negotiateWorkspaceFromRoots(
     logger.info(`Workspace negotiated from MCP roots: ${resolved} (fallback: ${fallbackRoot})`)
 
     // Re-run DB init for the negotiated root so proposals/requirements are
-    // synced from the correct .zeno directory.  Best-effort — the project may
-    // not be initialised yet.
+    // synced from the correct .zeno directory.  Skip when the workspace is
+    // not a Zeno project so we never auto-create a .zeno directory.
+    if (!isZenoProject(resolved)) {
+      logger.debug(`Database re-init skipped: ${resolved} is not a Zeno project`)
+      return
+    }
     try {
       await loadConfig(resolved)
       await initializeDatabase(resolved, {

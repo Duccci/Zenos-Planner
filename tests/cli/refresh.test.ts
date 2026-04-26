@@ -19,6 +19,7 @@ vi.mock('../../src/utils/config.js', () => ({
   getWorkspaceRoot: vi.fn().mockReturnValue('/workspace'),
   getZenoGitDir: vi.fn().mockReturnValue('/workspace/zeno/.zeno'),
   findProjectRoot: vi.fn().mockReturnValue('/workspace'),
+  resolveCliProjectRoot: vi.fn().mockReturnValue('/workspace'),
   loadConfig: vi.fn().mockResolvedValue({ project: { name: 'test' } }),
 }))
 

@@ -21,6 +21,8 @@ async function copySchema(testDir: string): Promise<void> {
 describe('migration system', () => {
   beforeEach(async () => {
     await mkdir(TEST_DIR, { recursive: true })
+    // getDatabase no longer auto-creates the .zeno layout; tests must seed it.
+    await mkdir(join(TEST_DIR, 'zeno', '.zeno'), { recursive: true })
   })
 
   afterEach(async () => {

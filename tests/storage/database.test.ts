@@ -19,6 +19,9 @@ const TEST_DIR = join(tmpdir(), `.test-db-utils-${Date.now()}`)
 describe('database utilities', () => {
   beforeEach(async () => {
     await mkdir(TEST_DIR, { recursive: true })
+    // Pre-create the .zeno directory: getDatabase no longer auto-creates it
+    // (only the explicit init flow does), so tests must seed the layout.
+    await mkdir(join(TEST_DIR, 'zeno', '.zeno'), { recursive: true })
 
     // Provide migrations in the temp project root so initializeDatabase can run.
     const migrationsDir = join(TEST_DIR, 'src', 'storage', 'migrations')

@@ -154,7 +154,10 @@ describe('project-sync-service', () => {
       expect(result.summary.total).toBeGreaterThan(0)
     })
 
-    it('should ignore non-zeno submodules even if they point to the core repo URL', async () => {
+    it('should discover non-default-path submodules whose URL matches the core repo', async () => {
+      // Renamed-submodule scenario: a consumer mounts the planner under a
+      // non-default path (e.g. `vendor/planner` or `Pterosaur-Core`).  We
+      // trust the URL match so these consumers are still discovered.
       const fs = await import('node:fs')
       const nonZenoGitmodules = `[submodule "CoreRepo"]\n\tpath = vendor/planner\n\turl = https://github.com/org/CoreRepo.git\n`
       vi.mocked(fs.readFileSync)
@@ -163,8 +166,7 @@ describe('project-sync-service', () => {
 
       const result = await syncStatus({ projectRoot: '/project/CoreRepo' })
 
-      expect(result.consumers).toHaveLength(0)
-      expect(result.summary.total).toBe(0)
+      expect(result.consumers.length).toBeGreaterThan(0)
     })
 
     it('should discover registry consumer even when .gitmodules path differs from default', async () => {

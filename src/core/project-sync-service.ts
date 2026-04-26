@@ -153,17 +153,25 @@ function discoverConsumersFromFilesystem(
     // Must be a git repo
     if (!existsSync(join(candidatePath, '.git'))) continue
 
-    // Check .gitmodules for a matching submodule
+    // Check .gitmodules for a matching submodule — first by path, then by
+    // remote URL so consumers that mount the planner under a non-default name
+    // (e.g. Pterosaur-Core instead of zeno) are still discovered.
     const submodules = parseGitmodules(candidatePath)
-    for (const sub of submodules) {
-      if (sub.path === trackedZenoSubmodulePath) {
-        consumers.push({
-          name: entry,
-          path: candidatePath,
-          submodulePath: trackedZenoSubmodulePath,
-        })
-        break // One match per consumer is enough
-      }
+    const byPath = submodules.find((s) => s.path === trackedZenoSubmodulePath)
+    const coreRemoteUrl = coreRepo.remoteUrl
+    const byUrl =
+      byPath == null && coreRemoteUrl != null
+        ? submodules.find(
+            (s) => normalizeGitUrl(s.url) === normalizeGitUrl(coreRemoteUrl)
+          )
+        : undefined
+    const matched = byPath ?? byUrl
+    if (matched) {
+      consumers.push({
+        name: entry,
+        path: candidatePath,
+        submodulePath: matched.path,
+      })
     }
   }
 

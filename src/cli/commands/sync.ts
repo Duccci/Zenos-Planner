@@ -18,6 +18,7 @@ import {
   syncFull,
 } from '../../core/project-sync-service.js'
 import { listRepositories } from '../../storage/repository-storage.js'
+import { findAllZenoProjects, getWorkspaceRoot } from '../../utils/config.js'
 
 interface CommonOpts {
   json?: boolean
@@ -84,6 +85,56 @@ function emit(json: boolean | undefined, result: unknown): void {
   void json
 }
 
+/**
+ * Resolve the set of project roots to operate on.  Recursively scans the
+ * current working directory for every Zeno project below it.  Throws if
+ * none are found so we never silently no-op on a wrong directory.
+ */
+function resolveSyncProjectRoots(): string[] {
+  const startDir = getWorkspaceRoot()
+  const projects = findAllZenoProjects(startDir)
+  if (projects.length === 0) {
+    throw new Error(
+      `No Zeno project found at or below ${startDir}. Run \`zeno init\` to create one.`,
+    )
+  }
+  return projects
+}
+
+/**
+ * Run a sync action against every Zeno project discovered below the current
+ * working directory and emit the per-project results in a stable map keyed
+ * by project path.  When only one project is present the result is emitted
+ * directly to preserve the legacy single-project output shape.
+ */
+async function runSyncAcrossProjects<T>(
+  json: boolean | undefined,
+  action: (projectRoot: string) => Promise<T>,
+): Promise<void> {
+  const roots = resolveSyncProjectRoots()
+  const [firstRoot] = roots
+  if (roots.length === 1 && firstRoot != null) {
+    const result = await action(firstRoot)
+    emit(json, result)
+    return
+  }
+
+  const results: { project: string; ok: boolean; result?: T; error?: string }[] = []
+  for (const root of roots) {
+    try {
+      const result = await action(root)
+      results.push({ project: root, ok: true, result })
+    } catch (err) {
+      results.push({
+        project: root,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+  emit(json, { projects: results })
+}
+
 export function registerSyncCommand(program: Command): void {
   const syncCmd = program
     .command('sync')
@@ -96,13 +147,13 @@ export function registerSyncCommand(program: Command): void {
     .option('--json', 'Output JSON (default)')
     .action(async (opts: ReposOpts) => {
       try {
-        const projectRoot = process.cwd()
-        const result = await syncStatus({
-          repos: opts.repos,
-          projectRoot,
-          registryConsumers: resolveRegistryConsumers(projectRoot),
-        })
-        emit(opts.json, result)
+        await runSyncAcrossProjects(opts.json, (projectRoot) =>
+          syncStatus({
+            repos: opts.repos,
+            projectRoot,
+            registryConsumers: resolveRegistryConsumers(projectRoot),
+          }),
+        )
       } catch (error) {
         logger.error(
           'sync status failed',
@@ -122,14 +173,14 @@ export function registerSyncCommand(program: Command): void {
     .option('--json', 'Output JSON (default)')
     .action(async (opts: DiffOpts) => {
       try {
-        const projectRoot = process.cwd()
-        const result = await syncDiff({
-          repos: opts.repos,
-          detailed: opts.detailed ?? false,
-          projectRoot,
-          registryConsumers: resolveRegistryConsumers(projectRoot),
-        })
-        emit(opts.json, result)
+        await runSyncAcrossProjects(opts.json, (projectRoot) =>
+          syncDiff({
+            repos: opts.repos,
+            detailed: opts.detailed ?? false,
+            projectRoot,
+            registryConsumers: resolveRegistryConsumers(projectRoot),
+          }),
+        )
       } catch (error) {
         logger.error('sync diff failed', error instanceof Error ? error : undefined)
         process.exit(1)
@@ -147,15 +198,15 @@ export function registerSyncCommand(program: Command): void {
     .option('--json', 'Output JSON (default)')
     .action(async (opts: CommitOpts) => {
       try {
-        const projectRoot = process.cwd()
-        const result = await syncCommit({
-          message: opts.message ?? '',
-          scope: opts.scope,
-          tag: opts.tag,
-          push: resolvePush(opts),
-          projectRoot,
-        })
-        emit(opts.json, result)
+        await runSyncAcrossProjects(opts.json, (projectRoot) =>
+          syncCommit({
+            message: opts.message ?? '',
+            scope: opts.scope,
+            tag: opts.tag,
+            push: resolvePush(opts),
+            projectRoot,
+          }),
+        )
       } catch (error) {
         logger.error('sync commit failed', error instanceof Error ? error : undefined)
         process.exit(1)
@@ -175,18 +226,18 @@ export function registerSyncCommand(program: Command): void {
     .option('--json', 'Output JSON (default)')
     .action(async (opts: PropagateOpts) => {
       try {
-        const projectRoot = process.cwd()
-        const result = await syncPropagate({
-          commitHash: opts.commitHash,
-          repos: opts.repos,
-          commitMessage: opts.commitMessage,
-          push: resolvePush(opts),
-          dryRun: opts.dryRun ?? false,
-          force: opts.force ?? false,
-          projectRoot,
-          registryConsumers: resolveRegistryConsumers(projectRoot),
-        })
-        emit(opts.json, result)
+        await runSyncAcrossProjects(opts.json, (projectRoot) =>
+          syncPropagate({
+            commitHash: opts.commitHash,
+            repos: opts.repos,
+            commitMessage: opts.commitMessage,
+            push: resolvePush(opts),
+            dryRun: opts.dryRun ?? false,
+            force: opts.force ?? false,
+            projectRoot,
+            registryConsumers: resolveRegistryConsumers(projectRoot),
+          }),
+        )
       } catch (error) {
         logger.error('sync propagate failed', error instanceof Error ? error : undefined)
         process.exit(1)
@@ -209,21 +260,21 @@ export function registerSyncCommand(program: Command): void {
     .option('--json', 'Output JSON (default)')
     .action(async (opts: FullOpts) => {
       try {
-        const projectRoot = process.cwd()
-        const result = await syncFull({
-          message: opts.message ?? '',
-          scope: opts.scope,
-          tag: opts.tag,
-          push: resolvePush(opts),
-          commitHash: opts.commitHash,
-          repos: opts.repos,
-          commitMessage: opts.commitMessage,
-          dryRun: opts.dryRun ?? false,
-          force: opts.force ?? false,
-          projectRoot,
-          registryConsumers: resolveRegistryConsumers(projectRoot),
-        })
-        emit(opts.json, result)
+        await runSyncAcrossProjects(opts.json, (projectRoot) =>
+          syncFull({
+            message: opts.message ?? '',
+            scope: opts.scope,
+            tag: opts.tag,
+            push: resolvePush(opts),
+            commitHash: opts.commitHash,
+            repos: opts.repos,
+            commitMessage: opts.commitMessage,
+            dryRun: opts.dryRun ?? false,
+            force: opts.force ?? false,
+            projectRoot,
+            registryConsumers: resolveRegistryConsumers(projectRoot),
+          }),
+        )
       } catch (error) {
         logger.error('sync full failed', error instanceof Error ? error : undefined)
         process.exit(1)

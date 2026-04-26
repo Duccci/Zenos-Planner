@@ -51,6 +51,7 @@ vi.mock('../../../src/mcp/manager.js', () => ({
 vi.mock('../../../src/utils/config.js', () => ({
   findProjectRoot: (...args: unknown[]) => mockFindProjectRoot(...args),
   getWorkspaceRoot: (...args: unknown[]) => mockGetWorkspaceRoot(...args),
+  resolveCliProjectRoot: (...args: unknown[]) => mockFindProjectRoot(...args),
   loadConfig: (...args: unknown[]) => mockLoadConfig(...args),
   saveConfig: (...args: unknown[]) => mockSaveConfig(...args),
 }))

@@ -588,6 +588,80 @@ export function findEmbeddedPlannerSubmodule(parentDir: string): string | null {
   return matches[0] ?? null
 }
 
+/** Directory names skipped during recursive scans. */
+const RECURSIVE_SCAN_SKIP = new Set([
+  'node_modules',
+  'dist',
+  'build',
+  'coverage',
+  '.git',
+  '.local',
+  '.zeno',
+  '.vscode',
+  '.idea',
+  '.cache',
+])
+
+/**
+ * Recursively discover every Zeno project root beneath `startDir`.
+ *
+ * A directory is reported as a Zeno project when it contains either
+ * `<dir>/.zeno/config.json` (standalone / submodule layout) or
+ * `<dir>/zeno/.zeno/config.json` (standard layout).  When a project root is
+ * found, its subtree is NOT descended further so nested artifacts (e.g.
+ * generated worktrees) cannot produce duplicate entries.
+ *
+ * @param startDir - Directory to begin scanning from (default: process.cwd()).
+ * @param options.maxDepth - Maximum directory depth to traverse (default: 6).
+ * @returns Array of normalised absolute paths to Zeno project roots, in
+ *          stable alphabetical order.
+ */
+export function findAllZenoProjects(
+  startDir: string = process.cwd(),
+  options: { maxDepth?: number } = {}
+): string[] {
+  const maxDepth = options.maxDepth ?? 6
+  const found: string[] = []
+
+  const visit = (dir: string, depth: number): void => {
+    if (depth > maxDepth) return
+
+    // If this directory is itself a Zeno project, record it and stop
+    // descending so its internal layout cannot generate duplicates.
+    if (
+      fileExists(join(dir, ZENO_INTERNAL_DIR, CONFIG_FILE)) ||
+      (fileExists(join(dir, ZENO_DIR, CONFIG_FILE)) &&
+        !isDirGitSubmodule(join(dir, DEFAULT_ZENO_DIR)))
+    ) {
+      found.push(normalizePath(dir))
+      return
+    }
+
+    let entries: string[]
+    try {
+      entries = readdirSync(dir).sort((a, b) => a.localeCompare(b))
+    } catch {
+      return
+    }
+
+    for (const name of entries) {
+      if (RECURSIVE_SCAN_SKIP.has(name)) continue
+      if (name.startsWith('.')) continue
+      const child = join(dir, name)
+      try {
+        if (!statSync(child).isDirectory()) continue
+      } catch {
+        continue
+      }
+      visit(child, depth + 1)
+    }
+  }
+
+  visit(normalizePath(startDir), 0)
+  // Deduplicate while preserving order.
+  return Array.from(new Set(found))
+}
+
 /**
  * Get default configuration for a new project.
  * Note: This schema intentionally matches zeno/.zeno/config.json and does not
@@ -778,6 +852,38 @@ export function getProjectPath(projectRoot: string = process.cwd()): string {
 
 /** Backwards-compat alias */
 export const getProjectOverviewPath = getProjectPath
+
+/**
+ * Resolve the best Zeno project root for CLI commands using the same two-pass
+ * strategy the MCP server uses when negotiating workspace roots:
+ *
+ *   Pass 1 — direct/ancestor lookup: `findProjectRoot(startDir)` walks UP the
+ *             directory tree looking for a config.  This covers the common
+ *             case of running from inside a project or from a submodule root.
+ *
+ *   Pass 2 — embedded submodule scan: if Pass 1 finds nothing, scan the
+ *             immediate children of `startDir` for a git submodule that
+ *             contains a Zeno config (e.g. `Pterosaur-Core/` inside
+ *             `Pterosaur/`).  Returns the *submodule* path so `loadConfig`
+ *             can locate `<submodule>/zeno/.zeno/config.json`.
+ *
+ *   Fallback — `getWorkspaceRoot()` (respects `ZENO_WORKSPACE` env var).
+ *
+ * @param startDir - Directory to start from (default: `process.cwd()`)
+ * @returns Absolute path to the resolved project root
+ */
+export function resolveCliProjectRoot(startDir: string = getWorkspaceRoot()): string {
+  // Pass 1: traverse ancestors
+  const ancestor = findProjectRoot(startDir)
+  if (ancestor) return ancestor
+
+  // Pass 2: embedded planner submodule one level down
+  const embedded = findEmbeddedPlannerSubmodule(startDir)
+  if (embedded) return embedded
+
+  // Fallback
+  return getWorkspaceRoot()
+}
 
 /**
  * Read project from zeno/.zeno/project.json — the single source of truth.
