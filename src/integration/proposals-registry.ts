@@ -568,14 +568,31 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .toLowerCase()
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
-        const fileName = `01-${slug}.md`
-        filePath = normalizePath(join(
+        const gateDir = join(
           getWorkspaceRoot(),
           'zeno',
           'proposals',
-          `gate-${gateNum.padStart(2, '0')}`,
-          fileName
-        ))
+          `gate-${gateNum.padStart(2, '0')}`
+        )
+        // Compute the next available NN- prefix by scanning the gate directory.
+        // Falls back to 1 when the directory does not yet exist or is unreadable.
+        let nextIndex = 1
+        try {
+          const { readdir } = await import('node:fs/promises')
+          const existing = await readdir(gateDir)
+          const used = existing
+            .map((f) => /^(\d+)-/.exec(f)?.[1])
+            .filter((n): n is string => Boolean(n))
+            .map((n) => parseInt(n, 10))
+            .filter((n) => Number.isFinite(n))
+          if (used.length > 0) {
+            nextIndex = Math.max(...used) + 1
+          }
+        } catch {
+          // Directory does not exist yet; nextIndex stays at 1.
+        }
+        const fileName = `${String(nextIndex).padStart(2, '0')}-${slug}.md`
+        filePath = normalizePath(join(gateDir, fileName))
       }
 
       // Strip template HTML comments before writing to disk.
