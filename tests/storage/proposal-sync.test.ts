@@ -407,4 +407,52 @@ Updated content with no Requirement line.
       .get('preservereq1') as { requirement_id: string | null } | undefined
     expect(after?.requirement_id).toBe('preserved00000000')
   })
+
+  it('preserves cancelled and backlog proposal statuses during sync', async () => {
+    await initializeDatabase(TEST_DIR)
+    const db = getDatabase(TEST_DIR)
+
+    db.prepare(
+      'INSERT INTO gates (id, sequence, name, status, hash) VALUES (?, ?, ?, ?, ?)'
+    ).run('gate-08', 8, 'Status Sync', 'pending', 'gate08hash')
+
+    const proposalsDir = join(TEST_DIR, 'zeno', 'proposals', 'gate-08')
+    await mkdir(proposalsDir, { recursive: true })
+
+    await writeFile(
+      join(proposalsDir, 'cancelled.md'),
+      `# Proposal: Cancelled Proposal
+
+**Hash**: #cancel001
+**Status**: cancelled
+**Created**: 2026-02-18
+
+Cancelled content.
+      `.trim()
+    )
+
+    await writeFile(
+      join(proposalsDir, 'backlog.md'),
+      `# Proposal: Backlog Proposal
+
+**Hash**: #backlog01
+**Status**: backlog
+**Created**: 2026-02-18
+
+Backlog content.
+      `.trim()
+    )
+
+    syncProposalsFromDisk(db, TEST_DIR)
+
+    const cancelledRow = db
+      .prepare('SELECT status FROM proposals WHERE hash = ?')
+      .get('cancel001') as { status: string } | undefined
+    const backlogRow = db
+      .prepare('SELECT status FROM proposals WHERE hash = ?')
+      .get('backlog01') as { status: string } | undefined
+
+    expect(cancelledRow?.status).toBe('cancelled')
+    expect(backlogRow?.status).toBe('backlog')
+  })
 })

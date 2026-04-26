@@ -54,6 +54,18 @@ export const ProposalGenerateOutputSchema = z.object({
 
 export type ProposalGenerateOutput = z.infer<typeof ProposalGenerateOutputSchema>
 
+export const ProposalRegenerateOutputSchema = z.object({
+  success: z.boolean(),
+  scope: z.enum(['single', 'all']),
+  gateIds: z.array(GateIdSchema),
+  gatesProcessed: z.number().int().min(0),
+  proposalsGenerated: z.number().int().min(0),
+  gates: z.array(ProposalGenerateOutputSchema),
+  message: z.string(),
+})
+
+export type ProposalRegenerateOutput = z.infer<typeof ProposalRegenerateOutputSchema>
+
 // PROPOSAL_UPDATE_PROGRESS - Update proposal task progress during implementation
 export const ProposalUpdateProgressInputSchema = z.object({
   hash: z.string(),

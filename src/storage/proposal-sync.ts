@@ -21,16 +21,7 @@ import { getZenoGitDir } from '../utils/config.js'
 import { normalizeGateId } from '../utils/normalize.js'
 
 /**
- * Map any Zeno workflow status to the values accepted by the DB CHECK constraint:
- *   ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')
- *
- * 'cancelled' and 'backlog' are UI-only states that do not have a DB column
- * equivalent; they are coerced to the nearest canonical value.
- *
- * Note: existing databases with the pre-gate-05 constraint
- * ('pending', 'approved', 'rejected', 'in_progress', 'completed') are
- * automatically patched by patchProposalStatusConstraint() in migrations.ts
- * before any sync runs.
+ * Map any Zeno workflow status to the values accepted by the canonical DB schema.
  */
 const PROPOSAL_STATUS_MAP: Record<string, string> = {
   pending:     'pending',
@@ -39,8 +30,8 @@ const PROPOSAL_STATUS_MAP: Record<string, string> = {
   completed:   'completed',
   approved:    'approved',
   rejected:    'rejected',
-  cancelled:   'rejected',
-  backlog:     'pending',
+  cancelled:   'cancelled',
+  backlog:     'backlog',
 }
 
 function normalizeProposalStatus(raw: string): string {

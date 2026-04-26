@@ -163,6 +163,51 @@ describe('Proposal Action Dispatcher', () => {
     expect(parsed.passedQuantitative).toBe(true)
   })
 
+  it('should dispatch regenerate action for all active gates when gateId is omitted', async () => {
+    registry.setMockResult('gates_list', {
+      gates: [
+        {
+          id: 'gate-03',
+          status: 'pending',
+          prdGenerated: true,
+        },
+      ],
+    })
+    registry.setMockResult('reg_action', {
+      gateId: 'gate-03',
+      deletedCount: 0,
+      resyncedCount: 0,
+      message: 'Gate proposals reset',
+    })
+    registry.setMockResult('generateProposals', {
+      success: true,
+      gateId: 'gate-03',
+      proposalsGenerated: 1,
+      proposals: [
+        {
+          hash: 'prop0003',
+          filename: '01-test.md',
+          path: 'zeno/proposals/gate-03/01-test.md',
+          type: 'gate-tied',
+          status: 'pending',
+          summary: 'Regenerated proposal',
+        },
+      ],
+      message: 'Generated 1 proposal',
+    })
+
+    const result = await handlers.proposal_action({
+      action: 'regenerate',
+    })
+
+    expect(result.content).toBeDefined()
+    const parsed = JSON.parse((result.content[0] as any).text)
+    expect(parsed.scope).toBe('all')
+    expect(parsed.gatesProcessed).toBe(1)
+    expect(parsed.proposalsGenerated).toBe(1)
+    expect(parsed.gateIds).toEqual(['gate-03'])
+  })
+
   it('should dispatch approve action correctly', async () => {
     const now = new Date().toISOString()
     registry.setMockResult('proposal_show', {

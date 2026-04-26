@@ -25,13 +25,13 @@ import {
 import { ProposalCreateOutputSchema } from './proposal-create-schemas.js'
 import {
   ProposalGenerateOutputSchema,
+  ProposalRegenerateOutputSchema,
   ProposalUpdateProgressOutputSchema,
 } from './workflow-schemas.js'
 import {
   DbStatusOutputSchema,
   DbSyncOutputSchema,
   PurgeOrphansOutputSchema,
-  RegenerateOutputSchema,
 } from './reg-action-schemas.js'
 
 /**
@@ -58,7 +58,7 @@ import {
  *   db_status     — report proposal DB health (orphan count, status breakdown)
  *   db_sync       — reconcile proposals DB with disk (upsert new files, remove orphans)
  *   purge_orphans — delete DB rows with no matching .md file; optional: gateId, solitary, dryRun
- *   regenerate    — delete the registry DB then re-initialise from disk
+ *   regenerate    — atomically regenerate proposal scaffolds for one gate or all active gates
  *
  * preReview: required for `start` and `scaffold`/`generate` actions; see PreReviewSchema for fields.
  * currentTask: required for `progress` action; 1-based index of the task currently being applied.
@@ -102,7 +102,7 @@ export const ProposalActionInputSchema = z.object({
         'db_status=report proposal DB health — orphan count, status breakdown. Call before scaffold to detect stale state. ' +
         'db_sync=reconcile proposals DB with disk: upsert new files, remove orphans. ' +
         'purge_orphans=delete DB rows with no matching .md file (optional: gateId, solitary, dryRun). ' +
-        'regenerate=drop and recreate the registry DB from disk. ' +
+        'regenerate=atomically regenerate proposal scaffolds from gate PRDs. Supply gateId to regenerate one gate; omit gateId to regenerate all non-completed, non-cancelled gates whose PRDs already exist on disk. Use reg_action { action: "regenerate" } when you need to rebuild registry.db itself. ' +
         'IMPORTANT: cancel, defer, and delete are destructive and require confirmed: true.'
     ),
 
@@ -346,7 +346,7 @@ export const ProposalActionOutputSchema = z.discriminatedUnion('action', [
   }),
   z.object({
     action: z.literal('regenerate'),
-    result: RegenerateOutputSchema,
+    result: ProposalRegenerateOutputSchema,
     validation: ValidationResultSchema.optional(),
   }),
 ])

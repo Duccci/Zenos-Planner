@@ -11,13 +11,13 @@ import {
   type ProposalQualitativeReview,
 } from '../schemas/proposal-schemas.js'
 import {
+  ProposalRegenerateOutputSchema,
   ProposalUpdateProgressOutputSchema,
 } from '../schemas/workflow-schemas.js'
 import {
   DbStatusOutputSchema,
   DbSyncOutputSchema,
   PurgeOrphansOutputSchema,
-  RegenerateOutputSchema,
 } from '../schemas/reg-action-schemas.js'
 import { ProposalActionInputSchema } from '../schemas/proposal-action-schemas.js'
 import {
@@ -25,7 +25,7 @@ import {
   type ApplyPhaseValidationContext,
 } from '../validators/apply-phase-validator.js'
 import { validateQuality, DEFAULT_QUALITY_STUB_METRICS, type QualityValidationContext } from '../validators/quality-validator.js'
-import { type ZenoConfig, getWorkspaceRoot } from '../../utils/config.js'
+import { type ZenoConfig, getWorkspaceRoot, getZenoGitDir } from '../../utils/config.js'
 import { type PreReview } from '../validators/pre-review-validator.js'
 import {
   validateScope,
@@ -36,6 +36,8 @@ import { validateProposalPhases } from '../validators/proposal-phases-validator.
 import { validateTestFirstPattern, validateGateLevelTestFirst, validateCleanupTestFileReuse } from '../validators/test-first-validator.js'
 import { validateDependencies, type DependencyNode } from '../validators/dependency-validator.js'
 import { validateArtifactFile } from '../validators/artifact-validator.js'
+import { ensureDir, readFile as readTextFile, walkDir, writeFile as writeTextFile } from '../../utils/file.js'
+import { normalizeGateId, resolveGateIdentifier } from '../../utils/normalize.js'
 import { buildQualitativeReviewWarnings } from './handler-factory.js'
 import { createGenerateValidators, resolveGateTestFirstSiblings, createProposalTransitionValidator } from './shared-validators.js'
 import {
@@ -52,6 +54,8 @@ import {
 import { inferRoleFromFilename } from '../validators/test-first-validator.js'
 import { WorktreeManager } from '../../core/worktree-manager.js'
 import { loadTemplateContent } from '../../generation/template-discovery.js'
+import { dirname, join, relative } from 'node:path'
+import { rm } from 'node:fs/promises'
 
 /**
  * Unified proposal action tool definition.
@@ -103,7 +107,12 @@ export const proposalToolDefinitions = [
       '  db_status   — report orphan count and status breakdown',
       '  db_sync     — reconcile DB with disk (add missing rows, remove orphans)',
       '  purge_orphans — remove DB rows with no matching .md file (optional: gateId, solitary, dryRun)',
-      '  regenerate  — drop and recreate the entire registry DB from disk',
+      '',
+      'REGENERATE:',
+      '  regenerate  — atomically regenerate proposal scaffolds from gate PRDs',
+      '                - supply gateId to regenerate one gate',
+      '                - omit gateId to regenerate all active, non-terminal gates',
+      '                - use reg_action { action: "regenerate" } if you need to rebuild registry.db itself',
       '',
       'cancel and defer require confirmed: true — omitting confirmed returns a prompt instead of executing.',
       '',
@@ -447,6 +456,210 @@ async function runProposalGenerate(
   )
 }
 
+interface ProposalDirectorySnapshot {
+  gateId: string
+  dirPath: string
+  files: { relativePath: string; content: string }[]
+}
+
+function getProposalDirForGate(gateId: string): string {
+  return join(getZenoGitDir(getWorkspaceRoot()), 'proposals', normalizeGateId(gateId))
+}
+
+async function snapshotProposalDirectory(gateId: string): Promise<ProposalDirectorySnapshot> {
+  const dirPath = getProposalDirForGate(gateId)
+  const files = await walkDir(dirPath)
+
+  return {
+    gateId,
+    dirPath,
+    files: await Promise.all(
+      files.map(async (filePath) => ({
+        relativePath: relative(dirPath, filePath).replace(/\\/g, '/'),
+        content: await readTextFile(filePath),
+      }))
+    ),
+  }
+}
+
+async function restoreProposalDirectory(snapshot: ProposalDirectorySnapshot): Promise<void> {
+  await rm(snapshot.dirPath, { recursive: true, force: true })
+
+  for (const file of snapshot.files) {
+    const targetPath = join(snapshot.dirPath, file.relativePath)
+    await ensureDir(dirname(targetPath))
+    await writeTextFile(targetPath, file.content)
+  }
+}
+
+async function resolveProposalRegenerateGateIds(
+  payload: Record<string, unknown> | undefined,
+  r: FunctionRegistry
+): Promise<FunctionResult<string[]>> {
+  const requestedGateId = typeof payload?.['gateId'] === 'string' ? payload['gateId'] : undefined
+
+  if (requestedGateId) {
+    const normalizedGateId = resolveGateIdentifier(requestedGateId)
+    if (normalizedGateId === 'solitary') {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_INPUT',
+          message: 'proposal_action:regenerate only supports gate-tied proposal scaffolds. Solitary proposals must be regenerated individually with scaffold/generate.',
+        },
+      }
+    }
+
+    const gateResult = await r.invoke('gates_show', { gateId: normalizedGateId })
+    if (!gateResult.success) {
+      return gateResult as FunctionResult<string[]>
+    }
+
+    const gate = gateResult.data as { status?: string; prdGenerated?: boolean }
+    if (gate.prdGenerated === false) {
+      return {
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `Gate ${normalizedGateId} does not have a generated PRD yet, so its proposal scaffolds cannot be regenerated.`,
+        },
+      }
+    }
+    if (gate.status === 'completed' || gate.status === 'cancelled') {
+      return {
+        success: false,
+        error: {
+          code: 'INVALID_STATUS_TRANSITION',
+          message: `Gate ${normalizedGateId} is ${gate.status}; proposal regeneration only applies to active, non-terminal gates.`,
+        },
+      }
+    }
+
+    return { success: true, data: [normalizedGateId] }
+  }
+
+  const listResult = await r.invoke('gates_list', {})
+  if (!listResult.success) {
+    return listResult as FunctionResult<string[]>
+  }
+
+  const activeGateIds = ((listResult.data as { gates?: { id: string; status?: string; prdGenerated?: boolean }[] }).gates ?? [])
+    .filter((gate) => gate.prdGenerated !== false)
+    .filter((gate) => gate.status !== 'completed' && gate.status !== 'cancelled')
+    .map((gate) => gate.id)
+
+  if (activeGateIds.length === 0) {
+    return {
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: 'No active gate PRDs were found to regenerate proposals from.',
+      },
+    }
+  }
+
+  return { success: true, data: activeGateIds }
+}
+
+async function runProposalRegenerate(
+  payload: Record<string, unknown> | undefined,
+  r: FunctionRegistry
+): Promise<FunctionResult> {
+  const gateIdsResult = await resolveProposalRegenerateGateIds(payload, r)
+  if (!gateIdsResult.success) {
+    return gateIdsResult
+  }
+
+  const gateIds = gateIdsResult.data
+  const templateName = typeof payload?.['templateName'] === 'string' ? payload['templateName'] : undefined
+  const outputDir = typeof payload?.['outputDir'] === 'string' ? payload['outputDir'] : undefined
+  const snapshots = await Promise.all(gateIds.map((gateId) => snapshotProposalDirectory(gateId)))
+  const generatedGates: Record<string, unknown>[] = []
+
+  try {
+    for (const gateId of gateIds) {
+      await rm(getProposalDirForGate(gateId), { recursive: true, force: true })
+
+      const resetResult = await r.invoke('reg_action', {
+        action: 'reset_gate',
+        payload: { gateId },
+      })
+      if (!resetResult.success) {
+        throw new Error(resetResult.error.message)
+      }
+
+      const resolvedOutputDir = outputDir
+        ? gateIds.length === 1
+          ? outputDir
+          : join(outputDir, gateId)
+        : undefined
+
+      const generateResult = await r.invoke('generateProposals', {
+        gateId,
+        ...(templateName ? { templateName } : {}),
+        ...(resolvedOutputDir ? { outputDir: resolvedOutputDir } : {}),
+      })
+      if (!generateResult.success) {
+        throw new Error(generateResult.error.message)
+      }
+
+      generatedGates.push(generateResult.data as Record<string, unknown>)
+    }
+  } catch (error) {
+    for (const snapshot of snapshots) {
+      await restoreProposalDirectory(snapshot)
+      const rollbackReset = await r.invoke('reg_action', {
+        action: 'reset_gate',
+        payload: { gateId: snapshot.gateId },
+      })
+      if (!rollbackReset.success) {
+        return {
+          success: false,
+          error: {
+            code: 'COMMAND_FAILED',
+            message:
+              `Failed to regenerate proposals atomically: ${error instanceof Error ? error.message : String(error)}. ` +
+              `Rollback also failed while restoring ${snapshot.gateId}: ${rollbackReset.error.message}`,
+            context: { gateIds },
+          },
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error: {
+        code: 'COMMAND_FAILED',
+        message:
+          `Failed to regenerate proposals atomically: ${error instanceof Error ? error.message : String(error)}. ` +
+          'All targeted proposal directories were rolled back to their previous on-disk state.',
+        context: { gateIds },
+      },
+    }
+  }
+
+  const proposalsGenerated = generatedGates.reduce((sum, gate) => {
+    const count = gate['proposalsGenerated']
+    return sum + (typeof count === 'number' ? count : 0)
+  }, 0)
+
+  return {
+    success: true,
+    data: {
+      success: true,
+      scope: payload?.['gateId'] ? 'single' : 'all',
+      gateIds,
+      gatesProcessed: generatedGates.length,
+      proposalsGenerated,
+      gates: generatedGates,
+      message:
+        payload?.['gateId']
+          ? `Regenerated ${String(proposalsGenerated)} proposal scaffold(s) for ${String(gateIds[0])}.`
+          : `Regenerated ${String(proposalsGenerated)} proposal scaffold(s) across ${String(generatedGates.length)} gate(s).`,
+    },
+  }
+}
+
 /**
  * Unified proposal action handler.
  * Dispatches to the appropriate registry function based on action type.
@@ -513,7 +726,7 @@ export function proposalHandlers(
           case 'purge_orphans':
             return PurgeOrphansOutputSchema
           case 'regenerate':
-            return RegenerateOutputSchema
+            return ProposalRegenerateOutputSchema
           default:
             throw new Error(`Unknown proposal action: ${String(action)}`)
         }
@@ -882,8 +1095,8 @@ export function proposalHandlers(
             },
           })
         },
-        regenerate: async (_payload, r) => {
-          return r.invoke('reg_action', { action: 'regenerate', payload: {} })
+        regenerate: async (payload, r) => {
+          return runProposalRegenerate(payload, r)
         },
       },
 

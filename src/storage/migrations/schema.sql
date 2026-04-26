@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS proposals (
   requirement_id   TEXT      REFERENCES requirements(id),
   title            TEXT      NOT NULL,
   status           TEXT      NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed')),
+    CHECK (status IN ('pending', 'validated', 'approved', 'rejected', 'in_progress', 'completed', 'cancelled', 'backlog')),
   hash             TEXT      UNIQUE NOT NULL,
   created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

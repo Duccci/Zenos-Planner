@@ -12,7 +12,7 @@ import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { logger } from '../utils/logger.js'
 import { getDatabase } from '../storage/database.js'
-import { normalizeHash } from '../utils/normalize.js'
+import { normalizeHash, resolveGateIdentifier } from '../utils/normalize.js'
 import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 import { relative } from 'node:path'
 
@@ -119,14 +119,17 @@ export function registerContextOps(registry: FunctionRegistry): void {
 
         // Resolve gate by gateId or hash
         let gate: GateRow | undefined
+        let resolvedGateId: string | undefined
         if (gateId) {
+          resolvedGateId = resolveGateIdentifier(gateId)
           gate = db
             .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE id = ?')
-            .get(gateId) as GateRow | undefined
+            .get(resolvedGateId) as GateRow | undefined
         } else if (hash) {
           gate = db
             .prepare('SELECT id, name, status, description, sequence, depends_on FROM gates WHERE hash = ?')
             .get(normalizeHash(hash)) as GateRow | undefined
+          resolvedGateId = gate?.id
         }
 
         if (!gate) {
@@ -139,7 +142,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
             .prepare(
               'SELECT id, title, status, hash FROM proposals WHERE gate_id = ? ORDER BY created_at'
             )
-            .all(gateId) as { id: string; title: string; status: string; hash: string }[]
+            .all(resolvedGateId) as { id: string; title: string; status: string; hash: string }[]
         )
 
         // Requirements for this gate
@@ -148,7 +151,7 @@ export function registerContextOps(registry: FunctionRegistry): void {
             .prepare(
               'SELECT id, description, type, priority, hash FROM requirements WHERE gate_id = ? ORDER BY priority, type'
             )
-            .all(gateId) as RequirementRow[]
+            .all(resolvedGateId) as RequirementRow[]
         )
 
         // Parse depends_on (stored as JSON array or comma-separated)
