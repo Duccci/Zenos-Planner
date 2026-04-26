@@ -9,6 +9,7 @@
 import { readFile, writeFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
+import { getWorkspaceRoot } from '../utils/config.js'
 
 export interface ProposalUpdateProgressInput {
   hash: string
@@ -50,7 +51,7 @@ export async function updateProposalProgress(
   input: ProposalUpdateProgressInput
 ): Promise<ProposalUpdateProgressOutput> {
   try {
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
     const { hash, taskIndex, completed, notes } = input
 
     // Find proposal file

@@ -10,7 +10,7 @@ import { readFile, writeFile } from '../utils/file.js'
 import { logger } from '../utils/logger.js'
 import { ZenoError } from '../utils/errors.js'
 import { findGateByGateId } from '../utils/artifact-locator.js'
-import { getZenoGitDir } from '../utils/config.js'
+import { getZenoGitDir, getWorkspaceRoot } from '../utils/config.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -55,7 +55,7 @@ export async function generateProposals(
   input: ProposalGenerateInput
 ): Promise<ProposalGenerateOutput> {
   try {
-    const projectRoot = process.cwd()
+    const projectRoot = getWorkspaceRoot()
     const { gateId, templateName = 'proposal-template', outputDir } = input
 
     // Read gate PRD — resolve short gate IDs (e.g. "gate-06") to full filenames

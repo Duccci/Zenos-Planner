@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { ensureDir, writeFile } from '../utils/file.js'
 import { shortHash } from '../utils/hash.js'
-import { loadConfig } from '../utils/config.js'
+import { loadConfig, getWorkspaceRoot } from '../utils/config.js'
 import { type ProposalRole } from './types.js'
 import path from 'path'
 
@@ -103,7 +103,7 @@ export async function decomposeToProposals(
   // Load config to get coverage threshold
   let coverageThreshold = 90
   try {
-    const config = await loadConfig(process.cwd())
+    const config = await loadConfig(getWorkspaceRoot())
     coverageThreshold = config.qualityThresholds.codeCoverage
   } catch {
     // Use default if config can't be loaded

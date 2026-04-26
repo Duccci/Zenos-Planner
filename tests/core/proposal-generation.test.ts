@@ -81,6 +81,7 @@ vi.mock('../../src/utils/errors.js', () => ({
 
 vi.mock('../../src/utils/config.js', () => ({
   getZenoGitDir: (root = process.cwd()) => `${root}/zeno`,
+  getWorkspaceRoot: (root = process.cwd()) => root,
 }))
 
 // ---------------------------------------------------------------------------

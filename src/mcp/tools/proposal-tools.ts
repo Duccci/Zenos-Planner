@@ -114,7 +114,7 @@ export const proposalToolDefinitions = [
   },
 ]
 
-import type { FunctionRegistry } from '../../integration/function-registry.js'
+import type { FunctionRegistry, FunctionResult } from '../../integration/function-registry.js'
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { ProposalActionOutputSchema, ProposalGenerateOrCreateOutputSchema } from '../schemas/proposal-action-schemas.js'
 import { createEntityActionHandler } from './entity-action-handler.js'
@@ -253,6 +253,201 @@ async function validateProposalDependencies(
 }
 
 /**
+ * Shared body for the proposal_action:scaffold and proposal_action:generate actions.
+ *
+ * Both action names are public aliases — they MUST behave identically. This function
+ * centralizes the routing decision (solitary vs. gate-tied direct vs. gate-tied AI) and,
+ * critically, attaches the proposal template (templateInfo.content), the placeholder-fill
+ * instruction (fillInstruction), and the proposal-generation guardrails/workflow via
+ * withGuidance. Without these the calling LLM receives only file paths and produces
+ * proposals that are still unfilled templates.
+ */
+async function runProposalGenerate(
+  payload: Record<string, unknown> | undefined,
+  r: FunctionRegistry
+): Promise<FunctionResult> {
+  payload = payload ?? {}
+  // Route based on payload shape:
+  // - Solitary or no gateId → proposal_create (self-contained proposal)
+  // - Gate-tied with explicit fields (title + tasks) → proposal_create (direct creation)
+  // - Gate-tied without explicit fields → generateProposals (AI decomposition)
+  const isSolitary = (payload as { solitary?: boolean }).solitary === true
+  const hasGateId = Boolean((payload as { gateId?: string }).gateId)
+  const gateId = (payload as { gateId?: string }).gateId
+  const hasTitle = Boolean((payload as { title?: string }).title)
+  const hasSummary = Boolean((payload as { summary?: string }).summary)
+  const explicitTasks = (payload as { tasks?: unknown[] }).tasks
+  const hasTasks = Array.isArray(explicitTasks) && explicitTasks.length > 0
+  const hasExplicitFields = hasTitle && hasTasks
+
+  // Pre-dispatch validation: catch missing required fields for the
+  // direct-creation path before the inner proposal_create schema rejects
+  // with a cryptic parameter validation error.
+  const isDirectCreatePath = isSolitary || !hasGateId || hasExplicitFields
+  if (isDirectCreatePath) {
+    const missing: string[] = []
+    if (!hasTitle) missing.push('title')
+    if (!hasSummary) missing.push('summary')
+    if (!hasTasks) missing.push('tasks')
+    if (missing.length > 0) {
+      return {
+        success: false,
+        error: {
+          code: 'SCAFFOLD_DIRECT_CREATE_MISSING_FIELDS',
+          message:
+            `proposal_action:scaffold/generate direct-creation path requires title + summary + tasks. Missing: ${missing.join(', ')}. ` +
+            'The direct-creation path is selected when solitary=true, when no gateId is provided, ' +
+            'or when title+tasks are supplied alongside a gateId. ' +
+            'Provide ALL of: title (string), summary (2-3 sentence description), tasks (array of {description, acceptanceCriteria?, phase?, files?, action?}). ' +
+            'To use the AI decomposition path instead, omit title/tasks and supply gateId + preReview (phase="generate").',
+          context: {
+            missingFields: missing,
+            receivedKeys: Object.keys(payload),
+            routingDecision: isSolitary
+              ? 'solitary'
+              : !hasGateId
+                ? 'no-gateId-defaulted-to-solitary'
+                : 'gate-tied-explicit-fields',
+          },
+        },
+      }
+    }
+  }
+
+  let invokeResult
+  if (isSolitary || !hasGateId) {
+    // Solitary proposal: use proposal_create workflow
+    // If no gateId is provided and not explicitly solitary, default to solitary mode
+    const solitaryPayload = {
+      ...payload,
+      solitary: true,
+    }
+    // Remove gateId if present with solitary=true to avoid conflict
+    if (isSolitary && hasGateId) {
+      delete (solitaryPayload as Record<string, unknown>)['gateId']
+    }
+    invokeResult = await r.invoke('proposal_create', solitaryPayload)
+    // Inject project-level requirements so the solitary proposal can align with the registry
+    if (invokeResult.success) {
+      const reqResult = await r.invoke('reg_action', { action: 'list', payload: {} }).catch(() => null)
+      if (reqResult?.success) {
+        invokeResult = {
+          ...invokeResult,
+          data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
+        }
+      }
+    }
+  } else if (hasExplicitFields) {
+    // Gate-tied explicit creation: use proposal_create directly (skip AI decomposition)
+    invokeResult = await r.invoke('proposal_create', payload)
+  } else {
+    // Gate-tied AI path: use gate workflow (generateProposals)
+    invokeResult = await r.invoke('generateProposals', payload)
+    if (invokeResult.success && gateId) {
+      // Auto-start gate when proposals are generated: generating proposals is the
+      // first concrete work on a gate, so transition it to in_progress if not already.
+      try {
+        const showResult = await r.invoke('gates_show', { gateId })
+        const currentStatus = showResult.success
+          ? (showResult.data as { status?: string }).status
+          : undefined
+        if (currentStatus !== 'in_progress' && currentStatus !== 'completed') {
+          await r.invoke('gates_start', { gateId })
+        }
+      } catch {
+        // best-effort: don't fail proposal generation if gate state update fails
+      }
+      // Auto-warn: check for orphaned DB rows before continuing so the LLM
+      // is aware of stale state from prior (interrupted) scaffold attempts.
+      try {
+        const statusResult = await r.invoke('reg_action', { action: 'db_status', payload: {} })
+        if (statusResult.success) {
+          const dbStatus = statusResult.data as { orphaned?: number; orphanedHashes?: string[] }
+          if ((dbStatus.orphaned ?? 0) > 0) {
+            invokeResult = {
+              ...invokeResult,
+              data: {
+                ...(invokeResult.data as Record<string, unknown>),
+                orphanWarning: {
+                  orphaned: dbStatus.orphaned,
+                  orphanedHashes: dbStatus.orphanedHashes,
+                  message:
+                    `${String(dbStatus.orphaned)} orphaned DB row(s) detected (DB entries with no matching .md file on disk). ` +
+                    'These are likely from an earlier interrupted scaffold session. ' +
+                    'Call proposal_action { action: "purge_orphans", dryRun: false } to clean them up.',
+                },
+              },
+            }
+          }
+        }
+      } catch {
+        // orphan check is best-effort; never block scaffold on it
+      }
+      // Inject gate requirements so generated proposals utilize the prescribed specs
+      const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } }).catch(() => null)
+      if (reqResult?.success) {
+        invokeResult = {
+          ...invokeResult,
+          data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
+        }
+      }
+    }
+  }
+
+  // Load the full proposal template including meta-commentary sections.
+  // HTML comments and meta sections (e.g. "## Single-Phase Requirement") are sent
+  // intact in templateInfo.content so the filling LLM has full authoring context.
+  // HTML comments are stripped from scaffold files automatically at write time;
+  // meta-instruction sections (body text, not comments) must still be removed by
+  // the filling LLM — the fillInstruction below directs that.
+  let templateInfo: { name: string; content: string; fillInstruction?: string; outputPathHint?: string } | undefined
+  try {
+    const content = await loadTemplateContent(undefined, 'templates/md-templates/proposal-template.md')
+    const isSolitaryProposal = isSolitary || !hasGateId
+    templateInfo = {
+      name: 'proposal-template',
+      content,
+      fillInstruction:
+        'CRITICAL: scaffolding produced empty template files; you must now author each one. ' +
+        'The scaffold files in scaffoldedFiles are already on disk with HTML comments stripped. ' +
+        'templateInfo.content above is the full template (with HTML comments) — use it for ' +
+        'authoring context only; do not re-create or overwrite the scaffold files from it. ' +
+        'For each scaffold file: open the file, read it, then DIRECTLY EDIT it by replacing ' +
+        'every [bracketed placeholder] with concrete, gate-specific content derived from the ' +
+        'gate PRD objectives and requirements. ' +
+        'STRIP FROM OUTPUT — remove entirely from the written file — any section whose opening ' +
+        'bracket text contains "Meta-constraint guidance" or "omit this section from submitted ' +
+        'proposals" (e.g. the ## Single-Phase Requirement section): read it for context, then ' +
+        'delete the entire section including its --- divider. ' +
+        'Search the result for [ to verify every unfilled slot is replaced — the validator ' +
+        'rejects files that still contain bracket placeholders. ' +
+        'Process proposals one at a time in sequence; do not create scripts or batch processors. ' +
+        'Call proposal_action:validate after completing each file. ' +
+        'DO NOT consider scaffolding "done" until every scaffolded file has been opened, filled, ' +
+        'and validated — returning the response from this call alone is not completion.',
+      outputPathHint: isSolitaryProposal
+        ? 'zeno/proposals/solitary/<name>.md — path listed in scaffoldedFiles from this response'
+        : 'zeno/proposals/gate-<XX>/<name>.md — paths listed in scaffoldedFiles from this response',
+    }
+  } catch {
+    // Template loading is best-effort; guidance still flows without it
+  }
+
+  // Inject preReviewSummary, template, and proposal-generation guidance
+  return withGuidance(
+    invokeResult,
+    toNarrativeRules(PROPOSAL_GENERATION_GUARDRAILS),
+    toCompactWorkflow(PROPOSAL_GENERATION_WORKFLOW),
+    {
+      preReview: !isSolitary && hasGateId && !hasExplicitFields
+        ? (payload as { preReview?: unknown }).preReview
+        : undefined,
+      templateInfo,
+    }
+  )
+}
+
+/**
  * Unified proposal action handler.
  * Dispatches to the appropriate registry function based on action type.
  */
@@ -328,242 +523,11 @@ export function proposalHandlers(
         show: async (payload, r) => {
           return r.invoke('proposal_show', payload)
         },
-        generate: async (payload, r) => {
-          // Route based on payload shape:
-          // - Solitary or no gateId → proposal_create (self-contained proposal)
-          // - Gate-tied with explicit fields (title + tasks) → proposal_create (direct creation)
-          // - Gate-tied without explicit fields → generateProposals (AI decomposition)
-          const isSolitary = (payload as { solitary?: boolean }).solitary === true
-          const hasGateId = Boolean((payload as { gateId?: string }).gateId)
-          const gateId = (payload as { gateId?: string }).gateId
-          const hasTitle = Boolean((payload as { title?: string }).title)
-          const hasSummary = Boolean((payload as { summary?: string }).summary)
-          const explicitTasks = (payload as { tasks?: unknown[] }).tasks
-          const hasTasks = Array.isArray(explicitTasks) && explicitTasks.length > 0
-          const hasExplicitFields = hasTitle && hasTasks
-
-          // Pre-dispatch validation: catch missing required fields for the
-          // direct-creation path before the inner proposal_create schema rejects
-          // with a cryptic parameter validation error.
-          const isDirectCreatePath = isSolitary || !hasGateId || hasExplicitFields
-          if (isDirectCreatePath) {
-            const missing: string[] = []
-            if (!hasTitle) missing.push('title')
-            if (!hasSummary) missing.push('summary')
-            if (!hasTasks) missing.push('tasks')
-            if (missing.length > 0) {
-              return {
-                success: false,
-                error: {
-                  code: 'SCAFFOLD_DIRECT_CREATE_MISSING_FIELDS',
-                  message:
-                    `proposal_action:generate (alias of scaffold) direct-creation path requires title + summary + tasks. Missing: ${missing.join(', ')}. ` +
-                    'The direct-creation path is selected when solitary=true, when no gateId is provided, ' +
-                    'or when title+tasks are supplied alongside a gateId. ' +
-                    'Provide ALL of: title (string), summary (2-3 sentence description), tasks (array of {description, acceptanceCriteria?, phase?, files?, action?}). ' +
-                    'To use the AI decomposition path instead, omit title/tasks and supply gateId + preReview (phase="generate").',
-                  context: {
-                    missingFields: missing,
-                    receivedKeys: Object.keys(payload ?? {}),
-                    routingDecision: isSolitary
-                      ? 'solitary'
-                      : !hasGateId
-                        ? 'no-gateId-defaulted-to-solitary'
-                        : 'gate-tied-explicit-fields',
-                  },
-                },
-              }
-            }
-          }
-
-          let invokeResult
-          if (isSolitary || !hasGateId) {
-            // Solitary proposal: use proposal_create workflow
-            // If no gateId is provided and not explicitly solitary, default to solitary mode
-            const solitaryPayload = {
-              ...(payload ?? {}),
-              solitary: true,
-            }
-            // Remove gateId if present with solitary=true to avoid conflict
-            if (isSolitary && hasGateId) {
-              delete (solitaryPayload as Record<string, unknown>)['gateId']
-            }
-            invokeResult = await r.invoke('proposal_create', solitaryPayload)
-            // Inject project-level requirements so the solitary proposal can align with the registry
-            if (invokeResult.success) {
-              const reqResult = await r.invoke('reg_action', { action: 'list', payload: {} }).catch(() => null)
-              if (reqResult?.success) {
-                invokeResult = {
-                  ...invokeResult,
-                  data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
-                }
-              }
-            }
-          } else if (hasExplicitFields) {
-            // Gate-tied explicit creation: use proposal_create directly (skip AI decomposition)
-            invokeResult = await r.invoke('proposal_create', payload)
-          } else {
-            // Gate-tied AI path: use gate workflow (generateProposals)
-            invokeResult = await r.invoke('generateProposals', payload)
-            if (invokeResult.success && gateId) {
-              // Auto-start gate when proposals are generated: generating proposals is the
-              // first concrete work on a gate, so transition it to in_progress if not already.
-              try {
-                const showResult = await r.invoke('gates_show', { gateId })
-                const currentStatus = showResult.success
-                  ? (showResult.data as { status?: string }).status
-                  : undefined
-                if (currentStatus !== 'in_progress' && currentStatus !== 'completed') {
-                  await r.invoke('gates_start', { gateId })
-                }
-              } catch {
-                // best-effort: don't fail proposal generation if gate state update fails
-              }
-              // Auto-warn: check for orphaned DB rows before continuing so the LLM
-              // is aware of stale state from prior (interrupted) scaffold attempts.
-              try {
-                const statusResult = await r.invoke('reg_action', { action: 'db_status', payload: {} })
-                if (statusResult.success) {
-                  const dbStatus = statusResult.data as { orphaned?: number; orphanedHashes?: string[] }
-                  if ((dbStatus.orphaned ?? 0) > 0) {
-                    invokeResult = {
-                      ...invokeResult,
-                      data: {
-                        ...(invokeResult.data as Record<string, unknown>),
-                        orphanWarning: {
-                          orphaned: dbStatus.orphaned,
-                          orphanedHashes: dbStatus.orphanedHashes,
-                          message:
-                            `${String(dbStatus.orphaned)} orphaned DB row(s) detected (DB entries with no matching .md file on disk). ` +
-                            'These are likely from an earlier interrupted scaffold session. ' +
-                            'Call proposal_action { action: "purge_orphans", dryRun: false } to clean them up.',
-                        },
-                      },
-                    }
-                  }
-                }
-              } catch {
-                // orphan check is best-effort; never block scaffold on it
-              }
-              // Inject gate requirements so generated proposals utilize the prescribed specs
-              const reqResult = await r.invoke('reg_action', { action: 'list', payload: { gateId } }).catch(() => null)
-              if (reqResult?.success) {
-                invokeResult = {
-                  ...invokeResult,
-                  data: { ...(invokeResult.data as Record<string, unknown>), requirementsContext: reqResult.data },
-                }
-              }
-            }
-          }
-
-          // Load the full proposal template including meta-commentary sections.
-          // HTML comments and meta sections (e.g. "## Single-Phase Requirement") are sent
-          // intact in templateInfo.content so the filling LLM has full authoring context.
-          // HTML comments are stripped from scaffold files automatically at write time;
-          // meta-instruction sections (body text, not comments) must still be removed by
-          // the filling LLM — the fillInstruction below directs that.
-          let templateInfo: { name: string; content: string; fillInstruction?: string; outputPathHint?: string } | undefined
-          try {
-            const content = await loadTemplateContent(undefined, 'templates/md-templates/proposal-template.md')
-            const isSolitaryProposal = isSolitary || !hasGateId
-            templateInfo = {
-              name: 'proposal-template',
-              content,
-              fillInstruction:
-                'The scaffold files in scaffoldedFiles are already on disk with HTML comments stripped. ' +
-                'templateInfo.content above is the full template (with HTML comments) — use it for ' +
-                'authoring context only; do not re-create or overwrite the scaffold files from it. ' +
-                'For each scaffold file: open the file, read it, then DIRECTLY EDIT it by replacing ' +
-                'every [bracketed placeholder] with concrete, gate-specific content derived from the ' +
-                'gate PRD objectives and requirements. ' +
-                'STRIP FROM OUTPUT — remove entirely from the written file — any section whose opening ' +
-                'bracket text contains "Meta-constraint guidance" or "omit this section from submitted ' +
-                'proposals" (e.g. the ## Single-Phase Requirement section): read it for context, then ' +
-                'delete the entire section including its --- divider. ' +
-                'Search the result for [ to verify every unfilled slot is replaced — the validator ' +
-                'rejects files that still contain bracket placeholders. ' +
-                'Process proposals one at a time in sequence; do not create scripts or batch processors. ' +
-                'Call proposal_action:validate after completing each file.',
-              outputPathHint: isSolitaryProposal
-                ? 'zeno/proposals/solitary/<name>.md — path listed in scaffoldedFiles from this response'
-                : 'zeno/proposals/gate-<XX>/<name>.md — paths listed in scaffoldedFiles from this response',
-            }
-          } catch {
-            // Template loading is best-effort; guidance still flows without it
-          }
-
-          // Inject preReviewSummary, template, and proposal-generation guidance
-          return withGuidance(
-            invokeResult,
-            toNarrativeRules(PROPOSAL_GENERATION_GUARDRAILS),
-            toCompactWorkflow(PROPOSAL_GENERATION_WORKFLOW),
-            {
-              preReview: !isSolitary && hasGateId && !hasExplicitFields
-                ? (payload as { preReview?: unknown }).preReview
-                : undefined,
-              templateInfo,
-            }
-          )
-        },
-        // scaffold is the canonical name; generate is kept as an alias — both do identical work
-        scaffold: async (payload, r) => {
-          // scaffold == generate: stamp out blank template files for a gate and return
-          // paths + authoring guidance. The calling LLM must then fill every [bracketed
-          // placeholder] before calling validate.
-          // Delegate to the exact same routing logic as generate by re-invoking the action.
-          // We cannot call actionHandlers.generate here at definition time (not yet bound),
-          // so we replicate the routing decision and delegate to the shared registry functions.
-          const isSolitary2 = (payload as { solitary?: boolean }).solitary === true
-          const hasGateId2 = Boolean((payload as { gateId?: string }).gateId)
-          const hasTitle2 = Boolean((payload as { title?: string }).title)
-          const hasSummary2 = Boolean((payload as { summary?: string }).summary)
-          const explicitTasks2 = (payload as { tasks?: unknown[] }).tasks
-          const hasTasks2 = Array.isArray(explicitTasks2) && explicitTasks2.length > 0
-          const hasExplicitFields2 = hasTitle2 && hasTasks2
-
-          // Pre-dispatch validation: surface a clear, actionable error when the
-          // direct-creation path (solitary OR title+tasks) is missing required
-          // fields, instead of letting the inner proposal_create schema reject
-          // with a cryptic "summary: expected string, received undefined".
-          const isDirectCreatePath = isSolitary2 || !hasGateId2 || hasExplicitFields2
-          if (isDirectCreatePath) {
-            const missing: string[] = []
-            if (!hasTitle2) missing.push('title')
-            if (!hasSummary2) missing.push('summary')
-            if (!hasTasks2) missing.push('tasks')
-            if (missing.length > 0) {
-              return {
-                success: false,
-                error: {
-                  code: 'SCAFFOLD_DIRECT_CREATE_MISSING_FIELDS',
-                  message:
-                    `proposal_action:scaffold direct-creation path requires title + summary + tasks. Missing: ${missing.join(', ')}. ` +
-                    'The direct-creation path is selected when solitary=true, when no gateId is provided, ' +
-                    'or when title+tasks are supplied alongside a gateId. ' +
-                    'Provide ALL of: title (string), summary (2-3 sentence description), tasks (array of {description, acceptanceCriteria?, phase?, files?, action?}). ' +
-                    'To use the AI decomposition path instead, omit title/tasks and supply gateId + preReview (phase="generate").',
-                  context: {
-                    missingFields: missing,
-                    receivedKeys: Object.keys(payload ?? {}),
-                    routingDecision: isSolitary2
-                      ? 'solitary'
-                      : !hasGateId2
-                        ? 'no-gateId-defaulted-to-solitary'
-                        : 'gate-tied-explicit-fields',
-                  },
-                },
-              }
-            }
-          }
-
-          if (isSolitary2 || !hasGateId2) {
-            return r.invoke('proposal_create', { ...(payload ?? {}), solitary: true })
-          }
-          if (hasExplicitFields2) {
-            return r.invoke('proposal_create', payload)
-          }
-          return r.invoke('generateProposals', payload)
-        },
+        // scaffold and generate are aliases — both must produce identical output
+        // (paths + template + fillInstruction + PROPOSAL_GENERATION_GUARDRAILS) so
+        // the calling LLM has full authoring context. Route both to the same body.
+        scaffold: async (payload, r) => runProposalGenerate(payload, r),
+        generate: async (payload, r) => runProposalGenerate(payload, r),
         validate: async (payload, r) => {
           const inner = await r.invoke('proposal_validate', payload)
           if (!inner.success) return inner

@@ -561,7 +561,9 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         const fileName = `${slug}.md`
         filePath = normalizePath(join(solitaryDir, fileName))
       } else {
-        // Gate-tied: zeno/proposals/gate-XX/NN-name.md
+        // Gate-tied: <zenoGitDir>/proposals/gate-XX/NN-name.md
+        // getZenoGitDir resolves the correct root for both standard (zeno/) and
+        // standalone (.zeno at root) layouts so proposals land where db_sync scans.
         const gateNumMatch = validated.gateId ? /\d+/.exec(validated.gateId)?.[0] : undefined
         const gateNum = gateNumMatch ?? '00'
         const slug = validated.title
@@ -569,8 +571,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           .replace(/\s+/g, '-')
           .replace(/[^\w-]/g, '')
         const gateDir = join(
-          getWorkspaceRoot(),
-          'zeno',
+          getZenoGitDir(getWorkspaceRoot()),
           'proposals',
           `gate-${gateNum.padStart(2, '0')}`
         )
