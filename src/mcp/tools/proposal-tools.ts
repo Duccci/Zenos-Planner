@@ -573,8 +573,9 @@ async function runProposalRegenerate(
   const gateIds = gateIdsResult.data
   const templateName = typeof payload?.['templateName'] === 'string' ? payload['templateName'] : undefined
   const outputDir = typeof payload?.['outputDir'] === 'string' ? payload['outputDir'] : undefined
+  const preReview = (payload as { preReview?: unknown } | undefined)?.preReview
   const snapshots = await Promise.all(gateIds.map((gateId) => snapshotProposalDirectory(gateId)))
-  const generatedGates: Record<string, unknown>[] = []
+  const perGateResults: Record<string, unknown>[] = []
 
   try {
     for (const gateId of gateIds) {
@@ -594,16 +595,24 @@ async function runProposalRegenerate(
           : join(outputDir, gateId)
         : undefined
 
-      const generateResult = await r.invoke('generateProposals', {
-        gateId,
-        ...(templateName ? { templateName } : {}),
-        ...(resolvedOutputDir ? { outputDir: resolvedOutputDir } : {}),
-      })
+      // Delegate to the canonical scaffold/generate workflow so regenerate
+      // applies the same gate auto-start, orphan check, requirements injection,
+      // template guidance, and withGuidance wrapping as proposal_action:scaffold.
+      // This guarantees regenerate cannot drift from the scaffold workflow.
+      const generateResult = await runProposalGenerate(
+        {
+          gateId,
+          ...(templateName ? { templateName } : {}),
+          ...(resolvedOutputDir ? { outputDir: resolvedOutputDir } : {}),
+          ...(preReview !== undefined ? { preReview } : {}),
+        },
+        r
+      )
       if (!generateResult.success) {
         throw new Error(generateResult.error.message)
       }
 
-      generatedGates.push(generateResult.data as Record<string, unknown>)
+      perGateResults.push((generateResult.data ?? {}) as Record<string, unknown>)
     }
   } catch (error) {
     for (const snapshot of snapshots) {
@@ -638,12 +647,33 @@ async function runProposalRegenerate(
     }
   }
 
+  // Always aggregate to the ProposalRegenerate output shape, regardless of
+  // single- vs multi-gate scope. Pass-through templateInfo + guidance from the
+  // canonical scaffold workflow rather than reconstructing them here, so
+  // regenerate cannot drift from proposal_action:scaffold's behaviour.
+  const generatedGates = perGateResults.map((data) => {
+    // Strip workflow-only fields from each per-gate entry so the array conforms
+    // to ProposalGenerateOutputSchema; the wrapper fields are surfaced once at
+    // the top level below.
+    const { guidance: _g, templateInfo: _t, orphanWarning: _o, requirementsContext: _r, ...rest } = data
+    void _g; void _t; void _o; void _r
+    return rest
+  })
   const proposalsGenerated = generatedGates.reduce((sum, gate) => {
     const count = gate['proposalsGenerated']
     return sum + (typeof count === 'number' ? count : 0)
   }, 0)
 
-  return {
+  // Lift workflow-wrapper fields (templateInfo, guidance, orphanWarning,
+  // requirementsContext) from the first per-gate result so the regenerate
+  // response surfaces the same authoring context that scaffold returns.
+  const firstData = perGateResults[0] ?? {}
+  const passthroughTemplateInfo = firstData['templateInfo']
+  const passthroughGuidance = firstData['guidance']
+  const passthroughOrphanWarning = firstData['orphanWarning']
+  const passthroughRequirements = firstData['requirementsContext']
+
+  const regenerateResult: FunctionResult = {
     success: true,
     data: {
       success: true,
@@ -656,8 +686,14 @@ async function runProposalRegenerate(
         payload?.['gateId']
           ? `Regenerated ${String(proposalsGenerated)} proposal scaffold(s) for ${String(gateIds[0])}.`
           : `Regenerated ${String(proposalsGenerated)} proposal scaffold(s) across ${String(generatedGates.length)} gate(s).`,
+      ...(passthroughOrphanWarning ? { orphanWarning: passthroughOrphanWarning } : {}),
+      ...(passthroughRequirements ? { requirementsContext: passthroughRequirements } : {}),
+      ...(passthroughTemplateInfo ? { templateInfo: passthroughTemplateInfo } : {}),
+      ...(passthroughGuidance ? { guidance: passthroughGuidance } : {}),
     },
   }
+
+  return regenerateResult
 }
 
 /**

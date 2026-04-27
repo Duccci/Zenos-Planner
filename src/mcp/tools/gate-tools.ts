@@ -261,7 +261,32 @@ export function gateHandlers(
                 }
               }
             }
-            return await r.invoke('gates_regenerate', payload)
+            const invokeResult = await r.invoke('gates_regenerate', payload)
+            let templateInfo: { name: string; content: string; fillInstruction?: string; outputPathHint?: string } | undefined
+            try {
+              const content = await loadTemplateContent(undefined, 'templates/md-templates/gate-prd-template.md')
+              templateInfo = {
+                name: 'gate-prd-template',
+                content,
+                fillInstruction:
+                  'Open and DIRECTLY EDIT each regenerated gate PRD file listed in the response. ' +
+                  'Replace every remaining [bracketed placeholder] with concrete, project-specific content ' +
+                  'drawn from the gate objectives and PRD context. ' +
+                  'HTML <!-- --> comments are already stripped from scaffolded files; do not add any. ' +
+                  'All objectives must use unchecked [ ] boxes — [x] is reserved for completed gates only. ' +
+                  'The validator rejects any file that still contains unfilled [bracket] placeholders. ' +
+                  'Do not add sections not present in this template.',
+                outputPathHint: 'zeno/gates/gate-<XX>-<kebab-name>.md (replace <XX> with zero-padded gate number, <kebab-name> with a lowercase-kebab slug of the gate name)',
+              }
+            } catch {
+              // Template loading is best-effort; guidance still flows without it
+            }
+            return withGuidance(
+              invokeResult,
+              toNarrativeRules(GATE_GENERATION_GUARDRAILS),
+              toCompactWorkflow(GATE_GENERATION_WORKFLOW),
+              { templateInfo },
+            )
           } catch {
             // If database is unavailable, fall through to direct invocation
             return await r.invoke('gates_regenerate', payload)
