@@ -1463,6 +1463,7 @@ export function proposalHandlers(
 
             const qualityContext: QualityValidationContext = {
               metrics: { ...DEFAULT_QUALITY_STUB_METRICS },
+              projectRoot: getWorkspaceRoot(),
             }
 
             const qualityResult = await validateQuality(qualityContext)
@@ -1512,6 +1513,7 @@ export function proposalHandlers(
 
             const qualityContext: QualityValidationContext = {
               metrics: qualityMetrics,
+              projectRoot: getWorkspaceRoot(),
             }
 
             const qualityResult = await validateQuality(qualityContext)

@@ -1110,7 +1110,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           }
         }
 
-        const qualityResult = await validateQuality({ metrics: qualityMetrics })
+        const qualityResult = await validateQuality({ metrics: qualityMetrics, projectRoot: getWorkspaceRoot() })
         if (!qualityResult.allowed) checks.quality = false
         if (qualityResult.errors) errors.push(...qualityResult.errors)
         if (qualityResult.warnings) warnings.push(...qualityResult.warnings)

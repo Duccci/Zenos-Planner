@@ -15,6 +15,7 @@ import {
   findProjectRoot,
   loadConfig,
   getDefaultConfig,
+  getWorkspaceRoot,
   type ZenoConfig,
 } from '../../utils/config.js'
 import { logger } from '../../utils/logger.js'
@@ -95,7 +96,11 @@ export async function validateQuality(
     thresholds = context.config.qualityThresholds
   } else {
     // Load from the target project's zeno/.zeno/config.json
-    const projectRoot = context.projectRoot ?? findProjectRoot() ?? '.'
+    // Use getWorkspaceRoot() (which respects ZENO_WORKSPACE and MCP-negotiated roots)
+    // as the seed for findProjectRoot so the validator targets the correct workspace
+    // even when process.cwd() is the MCP server's install directory, not the project.
+    const workspaceRoot = getWorkspaceRoot()
+    const projectRoot = context.projectRoot ?? findProjectRoot(workspaceRoot) ?? workspaceRoot
     const root = findProjectRoot(projectRoot) ?? projectRoot
 
     try {
