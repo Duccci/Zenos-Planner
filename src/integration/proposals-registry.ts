@@ -9,7 +9,7 @@
 import { z } from 'zod'
 import { FunctionRegistry } from './function-registry.js'
 import { syncProposalsFromDisk } from '../storage/proposal-sync.js'
-import { patchZenoStatus } from '../storage/frontmatter.js'
+import { patchZenoStatus, resolveRoleFromContent } from '../storage/frontmatter.js'
 import { resolveLastUpdated } from '../utils/datetime.js'
 import { normalizePath } from '../utils/file.js'
 import type { ProposalStatus } from '../core/transitions.js'
@@ -744,9 +744,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
       try {
         const { readFile: readProposalFile } = await import('../utils/file.js')
         const proposalContent = await readProposalFile(resolvedPath)
-        const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(proposalContent)
-        const rawRole = roleMatch?.[1]?.trim()
-        const role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
+        const role = resolveRoleFromContent(proposalContent)
 
         const validationResult = await validateArtifactFile(resolvedPath, 'proposal', {
           gateId: proposal['gate_id'] as string,
@@ -988,8 +986,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         const proposalFilePath = await findProposalByHash(validated.hash)
         if (proposalFilePath) {
           const content = await readFile(proposalFilePath)
-          const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-          const role = roleMatch?.[1]?.trim()
+          const role = resolveRoleFromContent(content)
 
           // Load gate objectives and out-of-scope items for richer qualitative scope-creep evaluation.
           // Falls back to proposal summary when gate file is unavailable.
@@ -1128,8 +1125,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
         let tfFilesAffected = filesAffected
         if (proposalFilePath) {
           const content = await readFile(proposalFilePath)
-          const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-          role = roleMatch?.[1]?.trim()
+          role = resolveRoleFromContent(content)
           // Fall back to parsing markdown when DB has no files_affected recorded.
           if (tfFilesAffected.length === 0) {
             const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
@@ -1167,8 +1163,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
                 const fp = await findProposalByHash(p.hash)
                 if (fp) {
                   const content = await readFile(fp)
-                  const m = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-                  role = m?.[1]?.trim()
+                  role = resolveRoleFromContent(content)
                 }
               } catch { /* role stays undefined */ }
               return { hash: p.hash, role, createdAt: p.created_at ?? new Date().toISOString() }
@@ -1193,8 +1188,7 @@ export function registerProposalsOps(registry: FunctionRegistry): void {
           let currentRole: string | undefined
           if (proposalFilePath) {
             const content = await readFile(proposalFilePath)
-            const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-            currentRole = roleMatch?.[1]?.trim()
+            currentRole = resolveRoleFromContent(content)
           }
 
           if (currentRole === 'test-suite') {

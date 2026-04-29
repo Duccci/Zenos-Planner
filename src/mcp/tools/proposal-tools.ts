@@ -52,6 +52,7 @@ import {
   toCompactWorkflow,
 } from '../content/index.js'
 import { inferRoleFromFilename } from '../validators/test-first-validator.js'
+import { resolveRoleFromContent } from '../../storage/frontmatter.js'
 import { WorktreeManager } from '../../core/worktree-manager.js'
 import { loadTemplateContent } from '../../generation/template-discovery.js'
 import { dirname, join, relative } from 'node:path'
@@ -73,17 +74,15 @@ import { rm } from 'node:fs/promises'
  * It does NOT produce finished proposals. After scaffolding, open each file and replace every
  * placeholder with concrete content before calling validate.
  *
- * Example usage:
+ * Example usage (flat parameters — never nest under "payload"):
  * ```json
  * {
  *   "action": "scaffold",
- *   "payload": {
- *     "title": "Add authentication",
- *     "summary": "Implement JWT-based auth",
- *     "gateId": "gate-03",
- *     "tasks": [{"description": "Create auth middleware", "acceptanceCriteria": ["Tests pass"]}],
- *     "filesAffected": ["src/auth/middleware.ts"]
- *   }
+ *   "title": "Add authentication",
+ *   "summary": "Implement JWT-based auth",
+ *   "gateId": "gate-03",
+ *   "tasks": [{"description": "Create auth middleware", "acceptanceCriteria": ["Tests pass"]}],
+ *   "filesAffected": ["src/auth/middleware.ts"]
  * }
  * ```
  */
@@ -158,8 +157,7 @@ async function resolveAndValidateTestFirst(
     const filePath = await findProposalByHash(hash)
     if (filePath) {
       const content = await readFile(filePath)
-      const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-      role = roleMatch?.[1]?.trim() ?? role
+      role = resolveRoleFromContent(content) ?? role
       // Fall back to parsing markdown when DB has no files_affected recorded.
       if (filesAffected.length === 0) {
         const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
@@ -212,9 +210,7 @@ async function resolveAndValidateCleanupReuse(
     const filePath = await findProposalByHash(hash)
     if (filePath) {
       const content = await readFile(filePath)
-      const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-      const rawRole = roleMatch?.[1]?.trim()
-      role = rawRole && !rawRole.startsWith('{{') ? rawRole : role
+      role = resolveRoleFromContent(content) ?? role
       if (filesAffected.length === 0) {
         const sectionMatch = /## Files Affected[^\n]*\n([\s\S]*?)(?=\n## |$)/i.exec(content)
         if (sectionMatch?.[1]) {
@@ -799,9 +795,8 @@ export function proposalHandlers(
               const filePath = await findProposalByHash(hash)
               if (filePath) {
                 const content = await readFile(filePath)
-                const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-                const diskRole = roleMatch?.[1]?.trim()
-                if (diskRole && !diskRole.startsWith('{{')) resolvedRole = diskRole
+                const diskRole = resolveRoleFromContent(content)
+                if (diskRole) resolvedRole = diskRole
                 resolvedRole ??= inferRoleFromFilename(filePath)
               }
             } catch {
@@ -1443,14 +1438,12 @@ export function proposalHandlers(
 
               const { readFile } = await import('../../utils/file.js')
               const content = await readFile(filePath)
-              const roleMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
-              const rawRole = roleMatch?.[1]?.trim()
               // Treat unreplaced template placeholders as unset.
               // Do NOT infer role from filename here — the validator must receive
               // undefined when the **Roles** field is absent so it can flag it as
               // an error. Filename-based inference is only used for sibling-structure
               // checks (resolveGateTestFirstSiblings), not per-proposal field validation.
-              const role = rawRole && !rawRole.startsWith('{{') ? rawRole : undefined
+              const role = resolveRoleFromContent(content)
 
               return await validateArtifactFile(filePath, 'proposal', {
                 hash,

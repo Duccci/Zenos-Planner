@@ -41,6 +41,7 @@ export interface ZenoProposalFrontmatter {
   gate_id?: string | null
   requirement_id?: string | null
   status?: string
+  roles?: string | null
   created_at?: string | null
   parallel_set_index?: number | null
   // lifecycle fields — only present after the relevant event
@@ -194,6 +195,7 @@ export function parseProposalFrontmatter(content: string): ZenoProposalFrontmatt
     gate_id: (raw['gate_id'] as string | null | undefined) ?? null,
     requirement_id: (raw['requirement_id'] as string | null | undefined) ?? null,
     status: raw['status'] as string | undefined,
+    roles: (raw['roles'] as string | null | undefined) ?? null,
     created_at: (raw['created_at'] as string | null | undefined) ?? null,
     approved_at: (raw['approved_at'] as string | null | undefined) ?? null,
     approved_by: (raw['approved_by'] as string | null | undefined) ?? null,
@@ -203,6 +205,28 @@ export function parseProposalFrontmatter(content: string): ZenoProposalFrontmatt
     started_by: (raw['started_by'] as string | null | undefined) ?? null,
     implemented_at: (raw['implemented_at'] as string | null | undefined) ?? null,
   }
+}
+
+/**
+ * Resolve the role for a proposal from its markdown content.
+ *
+ * Resolution order:
+ *   1. `**Roles**: <value>` body line (human-readable header)
+ *   2. `roles:` field in the YAML zeno frontmatter block
+ *
+ * Returns `undefined` when no non-empty, non-placeholder value is found.
+ * Filters out unfilled template placeholders (`{{...}}`).
+ */
+export function resolveRoleFromContent(content: string): string | undefined {
+  const bodyMatch = /\*\*Roles\*\*:\s*(.+)/.exec(content)
+  const bodyRole = bodyMatch?.[1]?.trim()
+  if (bodyRole && !bodyRole.startsWith('{{')) return bodyRole
+
+  const fm = parseProposalFrontmatter(content)
+  const fmRole = fm?.roles?.trim()
+  if (fmRole && !fmRole.startsWith('{{')) return fmRole
+
+  return undefined
 }
 
 /** Parse gate-flavoured frontmatter.  Returns null when absent. */

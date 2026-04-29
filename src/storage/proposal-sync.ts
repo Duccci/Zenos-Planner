@@ -231,6 +231,10 @@ export function syncProposalsFromDisk(
   // Used to validate FK before inserting: prevents FK constraint violations when
   // the referenced requirement doesn't exist in the DB yet.
   const requirementExists = db.prepare('SELECT 1 FROM requirements WHERE id = ? LIMIT 1')
+  // Used to validate FK before inserting: prevents FK constraint violations when
+  // the referenced gate doesn't exist in the DB yet (e.g. gate pending in project.json
+  // but gates_start has not been called, so no gates row exists).
+  const gateExists = db.prepare('SELECT 1 FROM gates WHERE id = ? LIMIT 1')
 
   const syncAll = db.transaction(() => {
     const seenHashes = new Map<string, string>() // hash -> filePath
@@ -265,8 +269,16 @@ export function syncProposalsFromDisk(
           ? meta.requirementId
           : null
 
+      // Only persist gate_id if it references an existing gate row (FK safe).
+      // A gate may exist in project.json but not yet in the DB (pending / not started);
+      // inserting with a dangling gate_id would throw FOREIGN KEY constraint failed.
+      const resolvedGateId =
+        meta.gateId && gateExists.get(meta.gateId)
+          ? meta.gateId
+          : null
+
       upsert.run(
-        meta.gateId, resolvedRequirementId, meta.title, normalizeProposalStatus(meta.status), meta.hash,
+        resolvedGateId, resolvedRequirementId, meta.title, normalizeProposalStatus(meta.status), meta.hash,
         normalizeDateTime(meta.createdAt, nowIso), nowIso, meta.parallelSetIndex,
         meta.approvedAt, meta.approvedBy,
         meta.rejectedAt, meta.rejectedBy,
