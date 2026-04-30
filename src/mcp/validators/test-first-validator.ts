@@ -52,6 +52,17 @@ function isImplementationFile(filePath: string): boolean {
   return !isTestFile(filePath)
 }
 
+/**
+ * Identifies documentation and contract files (non-executable artifacts).
+ * These files — markdown docs, plain text, reStructuredText, AsciiDoc — may
+ * legitimately appear in a testing proposal as contract specifications or API
+ * reference material that define the acceptance criteria the tests verify.
+ * They are neither test files nor source implementation files.
+ */
+export function isDocumentationFile(filePath: string): boolean {
+  return /\.(md|mdx|txt|rst|adoc)$/i.test(filePath)
+}
+
 // ---------------------------------------------------------------------------
 
 /**
@@ -148,11 +159,16 @@ function validateRoleFileConsistency(
   }
 
   const testFiles = filesAffected.filter(isTestFile)
-  const implFiles = filesAffected.filter(isImplementationFile)
+  // Documentation/contract files (.md, .txt, .rst, .adoc) are neutral — they may
+  // appear in testing proposals as spec artifacts that define the acceptance
+  // criteria the tests verify.  They are not considered implementation files.
+  const implFiles = filesAffected.filter(
+    (f) => isImplementationFile(f) && !isDocumentationFile(f)
+  )
 
   switch (role) {
     case 'testing':
-      // Must contain test files; must NOT contain implementation files outside tests/
+      // Must contain test files; must NOT contain source implementation files
       if (testFiles.length === 0 && filesAffected.length > 0) {
         errors.push(
           'testing proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +
@@ -187,7 +203,7 @@ function validateRoleFileConsistency(
       break
 
     case 'cleanup':
-      // Must contain test files; must NOT contain implementation files
+      // Must contain test files; must NOT contain source implementation files
       if (testFiles.length === 0 && filesAffected.length > 0) {
         errors.push(
           'cleanup proposal must include test files (*.test.ts, *.spec.ts, or files under tests/). ' +

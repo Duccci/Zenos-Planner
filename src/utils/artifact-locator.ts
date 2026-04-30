@@ -57,7 +57,7 @@ async function* walkMdFiles(dir: string): AsyncGenerator<string> {
  */
 export async function findProposalByHash(
   hash: string,
-  projectRoot = process.cwd()
+  projectRoot = getWorkspaceRoot()
 ): Promise<string | null> {
   if (!hash) return null
   const proposalsDir = join(getZenoGitDir(projectRoot), 'proposals')

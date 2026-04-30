@@ -15,6 +15,7 @@ import {
   validateRedTestCoverage,
   validateCleanupTestFileReuse,
   inferRoleFromFilename,
+  isDocumentationFile,
   type TestFirstValidationContext,
   type ProposalGateSibling,
   type RedTestCoverageContext,
@@ -130,6 +131,42 @@ describe('test-first-validator', () => {
 
         const result = validateTestFirstPattern(context)
         expect(result.allowed).toBe(true)
+      })
+
+      it('should allow testing with documentation/contract files alongside test files', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'testing',
+          isGateTied: true,
+          filesAffected: [
+            'tests/core/threading.test.ts',
+            'THREADING_CONTRACTS.md',
+            'docs/dcl_api.md',
+          ],
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.errors).toBeUndefined()
+      })
+
+      it('should still reject testing with source implementation files even when doc files present', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'testing',
+          isGateTied: true,
+          filesAffected: [
+            'tests/core/foo.test.ts',
+            'src/core/foo.ts',          // source file — not allowed
+            'THREADING_CONTRACTS.md',   // doc file — allowed
+          ],
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(false)
+        expect(result.errors?.[0]).toMatch(/non-test files/)
+        expect(result.errors?.[0]).toMatch(/src\/core\/foo\.ts/)
+        expect(result.errors?.[0]).not.toMatch(/THREADING_CONTRACTS\.md/)
       })
     })
 
@@ -273,6 +310,20 @@ describe('test-first-validator', () => {
         expect(result.allowed).toBe(true)
         expect(result.warnings?.some((w) => /skip/i.test(w))).toBeFalsy()
       })
+
+      it('should allow cleanup with documentation files alongside test files', () => {
+        const context: TestFirstValidationContext = {
+          proposalHash: '#abc123',
+          role: 'cleanup',
+          isGateTied: true,
+          filesAffected: ['tests/feature.test.ts', 'THREADING_CONTRACTS.md'],
+          content: '## Tasks\n- [ ] Remove `it.skip` markers added in the RED phase',
+        }
+
+        const result = validateTestFirstPattern(context)
+        expect(result.allowed).toBe(true)
+        expect(result.errors).toBeUndefined()
+      })
     })
 
     describe('gate-level structure validation', () => {
@@ -414,7 +465,7 @@ describe('test-first-validator', () => {
         const result = validateTestFirstPattern(context)
         expect(result.allowed).toBe(true)
       })
-      
+
       it('should validate proper test-first gate structure', () => {
         const context: TestFirstValidationContext = {
           proposalHash: '#testing1',
@@ -1046,5 +1097,30 @@ describe('validateCleanupTestFileReuse', () => {
     ]
     const result = validateCleanupTestFileReuse([], gateProposals)
     expect(result.allowed).toBe(true)
+  })
+})
+
+describe('isDocumentationFile', () => {
+  it('identifies markdown files as documentation', () => {
+    expect(isDocumentationFile('THREADING_CONTRACTS.md')).toBe(true)
+    expect(isDocumentationFile('docs/dcl_api.md')).toBe(true)
+    expect(isDocumentationFile('README.mdx')).toBe(true)
+  })
+
+  it('identifies plain text and markup files as documentation', () => {
+    expect(isDocumentationFile('CHANGELOG.txt')).toBe(true)
+    expect(isDocumentationFile('docs/spec.rst')).toBe(true)
+    expect(isDocumentationFile('docs/guide.adoc')).toBe(true)
+  })
+
+  it('does not classify source files as documentation', () => {
+    expect(isDocumentationFile('src/core/foo.ts')).toBe(false)
+    expect(isDocumentationFile('src/feature.js')).toBe(false)
+    expect(isDocumentationFile('lib/service.py')).toBe(false)
+  })
+
+  it('does not classify test files as documentation', () => {
+    expect(isDocumentationFile('tests/core/foo.test.ts')).toBe(false)
+    expect(isDocumentationFile('src/foo.spec.ts')).toBe(false)
   })
 })
