@@ -344,7 +344,11 @@ export async function syncStatus(params: {
       if (pinnedHash && pinnedHash !== coreHead) {
         try {
           const subGit = simpleGit(join(consumer.path, consumer.submodulePath))
-          await subGit.fetch(['origin'])
+          // Fetch from the local core repo first so locally-made commits that
+          // haven't been pushed to the remote are visible in the submodule's
+          // object store (e.g. local-only workflow or pre-push state).
+          try { await subGit.fetch([coreRepo.path]) } catch { /* best-effort */ }
+          try { await subGit.fetch(['origin']) } catch { /* best-effort */ }
           const countRaw = await subGit.raw([
             'rev-list', '--count', `${pinnedHash}..${coreHead}`,
           ])
@@ -487,12 +491,10 @@ export async function syncDiff(params: {
       const submoduleFullPath = join(consumer.path, consumer.submodulePath)
       const subGit = simpleGit(submoduleFullPath)
 
-      // Fetch so both commits are available locally
-      try {
-        await subGit.fetch(['origin'])
-      } catch {
-        // Best-effort; commits may already be local
-      }
+      // Fetch so both commits are available locally. Try the local core repo
+      // path first so locally-made commits (not yet pushed) are reachable.
+      try { await subGit.fetch([coreRepo.path]) } catch { /* best-effort */ }
+      try { await subGit.fetch(['origin']) } catch { /* best-effort */ }
 
       // Count commits behind
       let behind = 0
@@ -848,12 +850,26 @@ export async function syncPropagate(params: {
       ])
       const previousHash = parsePinnedSubmoduleHash(beforeStatusRaw)
 
-      // Update submodule
-      await consumerGit.raw(['submodule', 'update', '--init', consumer.submodulePath])
+      // Initialize the submodule config entry. `update --init` will also
+      // clone/checkout the previously pinned commit; if that fails (e.g. the
+      // URL is a remote that is temporarily unreachable), fall back to a bare
+      // `init` so the directory exists and we can fetch directly.
+      try {
+        await consumerGit.raw(['submodule', 'update', '--init', consumer.submodulePath])
+      } catch {
+        try {
+          await consumerGit.raw(['submodule', 'init', consumer.submodulePath])
+        } catch { /* best-effort */ }
+      }
 
       const submoduleFullPath = join(consumer.path, consumer.submodulePath)
       const subGit = simpleGit(submoduleFullPath)
-      await subGit.fetch(['origin'])
+      // Fetch from the local core repo path first so locally-made commits that
+      // haven't been pushed to the remote are available in the object store.
+      // This is the primary cause of "unable to read tree" errors in
+      // local-only or pre-push workflows.
+      try { await subGit.fetch([coreRepo.path]) } catch { /* best-effort */ }
+      try { await subGit.fetch(['origin']) } catch { /* best-effort */ }
       await subGit.checkout(targetHash)
 
       // Stage the submodule pointer change
