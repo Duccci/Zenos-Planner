@@ -2,7 +2,7 @@
 
 **Hash**: #{{HASH}}
 **Gate**: {{GATE_ID}}
-**Status**: pending
+**Status**: validated
 **Created**: {{DATE}}
 
 ---

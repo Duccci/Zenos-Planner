@@ -42,12 +42,20 @@ export class GateRoadmapGenerator extends DiagramGeneratorBase {
       mermaidLines.push('    G3 --> G4')
     } else {
       // Generate nodes and edges from context gates
+      const nodesByStatus: Record<string, string[]> = {}
       for (let i = 0; i < gates.length; i++) {
         const gate = gates[i]
         if (!gate) continue
         const nodeId = `G${String(i + 1)}`
-        const label = `${gate.name}<br/><small>${gate.status}</small>`
+        // Reconstruct the "Gate NN:" prefix using sequence number or gate id fallback
+        const seq = gate.number ?? (Number(/gate-(\d+)/.exec(gate.id)?.[1]) || i + 1)
+        const numPrefix = `Gate ${String(seq).padStart(2, '0')}`
+        const label = `${numPrefix}: ${gate.name}<br/><small>${gate.status}</small>`
         mermaidLines.push(`    ${nodeId}["${label}"]`)
+        // Track node ids by status for class assignment
+        const status = gate.status.replace(/[^a-zA-Z0-9_]/g, '_')
+        nodesByStatus[status] ??= []
+        nodesByStatus[status].push(nodeId)
       }
 
       // Connect gates sequentially
@@ -55,6 +63,12 @@ export class GateRoadmapGenerator extends DiagramGeneratorBase {
         const source = String(i + 1)
         const target = String(i + 2)
         mermaidLines.push(`    G${source} --> G${target}`)
+      }
+
+      // Assign status classes so classDef colors are actually applied
+      mermaidLines.push('')
+      for (const [status, ids] of Object.entries(nodesByStatus)) {
+        mermaidLines.push(`    class ${ids.join(',')} ${status}`)
       }
     }
 

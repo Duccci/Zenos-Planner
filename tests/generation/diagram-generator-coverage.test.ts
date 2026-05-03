@@ -266,9 +266,9 @@ describe('GateRoadmapGenerator with gates (coverage gaps)', () => {
       ],
     })
 
-    expect(content).toContain('G1["Core Setup')
-    expect(content).toContain('G2["API Layer')
-    expect(content).toContain('G3["Frontend')
+    expect(content).toContain('G1["Gate 01: Core Setup')
+    expect(content).toContain('G2["Gate 02: API Layer')
+    expect(content).toContain('G3["Gate 03: Frontend')
     expect(content).toContain('completed')
     expect(content).toContain('in_progress')
     expect(content).toContain('G1 --> G2')

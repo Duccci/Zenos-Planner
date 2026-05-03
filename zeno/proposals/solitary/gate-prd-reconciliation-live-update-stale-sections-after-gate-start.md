@@ -3,7 +3,7 @@ zeno:
   hash: 'b839e29b'
   gate_id: null
   requirement_id: null
-  status: pending
+  status: validated
   roles: 'feature'
   parallel_set_index: null
   created_at: '2026-04-01'
@@ -13,7 +13,7 @@ zeno:
 
 **Hash**: #b839e29b
 **Gate**: Solitary
-**Status**: in_progress
+**Status**: validated
 **Roles**: feature
 **Created**: 2026-04-01
 

@@ -3,7 +3,7 @@ zeno:
   hash: 'cbf3a130'
   gate_id: null
   requirement_id: null   # replace with requirement hash or remove
-  status: pending
+  status: validated
   roles: ''
   parallel_set_index: null
   created_at: '2026-04-25'
@@ -15,8 +15,8 @@ zeno:
 **Hash**: #cbf3a130
 **Gate**: Solitary - [Gate Name]
 **Requirement**: #[Requirement Hash] (optional - may address gate-level objective)
-**Status**: pending
-**Roles**: 
+**Status**: validated
+**Roles**:
 **Created**: 2026-04-25
 
 ---
@@ -136,8 +136,8 @@ Each task should touch 1-3 files maximum; if more are needed, split into additio
 
 ### Task 1: Create `src/mcp/project-resolver.ts` exporting `resolveProjectPath(input?: string, workspaceRoot?: string): string`. Reuse `findZenoProjects()` from `src/mcp/resources/index.ts` to map a project name (e.g. `Pterosaur-Core`) or absolute path to an absolute Zeno project root. Reject ambiguous names. Return active workspace root when input is omitted.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Create `src/mcp/project-resolver.ts` exporting `resolveProjectPath(input?: string, workspaceRoot?: string): string`. Reuse `findZenoProjects()` from `src/mcp/resources/index.ts` to map a project name (e.g. `Pterosaur-Core`) or absolute path to an absolute Zeno project root. Reject ambiguous names. Return active workspace root when input is omitted.
@@ -150,8 +150,8 @@ Create `src/mcp/project-resolver.ts` exporting `resolveProjectPath(input?: strin
 
 ### Task 2: Convert the single global `zenoDir` cache in `src/utils/config.ts` into a `Map<absolutePath, zenoDir>` keyed by project root. Update `loadConfig()`, `getZenoDir()`, `getZenoGitDir()`, and `isZenoProject()` so concurrent multi-project tool calls do not clobber each other's layout cache.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Convert the single global `zenoDir` cache in `src/utils/config.ts` into a `Map<absolutePath, zenoDir>` keyed by project root. Update `loadConfig()`, `getZenoDir()`, `getZenoGitDir()`, and `isZenoProject()` so concurrent multi-project tool calls do not clobber each other's layout cache.
@@ -164,8 +164,8 @@ Convert the single global `zenoDir` cache in `src/utils/config.ts` into a `Map<a
 
 ### Task 3: Add an optional `project: string` field to shared MCP input schemas in `src/mcp/schemas/*` (gates, reg, proposal, context, diagram, worktree, artifact, repos, git-trace). Field accepts a project name relative to the workspace root or an absolute path.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Add an optional `project: string` field to shared MCP input schemas in `src/mcp/schemas/*` (gates, reg, proposal, context, diagram, worktree, artifact, repos, git-trace). Field accepts a project name relative to the workspace root or an absolute path.
@@ -178,8 +178,8 @@ Add an optional `project: string` field to shared MCP input schemas in `src/mcp/
 
 ### Task 4: In every handler under `src/mcp/tools/*`, call `resolveProjectPath(input.project)` and pass the result to `getDatabase()`, `loadConfig()`, and helpers that currently default to `process.cwd()` or the active workspace root. Cover gates, reg, proposal, context, diagram, worktree (`worktree-tools.ts:133`), artifact, config, project, repos, git-trace.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 In every handler under `src/mcp/tools/*`, call `resolveProjectPath(input.project)` and pass the result to `getDatabase()`, `loadConfig()`, and helpers that currently default to `process.cwd()` or the active workspace root. Cover gates, reg, proposal, context, diagram, worktree (`worktree-tools.ts:133`), artifact, config, project, repos, git-trace.
@@ -192,8 +192,8 @@ In every handler under `src/mcp/tools/*`, call `resolveProjectPath(input.project
 
 ### Task 5: In `src/integration/function-implementations.ts` and `workflow-registry.ts`, replace `process.cwd()` calls (e.g. `reconcileGatePRD(..., process.cwd())`) with the resolved `projectPath` threaded from the validated tool input.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 In `src/integration/function-implementations.ts` and `workflow-registry.ts`, replace `process.cwd()` calls (e.g. `reconcileGatePRD(..., process.cwd())`) with the resolved `projectPath` threaded from the validated tool input.
@@ -206,8 +206,8 @@ In `src/integration/function-implementations.ts` and `workflow-registry.ts`, rep
 
 ### Task 6: Add a `workspace_action` MCP tool (or extend `config_get`) returning detected Zeno projects in the current workspace as `{ name, absolutePath, hasZenoDir }[]` so LLM clients can discover valid `project` values without filesystem snooping.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Add a `workspace_action` MCP tool (or extend `config_get`) returning detected Zeno projects in the current workspace as `{ name, absolutePath, hasZenoDir }[]` so LLM clients can discover valid `project` values without filesystem snooping.
@@ -220,8 +220,8 @@ Add a `workspace_action` MCP tool (or extend `config_get`) returning detected Ze
 
 ### Task 7: Add tests under `tests/mcp/` for: (a) `resolveProjectPath` with name/path inputs and ambiguity errors, (b) per-project config cache isolation, (c) two parallel `gates_action list` calls against different projects returning different gate sets, (d) backward compatibility - omitting `project` still works in a single-project workspace.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Add tests under `tests/mcp/` for: (a) `resolveProjectPath` with name/path inputs and ambiguity errors, (b) per-project config cache isolation, (c) two parallel `gates_action list` calls against different projects returning different gate sets, (d) backward compatibility - omitting `project` still works in a single-project workspace.
@@ -234,8 +234,8 @@ Add tests under `tests/mcp/` for: (a) `resolveProjectPath` with name/path inputs
 
 ### Task 8: Boot the MCP server against a temp workspace containing two sibling Zeno projects. Call `gates_action`, `reg_action`, and `proposal_action` against each via `project: <name>` and assert responses come from the correct `registry.db`.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Boot the MCP server against a temp workspace containing two sibling Zeno projects. Call `gates_action`, `reg_action`, and `proposal_action` against each via `project: <name>` and assert responses come from the correct `registry.db`.
@@ -248,8 +248,8 @@ Boot the MCP server against a temp workspace containing two sibling Zeno project
 
 ### Task 9: Update `AGENTS.md` and `docs/MCP-TOOLS.md` with a `Multi-Project Workspaces` section: optional `project` parameter, name resolution rules, the discovery tool, and a migration note that existing single-project usage is unchanged.
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Update `AGENTS.md` and `docs/MCP-TOOLS.md` with a `Multi-Project Workspaces` section: optional `project` parameter, name resolution rules, the discovery tool, and a migration note that existing single-project usage is unchanged.

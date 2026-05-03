@@ -1,8 +1,8 @@
 # Proposal: zeno onboarding: Interactive Guided First-Run Experience
 
-**Hash**: #d379f29e  
-**Gate**: Solitary  
-**Status**: pending  
+**Hash**: #d379f29e
+**Gate**: Solitary
+**Status**: validated
 **Created**: 2026-03-01
 
 ---
@@ -105,8 +105,8 @@ Atomic, LLM-executable tasks. Each task should be completable in a single implem
 
 ### Task 1: Define onboarding flow structure and step registry
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Define onboarding flow structure and step registry
@@ -121,8 +121,8 @@ Define onboarding flow structure and step registry
 
 ### Task 2: Implement core onboarding steps: welcome, concept tour, sample project init, and first gate walkthrough
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Implement core onboarding steps: welcome, concept tour, sample project init, and first gate walkthrough
@@ -142,8 +142,8 @@ Implement core onboarding steps: welcome, concept tour, sample project init, and
 
 ### Task 3: Wire `zeno onboarding` command into Commander.js CLI and add --skip-sandbox flag
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Wire `zeno onboarding` command into Commander.js CLI and add --skip-sandbox flag
@@ -159,8 +159,8 @@ Wire `zeno onboarding` command into Commander.js CLI and add --skip-sandbox flag
 
 ### Task 4: Add MCP tool: onboarding_start to expose guided onboarding to LLM agents
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Add MCP tool: onboarding_start to expose guided onboarding to LLM agents
@@ -176,8 +176,8 @@ Add MCP tool: onboarding_start to expose guided onboarding to LLM agents
 
 ### Task 5: Write integration test: full onboarding flow in non-interactive mode
 
-**Phase**: GREEN  
-**File(s)**: `src/[module]/[file].ts`  
+**Phase**: GREEN
+**File(s)**: `src/[module]/[file].ts`
 **Action**: modify
 
 Write integration test: full onboarding flow in non-interactive mode
@@ -231,10 +231,10 @@ Write integration test: full onboarding flow in non-interactive mode
 
 ---
 
-**Document Version**: [MAJOR.MINOR.PATCH]  
-**Last Updated**: [YYYY-MM-DD]  
-**Versioning**: SemVer; bump on any change (minimum: PATCH).  
-**Owner**: [git.user.name]  
+**Document Version**: [MAJOR.MINOR.PATCH]
+**Last Updated**: [YYYY-MM-DD]
+**Versioning**: SemVer; bump on any change (minimum: PATCH).
+**Owner**: [git.user.name]
 **Reviewers**: [git.user.name]
 
 ### Change Log
