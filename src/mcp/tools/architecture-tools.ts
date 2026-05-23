@@ -12,8 +12,13 @@ import { getWorkspaceRoot } from '../../utils/config.js'
 
 // Defer discovery creation until first use so it picks up ZENO_WORKSPACE if set.
 let _discovery: ReturnType<typeof createDiscoveryService> | undefined
+let _discoveryRoot: string | undefined
 function getDiscovery(): ReturnType<typeof createDiscoveryService> {
-  _discovery ??= createDiscoveryService(getWorkspaceRoot())
+  const root = getWorkspaceRoot()
+  if (!_discovery || _discoveryRoot !== root) {
+    _discovery = createDiscoveryService(root)
+    _discoveryRoot = root
+  }
   return _discovery
 }
 

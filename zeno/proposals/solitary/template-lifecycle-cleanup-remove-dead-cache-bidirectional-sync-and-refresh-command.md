@@ -3,7 +3,7 @@ zeno:
   hash: 'bbc864cd'
   gate_id: null
   requirement_id: null
-  status: validated
+  status: completed
   roles: 'feature'
   parallel_set_index: null
   created_at: '2026-04-01'
@@ -13,7 +13,7 @@ zeno:
 
 **Hash**: #bbc864cd
 **Gate**: Solitary
-**Status**: validated
+**Status**: completed
 **Roles**: feature
 **Created**: 2026-04-01
 

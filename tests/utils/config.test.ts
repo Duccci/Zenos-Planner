@@ -27,6 +27,7 @@ describe('config utilities', () => {
   })
 
   afterEach(async () => {
+    setActiveWorkspaceRoot(undefined)
     if (existsSync(testDir)) {
       await rm(testDir, { recursive: true, force: true })
     }
@@ -97,6 +98,17 @@ describe('config utilities', () => {
       expect(result).toContain('zeno')
       expect(result).toContain('.zeno')
     })
+
+    it('uses the active workspace root as the default project root', async () => {
+      const workspaceRoot = join(testDir, 'workspace')
+      const zenoDir = join(workspaceRoot, 'zeno', '.zeno')
+      await mkdir(zenoDir, { recursive: true })
+
+      setActiveWorkspaceRoot(workspaceRoot)
+
+      expect(getZenoDir()).toBe(zenoDir.replace(/\\/g, '/'))
+      expect(getConfigPath()).toBe(join(zenoDir, 'config.json').replace(/\\/g, '/'))
+    })
   })
 
   describe('getConfigPath', () => {
@@ -140,6 +152,18 @@ describe('config utilities', () => {
 
       const result = findProjectRoot(subDir)
       expect(result).toBe(testDir.replace(/\\/g, '/'))
+    })
+
+    it('defaults to the active workspace root when resolving a project', async () => {
+      const zenoDir = join(testDir, 'zeno', '.zeno')
+      const subDir = join(testDir, 'src', 'utils')
+      await mkdir(zenoDir, { recursive: true })
+      await mkdir(subDir, { recursive: true })
+      await writeFile(join(zenoDir, 'config.json'), JSON.stringify({ projectName: 'Test' }), 'utf-8')
+
+      setActiveWorkspaceRoot(subDir)
+
+      expect(findProjectRoot()).toBe(testDir.replace(/\\/g, '/'))
     })
 
     it('prefers consumer project root over a mounted submodule', async () => {

@@ -34,6 +34,7 @@ export async function createMcpServer(workspacePath?: string): Promise<McpServer
   // create a spurious zeno/.zeno/ directory via ensureDir inside initializeDatabase.
   const projectRoot =
     findProjectRoot(startPath) ?? findEmbeddedPlannerSubmodule(startPath) ?? startPath
+  setActiveWorkspaceRoot(projectRoot)
 
   // Pre-load config to warm the zenoDir cache before any path resolution so
   // that a non-default zenoDir value in config.json is honoured by all
@@ -97,7 +98,7 @@ Always specify the project path when working with project-specific tools. Follow
 
   // Register resources for project artifacts
   const { registerResources } = await import('./resources/index.js')
-  const resourceResult = await registerResources(server, workspacePath, { watch: true })
+  const resourceResult = await registerResources(server, projectRoot, { watch: true })
   const resourceCountNumber =
     typeof resourceResult === 'number' ? resourceResult : resourceResult.count
   logger.info(`Registered ${String(resourceCountNumber)} MCP resources`)

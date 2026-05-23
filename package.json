@@ -67,12 +67,12 @@
     "eslint": "^10.0.0",
     "glob": "^13.0.0",
     "graphviz": "^0.0.9",
-    "hono": "^4.12.14",
+    "hono": "^4.12.22",
     "js-yaml": "^4.1.0",
     "jsonc-parser": "^3.3.1",
     "ora": "^9.0.0",
     "prettier": "^3.4.2",
-    "simple-git": "^3.32.0",
+    "simple-git": "^3.36.0",
     "typescript": "^5.7.2",
     "zod": "^4.0.17"
   },
@@ -99,5 +99,13 @@
     "tree-sitter-go": "^0.23.4",
     "tree-sitter-python": "^0.23.6",
     "tree-sitter-rust": "^0.23.3"
+  },
+  "overrides": {
+    "brace-expansion": "^5.0.6",
+    "express-rate-limit": "^8.5.2",
+    "fast-uri": "^3.1.2",
+    "ip-address": "^10.2.0",
+    "postcss": "^8.5.10",
+    "qs": "^6.15.2"
   }
 }

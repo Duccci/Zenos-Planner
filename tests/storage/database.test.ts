@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { mkdir, rm, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, rm, readFile, writeFile, mkdtemp } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -13,6 +13,7 @@ import {
   startWalCheckpointInterval,
   stopWalCheckpointInterval,
 } from '../../src/storage/database.js'
+import { setActiveWorkspaceRoot } from '../../src/utils/config.js'
 
 const TEST_DIR = join(tmpdir(), `.test-db-utils-${Date.now()}`)
 
@@ -42,6 +43,7 @@ describe('database utilities', () => {
   })
 
   afterEach(async () => {
+    setActiveWorkspaceRoot(undefined)
     try {
       closeDatabase()
     } catch {
@@ -77,6 +79,32 @@ describe('database utilities', () => {
       const db = getDatabase(TEST_DIR)
       const foreignKeys = db.pragma('foreign_keys', { simple: true }) as number
       expect(foreignKeys).toBe(1)
+    })
+
+    it('uses the active workspace root when no projectRoot is provided', () => {
+      setActiveWorkspaceRoot(TEST_DIR)
+
+      const db = getDatabase()
+
+      expect(db).toBeDefined()
+      expect(existsSync(getDatabasePath(TEST_DIR))).toBe(true)
+    })
+
+    it('reopens the singleton when the requested project root changes', async () => {
+      const otherDir = await mkdtemp(join(tmpdir(), 'zeno-test-db-switch-'))
+      await mkdir(join(otherDir, 'zeno', '.zeno'), { recursive: true })
+
+      try {
+        const firstDb = getDatabase(TEST_DIR)
+        const secondDb = getDatabase(otherDir)
+
+        expect(secondDb).not.toBe(firstDb)
+        expect(() => firstDb.prepare('SELECT 1').get()).toThrow()
+        expect(existsSync(getDatabasePath(otherDir))).toBe(true)
+      } finally {
+        closeDatabase()
+        await rm(otherDir, { recursive: true, force: true })
+      }
     })
   })
 

@@ -4,7 +4,10 @@
  * Tests for MCP server startup, tool registration, request handling, and error responses.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createFunctionRegistry } from '../../src/integration/function-implementations.js'
@@ -12,6 +15,8 @@ import { createMcpServer } from '../../src/mcp/server.js'
 import { diagnostics } from '../../src/mcp/diagnostics.js'
 import { logger } from '../../src/utils/logger.js'
 import { createToolHandler } from '../../src/mcp/tool-handlers.js'
+import { getWorkspaceRoot, setActiveWorkspaceRoot } from '../../src/utils/config.js'
+import { closeDatabase } from '../../src/storage/database.js'
 
 // Mock the transport for testing
 vi.mock('@modelcontextprotocol/sdk/server/stdio.js', () => ({
@@ -36,6 +41,11 @@ describe('MCP Server', () => {
     vi.spyOn(logger, 'info').mockImplementation(() => {})
   })
 
+  afterEach(() => {
+    setActiveWorkspaceRoot(undefined)
+    closeDatabase()
+  })
+
   describe('Server Creation', () => {
     it('should create MCP server with correct configuration', async () => {
       const server = await createMcpServer()
@@ -53,6 +63,34 @@ describe('MCP Server', () => {
             (m.startsWith('Registered MCP tool: ') || m.startsWith('Registered MCP handler tool: '))
         )
       expect(registeredMessages.length).toBeGreaterThan(0)
+    })
+
+    it('activates the resolved top-level project root for tool defaults', async () => {
+      const originalWorkspaceEnv = process.env['ZENO_WORKSPACE']
+      delete process.env['ZENO_WORKSPACE']
+      const projectRoot = await mkdtemp(join(tmpdir(), 'zeno-mcp-root-'))
+      const nestedStart = join(projectRoot, 'src', 'nested')
+      const zenoDir = join(projectRoot, 'zeno', '.zeno')
+
+      try {
+        await mkdir(nestedStart, { recursive: true })
+        await mkdir(zenoDir, { recursive: true })
+        await writeFile(join(zenoDir, 'config.json'), JSON.stringify({ projectName: 'Test' }), 'utf-8')
+
+        const server = await createMcpServer(nestedStart)
+
+        expect(getWorkspaceRoot()).toBe(projectRoot.replace(/\\/g, '/'))
+        await server.close()
+      } finally {
+        if (originalWorkspaceEnv === undefined) {
+          delete process.env['ZENO_WORKSPACE']
+        } else {
+          process.env['ZENO_WORKSPACE'] = originalWorkspaceEnv
+        }
+        setActiveWorkspaceRoot(undefined)
+        closeDatabase()
+        await rm(projectRoot, { recursive: true, force: true })
+      }
     })
 
     it('should register handler-based tools as MCP tools', async () => {

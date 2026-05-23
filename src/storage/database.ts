@@ -8,12 +8,13 @@
 import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { ensureDir } from '../utils/file.js'
-import { getZenoDir } from '../utils/config.js'
+import { ensureDir, normalizePath } from '../utils/file.js'
+import { getWorkspaceRoot, getZenoDir } from '../utils/config.js'
 import { DatabaseError } from '../utils/errors.js'
 
 /** Database instance singleton */
 let dbInstance: Database.Database | null = null
+let dbProjectRoot: string | null = null
 
 /** WAL checkpoint interval timer */
 let walCheckpointInterval: NodeJS.Timeout | null = null
@@ -23,24 +24,26 @@ const DB_FILE = 'registry.db'
 
 /**
  * Get the database file path.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to database file
  */
-export function getDatabasePath(projectRoot: string = process.cwd()): string {
+export function getDatabasePath(projectRoot: string = getWorkspaceRoot()): string {
   return join(getZenoDir(projectRoot), DB_FILE)
 }
 
 /**
  * Get the database connection singleton.
  * Creates connection if it doesn't exist.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Database instance
  * @throws DatabaseError if connection fails
  */
-export function getDatabase(projectRoot: string = process.cwd()): Database.Database {
-  if (dbInstance !== null) {
+export function getDatabase(projectRoot: string = getWorkspaceRoot()): Database.Database {
+  const normalizedProjectRoot = normalizePath(projectRoot)
+  if (dbInstance !== null && dbProjectRoot === normalizedProjectRoot) {
     return dbInstance
   }
+  if (dbInstance !== null) closeDatabase()
 
   try {
     const dbPath = getDatabasePath(projectRoot)
@@ -60,6 +63,7 @@ export function getDatabase(projectRoot: string = process.cwd()): Database.Datab
 
     // Create database connection
     dbInstance = new Database(dbPath)
+    dbProjectRoot = normalizedProjectRoot
 
     // Enable WAL mode for better concurrency
     dbInstance.pragma('journal_mode = WAL')
@@ -165,6 +169,7 @@ export function closeDatabase(): void {
 
       dbInstance.close()
       dbInstance = null
+      dbProjectRoot = null
     } catch (error) {
       throw new DatabaseError(
         'Failed to close database',
@@ -247,7 +252,7 @@ export interface DatabaseInitResult {
 
 /**
  * Initialize the database: create directory, database file, and run migrations.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @param options - Configuration options
  * @param options.syncProposals - Sync proposal files from disk (default: false)
  * @param options.syncRequirements - Restore requirements from version-controlled manifest (default: false)
@@ -256,7 +261,7 @@ export interface DatabaseInitResult {
  * @throws DatabaseError if initialization fails
  */
 export async function initializeDatabase(
-  projectRoot: string = process.cwd(),
+  projectRoot: string = getWorkspaceRoot(),
   options: { syncProposals?: boolean; syncRequirements?: boolean; syncGates?: boolean } = {}
 ): Promise<DatabaseInitResult> {
   try {

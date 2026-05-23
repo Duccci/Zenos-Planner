@@ -332,7 +332,7 @@ let _activeWorkspaceOverride: string | undefined
  * will surface this value when `ZENO_WORKSPACE` is not set.
  */
 export function setActiveWorkspaceRoot(path: string | undefined): void {
-  _activeWorkspaceOverride = path
+  _activeWorkspaceOverride = path ? normalizePath(path) : undefined
 }
 
 /**
@@ -372,10 +372,10 @@ export function getWorkspaceRoot(): string {
  * During init, the submodule check determines the layout before directories
  * exist. For existing projects, filesystem probing resolves the layout.
  *
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to .zeno directory
  */
-export function getZenoDir(projectRoot: string = process.cwd()): string {
+export function getZenoDir(projectRoot: string = getWorkspaceRoot()): string {
   // Submodule layout: planning data at <root>/.zeno/
   if (isSubmoduleLayout(projectRoot)) {
     return normalizePath(join(projectRoot, ZENO_INTERNAL_DIR))
@@ -405,10 +405,10 @@ export function getZenoDir(projectRoot: string = process.cwd()): string {
  * - Standard:  `<root>/zeno/`
  * - Standalone: `<root>/` (no zeno/ directory)
  *
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to the planning directory
  */
-export function getZenoGitDir(projectRoot: string = process.cwd()): string {
+export function getZenoGitDir(projectRoot: string = getWorkspaceRoot()): string {
   // Submodule layout: planning artifacts at consumer root
   if (isSubmoduleLayout(projectRoot)) {
     return normalizePath(projectRoot)
@@ -436,10 +436,10 @@ export function getZenoGitDir(projectRoot: string = process.cwd()): string {
  * In submodule mode the tool binary lives at `<root>/zeno/` (the submodule).
  * In standard mode the tool binary is at the project root itself.
  *
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to the directory containing `bin/mcp-server.js`
  */
-export function getZenoToolDir(projectRoot: string = process.cwd()): string {
+export function getZenoToolDir(projectRoot: string = getWorkspaceRoot()): string {
   if (isSubmoduleLayout(projectRoot)) {
     return normalizePath(join(projectRoot, DEFAULT_ZENO_DIR))
   }
@@ -448,10 +448,10 @@ export function getZenoToolDir(projectRoot: string = process.cwd()): string {
 
 /**
  * Get the path to the config.json file.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to config.json
  */
-export function getConfigPath(projectRoot: string = process.cwd()): string {
+export function getConfigPath(projectRoot: string = getWorkspaceRoot()): string {
   return normalizePath(join(getZenoDir(projectRoot), CONFIG_FILE))
 }
 
@@ -500,10 +500,10 @@ function resolveSubmoduleParent(dir: string): string | null {
  * Zeno submodule resolves to the consumer's project root rather than the
  * submodule's own planning context.
  *
- * @param startDir - Directory to start searching from (default: process.cwd())
+ * @param startDir - Directory to start searching from (default: active workspace root)
  * @returns Absolute path to project root, or null if not found
  */
-export function findProjectRoot(startDir: string = process.cwd()): string | null {
+export function findProjectRoot(startDir: string = getWorkspaceRoot()): string | null {
   let currentDir = normalizePath(startDir)
 
   // Traverse up until we find a genuine Zeno project root or reach the filesystem root.
@@ -611,13 +611,13 @@ const RECURSIVE_SCAN_SKIP = new Set([
  * found, its subtree is NOT descended further so nested artifacts (e.g.
  * generated worktrees) cannot produce duplicate entries.
  *
- * @param startDir - Directory to begin scanning from (default: process.cwd()).
+ * @param startDir - Directory to begin scanning from (default: active workspace root).
  * @param options.maxDepth - Maximum directory depth to traverse (default: 6).
  * @returns Array of normalised absolute paths to Zeno project roots, in
  *          stable alphabetical order.
  */
 export function findAllZenoProjects(
-  startDir: string = process.cwd(),
+  startDir: string = getWorkspaceRoot(),
   options: { maxDepth?: number } = {}
 ): string[] {
   const maxDepth = options.maxDepth ?? 6
@@ -734,11 +734,11 @@ export function getDefaultProject(projectName: string, projectStatement: string)
  *  1. `<projectRoot>/zeno/.zeno/config.json`  — standard embedded layout
  *  2. `<projectRoot>/.zeno/config.json`        — standalone planning repo (zenoDir = '.')
  *
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Validated ZenoConfig
  * @throws ConfigError if config is invalid
  */
-export async function loadConfig(projectRoot: string = process.cwd()): Promise<ZenoConfig> {
+export async function loadConfig(projectRoot: string = getWorkspaceRoot()): Promise<ZenoConfig> {
   // getConfigPath auto-detects the layout (submodule vs standard vs standalone).
   const configPath = getConfigPath(projectRoot)
 
@@ -765,12 +765,12 @@ export async function loadConfig(projectRoot: string = process.cwd()): Promise<Z
  * Save configuration to zeno/.zeno/config.json.
  * Validates config before saving.
  * @param config - Configuration to save
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @throws ConfigError if config is invalid or save fails
  */
 export async function saveConfig(
   config: ZenoConfig,
-  projectRoot: string = process.cwd()
+  projectRoot: string = getWorkspaceRoot()
 ): Promise<void> {
   const configPath = getConfigPath(projectRoot)
 
@@ -799,7 +799,7 @@ export async function saveConfig(
  * Falls back to hard-coded defaults when configuration is absent or invalid.
  */
 export async function getComplexityThresholds(
-  projectRoot: string = process.cwd()
+  projectRoot: string = getWorkspaceRoot()
 ): Promise<ComplexityThresholds> {
   const defaults: ComplexityThresholds = {
     maxMermaidNodes: 5,
@@ -829,10 +829,10 @@ export async function getComplexityThresholds(
  * Checks both standalone layout (.zeno/config.json) and standard layout
  * (zeno/.zeno/config.json), skipping the standard layout when zeno/ is a
  * git submodule (that config belongs to the planner tool, not the consumer).
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns true if a valid consumer config.json exists
  */
-export function isZenoProject(projectRoot: string = process.cwd()): boolean {
+export function isZenoProject(projectRoot: string = getWorkspaceRoot()): boolean {
   // Standalone layout takes priority
   const standalonePath = normalizePath(join(projectRoot, ZENO_INTERNAL_DIR, CONFIG_FILE))
   if (fileExists(standalonePath)) return true
@@ -843,10 +843,10 @@ export function isZenoProject(projectRoot: string = process.cwd()): boolean {
 
 /**
  * Get the path to the project.json file.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Absolute path to project.json
  */
-export function getProjectPath(projectRoot: string = process.cwd()): string {
+export function getProjectPath(projectRoot: string = getWorkspaceRoot()): string {
   return normalizePath(join(getZenoDir(projectRoot), 'project.json'))
 }
 
@@ -887,12 +887,12 @@ export function resolveCliProjectRoot(startDir: string = getWorkspaceRoot()): st
 
 /**
  * Read project from zeno/.zeno/project.json — the single source of truth.
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @returns Project data
  * @throws ConfigError if file doesn't exist or is invalid
  */
 export async function readProject(
-  projectRoot: string = process.cwd()
+  projectRoot: string = getWorkspaceRoot()
 ): Promise<Project> {
   const projectPath = getProjectPath(projectRoot)
 
@@ -935,12 +935,12 @@ export const readProjectOverview = readProject
 /**
  * Save project to zeno/.zeno/project.json.
  * @param project - Project data to save
- * @param projectRoot - Project root directory (default: process.cwd())
+ * @param projectRoot - Project root directory (default: active workspace root)
  * @throws ConfigError if save fails
  */
 export async function saveProject(
   project: Project,
-  projectRoot: string = process.cwd()
+  projectRoot: string = getWorkspaceRoot()
 ): Promise<void> {
   const projectPath = getProjectPath(projectRoot)
   try {
