@@ -1,13 +1,29 @@
 ﻿import { describe, it, expect, vi, afterAll } from 'vitest'
 import { simpleGit } from 'simple-git'
 import { proposalHandlers } from '../../../src/mcp/tools/proposal-tools.js'
-import { ProposalListOutputSchema, ProposalDetailSchema } from '../../../src/mcp/schemas/proposal-schemas.js'
+import {
+  ProposalListOutputSchema,
+  ProposalDetailSchema,
+} from '../../../src/mcp/schemas/proposal-schemas.js'
 
 describe('Proposal Handlers (integration)', () => {
   it('parses and validates proposal list outputs', async () => {
-    const mockData = { proposals: [{ hash: 'abcd1234', title: 'Proposal 1', status: 'pending' as const, gateId: 'gate-01', tasksCompleted: 0, totalTasks: 1, lastUpdated: new Date().toISOString() }], parallelSets: [['abcd1234']] }
+    const mockData = {
+      proposals: [
+        {
+          hash: 'abcd1234',
+          title: 'Proposal 1',
+          status: 'pending' as const,
+          gateId: 'gate-01',
+          tasksCompleted: 0,
+          totalTasks: 1,
+          lastUpdated: new Date().toISOString(),
+        },
+      ],
+      parallelSets: [['abcd1234']],
+    }
     const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
+      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }),
     }
 
     const handlers = proposalHandlers(fakeRegistry)
@@ -17,14 +33,23 @@ describe('Proposal Handlers (integration)', () => {
     expect(res.isError).toBeUndefined()
     const parsedList = JSON.parse(res.content[0]!.text as string)
     const ok = ProposalListOutputSchema.safeParse(parsedList)
-    if (!ok.success) console.error('Proposal schema errors:', JSON.stringify(ok.error.format(), null, 2))
+    if (!ok.success)
+      console.error('Proposal schema errors:', JSON.stringify(ok.error.format(), null, 2))
     expect(ok.success).toBe(true)
   })
 
   it('parses and validates proposal show output', async () => {
-    const mockData = { hash: 'abcd1234', title: 'My Proposal', description: 'desc', status: 'pending' as const, gateId: 'gate-01', tasks: [], lastUpdated: new Date().toISOString() }
+    const mockData = {
+      hash: 'abcd1234',
+      title: 'My Proposal',
+      description: 'desc',
+      status: 'pending' as const,
+      gateId: 'gate-01',
+      tasks: [],
+      lastUpdated: new Date().toISOString(),
+    }
     const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData })
+      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }),
     }
 
     const handlers = proposalHandlers(fakeRegistry)
@@ -39,7 +64,12 @@ describe('Proposal Handlers (integration)', () => {
 
   it('handles validation errors on proposal_validate', async () => {
     const fakeRegistry: any = {
-      invoke: vi.fn().mockResolvedValue({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid proposal' } })
+      invoke: vi
+        .fn()
+        .mockResolvedValue({
+          success: false,
+          error: { code: 'VALIDATION_ERROR', message: 'Invalid proposal' },
+        }),
     }
 
     const handlers = proposalHandlers(fakeRegistry)
@@ -51,29 +81,63 @@ describe('Proposal Handlers (integration)', () => {
   })
 
   it('parses and validates proposal approve output', async () => {
-    const mockData = { hash: 'abcd1234', previousStatus: 'in_progress' as const, newStatus: 'completed' as const, approvedAt: new Date().toISOString() }
-    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
+    const mockData = {
+      hash: 'abcd1234',
+      previousStatus: 'in_progress' as const,
+      newStatus: 'completed' as const,
+      approvedAt: new Date().toISOString(),
+    }
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }),
+    }
     const handlers = proposalHandlers(fakeRegistry)
     const res = await handlers.proposal_action({ action: 'approve', payload: { hash: 'abcd1234' } })
     expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates proposal reject output', async () => {
-    const mockData = { hash: 'abcd1234', previousStatus: 'pending' as const, newStatus: 'rejected' as const, rejectedAt: new Date().toISOString(), reason: 'Nope' }
-    const fakeRegistry: any = { invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }) }
+    const mockData = {
+      hash: 'abcd1234',
+      previousStatus: 'pending' as const,
+      newStatus: 'rejected' as const,
+      rejectedAt: new Date().toISOString(),
+      reason: 'Nope',
+    }
+    const fakeRegistry: any = {
+      invoke: vi.fn().mockResolvedValue({ success: true, data: mockData }),
+    }
     const handlers = proposalHandlers(fakeRegistry)
-    const res = await handlers.proposal_action({ action: 'reject', payload: { hash: 'abcd1234', rejectionReason: 'Nope' } })
+    const res = await handlers.proposal_action({
+      action: 'reject',
+      payload: { hash: 'abcd1234', rejectionReason: 'Nope' },
+    })
     expect(res.content[0]?.text).toBeDefined()
   })
 
   it('parses and validates proposal start output', async () => {
-    const showData = { hash: 'abcd1234', status: 'validated', gateId: 'gate-01', files_affected: [], solitary: false }
-    const startData = { hash: 'abcd1234', previousStatus: 'validated' as const, newStatus: 'in_progress' as const, startedAt: new Date().toISOString() }
+    const showData = {
+      hash: 'abcd1234',
+      status: 'validated',
+      gateId: 'gate-01',
+      files_affected: [],
+      solitary: false,
+    }
+    const startData = {
+      hash: 'abcd1234',
+      previousStatus: 'validated' as const,
+      newStatus: 'in_progress' as const,
+      startedAt: new Date().toISOString(),
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_start') return { success: true, data: startData }
-        if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
-        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
+        if (name === 'config_get')
+          return {
+            success: true,
+            data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } },
+          }
+        if (name === 'proposal_list')
+          return { success: true, data: { proposals: [], parallelSets: [] } }
         return { success: true, data: showData }
       }),
     }
@@ -141,9 +205,22 @@ describe('Proposal Handlers (integration)', () => {
             },
           }
         }
-        if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
-        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
-        if (name === 'proposal_start') return { success: true, data: { hash: 'solitary01', newStatus: 'in_progress', startedAt: new Date().toISOString() } }
+        if (name === 'config_get')
+          return {
+            success: true,
+            data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } },
+          }
+        if (name === 'proposal_list')
+          return { success: true, data: { proposals: [], parallelSets: [] } }
+        if (name === 'proposal_start')
+          return {
+            success: true,
+            data: {
+              hash: 'solitary01',
+              newStatus: 'in_progress',
+              startedAt: new Date().toISOString(),
+            },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -196,10 +273,19 @@ describe('Proposal Handlers (integration)', () => {
             },
           }
         }
-        if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
+        if (name === 'config_get')
+          return {
+            success: true,
+            data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } },
+          }
         // proposal_list returns EMPTY → rows.length === 0 → early return allowed:true
-        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
-        if (name === 'proposal_start') return { success: true, data: { hash: 'impl01', newStatus: 'in_progress', startedAt: new Date().toISOString() } }
+        if (name === 'proposal_list')
+          return { success: true, data: { proposals: [], parallelSets: [] } }
+        if (name === 'proposal_start')
+          return {
+            success: true,
+            data: { hash: 'impl01', newStatus: 'in_progress', startedAt: new Date().toISOString() },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -251,7 +337,11 @@ describe('Proposal Handlers (integration)', () => {
             },
           }
         }
-        if (name === 'config_get') return { success: true, data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } } }
+        if (name === 'config_get')
+          return {
+            success: true,
+            data: { qualityThresholds: { coverage: 90, lintErrors: 0, securityIssues: 0 } },
+          }
         // proposal_list returns NON-EMPTY → triggers the findProposalByHash + validateGateLevelTestFirst path
         if (name === 'proposal_list') {
           return {
@@ -265,7 +355,11 @@ describe('Proposal Handlers (integration)', () => {
             },
           }
         }
-        if (name === 'proposal_start') return { success: true, data: { hash: 'impl02', newStatus: 'in_progress', startedAt: new Date().toISOString() } }
+        if (name === 'proposal_start')
+          return {
+            success: true,
+            data: { hash: 'impl02', newStatus: 'in_progress', startedAt: new Date().toISOString() },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -301,7 +395,8 @@ describe('Proposal Handlers (integration)', () => {
   it('reject validator state check gracefully handles proposal not found', async () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
-        if (name === 'proposal_show') return { success: false, error: { message: 'not found', code: 'NOT_FOUND' } }
+        if (name === 'proposal_show')
+          return { success: false, error: { message: 'not found', code: 'NOT_FOUND' } }
         return { success: true, data: {} }
       }),
     }
@@ -412,7 +507,11 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: solitaryInProgress }
-        if (name === 'proposal_validate') return { success: true, data: { passedQuantitative: true, issues: null, hash: 'sol-val-01', checks: {} } }
+        if (name === 'proposal_validate')
+          return {
+            success: true,
+            data: { passedQuantitative: true, issues: null, hash: 'sol-val-01', checks: {} },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -431,7 +530,16 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: solitaryInProgress }
-        if (name === 'proposal_validate') return { success: true, data: { passedQuantitative: true, issues: ['minor warning'], hash: 'sol-val-01', checks: {} } }
+        if (name === 'proposal_validate')
+          return {
+            success: true,
+            data: {
+              passedQuantitative: true,
+              issues: ['minor warning'],
+              hash: 'sol-val-01',
+              checks: {},
+            },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -449,7 +557,11 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: solitaryInProgress }
-        if (name === 'proposal_validate') return { success: true, data: { passedQuantitative: false, issues: ['coverage too low'], hash: 'sol-val-01' } }
+        if (name === 'proposal_validate')
+          return {
+            success: true,
+            data: { passedQuantitative: false, issues: ['coverage too low'], hash: 'sol-val-01' },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -467,7 +579,16 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: solitaryInProgress }
-        if (name === 'proposal_validate') return { success: true, data: { passedQuantitative: false, issues: ['coverage below threshold'], hash: 'sol-val-01', checks: { coverageOk: false, securityOk: true } } }
+        if (name === 'proposal_validate')
+          return {
+            success: true,
+            data: {
+              passedQuantitative: false,
+              issues: ['coverage below threshold'],
+              hash: 'sol-val-01',
+              checks: { coverageOk: false, securityOk: true },
+            },
+          }
         return { success: true, data: {} }
       }),
     }
@@ -487,7 +608,11 @@ describe('Proposal Handlers (integration)', () => {
   // ─── approve/reject/start idempotency branches (lines 254, 276, 300) ───────
 
   it('approve action is idempotent when proposal already completed: uses stored lastUpdated (branch 16)', async () => {
-    const completedProposal = { ...solitaryInProgress, status: 'completed' as const, lastUpdated: '2026-01-01T00:00:00.000Z' }
+    const completedProposal = {
+      ...solitaryInProgress,
+      status: 'completed' as const,
+      lastUpdated: '2026-01-01T00:00:00.000Z',
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: completedProposal }
@@ -505,7 +630,11 @@ describe('Proposal Handlers (integration)', () => {
   })
 
   it('reject action is idempotent when proposal already rejected: uses stored rejectedAt (branch 20)', async () => {
-    const rejectedProposal = { ...solitaryInProgress, status: 'rejected' as const, rejectedAt: '2026-02-01T00:00:00.000Z' }
+    const rejectedProposal = {
+      ...solitaryInProgress,
+      status: 'rejected' as const,
+      rejectedAt: '2026-02-01T00:00:00.000Z',
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: rejectedProposal }
@@ -523,7 +652,11 @@ describe('Proposal Handlers (integration)', () => {
   })
 
   it('start action is idempotent when proposal already in_progress: uses stored startedAt (branch 24)', async () => {
-    const inProgressProposal = { ...solitaryInProgress, status: 'in_progress' as const, startedAt: '2026-03-01T00:00:00.000Z' }
+    const inProgressProposal = {
+      ...solitaryInProgress,
+      status: 'in_progress' as const,
+      startedAt: '2026-03-01T00:00:00.000Z',
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: inProgressProposal }
@@ -555,16 +688,25 @@ describe('Proposal Handlers (integration)', () => {
   // ─── progress action handler branches (lines 365-369) ─────────────────────
 
   it('progress action injects progressSummary on success with currentTask and filesAffected (branches 38T, 39T, 40T)', async () => {
-    const progressProposal = { ...solitaryInProgress, tasks: [{ description: 't1' }, { description: 't2' }, { description: 't3' }] }
+    const progressProposal = {
+      ...solitaryInProgress,
+      tasks: [{ description: 't1' }, { description: 't2' }, { description: 't3' }],
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: progressProposal }
-        if (name === 'updateProposalProgress') return { success: true, data: { completedFiles: ['src/a.ts'], taskIndex: 1 } }
+        if (name === 'updateProposalProgress')
+          return { success: true, data: { completedFiles: ['src/a.ts'], taskIndex: 1 } }
         return { success: true, data: {} }
       }),
     }
     const handlers = proposalHandlers(fakeRegistry)
-    const res = await handlers.proposal_action({ action: 'progress', hash: 'sol-val-01', currentTask: 2, filesAffected: ['src/a.ts', 'src/b.ts'] })
+    const res = await handlers.proposal_action({
+      action: 'progress',
+      hash: 'sol-val-01',
+      currentTask: 2,
+      filesAffected: ['src/a.ts', 'src/b.ts'],
+    })
     expect(res).toBeDefined()
     if (!res.isError) {
       const parsed = JSON.parse(res.content[0]!.text as string) as Record<string, unknown>
@@ -577,16 +719,24 @@ describe('Proposal Handlers (integration)', () => {
   })
 
   it('progress action injects progressSummary without filesAffected: remainingFiles=[] (branch 39F)', async () => {
-    const progressProposal = { ...solitaryInProgress, tasks: [{ description: 't1' }, { description: 't2' }] }
+    const progressProposal = {
+      ...solitaryInProgress,
+      tasks: [{ description: 't1' }, { description: 't2' }],
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: progressProposal }
-        if (name === 'updateProposalProgress') return { success: true, data: { completedFiles: [], taskIndex: 0 } }
+        if (name === 'updateProposalProgress')
+          return { success: true, data: { completedFiles: [], taskIndex: 0 } }
         return { success: true, data: {} }
       }),
     }
     const handlers = proposalHandlers(fakeRegistry)
-    const res = await handlers.proposal_action({ action: 'progress', hash: 'sol-val-01', currentTask: 1 })
+    const res = await handlers.proposal_action({
+      action: 'progress',
+      hash: 'sol-val-01',
+      currentTask: 1,
+    })
     expect(res).toBeDefined()
     if (!res.isError) {
       const parsed = JSON.parse(res.content[0]!.text as string) as Record<string, unknown>
@@ -601,16 +751,28 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: progressProposal }
-        if (name === 'updateProposalProgress') return { success: false, error: { message: 'update failed' } }
+        if (name === 'updateProposalProgress')
+          return {
+            success: false,
+            error: { code: 'PROGRESS_UPDATE_FAILED', message: 'update failed' },
+          }
         return { success: true, data: {} }
       }),
     }
     const handlers = proposalHandlers(fakeRegistry)
-    const res = await handlers.proposal_action({ action: 'progress', hash: 'sol-val-01', currentTask: 1 })
+    const res = await handlers.proposal_action({
+      action: 'progress',
+      hash: 'sol-val-01',
+      currentTask: 1,
+    })
     expect(res).toBeDefined()
     // progressResult.success=false is passed through — result is an error response
     const text = String(res.content?.[0]?.text ?? '')
     expect(text).toBeTruthy()
+    const parsed = JSON.parse(text) as Record<string, unknown>
+    expect(parsed['error']).toBe('update failed')
+    expect(parsed['code']).toBe('PROGRESS_UPDATE_FAILED')
+    expect(res.structuredContent).toBeUndefined()
   })
 
   // ─── progress validator branches (lines 676-677, 728) ─────────────────────
@@ -621,14 +783,21 @@ describe('Proposal Handlers (integration)', () => {
     }
     const handlers = proposalHandlers(fakeRegistry)
     // currentTask:0 is rejected by the input schema (minimum:1) before validators run
-    const res = await handlers.proposal_action({ action: 'progress', hash: 'sol-val-01', currentTask: 0 })
+    const res = await handlers.proposal_action({
+      action: 'progress',
+      hash: 'sol-val-01',
+      currentTask: 0,
+    })
     expect(res.isError).toBe(true)
     const text = String(res.content?.[0]?.text ?? '')
     expect(text).toBeTruthy()
   })
 
   it('progress validator blocks currentTask out of bounds: returns error (branch 102)', async () => {
-    const twoTaskProposal = { ...solitaryInProgress, tasks: [{ description: 't1' }, { description: 't2' }] }
+    const twoTaskProposal = {
+      ...solitaryInProgress,
+      tasks: [{ description: 't1' }, { description: 't2' }],
+    }
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string) => {
         if (name === 'proposal_show') return { success: true, data: twoTaskProposal }
@@ -636,7 +805,11 @@ describe('Proposal Handlers (integration)', () => {
       }),
     }
     const handlers = proposalHandlers(fakeRegistry)
-    const res = await handlers.proposal_action({ action: 'progress', hash: 'sol-val-01', currentTask: 3 })
+    const res = await handlers.proposal_action({
+      action: 'progress',
+      hash: 'sol-val-01',
+      currentTask: 3,
+    })
     expect(res.isError).toBe(true)
     const text = String(res.content?.[0]?.text ?? '')
     expect(text).toContain('out of bounds')
@@ -649,8 +822,10 @@ describe('Proposal Handlers (integration)', () => {
     const fakeRegistry: any = {
       invoke: vi.fn().mockImplementation(async (name: string, payload: unknown) => {
         invokedArgs.push({ name, payload })
-        if (name === 'proposal_list') return { success: true, data: { proposals: [], parallelSets: [] } }
-        if (name === 'proposal_create') return { success: true, data: { hash: 'new-sol-01', title: 'Solitary Gen' } }
+        if (name === 'proposal_list')
+          return { success: true, data: { proposals: [], parallelSets: [] } }
+        if (name === 'proposal_create')
+          return { success: true, data: { hash: 'new-sol-01', title: 'Solitary Gen' } }
         return { success: true, data: {} }
       }),
     }
@@ -660,7 +835,8 @@ describe('Proposal Handlers (integration)', () => {
       solitary: true,
       gateId: 'gate-01',
       title: 'Solitary Gen',
-      summary: 'A solitary proposal that exercises the routing logic for solitary=true with gateId provided.',
+      summary:
+        'A solitary proposal that exercises the routing logic for solitary=true with gateId provided.',
       tasks: [
         {
           description: 'Verify routing strips gateId when solitary=true',

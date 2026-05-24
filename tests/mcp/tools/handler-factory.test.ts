@@ -1,6 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 import { z } from 'zod'
-import { createSchemaValidatingHandler, createBasicHandler, parseJsonSafe, extractMockResult, handleMockResult, runValidators, formatValidationError, createNotImplementedHandler, handleError } from '../../../src/mcp/tools/handler-factory.js'
+import {
+  createSchemaValidatingHandler,
+  createBasicHandler,
+  parseJsonSafe,
+  extractMockResult,
+  handleMockResult,
+  runValidators,
+  formatValidationError,
+  createNotImplementedHandler,
+  handleError,
+} from '../../../src/mcp/tools/handler-factory.js'
 
 describe('Handler Factory', () => {
   it('parseJsonSafe returns parsed object for valid json and null for invalid', () => {
@@ -10,7 +20,11 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler returns structured content when schema matches', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true, n: 1 }) } }) }
+    const registry = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true, n: 1 }) } }),
+    }
     const schema = z.object({ ok: z.boolean(), n: z.number() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -21,7 +35,11 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler returns fallback when output not valid per schema', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ wrong: true }) } }) }
+    const registry = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { output: JSON.stringify({ wrong: true }) } }),
+    }
     const schema = z.object({ ok: z.boolean() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -32,7 +50,9 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler returns error when registry fails', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'boom' } }) }
+    const registry = {
+      invoke: vi.fn().mockResolvedValue({ success: false, error: { message: 'boom' } }),
+    }
     const schema = z.object({})
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -40,6 +60,7 @@ describe('Handler Factory', () => {
 
     expect(res.isError).toBe(true)
     expect((res.content[0] as any).text).toContain('boom')
+    expect(res.structuredContent).toBeUndefined()
   })
 
   it('createBasicHandler returns text and structuredContent for success', async () => {
@@ -75,7 +96,7 @@ describe('Handler Factory', () => {
   })
 
   it('runValidators aggregates errors and warnings', async () => {
-    const v1 = async () => ({ allowed: true } as const)
+    const v1 = async () => ({ allowed: true }) as const
     const v2 = async () => ({ allowed: false, errors: ['fail'], warnings: ['w'] })
 
     const res = await runValidators([v1, v2])
@@ -102,18 +123,22 @@ describe('Handler Factory', () => {
   it('handleError returns structured internal error payload', () => {
     const res = handleError(new Error('boom'), { ctx: 1 })
     expect(res.isError).toBe(true)
-    const sc = res.structuredContent as any
-    expect(sc.error).toBeDefined()
-    expect(String((sc.error.error as string)).toLowerCase()).toContain('boom')
+    expect(res.structuredContent).toBeUndefined()
+    const parsed = JSON.parse((res.content[0] as any).text)
+    expect(String(parsed.error).toLowerCase()).toContain('boom')
   })
 
   it('runValidators treats thrown validator as warning and continues', async () => {
-    const v1 = async () => ({ allowed: true } as const)
-    const v2 = async () => { throw new Error('oops') }
+    const v1 = async () => ({ allowed: true }) as const
+    const v2 = async () => {
+      throw new Error('oops')
+    }
 
     const res = await runValidators([v1, v2 as any])
     expect(res.allowed).toBe(true)
-    expect(res.warnings && res.warnings.some((w) => String(w).toLowerCase().includes('threw'))).toBeTruthy()
+    expect(
+      res.warnings && res.warnings.some((w) => String(w).toLowerCase().includes('threw'))
+    ).toBeTruthy()
   })
 
   it('handleMockResult accepts non-string mockResult (object) and falls back correctly', () => {
@@ -136,7 +161,11 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler handles null args and treats as empty object', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true }) } }) }
+    const registry = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true }) } }),
+    }
     const schema = z.object({ ok: z.boolean() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -198,7 +227,11 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler extracts output from nested object', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true }) } }) }
+    const registry = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { output: JSON.stringify({ ok: true }) } }),
+    }
     const schema = z.object({ ok: z.boolean() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -282,7 +315,11 @@ describe('Handler Factory', () => {
 
   it('createSchemaValidatingHandler logs warning on validation failure', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: JSON.stringify({ bad: 'data' }) } }) }
+    const registry = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ success: true, data: { output: JSON.stringify({ bad: 'data' }) } }),
+    }
     const schema = z.object({ ok: z.boolean() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -295,7 +332,9 @@ describe('Handler Factory', () => {
   })
 
   it('createSchemaValidatingHandler with extracted as string', async () => {
-    const registry = { invoke: vi.fn().mockResolvedValue({ success: true, data: { output: '{"ok":true}' } }) }
+    const registry = {
+      invoke: vi.fn().mockResolvedValue({ success: true, data: { output: '{"ok":true}' } }),
+    }
     const schema = z.object({ ok: z.boolean() })
 
     const handler = createSchemaValidatingHandler(registry as any, 'fn', schema)
@@ -330,7 +369,12 @@ describe('Handler Factory', () => {
     const registry = {
       invoke: vi.fn().mockResolvedValue({
         success: false,
-        error: { code: 'GATE_NOT_FOUND', message: 'Gate not found', context: {}, timestamp: '2026-01-01T00:00:00Z' },
+        error: {
+          code: 'GATE_NOT_FOUND',
+          message: 'Gate not found',
+          context: {},
+          timestamp: '2026-01-01T00:00:00Z',
+        },
       }),
     }
     const handler = createBasicHandler(registry as any, 'fn')
@@ -340,5 +384,6 @@ describe('Handler Factory', () => {
     const text = (res.content[0] as any).text as string
     expect(text).toContain('GATE_NOT_FOUND')
     expect(text).toContain('Gate not found')
+    expect(res.structuredContent).toBeUndefined()
   })
 })

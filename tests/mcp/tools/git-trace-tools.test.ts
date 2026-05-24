@@ -17,7 +17,8 @@ describe('MCP Git Trace tools', () => {
     const result = await handlers.git_trace({})
 
     expect(result.isError).toBe(true)
-    const text = result.content?.[0] && 'text' in result.content[0] ? (result.content[0] as any).text : ''
+    const text =
+      result.content?.[0] && 'text' in result.content[0] ? (result.content[0] as any).text : ''
     expect(text).toContain('error')
   })
 
@@ -59,8 +60,9 @@ describe('MCP Git Trace tools', () => {
     const result = await handlers.git_trace({ artifactHash: '#abc123' })
 
     expect(result.isError).toBe(true)
-    const content = result.structuredContent as any
-    expect((content.error?.message as string) || '').toContain('Validation failed')
+    expect(result.structuredContent).toBeUndefined()
+    const content = JSON.parse((result.content[0] as any).text) as Record<string, unknown>
+    expect(String(content['error'])).toContain('Validation failed')
   })
 
   it('git_trace handles registry invocation errors', async () => {

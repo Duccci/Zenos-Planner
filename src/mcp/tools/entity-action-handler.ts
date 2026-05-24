@@ -80,10 +80,11 @@ export function createEntityActionHandler<T extends string>(
       // LLMs often pass `null` for optional fields they don't intend to set.
       // Zod `.optional()` accepts `undefined` but not `null`, so strip top-level
       // null values before parsing to avoid spurious validation failures.
-      const cleanArgs = Object.fromEntries(
-        Object.entries(args).filter(([, v]) => v !== null)
-      )
-      const validated = config.inputSchema.parse(cleanArgs) as { action?: T } & Record<string, unknown>
+      const cleanArgs = Object.fromEntries(Object.entries(args).filter(([, v]) => v !== null))
+      const validated = config.inputSchema.parse(cleanArgs) as { action?: T } & Record<
+        string,
+        unknown
+      >
 
       // Return usage guidance when no action is provided
       if (!validated.action) {
@@ -117,7 +118,10 @@ export function createEntityActionHandler<T extends string>(
           throw new Error(`actionOutputSchema returned undefined for action: ${action}`)
         }
       } catch (error) {
-        if (error instanceof Error && error.message.includes('actionOutputSchema returned undefined')) {
+        if (
+          error instanceof Error &&
+          error.message.includes('actionOutputSchema returned undefined')
+        ) {
           throw error
         }
         // Re-throw other schema-related errors with context
@@ -169,10 +173,7 @@ export function createEntityActionHandler<T extends string>(
           ...(err?.operations !== undefined ? { operations: err.operations } : {}),
         }
         return {
-          content: [
-            { type: 'text', text: JSON.stringify(errorPayload, null, 2) },
-          ],
-          structuredContent: { error: errorPayload },
+          content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
           isError: true,
         }
       }

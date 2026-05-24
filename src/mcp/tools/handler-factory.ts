@@ -114,7 +114,7 @@ export function createSchemaValidatingHandler(
             }
           } else {
             logger.warn(`Output schema validation failed for "${functionName}"`, {
-              issues: validated.error.issues.map(i => ({
+              issues: validated.error.issues.map((i) => ({
                 path: i.path.join('.') || '(root)',
                 message: i.message,
                 code: i.code,
@@ -151,7 +151,6 @@ export function createSchemaValidatingHandler(
         }
         return {
           content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
-          structuredContent: { error: errorPayload },
           isError: true,
         }
       }
@@ -165,7 +164,6 @@ export function createSchemaValidatingHandler(
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-        structuredContent: { error: payload },
         isError: true,
       }
     }
@@ -197,9 +195,7 @@ export function createBasicHandler(
         const data = result.data
         const text = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
         const structuredContent: Record<string, unknown> =
-          typeof data === 'object' && data !== null
-            ? (data as Record<string, unknown>)
-            : { data }
+          typeof data === 'object' && data !== null ? (data as Record<string, unknown>) : { data }
         return {
           content: [{ type: 'text', text }],
           structuredContent,
@@ -220,7 +216,6 @@ export function createBasicHandler(
 
         return {
           content: [{ type: 'text', text: JSON.stringify(errorPayload, null, 2) }],
-          structuredContent: { error: errorPayload },
           isError: true,
         }
       }
@@ -234,14 +229,11 @@ export function createBasicHandler(
       }
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-        structuredContent: { error: payload },
         isError: true,
       }
     }
   }
 }
-
-
 
 /**
  * Extract mockResult from tool arguments if present (for testing)
@@ -271,7 +263,9 @@ export function handleMockResult(
   // Otherwise: "Cannot read properties of undefined (reading '_zod')" error
   if (!schema) {
     return {
-      content: [{ type: 'text', text: JSON.stringify({ error: 'Output schema is undefined' }, null, 2) }],
+      content: [
+        { type: 'text', text: JSON.stringify({ error: 'Output schema is undefined' }, null, 2) },
+      ],
       isError: true,
     }
   }
@@ -357,8 +351,12 @@ export function handleError(error: unknown, context?: Record<string, unknown>): 
           path: issue.path.join('.') || '(root)',
           message: issue.message,
           code: issue.code,
-          ...('expected' in issue ? { expected: (issue as unknown as Record<string, unknown>)['expected'] } : {}),
-          ...('received' in issue ? { received: (issue as unknown as Record<string, unknown>)['received'] } : {}),
+          ...('expected' in issue
+            ? { expected: (issue as unknown as Record<string, unknown>)['expected'] }
+            : {}),
+          ...('received' in issue
+            ? { received: (issue as unknown as Record<string, unknown>)['received'] }
+            : {}),
         }))
       : undefined
 
@@ -375,7 +373,6 @@ export function handleError(error: unknown, context?: Record<string, unknown>): 
   }
   return {
     content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-    structuredContent: { error: payload },
     isError: true,
   }
 }
@@ -431,7 +428,9 @@ export function withGuidance(
 
   // Support both legacy positional (preReview) and new options-object callers
   const opts: GuidanceOptions =
-    options !== null && typeof options === 'object' && ('preReview' in options || 'templateInfo' in options)
+    options !== null &&
+    typeof options === 'object' &&
+    ('preReview' in options || 'templateInfo' in options)
       ? (options as GuidanceOptions)
       : { preReview: options }
 
