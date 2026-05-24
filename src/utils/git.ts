@@ -20,6 +20,14 @@ import { loadConfig, getZenoGitDir } from './config.js'
 /** Git operation timeout in milliseconds */
 const GIT_TIMEOUT = 30000
 
+function normalizeGitStatusText(value: string | null | undefined): string | null {
+  return value != null && value.length > 0 ? value : null
+}
+
+function normalizeGitStatusCount(value: number | null | undefined): number {
+  return typeof value === 'number' ? value : 0
+}
+
 /** Git user information */
 export interface GitUserInfo {
   name: string | null
@@ -36,6 +44,12 @@ export interface GitStatus {
   untracked: string[]
   /** Current branch name */
   branch: string | null
+  /** Upstream tracking branch name */
+  tracking: string | null
+  /** Commits ahead of the upstream tracking branch */
+  ahead: number
+  /** Commits behind the upstream tracking branch */
+  behind: number
   /** Is working directory clean */
   isClean: boolean
 }
@@ -86,6 +100,9 @@ export async function getGitStatus(dir: string = process.cwd()): Promise<GitStat
       staged: status.staged,
       untracked: status.not_added,
       branch: status.current,
+      tracking: normalizeGitStatusText(status.tracking),
+      ahead: normalizeGitStatusCount(status.ahead),
+      behind: normalizeGitStatusCount(status.behind),
       isClean: status.isClean(),
     }
   } catch (error) {
@@ -298,13 +315,39 @@ export async function syncWithGit(options: {
 }): Promise<GitSyncResult> {
   const dir = options.dir ?? process.cwd()
 
+  const pushWithPolicy = async (): Promise<boolean> => {
+    try {
+      await pushCurrentBranch(options.remote ?? 'origin', dir)
+      return true
+    } catch (error) {
+      if (options.ignorePushFailure) {
+        console.warn(
+          'Push failed but `ignorePushFailure` is true; continuing archive. Error:',
+          error
+        )
+        return false
+      }
+
+      if (error instanceof GitError) throw error
+      throw new GitError(
+        'Failed to push current branch',
+        'GIT_PUSH_FAILED',
+        { dir, remote: options.remote ?? 'origin' },
+        error instanceof Error ? error : undefined
+      )
+    }
+  }
+
   if (!(await isGitRepo(dir))) {
     throw new GitError('Not a git repository', 'GIT_NOT_REPO', { dir })
   }
 
   const status = await getGitStatus(dir)
   if (status.isClean) {
-    return { committed: false, tagged: false, pushed: false }
+    const pushed = options.autoPush && status.ahead > 0
+      ? await pushWithPolicy()
+      : false
+    return { committed: false, tagged: false, pushed }
   }
 
   const commitHash = await commit(options.commitMessage, [], dir)
@@ -317,32 +360,7 @@ export async function syncWithGit(options: {
 
   let pushed = false
   if (options.autoPush) {
-    try {
-      await pushCurrentBranch(options.remote ?? 'origin', dir)
-      pushed = true
-    } catch (error) {
-      // If caller explicitly requested that push failures be non-fatal,
-      // swallow the push error and continue. Otherwise, surface it.
-      if (options.ignorePushFailure) {
-        // Log the failure for diagnostics but do not fail the archive flow.
-        // Use console.warn to avoid introducing additional runtime deps.
-        // The caller (archive workflow) is expected to surface the warning to the user if needed.
-
-        console.warn(
-          'Push failed but `ignorePushFailure` is true; continuing archive. Error:',
-          error
-        )
-        pushed = false
-      } else {
-        if (error instanceof GitError) throw error
-        throw new GitError(
-          'Failed to push current branch',
-          'GIT_PUSH_FAILED',
-          { dir, remote: options.remote ?? 'origin' },
-          error instanceof Error ? error : undefined
-        )
-      }
-    }
+    pushed = await pushWithPolicy()
   }
 
   return { committed: true, commitHash, tagged, pushed }

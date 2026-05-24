@@ -95,6 +95,10 @@ export const ProjectSyncStatusOutputSchema = z.object({
   coreRepo: z.string(),
   coreHead: z.string(),
   coreHeadShort: z.string(),
+  coreBranch: z.string().nullable(),
+  coreTracking: z.string().nullable(),
+  coreAhead: z.number().int().min(0),
+  coreBehind: z.number().int().min(0),
   consumers: z.array(ConsumerStatusSchema),
   summary: z.object({
     total: z.number().int().min(0),
@@ -102,6 +106,8 @@ export const ProjectSyncStatusOutputSchema = z.object({
     behind: z.number().int().min(0),
     dirty: z.number().int().min(0),
     blocked: z.number().int().min(0),
+    coreAhead: z.number().int().min(0),
+    coreBehind: z.number().int().min(0),
   }),
 })
 export type ProjectSyncStatusOutput = z.infer<typeof ProjectSyncStatusOutputSchema>
@@ -109,12 +115,13 @@ export type ProjectSyncStatusOutput = z.infer<typeof ProjectSyncStatusOutputSche
 // --- commit ---
 
 export const ProjectSyncCommitOutputSchema = z.object({
-  status: z.enum(['committed', 'no-op']),
+  status: z.enum(['committed', 'pushed', 'no-op']),
   commitHash: z.string().optional(),
   commitHashShort: z.string().optional(),
   commitMessage: z.string().optional(),
   tag: z.string().optional(),
   pushed: z.boolean().optional(),
+  ahead: z.number().int().min(0).optional(),
 })
 export type ProjectSyncCommitOutput = z.infer<typeof ProjectSyncCommitOutputSchema>
 

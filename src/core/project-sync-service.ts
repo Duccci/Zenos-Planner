@@ -271,10 +271,26 @@ async function isOnWorktreeBranch(git: ReturnType<typeof simpleGit>): Promise<bo
   }
 }
 
+async function getCurrentBranchRef(git: SimpleGit): Promise<string> {
+  try {
+    return (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim() || 'HEAD'
+  } catch {
+    return 'HEAD'
+  }
+}
+
 function parsePinnedSubmoduleHash(submoduleStatusRaw: string): string {
   const trimmed = submoduleStatusRaw.trim()
   const hashMatch = /^(?:[-+U ])?([0-9a-f]{40})/.exec(trimmed)
   return hashMatch?.[1] ?? ''
+}
+
+function normalizeGitStatusText(value: string | null | undefined): string | null {
+  return value != null && value.length > 0 ? value : null
+}
+
+function normalizeGitStatusCount(value: number | null | undefined): number {
+  return typeof value === 'number' ? value : 0
 }
 
 async function isSubmoduleDirty(git: SimpleGit, submodulePath: string): Promise<boolean> {
@@ -310,6 +326,9 @@ export async function syncStatus(params: {
   const coreGit = simpleGit(projectRoot)
   const coreHead = (await coreGit.revparse(['HEAD'])).trim()
   const coreHeadShort = coreHead.slice(0, 7)
+  const coreStatus = await coreGit.status()
+  const coreAhead = normalizeGitStatusCount(coreStatus.ahead)
+  const coreBehind = normalizeGitStatusCount(coreStatus.behind)
 
   let allConsumers = discoverConsumers(coreRepo, syncConfig, params.registryConsumers)
 
@@ -387,12 +406,18 @@ export async function syncStatus(params: {
     behind: consumers.filter((c) => c.behind > 0 || c.behind === -1).length,
     dirty: consumers.filter((c) => c.dirty).length,
     blocked: consumers.filter((c) => c.hasWorktree).length,
+    coreAhead,
+    coreBehind,
   }
 
   return {
     coreRepo: coreRepo.name,
     coreHead,
     coreHeadShort,
+    coreBranch: normalizeGitStatusText(coreStatus.current),
+    coreTracking: normalizeGitStatusText(coreStatus.tracking),
+    coreAhead,
+    coreBehind,
     consumers,
     summary,
   }
@@ -620,9 +645,25 @@ export async function syncCommit(params: {
   }
 
   const status = await git.status()
+  const shouldPush = params.push ?? gitConfig.autoPush
+  const ahead = normalizeGitStatusCount(status.ahead)
 
   if (status.isClean()) {
-    return { status: 'no-op' }
+    if (shouldPush && ahead > 0) {
+      const remote = gitConfig.remote
+      const branchRef = await getCurrentBranchRef(git)
+      await git.push(remote, branchRef)
+      const commitHash = (await git.revparse(['HEAD'])).trim()
+      return {
+        status: 'pushed',
+        commitHash,
+        commitHashShort: commitHash.slice(0, 7),
+        pushed: true,
+        ahead,
+      }
+    }
+
+    return { status: 'no-op', pushed: false, ahead }
   }
 
   // Stage all changes
@@ -655,18 +696,12 @@ export async function syncCommit(params: {
   }
 
   // Push if requested or if autoPush is on
-  const shouldPush = params.push ?? gitConfig.autoPush
   let pushed = false
   if (shouldPush) {
     const remote = gitConfig.remote
     // Push the current branch by name; never push bare HEAD which could
     // resolve to a Zeno worktree branch.
-    let branchRef = 'HEAD'
-    try {
-      branchRef = (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim() || 'HEAD'
-    } catch {
-      // detached HEAD — fall back
-    }
+    const branchRef = await getCurrentBranchRef(git)
     await git.push(remote, branchRef)
     if (params.tag) {
       await git.push(remote, params.tag)

@@ -316,6 +316,31 @@ describe('project-sync-service', () => {
       expect(result.consumers[0]!.behind).toBe(5)
       expect(result.summary.behind).toBe(1)
     })
+
+    it('should report core commits that are ahead of upstream', async () => {
+      mockGitInstance.status.mockResolvedValue({
+        isClean: () => true,
+        current: 'main',
+        tracking: 'origin/main',
+        ahead: 1,
+        behind: 0,
+      })
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'submodule') return ' abc1234567890def1234567890abcdef12345678 CoreRepo'
+        if (args[0] === 'rev-list') return '0'
+        return ''
+      })
+
+      const result = await syncStatus({
+        repos: ['ConsumerA'],
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.coreBranch).toBe('main')
+      expect(result.coreTracking).toBe('origin/main')
+      expect(result.coreAhead).toBe(1)
+      expect(result.summary.coreAhead).toBe(1)
+    })
   })
 
   // ==========================================================================
@@ -388,6 +413,34 @@ describe('project-sync-service', () => {
 
       expect(result.pushed).toBe(true)
       expect(mockGitInstance.push).toHaveBeenCalledWith('origin', 'HEAD')
+    })
+
+    it('should push already committed changes when clean but ahead', async () => {
+      mockGitInstance.status.mockResolvedValue({
+        isClean: () => true,
+        current: 'main',
+        tracking: 'origin/main',
+        ahead: 1,
+        behind: 0,
+      })
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'symbolic-ref' && args[1] === '--short' && args[2] === 'HEAD') {
+          return 'main'
+        }
+        return ''
+      })
+
+      const result = await syncCommit({
+        message: 'push existing commit',
+        push: true,
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.status).toBe('pushed')
+      expect(result.pushed).toBe(true)
+      expect(result.ahead).toBe(1)
+      expect(mockGitInstance.commit).not.toHaveBeenCalled()
+      expect(mockGitInstance.push).toHaveBeenCalledWith('origin', 'main')
     })
 
     it('should not push by default when autoPush is false', async () => {
@@ -824,6 +877,10 @@ describe('project-sync-schemas', async () => {
       coreRepo: 'CoreRepo',
       coreHead: 'abc1234567890def1234567890abcdef12345678',
       coreHeadShort: 'abc1234',
+      coreBranch: 'main',
+      coreTracking: 'origin/main',
+      coreAhead: 0,
+      coreBehind: 0,
       consumers: [
         {
           repo: 'ConsumerA',
@@ -833,7 +890,15 @@ describe('project-sync-schemas', async () => {
           hasWorktree: false,
         },
       ],
-      summary: { total: 1, current: 1, behind: 0, dirty: 0, blocked: 0 },
+      summary: {
+        total: 1,
+        current: 1,
+        behind: 0,
+        dirty: 0,
+        blocked: 0,
+        coreAhead: 0,
+        coreBehind: 0,
+      },
     })
     expect(result.success).toBe(true)
   })
@@ -845,6 +910,7 @@ describe('project-sync-schemas', async () => {
       commitHashShort: 'abc1234',
       commitMessage: 'feat(schemas): test',
       pushed: false,
+      ahead: 0,
     })
     expect(result.success).toBe(true)
   })

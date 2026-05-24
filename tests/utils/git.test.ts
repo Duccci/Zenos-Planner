@@ -324,6 +324,46 @@ describe('git utilities', () => {
       expect(result.pushed).toBe(false)
     })
 
+    it('pushes already committed changes when clean but ahead', async () => {
+      const remoteDir = join(TEST_DIR, 'remote.git')
+      const repoDir = join(TEST_DIR, 'repo')
+      await mkdir(repoDir, { recursive: true })
+
+      await simpleGit(TEST_DIR).raw(['init', '--bare', remoteDir])
+
+      const git = simpleGit(repoDir)
+      await git.init()
+      await git.addConfig('user.email', 'test@example.com')
+      await git.addConfig('user.name', 'Test User')
+      await git.addRemote('origin', remoteDir)
+
+      await writeFile(join(repoDir, 'file.txt'), 'initial', 'utf-8')
+      await git.add('.')
+      await git.commit('Initial')
+      await git.push(['-u', 'origin', 'HEAD'])
+
+      await writeFile(join(repoDir, 'file.txt'), 'updated', 'utf-8')
+      await git.add('.')
+      await git.commit('Second')
+
+      const aheadStatus = await getGitStatus(repoDir)
+      expect(aheadStatus.isClean).toBe(true)
+      expect(aheadStatus.ahead).toBe(1)
+
+      const result = await syncWithGit({
+        commitMessage: 'Should not create another commit',
+        autoPush: true,
+        dir: repoDir,
+      })
+
+      expect(result.committed).toBe(false)
+      expect(result.tagged).toBe(false)
+      expect(result.pushed).toBe(true)
+
+      const pushedStatus = await getGitStatus(repoDir)
+      expect(pushedStatus.ahead).toBe(0)
+    })
+
     it('continues when push fails and ignorePushFailure is true', async () => {
       const git = simpleGit(TEST_DIR)
       await git.init()
