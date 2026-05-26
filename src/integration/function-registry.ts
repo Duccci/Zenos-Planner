@@ -335,7 +335,7 @@ export const functionRegistry: FunctionDefinition[] = [
   },
   {
     name: 'gates_start',
-    description: 'Start working on a gate (changes status from pending to in_progress)',
+    description: 'Start working on a gate, generating gate-specific requirements and changing status from pending to in_progress',
     parameters: [
       {
         name: 'gateId',

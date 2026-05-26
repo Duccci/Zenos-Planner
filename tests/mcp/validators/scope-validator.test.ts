@@ -1,9 +1,46 @@
 import { describe, it, expect } from 'vitest'
 import {
+  validateScope,
   validateTestFileScope,
   validateMarkdownOnly,
+  validateNoZenoSpecificFileNames,
   TEST_FILE_PATTERNS,
 } from '../../../src/mcp/validators/scope-validator.js'
+
+describe('validateNoZenoSpecificFileNames', () => {
+  it('rejects gate identifiers in test file names', () => {
+    const result = validateNoZenoSpecificFileNames([
+      'tests/auth/gate-03-auth-flow.test.ts',
+      'tests/auth/gate_12_session.test.ts',
+    ])
+
+    expect(result.allowed).toBe(false)
+    expect(result.errors?.[0]).toContain('gate-03')
+    expect(result.errors?.[0]).toContain('gate_12')
+    expect(result.errors?.[0]).toContain('functionality under test')
+  })
+
+  it('allows domain names that use gate without a gate identifier', () => {
+    const result = validateNoZenoSpecificFileNames([
+      'src/core/gate-validator.ts',
+      'tests/core/gate-validator.test.ts',
+    ])
+
+    expect(result.allowed).toBe(true)
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('is enforced by validateScope for declared and modified files', () => {
+    const result = validateScope({
+      filesAffected: ['src/auth/gate_12_session.ts'],
+      filesModified: ['src/auth/gate_12_session.ts'],
+    })
+
+    expect(result.allowed).toBe(false)
+    expect(result.errors?.some((error) => error.includes('gate_12_session.ts'))).toBe(true)
+    expect(result.errors?.some((error) => error.includes('Zeno planning metadata'))).toBe(true)
+  })
+})
 
 describe('validateTestFileScope', () => {
   describe('gate-tied proposals (isSolitary=false)', () => {

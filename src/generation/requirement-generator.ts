@@ -190,11 +190,14 @@ export class RequirementGenerator {
   /**
    * Generate gate-specific requirements by reading gate PRD objectives
    */
-  generateRequirementsForGate = async (gateId: string): Promise<Requirement[]> => {
+  generateRequirementsForGate = async (
+    gateId: string,
+    projectRoot: string = getWorkspaceRoot()
+  ): Promise<Requirement[]> => {
     // Find gate PRD file under zeno/gates starting with gateId
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
-    const gatesDir = path.join(getZenoGitDir(getWorkspaceRoot()), 'gates')
+    const gatesDir = path.join(getZenoGitDir(projectRoot), 'gates')
 
     const files = await fs.readdir(gatesDir)
     const gateFile = files.find((f) => f.startsWith(gateId))
@@ -207,12 +210,22 @@ export class RequirementGenerator {
 
     const allStored: Requirement[] = []
 
-    for (const obj of objectives) {
-      const candidates = RequirementGenerator.extractRequirementsFromText(obj)
-      const { approved, review } = RequirementGenerator.approveRequirements(candidates)
+    const seenDescriptions = new Set(
+      Array.from(this.storage.buildRequirementGraph(gateId).nodes.values()).map((node) =>
+        node.title.trim().toLowerCase()
+      )
+    )
 
-      // Store approved candidates
-      for (const cand of approved) {
+    for (const obj of objectives) {
+      const objective = normalizeObjectiveText(obj)
+      if (!objective) continue
+
+      const candidatesToStore = [candidateFromObjective(objective)]
+
+      for (const cand of candidatesToStore) {
+        const descriptionKey = cand.description.trim().toLowerCase()
+        if (seenDescriptions.has(descriptionKey)) continue
+
         const stored = this.storage.storeRequirement(
           cand.description,
           cand.type,
@@ -223,11 +236,8 @@ export class RequirementGenerator {
         )
 
         allStored.push(stored)
+        seenDescriptions.add(descriptionKey)
       }
-
-      // For medium-confidence candidates, create review entries (do not auto-store)
-      // Keep review candidates available for manual inspection; do not iterate to avoid unused variable lint.
-      void review
     }
 
     return allStored
@@ -278,6 +288,54 @@ export class RequirementGenerator {
     return created
   }
 
+}
+
+function normalizeObjectiveText(objective: string): string {
+  return objective
+    .replace(/^(?:[-*+]\s*)?\[[ x]\]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function candidateFromObjective(objective: string): RequirementCandidate {
+  return {
+    description: objective,
+    type: inferRequirementType(objective),
+    priority: inferRequirementPriority(objective),
+    confidence: 1,
+    sourceText: objective,
+    metadata: { pattern: 'gate-objective-fallback' },
+  }
+}
+
+function inferRequirementType(objective: string): RequirementCandidate['type'] {
+  const lower = objective.toLowerCase()
+  if (
+    lower.includes('coverage') ||
+    lower.includes('latency') ||
+    lower.includes('performance') ||
+    lower.includes('scalable') ||
+    lower.includes('throughput')
+  ) {
+    return 'non_functional'
+  }
+  if (
+    lower.includes('security') ||
+    lower.includes('compliance') ||
+    lower.includes('policy') ||
+    lower.includes('permission') ||
+    lower.includes('constraint')
+  ) {
+    return 'constraint'
+  }
+  return 'functional'
+}
+
+function inferRequirementPriority(objective: string): RequirementCandidate['priority'] {
+  const lower = objective.toLowerCase()
+  if (lower.includes('could ') || lower.includes('optional')) return 'could'
+  if (lower.includes('should ') || lower.includes('recommended')) return 'should'
+  return 'must'
 }
 
 /** Helper: Extract objectives section from a gate PRD markdown */

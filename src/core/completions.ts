@@ -36,6 +36,8 @@ import { syncMemoryFromProjectOverview } from '../utils/memory-sync.js'
 import { syncGatesToProjectOverview } from '../utils/gate-sync.js'
 import { findGateByGateId, findProposalByHash } from '../utils/artifact-locator.js'
 import { WorktreeManager } from './worktree-manager.js'
+import { RequirementGenerator } from '../generation/requirement-generator.js'
+import type { Requirement } from '../generation/types.js'
 
 
 
@@ -701,7 +703,7 @@ export interface StartGateOptions {
 export async function startGate(
   gateIdInput: string,
   _options: StartGateOptions = {}
-): Promise<void> {
+): Promise<{ generatedRequirements: Requirement[] }> {
   const projectRoot = requireProjectRoot()
   await initializeDatabase(projectRoot, { syncProposals: false })
   const db = getDb(projectRoot)
@@ -729,6 +731,8 @@ export async function startGate(
       { gateId, status: gate.status }
     )
   }
+
+  const generatedRequirements = await generateRequirementsForGateStart(gateId, projectRoot)
 
   db.prepare(
     `UPDATE gates SET status = 'in_progress' WHERE id = ?`
@@ -766,6 +770,23 @@ export async function startGate(
     await reconcileGatePRD(gateId, projectRoot)
   } catch (error) {
     logger.warn(`Failed to reconcile gate PRD for ${gateId}: ${String(error)}`)
+  }
+
+  return { generatedRequirements }
+}
+
+async function generateRequirementsForGateStart(
+  gateId: string,
+  projectRoot: string
+): Promise<Requirement[]> {
+  try {
+    const generator = new RequirementGenerator()
+    return await generator.generateRequirementsForGate(gateId, projectRoot)
+  } catch (error) {
+    logger.warn(
+      `Failed to generate requirements for ${gateId} during gate start: ${String(error)}`
+    )
+    return []
   }
 }
 

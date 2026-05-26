@@ -153,7 +153,7 @@ describe('gates-registry coverage', () => {
     mockReadFileUtil.mockResolvedValue('')
     mockWriteFileUtil.mockResolvedValue(undefined)
     mockSyncProposalsFromDisk.mockReturnValue(undefined)
-    mockStartGate.mockResolvedValue(undefined)
+    mockStartGate.mockResolvedValue({ generatedRequirements: [] })
     mockCompleteGate.mockResolvedValue({
       projectRoot: '/project',
       gateId: 'gate-01',
@@ -457,6 +457,37 @@ describe('gates-registry coverage', () => {
       expect(result.success).toBe(true)
       expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('  status: in_progress')
       expect(mockWriteFileUtil.mock.calls[0]?.[1]).toContain('**Status**: in_progress')
+    })
+
+    it('returns requirements generated during gate start', async () => {
+      mockPrepare.mockReturnValue({ get: vi.fn().mockReturnValue({ status: 'validated' }) })
+      mockFindGateByGateId.mockResolvedValue('/project/zeno/gates/gate-01-setup.md')
+      mockReadFileUtil.mockResolvedValue(makeGateContent('validated'))
+      mockStartGate.mockResolvedValueOnce({
+        generatedRequirements: [
+          {
+            hash: '1234567890abcdef',
+            description: 'Build lifecycle validation',
+            type: 'functional',
+            priority: 'must',
+          },
+        ],
+      })
+
+      const result = (await registry.invoke('gates_start', { gateId: 'gate-01' })) as {
+        success: boolean
+        data: { generatedRequirements: { hash: string; title: string }[] }
+      }
+
+      expect(result.success).toBe(true)
+      expect(result.data.generatedRequirements).toEqual([
+        {
+          hash: '1234567890abcdef',
+          title: 'Build lifecycle validation',
+          type: 'functional',
+          priority: 'must',
+        },
+      ])
     })
   })
 

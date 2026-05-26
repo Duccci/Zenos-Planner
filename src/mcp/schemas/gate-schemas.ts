@@ -3,7 +3,10 @@ import {
   GateIdSchema,
   GateStatusEnum,
   ProposalStatusEnum,
+  RequirementHashSchema,
+  RequirementPriorityEnum,
   RequirementStatusEnum,
+  RequirementTypeEnum,
   TimestampSchema,
 } from './common-schemas.js'
 
@@ -123,6 +126,14 @@ export const GatesStartOutputSchema = z.object({
   previousStatus: GateStatusEnum,
   newStatus: z.literal('in_progress'),
   startedAt: TimestampSchema,
+  generatedRequirements: z.array(
+    z.object({
+      hash: RequirementHashSchema,
+      title: z.string(),
+      type: RequirementTypeEnum,
+      priority: RequirementPriorityEnum,
+    })
+  ).optional(),
   /** Warnings surfaced from qualitativeReview findings (false booleans + flaggedItems) */
   reviewWarnings: z.array(z.string()).optional(),
 })

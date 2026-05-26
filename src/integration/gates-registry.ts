@@ -481,7 +481,13 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         .prepare('SELECT status FROM gates WHERE id = ?')
         .get(normalizedId) as { status?: string } | undefined
       const previousStatus = (gateRow?.status ?? 'pending') as 'pending' | 'validated' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'backlog'
-      await startGate(normalizedId, { startedBy })
+      const startResult = await startGate(normalizedId, { startedBy })
+      const generatedRequirements = startResult.generatedRequirements.map((requirement) => ({
+        hash: requirement.hash,
+        title: requirement.description,
+        type: requirement.type,
+        priority: requirement.priority,
+      }))
 
       try {
         await syncGateArtifactStatus(normalizedId, 'in_progress')
@@ -494,10 +500,11 @@ export function registerGatesOps(registry: FunctionRegistry): void {
         previousStatus,
         newStatus: 'in_progress' as const,
         startedAt: new Date().toISOString(),
+        generatedRequirements,
       }
     },
     {
-      description: 'Start working on a gate (changes status from validated to in_progress)',
+      description: 'Start working on a gate, generate gate-specific requirements, and change status from validated to in_progress',
       parameters: [
         {
           name: 'gateId',

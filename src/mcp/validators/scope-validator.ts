@@ -35,6 +35,55 @@ function validateExplicitPaths(filesAffected: string[]): string[] {
   return errors
 }
 
+const ZENO_SPECIFIC_FILE_NAME_PATTERNS = [
+  /(?:^|[^a-z0-9])(gate[-_\s]*(?:\d+|x{2,}))(?=$|[^a-z0-9])/i,
+]
+
+function getFileName(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.split('/').pop() ?? normalized
+}
+
+/**
+ * Reject file names that encode Zeno planning artifacts such as gate numbers.
+ * Paths should describe the behavior being implemented, not the planning gate
+ * that introduced the work.
+ */
+export function validateNoZenoSpecificFileNames(files: string[]): ValidationResult {
+  const violations = new Map<string, string>()
+
+  for (const file of files) {
+    const fileName = getFileName(file)
+    const matchedPattern = ZENO_SPECIFIC_FILE_NAME_PATTERNS.find((pattern) =>
+      pattern.test(fileName)
+    )
+    if (!matchedPattern) continue
+
+    matchedPattern.lastIndex = 0
+    const matchResult = matchedPattern.exec(fileName)
+    const match = matchResult?.[1] ?? matchResult?.[0] ?? fileName
+    violations.set(file, match)
+  }
+
+  if (violations.size === 0) {
+    return { allowed: true }
+  }
+
+  const offendingFiles = [...violations.entries()]
+    .map(([file, match]) => `"${file}" (${match})`)
+    .join(', ')
+
+  return {
+    allowed: false,
+    errors: [
+      'File names must describe product behavior, not Zeno planning metadata. ' +
+        'Rename files to remove gate identifiers such as "gate-03" or "gate XX". ' +
+        'Tests should name the functionality under test, not the gate that introduced it. ' +
+        `Offending entries: ${offendingFiles}`,
+    ],
+  }
+}
+
 /**
  * Validate that file modifications are within declared scope.
  * Prevents unrelated refactoring and scope creep.
@@ -46,6 +95,12 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
 
   // Reject wildcard/directory entries in Files Affected
   errors.push(...validateExplicitPaths(context.filesAffected))
+
+  const nameResult = validateNoZenoSpecificFileNames([
+    ...context.filesAffected,
+    ...context.filesModified,
+  ])
+  errors.push(...(nameResult.errors ?? []))
 
   // Normalize paths for comparison
   const normalizedAffected = context.filesAffected.map((f) => f.replace(/\\/g, '/').toLowerCase())

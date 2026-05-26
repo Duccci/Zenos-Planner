@@ -117,6 +117,20 @@ describe('Validator Config Integration', () => {
       expect(result.errors?.[0]).toContain('Files modified outside of declared scope')
     })
 
+    it('blocks Zeno gate identifiers in modified file names', () => {
+      const context: ApplyPhaseValidationContext = {
+        proposalHash: '#test',
+        filesAffected: ['tests/auth/gate-04-auth-flow.test.ts'],
+        filesModified: ['tests/auth/gate-04-auth-flow.test.ts'],
+        gitOperations: [],
+        config: mockConfig,
+      }
+
+      const result = validateApplyPhase(context)
+      expect(result.allowed).toBe(false)
+      expect(result.errors?.some((error) => error.includes('gate-04-auth-flow.test.ts'))).toBe(true)
+    })
+
     it('uses quality thresholds from config', () => {
       const context: ApplyPhaseValidationContext = {
         proposalHash: '#test',

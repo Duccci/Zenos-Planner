@@ -8,6 +8,7 @@
  */
 
 import { ZenoConfig } from '../../utils/config.js'
+import { validateNoZenoSpecificFileNames } from './scope-validator.js'
 import type { ValidationResult } from './types.js'
 export type { ValidationResult }
 
@@ -60,6 +61,12 @@ export function validateApplyPhase(context: ApplyPhaseValidationContext): Valida
         `Only files listed in "Files Affected" should be modified.`
     )
   }
+
+  const fileNameResult = validateNoZenoSpecificFileNames([
+    ...context.filesAffected,
+    ...context.filesModified,
+  ])
+  errors.push(...(fileNameResult.errors ?? []))
 
   // Rule 3: Quality thresholds (all blocking per PRD Decision 6 — non-negotiable)
   if (context.qualityMetrics) {

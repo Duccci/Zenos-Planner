@@ -20,7 +20,7 @@ import {
 } from '../../utils/config.js'
 import { analyzeGateChanges, type GateAnalysisResult } from '../../core/write-time-analyzer.js'
 import { replanGates } from '../../core/gate-generator.js'
-import { updateCurrentGateInState, syncUpcomingGatesToState } from '../../utils/state-sync.js'
+import { syncUpcomingGatesToState } from '../../utils/state-sync.js'
 import { syncGatesToProjectOverview } from '../../utils/gate-sync.js'
 import { invokeGatesAction } from '../cli-tool-invoker.js'
 import { type GateStatus, GATE_TRANSITIONS, validateTransition } from '../../core/transitions.js'
@@ -317,7 +317,7 @@ export function registerGatesCommands(program: Command): void {
 
         // Confirm
         const confirmed = await confirm({
-          message: 'Start this gate and generate requirements/proposals?',
+          message: 'Start this gate and generate requirements?',
           default: true,
         })
 
@@ -326,26 +326,19 @@ export function registerGatesCommands(program: Command): void {
           return
         }
 
-        // Mark gate as in-progress in project.json
-        try {
-          await updateCurrentGateInState(gate.id, gate.name, gate.sequence, gate.hash)
-        } catch (error) {
-          logger.warn(
-            `Failed to update gate start in project.json: ${error instanceof Error ? error.message : String(error)}`
-          )
-          // Don't fail the start if project.json update fails
+        const startResult = await invokeGatesAction<{
+          generatedRequirements?: { title: string }[]
+        }>('start', { gateId: gate.id })
+
+        if (!startResult.success) {
+          logger.error(`Failed to start gate: ${startResult.error ?? 'Unknown error'}`)
+          process.exit(1)
         }
 
-        // Sync gate change back to project.json
-        try {
-          await syncGatesToProjectOverview()
-        } catch (error) {
-          logger.debug(
-            `Failed to sync gates: ${error instanceof Error ? error.message : String(error)}`
-          )
-        }
+        const generatedCount = startResult.data?.generatedRequirements?.length ?? 0
 
         logger.info(`\nGate ${gate.id} started successfully!\n`)
+        logger.info(`Generated requirements: ${String(generatedCount)}`)
         logger.info('Next steps:')
         logger.info(`  1. Review gate PRD in zeno/gates/${gate.id}-*.md`)
         logger.info(`  2. Check requirements: zeno req list --gate ${gate.id}`)

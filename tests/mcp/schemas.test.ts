@@ -282,6 +282,14 @@ describe('Gate Schemas', () => {
         previousStatus: 'pending',
         newStatus: 'in_progress',
         startedAt: new Date().toISOString(),
+        generatedRequirements: [
+          {
+            hash: '1234567890abcdef',
+            title: 'Build lifecycle validation',
+            type: 'functional',
+            priority: 'must',
+          },
+        ],
         reviewWarnings: ['requirementsMapped=false: some requirements lack testable deliverables'],
       }
       expect(() => gate.GatesStartOutputSchema.parse(output)).not.toThrow()

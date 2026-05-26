@@ -5,12 +5,14 @@ import Database from 'better-sqlite3'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 
 describe('RequirementGenerator', () => {
   let db: Database.Database
   let storage: RequirementStorage
   let generator: RequirementGenerator
   let tempDbPath: string
+  let tempProjectRoot: string | undefined
 
   beforeEach(() => {
     // Create temporary database for testing
@@ -67,7 +69,7 @@ describe('RequirementGenerator', () => {
     generator = new RequirementGenerator(storage)
   })
 
-  afterEach(() => {
+  afterEach(async () => {
     if (db) {
       db.close()
     }
@@ -76,6 +78,10 @@ describe('RequirementGenerator', () => {
       require('node:fs').unlinkSync(tempDbPath)
     } catch {
       // Ignore cleanup errors
+    }
+    if (tempProjectRoot) {
+      await rm(tempProjectRoot, { recursive: true, force: true })
+      tempProjectRoot = undefined
     }
   })
 
@@ -266,6 +272,37 @@ describe('RequirementGenerator', () => {
   describe('generateRequirementsForGate', () => {
     it('throws for a gate that does not exist', async () => {
       await expect(generator.generateRequirementsForGate('gate-nonexistent-99')).rejects.toThrow()
+    })
+
+    it('creates gate-specific requirements from plain objectives', async () => {
+      tempProjectRoot = join(tmpdir(), `zeno-gate-${randomUUID()}`)
+      const gatesDir = join(tempProjectRoot, 'zeno', 'gates')
+      await mkdir(gatesDir, { recursive: true })
+      await writeFile(
+        join(gatesDir, 'gate-01-setup.md'),
+        [
+          '# Gate 01: Setup',
+          '',
+          '## Objectives',
+          '',
+          '- [ ] Build lifecycle validation',
+          '- [ ] Create reliable proposal start flow',
+          '',
+          '## Context',
+          '',
+          'Implementation context.',
+        ].join('\n')
+      )
+
+      const requirements = await generator.generateRequirementsForGate('gate-01', tempProjectRoot)
+
+      expect(requirements).toHaveLength(2)
+      expect(requirements.map((requirement) => requirement.description)).toEqual([
+        'Build lifecycle validation',
+        'Create reliable proposal start flow',
+      ])
+      expect(requirements.every((requirement) => requirement.gateId === 'gate-01')).toBe(true)
+      expect(requirements.every((requirement) => requirement.level === 'gate')).toBe(true)
     })
   })
 

@@ -59,6 +59,10 @@ vi.mock('../../../src/utils/gate-sync.js', () => ({
   syncGatesToProjectOverview: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('../../../src/cli/cli-tool-invoker.js', () => ({
+  invokeGatesAction: vi.fn().mockResolvedValue({ success: true, data: {} }),
+}))
+
 vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
@@ -213,8 +217,7 @@ describe('Gates Commands', () => {
     it('should transition gate from validated to in_progress', async () => {
       const { readProjectOverview, getGatesFromOverview } =
         await import('../../../src/utils/config.js')
-      const { updateCurrentGateInState } =
-        await import('../../../src/utils/state-sync.js')
+      const { invokeGatesAction } = await import('../../../src/cli/cli-tool-invoker.js')
       const { confirm } = await import('@inquirer/prompts')
       const { logger } = await import('../../../src/utils/logger.js')
 
@@ -235,6 +238,10 @@ describe('Gates Commands', () => {
       vi.mocked(readProjectOverview).mockResolvedValue(mockOverview)
       vi.mocked(getGatesFromOverview).mockReturnValue([mockGateSummary] as any)
       vi.mocked(confirm).mockResolvedValue(true)
+      vi.mocked(invokeGatesAction).mockResolvedValue({
+        success: true,
+        data: { generatedRequirements: [{ title: 'Build lifecycle validation' }] },
+      })
 
       const program = new Command()
       program.exitOverride()
@@ -243,8 +250,9 @@ describe('Gates Commands', () => {
       await program.parseAsync(['node', 'test', 'gates', 'start', 'gate-01'])
 
       expect(confirm).toHaveBeenCalled()
-      expect(updateCurrentGateInState).toHaveBeenCalled()
+      expect(invokeGatesAction).toHaveBeenCalledWith('start', { gateId: 'gate-01' })
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('started successfully'))
+      expect(logger.info).toHaveBeenCalledWith('Generated requirements: 1')
     })
 
     it('should reject invalid status transitions', async () => {
