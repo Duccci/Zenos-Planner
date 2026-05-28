@@ -87,6 +87,15 @@ describe('validateTestFileScope', () => {
       expect(result.errors).toBeDefined()
     })
 
+    it('rejects Python test naming conventions', () => {
+      for (const testFile of ['src/test_feature.py', 'src/feature_test.py']) {
+        const result = validateTestFileScope(['src/feature.py', testFile], false)
+
+        expect(result.allowed).toBe(false)
+        expect(result.errors?.[0]).toContain(testFile)
+      }
+    })
+
     it('rejects .test.tsx and .spec.tsx patterns', () => {
       const tsxTest = validateTestFileScope(['src/Component.test.tsx'], false)
       expect(tsxTest.allowed).toBe(false)
@@ -135,6 +144,15 @@ describe('validateTestFileScope', () => {
       expect(result.allowed).toBe(true)
       expect(result.warnings).toBeUndefined()
     })
+
+    it('does not warn when Python test naming conventions are present', () => {
+      for (const testFile of ['src/test_feature.py', 'src/feature_test.py']) {
+        const result = validateTestFileScope(['src/feature.py', testFile], true)
+
+        expect(result.allowed).toBe(true)
+        expect(result.warnings).toBeUndefined()
+      }
+    })
   })
 
   describe('TEST_FILE_PATTERNS export', () => {
@@ -146,6 +164,11 @@ describe('validateTestFileScope', () => {
     it('includes .test.ts and .spec.ts patterns', () => {
       expect(TEST_FILE_PATTERNS.some((p) => p.includes('.test.ts'))).toBe(true)
       expect(TEST_FILE_PATTERNS.some((p) => p.includes('.spec.ts'))).toBe(true)
+    })
+
+    it('includes Python test naming patterns', () => {
+      expect(TEST_FILE_PATTERNS.some((p) => p.includes('test_*.py'))).toBe(true)
+      expect(TEST_FILE_PATTERNS.some((p) => p.includes('*_test.py'))).toBe(true)
     })
   })
 })

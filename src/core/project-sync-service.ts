@@ -271,12 +271,30 @@ async function isOnWorktreeBranch(git: ReturnType<typeof simpleGit>): Promise<bo
   }
 }
 
-async function getCurrentBranchRef(git: SimpleGit): Promise<string> {
+async function getCurrentBranchName(git: SimpleGit): Promise<string | null> {
   try {
-    return (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim() || 'HEAD'
+    const branch = (await git.raw(['symbolic-ref', '--short', 'HEAD'])).trim()
+    return branch.length > 0 ? branch : null
   } catch {
-    return 'HEAD'
+    return null
   }
+}
+
+async function getCurrentBranchRef(git: SimpleGit): Promise<string> {
+  return (await getCurrentBranchName(git)) ?? 'HEAD'
+}
+
+async function checkoutSubmoduleTarget(
+  git: SimpleGit,
+  targetHash: string,
+  targetBranch: string | null,
+): Promise<void> {
+  if (targetBranch != null) {
+    await git.checkout(['-B', targetBranch, targetHash])
+    return
+  }
+
+  await git.checkout(targetHash)
 }
 
 function parsePinnedSubmoduleHash(submoduleStatusRaw: string): string {
@@ -807,6 +825,7 @@ export async function syncPropagate(params: {
 
   const coreRepo = await detectCoreRepo(projectRoot)
   const coreGit = simpleGit(projectRoot)
+  const targetBranch = await getCurrentBranchName(coreGit)
 
   // Resolve target commit hash from the main working tree's HEAD,
   // never from a transient Zeno worktree.
@@ -905,7 +924,7 @@ export async function syncPropagate(params: {
       // local-only or pre-push workflows.
       try { await subGit.fetch([coreRepo.path]) } catch { /* best-effort */ }
       try { await subGit.fetch(['origin']) } catch { /* best-effort */ }
-      await subGit.checkout(targetHash)
+      await checkoutSubmoduleTarget(subGit, targetHash, targetBranch)
 
       // Stage the submodule pointer change
       await consumerGit.add(consumer.submodulePath)

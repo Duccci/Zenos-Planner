@@ -12,44 +12,11 @@
  *   2. Gate-level: gate has exactly one test-suite (first) and one test-cleanup (last)
  */
 
-/** Identifies test-related file paths (language-agnostic). */
-function isTestFile(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, '/')
-  const filename = normalized.slice(normalized.lastIndexOf('/') + 1)
-
-  return (
-    // ── Infix/suffix patterns (any extension) ──────────────────────────────
-    // JS/TS:     foo.test.ts, foo.spec.ts
-    /\.test\.[a-z0-9]+$/i.test(normalized) ||
-    /\.spec\.[a-z0-9]+$/i.test(normalized) ||
-    // Python:    test_foo.py, foo_test.py
-    /^test_/i.test(filename) ||
-    /_test\.[a-z0-9]+$/i.test(normalized) ||
-    // Go:        foo_test.go
-    /_test\.go$/i.test(normalized) ||
-    // Java/Kotlin/C#: FooTest.java, FooTests.kt, FooSpec.cs
-    /Test[s]?\.[a-z0-9]+$/i.test(normalized) ||
-    /Spec\.[a-z0-9]+$/i.test(filename) ||
-    // Ruby:      foo_spec.rb
-    /_spec\.[a-z0-9]+$/i.test(normalized) ||
-
-    // ── Directory conventions ───────────────────────────────────────────────
-    // JS/TS:     __tests__/
-    normalized.includes('/__tests__/') ||
-    // Broad:     /tests/, /test/, /spec/, /specs/  (Go, Rust, Java, Ruby…)
-    /\/tests?\//.test(normalized) ||
-    /\/specs?\//.test(normalized) ||
-    // Java/Maven: src/test/
-    normalized.includes('/src/test/') ||
-    // Root-level test/spec directories (project-local convention, no leading slash)
-    /^tests?\//.test(normalized) ||
-    /^specs?\//.test(normalized)
-  )
-}
+import { isTestFilePath } from './scope-validator.js'
 
 /** Identifies implementation file paths (non-test source files) */
 function isImplementationFile(filePath: string): boolean {
-  return !isTestFile(filePath)
+  return !isTestFilePath(filePath)
 }
 
 /**
@@ -158,7 +125,7 @@ function validateRoleFileConsistency(
     return { errors, warnings }
   }
 
-  const testFiles = filesAffected.filter(isTestFile)
+  const testFiles = filesAffected.filter(isTestFilePath)
   // Documentation/contract files (.md, .txt, .rst, .adoc) are neutral — they may
   // appear in testing proposals as spec artifacts that define the acceptance
   // criteria the tests verify.  They are not considered implementation files.
@@ -517,13 +484,13 @@ export function validateCleanupTestFileReuse(
     return { allowed: true }
   }
 
-  const redTestFiles = testingProposal.filesAffected.filter(isTestFile)
+  const redTestFiles = testingProposal.filesAffected.filter(isTestFilePath)
   if (redTestFiles.length === 0) {
     // Testing proposal has no test files listed — skip (unusual state)
     return { allowed: true }
   }
 
-  const cleanupTestFiles = cleanupFilesAffected.filter(isTestFile)
+  const cleanupTestFiles = cleanupFilesAffected.filter(isTestFilePath)
   const unrecognizedFiles = cleanupTestFiles.filter((f) => !redTestFiles.includes(f))
 
   if (unrecognizedFiles.length > 0) {

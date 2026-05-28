@@ -107,19 +107,16 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
   const normalizedModified = context.filesModified.map((f) => f.replace(/\\/g, '/').toLowerCase())
 
   // Check each modified file (exact path match after normalization)
-  for (const modifiedFile of normalizedModified) {
+  for (const [index, modifiedFile] of normalizedModified.entries()) {
     const isInScope = normalizedAffected.includes(modifiedFile)
 
     // Allow test files if flag is set
-    const isTestFile =
-      modifiedFile.includes('.test.') ||
-      modifiedFile.includes('.spec.') ||
-      modifiedFile.includes('/tests/')
+    const isTestFile = isTestFilePath(context.filesModified[index] ?? modifiedFile)
 
     if (!isInScope) {
       if (isTestFile && allowTestFiles) {
         // Test files are allowed but should be warned about if not declared
-        if (!normalizedAffected.some((f) => f.includes('test'))) {
+        if (!context.filesAffected.some(isTestFilePath)) {
           warnings.push(`Test file modified but not listed in Files Affected: ${modifiedFile}`)
         }
       } else {
@@ -153,6 +150,11 @@ export function validateScope(context: ScopeValidationContext): ValidationResult
  */
 export const TEST_FILE_PATTERNS = [
   'tests/',
+  'test/',
+  'spec/',
+  'specs/',
+  '__tests__/',
+  'src/test/',
   '.test.ts',
   '.test.tsx',
   '.test.js',
@@ -161,14 +163,41 @@ export const TEST_FILE_PATTERNS = [
   '.spec.tsx',
   '.spec.js',
   '.spec.jsx',
+  'test_*.py',
+  '*_test.py',
+  '*_test.go',
+  '*Test.*',
+  '*Tests.*',
+  '*Spec.*',
+  '*_spec.rb',
+]
+
+const TEST_PATH_REGEXES = [
+  /(^|\/)__tests__\//i,
+  /(^|\/)tests?\//i,
+  /(^|\/)specs?\//i,
+  /\.test\.[a-z0-9]+$/i,
+  /\.spec\.[a-z0-9]+$/i,
+  /_test\.[a-z0-9]+$/i,
+  /_spec\.[a-z0-9]+$/i,
+]
+
+const TEST_FILENAME_REGEXES = [
+  /^test_.+\.[a-z0-9]+$/i,
+  /^[A-Z][A-Za-z0-9]*(?:Test|Tests|Spec)\.[A-Za-z0-9]+$/,
 ]
 
 /**
  * Check whether a file path matches test file patterns.
  */
-function isTestFile(filePath: string): boolean {
+export function isTestFilePath(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/')
-  return TEST_FILE_PATTERNS.some((pattern) => normalized.includes(pattern))
+  const filename = normalized.slice(normalized.lastIndexOf('/') + 1)
+
+  return (
+    TEST_PATH_REGEXES.some((pattern) => pattern.test(normalized)) ||
+    TEST_FILENAME_REGEXES.some((pattern) => pattern.test(filename))
+  )
 }
 
 /**
@@ -187,7 +216,7 @@ export function validateTestFileScope(
 ): ValidationResult {
   if (!isSolitary) {
     // Gate-tied: reject if any test files are included
-    const testFiles = filesAffected.filter(isTestFile)
+    const testFiles = filesAffected.filter(isTestFilePath)
     if (testFiles.length > 0) {
       return {
         allowed: false,
@@ -202,7 +231,7 @@ export function validateTestFileScope(
   }
 
   // Solitary: warn if no test files are included
-  const hasTestFiles = filesAffected.some(isTestFile)
+  const hasTestFiles = filesAffected.some(isTestFilePath)
   if (!hasTestFiles) {
     return {
       allowed: true,

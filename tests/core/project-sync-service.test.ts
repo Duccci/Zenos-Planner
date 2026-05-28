@@ -650,6 +650,37 @@ describe('project-sync-service', () => {
       expect(result.summary.updated).toBe(1)
     })
 
+    it('should switch consumer submodule to the core branch before committing', async () => {
+      mockGitInstance.status.mockResolvedValue({ isClean: () => true })
+      mockGitInstance.raw.mockImplementation(async (args: string[]) => {
+        if (args[0] === 'symbolic-ref' && args[1] === '--short' && args[2] === 'HEAD') {
+          return 'feature/sync-branch'
+        }
+        if (args[0] === 'status' && args[1] === '--porcelain=v1') {
+          return ''
+        }
+        if (args[0] === 'submodule' && args[1] === 'status') {
+          return ' 0000000000000000000000000000000000000000 CoreRepo'
+        }
+        if (args[0] === 'submodule' && args[1] === 'update') return ''
+        if (args[0] === 'log') return 'test commit message'
+        return ''
+      })
+      mockGitInstance.diff.mockResolvedValue('CoreRepo')
+
+      const result = await syncPropagate({
+        repos: ['ConsumerA'],
+        projectRoot: '/project/CoreRepo',
+      })
+
+      expect(result.results[0]!.status).toBe('updated')
+      expect(mockGitInstance.checkout).toHaveBeenCalledWith([
+        '-B',
+        'feature/sync-branch',
+        'abc1234567890def1234567890abcdef12345678',
+      ])
+    })
+
     it('should include artifact hashes in propagation commit for traceability', async () => {
       mockGitInstance.status.mockResolvedValue({ isClean: () => true })
       mockGitInstance.raw.mockImplementation(async (args: string[]) => {
