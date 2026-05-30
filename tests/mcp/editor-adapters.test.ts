@@ -21,11 +21,13 @@ import {
   getVSCodeInstallUrl,
   isZenoInstalled,
   ensureWorkspaceMcp,
+  ensureUserMcp,
   buildMcpServerEntry,
   ensureCodeWorkspaceMcp,
   findCodeWorkspaceFile,
   extractWorkspaceFolders,
   installMcpConfig,
+  resolveGlobalZenoMcpLaunch,
 } from '../../src/mcp/editor-adapters.js'
 import { isSubmoduleLayout, loadConfig } from '../../src/utils/config.js'
 
@@ -120,10 +122,18 @@ describe('editor adapters', () => {
       expect(existsSync(join(tmpDir, '.vscode', 'mcp.json'))).toBe(true)
     })
 
-    it('returns false when mcp.json already exists', () => {
+    it('returns false when the matching mcp entry already exists', () => {
       const vscodeDirPath = join(tmpDir, '.vscode')
       mkdirSync(vscodeDirPath, { recursive: true })
-      writeFileSync(join(vscodeDirPath, 'mcp.json'), '{}')
+      writeFileSync(
+        join(vscodeDirPath, 'mcp.json'),
+        JSON.stringify({
+          servers: {
+            'zeno-planner': buildMcpServerEntry('./bin/mcp-server.js', '${workspaceFolder}'),
+          },
+        }),
+        'utf-8'
+      )
       const result = ensureWorkspaceMcp(tmpDir)
       expect(result).toBe(false)
     })
@@ -212,6 +222,94 @@ describe('buildMcpServerEntry', () => {
   it('uses exact binaryPath in args', () => {
     const entry = buildMcpServerEntry('/abs/path/to/mcp-server.js')
     expect(entry.args).toEqual(['/abs/path/to/mcp-server.js'])
+  })
+})
+
+describe('resolveGlobalZenoMcpLaunch', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'zeno-global-launch-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('prefers an explicit zeno-mcp.cmd on Windows PATH', () => {
+    const binDir = join(tmpDir, 'bin')
+    const commandPath = join(binDir, 'zeno-mcp.cmd')
+    mkdirSync(binDir, { recursive: true })
+    writeFileSync(commandPath, '@echo off', 'utf-8')
+
+    const launch = resolveGlobalZenoMcpLaunch('win32', {
+      PATH: binDir,
+      APPDATA: join(tmpDir, 'AppData', 'Roaming'),
+    })
+
+    expect(launch.command).toBe(commandPath)
+    expect(launch.args).toEqual([])
+    expect(launch.isExplicitPath).toBe(true)
+  })
+
+  it('falls back to the AppData npm shim on Windows', () => {
+    const appData = join(tmpDir, 'AppData', 'Roaming')
+    const npmDir = join(appData, 'npm')
+    const commandPath = join(npmDir, 'zeno-mcp.cmd')
+    mkdirSync(npmDir, { recursive: true })
+    writeFileSync(commandPath, '@echo off', 'utf-8')
+
+    const launch = resolveGlobalZenoMcpLaunch('win32', {
+      PATH: '',
+      APPDATA: appData,
+    })
+
+    expect(launch.command).toBe(commandPath)
+    expect(launch.isExplicitPath).toBe(true)
+  })
+
+  it('falls back to the bare command outside Windows', () => {
+    const launch = resolveGlobalZenoMcpLaunch('linux', { PATH: '' })
+
+    expect(launch.command).toBe('zeno-mcp')
+    expect(launch.args).toEqual([])
+    expect(launch.isExplicitPath).toBe(false)
+  })
+})
+
+describe('ensureUserMcp', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'zeno-user-mcp-test-'))
+  })
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('writes a user-scope mcp.json with an explicit Windows shim when available', () => {
+    const binDir = join(tmpDir, 'bin')
+    const commandPath = join(binDir, 'zeno-mcp.cmd')
+    const userMcpPath = join(tmpDir, 'Code', 'User', 'mcp.json')
+    mkdirSync(binDir, { recursive: true })
+    writeFileSync(commandPath, '@echo off', 'utf-8')
+
+    const result = ensureUserMcp({
+      userMcpPath,
+      platform: 'win32',
+      env: {
+        PATH: binDir,
+        APPDATA: join(tmpDir, 'AppData', 'Roaming'),
+      },
+    })
+
+    expect(result).toBe(true)
+    const content = JSON.parse(readFileSync(userMcpPath, 'utf-8')) as Record<string, unknown>
+    const servers = (content['servers'] as Record<string, unknown>)
+    const entry = servers['zeno-planner'] as { command: string; env?: Record<string, string> }
+    expect(entry.command).toBe(commandPath)
+    expect(entry.env).toEqual({ ZENO_WORKSPACE: '${workspaceFolder}' })
   })
 })
 
@@ -550,7 +648,7 @@ describe('installMcpConfig', () => {
     expect(result.serverName).toMatch(/^zeno-/)
   })
 
-  it('writes to .code-workspace when one is found with identifiable folders', async () => {
+  it('writes .vscode/mcp.json when workspace metadata is available', async () => {
     const consumerDir = join(tmpDir, 'consumer')
     mkdirSync(consumerDir, { recursive: true })
     setupValidInstall(consumerDir)
@@ -563,11 +661,19 @@ describe('installMcpConfig', () => {
       ],
     }, null, 2), 'utf-8')
     const result = await installMcpConfig(consumerDir, { serverName: 'zeno-ws' })
-    expect(result.target).toBe('code-workspace')
+    expect(result.target).toBe('mcp-json')
     expect(result.written).toBe(true)
+    expect(result.targetPath).toBe(join(consumerDir, '.vscode', 'mcp.json'))
+
+    const content = JSON.parse(
+      readFileSync(join(consumerDir, '.vscode', 'mcp.json'), 'utf-8')
+    ) as Record<string, unknown>
+    const entry = (content['servers'] as Record<string, { args: string[]; env?: Record<string, string> }>)['zeno-ws']
+    expect(entry.args[0]).toContain('${workspaceFolder:consumer}')
+    expect(entry.env).toEqual({ ZENO_WORKSPACE: '${workspaceFolder:consumer}' })
   })
 
-  it('dry run with .code-workspace returns written: false', async () => {
+  it('dry run with workspace metadata still targets mcp-json', async () => {
     const consumerDir = join(tmpDir, 'consumer')
     mkdirSync(consumerDir, { recursive: true })
     setupValidInstall(consumerDir)
@@ -579,7 +685,44 @@ describe('installMcpConfig', () => {
       ],
     }, null, 2), 'utf-8')
     const result = await installMcpConfig(consumerDir, { serverName: 'zeno-ws', dryRun: true })
-    expect(result.target).toBe('code-workspace')
+    expect(result.target).toBe('mcp-json')
     expect(result.written).toBe(false)
+    expect(result.targetPath).toBe(join(consumerDir, '.vscode', 'mcp.json'))
+    expect(existsSync(join(consumerDir, '.vscode', 'mcp.json'))).toBe(false)
+  })
+
+  it('writes the VS Code user-profile mcp.json in user scope without local binaries', async () => {
+    const binDir = join(tmpDir, 'bin')
+    const commandPath = join(binDir, 'zeno-mcp.cmd')
+    const userMcpPath = join(tmpDir, 'Code', 'User', 'mcp.json')
+    mkdirSync(binDir, { recursive: true })
+    writeFileSync(commandPath, '@echo off', 'utf-8')
+
+    const result = await installMcpConfig(tmpDir, {
+      scope: 'user',
+      userMcpPath,
+      platform: 'win32',
+      env: {
+        PATH: binDir,
+        APPDATA: join(tmpDir, 'AppData', 'Roaming'),
+      },
+    })
+
+    expect(result.target).toBe('user-mcp-json')
+    expect(result.written).toBe(true)
+    expect(existsSync(userMcpPath)).toBe(true)
+  })
+
+  it('rejects a Windows user-scope install when no explicit zeno-mcp.cmd can be resolved', async () => {
+    await expect(
+      installMcpConfig(tmpDir, {
+        scope: 'user',
+        platform: 'win32',
+        env: {
+          PATH: '',
+          APPDATA: join(tmpDir, 'AppData', 'Roaming'),
+        },
+      })
+    ).rejects.toThrow('Could not resolve an explicit zeno-mcp.cmd')
   })
 })

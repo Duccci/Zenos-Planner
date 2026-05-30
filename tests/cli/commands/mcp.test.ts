@@ -171,6 +171,22 @@ describe('MCP commands action coverage', () => {
       )
     })
 
+    it('should install MCP config globally when requested', async () => {
+      mockInstallMcpConfig.mockResolvedValue({
+        target: 'user-mcp-json',
+        targetPath: 'C:/Users/Owner/AppData/Roaming/Code/User/mcp.json',
+        serverName: 'zeno-planner',
+        written: true,
+      })
+
+      await expect(program.parseAsync(['node', 'test', 'mcp', 'install', '--global'])).rejects.toThrow()
+      expect(mockInstallMcpConfig).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ scope: 'user' })
+      )
+      expect(consoleSpy).toHaveBeenCalledWith('[mcp-install] Global MCP config installed.')
+    })
+
     it('should handle already existing config', async () => {
       mockInstallMcpConfig.mockResolvedValue({
         target: 'mcp-json',

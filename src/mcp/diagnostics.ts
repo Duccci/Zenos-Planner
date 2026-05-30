@@ -6,9 +6,13 @@
  */
 
 import { FunctionRegistry } from '../integration/function-registry.js'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { parse as jsoncParse } from 'jsonc-parser'
 import { logger } from '../utils/logger.js'
 import { loadConfig } from '../utils/config.js'
 import { getDatabasePath } from '../storage/database.js'
+import { getDefaultVsCodeUserMcpPath } from './editor-adapters.js'
 
 /**
  * Server health status
@@ -43,8 +47,39 @@ export interface ConfigStatus {
   databasePath?: string
   hasGit: boolean
   mcpConfigExists: boolean
+  workspaceMcpConfigExists: boolean
+  userMcpConfigExists: boolean
   mcpExecutableExists: boolean
+  workspaceServerNames: string[]
+  userServerNames: string[]
+  duplicateServerNames: string[]
+  warnings: string[]
   vscodeVersion?: string
+}
+
+function readMcpServers(configPath: string): Record<string, Record<string, unknown>> {
+  if (!existsSync(configPath)) {
+    return {}
+  }
+
+  try {
+    const parsed = jsoncParse(readFileSync(configPath, 'utf-8')) as Record<string, unknown>
+    const servers = parsed['servers']
+    return servers && typeof servers === 'object'
+      ? (servers as Record<string, Record<string, unknown>>)
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function usesBareWindowsZenoCommand(entry: Record<string, unknown>): boolean {
+  if (process.platform !== 'win32') {
+    return false
+  }
+
+  const command = typeof entry['command'] === 'string' ? entry['command'].trim().toLowerCase() : ''
+  return command === 'zeno-mcp'
 }
 
 /**
@@ -144,25 +179,53 @@ export class McpDiagnostics {
         databasePath: getDatabasePath(),
         hasGit: true, // Assume git is available for now
         mcpConfigExists: false,
+        workspaceMcpConfigExists: false,
+        userMcpConfigExists: false,
         mcpExecutableExists: false,
+        workspaceServerNames: [],
+        userServerNames: [],
+        duplicateServerNames: [],
+        warnings: [],
       }
 
-      // Check for VSCode MCP configuration
-      try {
-        const fs = await import('node:fs')
-        const path = await import('node:path')
-        const mcpConfigPath = path.join(process.cwd(), '.vscode', 'mcp.json')
-        configStatus.mcpConfigExists = fs.existsSync(mcpConfigPath)
-      } catch {
-        // Ignore
+      const workspaceMcpConfigPath = join(process.cwd(), '.vscode', 'mcp.json')
+      const userMcpConfigPath = getDefaultVsCodeUserMcpPath()
+      const workspaceServers = readMcpServers(workspaceMcpConfigPath)
+      const userServers = readMcpServers(userMcpConfigPath)
+
+      configStatus.workspaceMcpConfigExists = existsSync(workspaceMcpConfigPath)
+      configStatus.userMcpConfigExists = existsSync(userMcpConfigPath)
+      configStatus.mcpConfigExists =
+        configStatus.workspaceMcpConfigExists || configStatus.userMcpConfigExists
+      configStatus.workspaceServerNames = Object.keys(workspaceServers)
+      configStatus.userServerNames = Object.keys(userServers)
+      configStatus.duplicateServerNames = configStatus.workspaceServerNames.filter((name) =>
+        configStatus.userServerNames.includes(name)
+      )
+
+      if (configStatus.duplicateServerNames.length > 0) {
+        configStatus.warnings.push(
+          `Server name configured in both workspace and user MCP config: ${configStatus.duplicateServerNames.join(', ')}`
+        )
+      }
+
+      const riskyWindowsServers = [
+        ...Object.entries(workspaceServers).map(([name, entry]) => ({ scope: 'workspace', name, entry })),
+        ...Object.entries(userServers).map(([name, entry]) => ({ scope: 'user', name, entry })),
+      ].filter(({ entry }) => usesBareWindowsZenoCommand(entry))
+
+      if (riskyWindowsServers.length > 0) {
+        configStatus.warnings.push(
+          `Windows Zeno MCP launch uses bare 'zeno-mcp' in ${riskyWindowsServers
+            .map(({ scope, name }) => `${scope}:${name}`)
+            .join(', ')}. Prefer an explicit zeno-mcp.cmd path.`
+        )
       }
 
       // Check for MCP executable
       try {
-        const fs = await import('node:fs')
-        const path = await import('node:path')
-        const execPath = path.join(process.cwd(), 'bin', 'mcp-server.js')
-        configStatus.mcpExecutableExists = fs.existsSync(execPath)
+        const execPath = join(process.cwd(), 'bin', 'mcp-server.js')
+        configStatus.mcpExecutableExists = existsSync(execPath)
       } catch {
         // Ignore
       }
@@ -174,7 +237,13 @@ export class McpDiagnostics {
         configLoaded: false,
         hasGit: false,
         mcpConfigExists: false,
+        workspaceMcpConfigExists: false,
+        userMcpConfigExists: false,
         mcpExecutableExists: false,
+        workspaceServerNames: [],
+        userServerNames: [],
+        duplicateServerNames: [],
+        warnings: [],
       }
     }
   }
@@ -235,23 +304,49 @@ export class McpDiagnostics {
     }
     lines.push(`  Git Available: ${report.config.hasGit ? 'Yes' : 'No'}`)
     lines.push(
-      `  VSCode MCP Config: ${report.config.mcpConfigExists ? 'Found (.vscode/mcp.json)' : 'Missing (.vscode/mcp.json)'} `
+      `  Workspace MCP Config: ${report.config.workspaceMcpConfigExists ? 'Found (.vscode/mcp.json)' : 'Missing (.vscode/mcp.json)'}`
     )
     lines.push(
-      `  MCP Executable: ${report.config.mcpExecutableExists ? 'Found (bin/mcp-server.js)' : 'Missing (bin/mcp-server.js)'} `
+      `  User MCP Config: ${report.config.userMcpConfigExists ? `Found (${getDefaultVsCodeUserMcpPath()})` : `Missing (${getDefaultVsCodeUserMcpPath()})`}`
     )
+    lines.push(
+      `  MCP Executable: ${report.config.mcpExecutableExists ? 'Found (bin/mcp-server.js)' : 'Missing (bin/mcp-server.js)'}`
+    )
+    if (report.config.workspaceServerNames.length > 0) {
+      lines.push(`  Workspace Servers: ${report.config.workspaceServerNames.join(', ')}`)
+    }
+    if (report.config.userServerNames.length > 0) {
+      lines.push(`  User Servers: ${report.config.userServerNames.join(', ')}`)
+    }
+    if (report.config.duplicateServerNames.length > 0) {
+      lines.push(`  Duplicate Server Names: ${report.config.duplicateServerNames.join(', ')}`)
+    }
     lines.push('')
 
     // VSCode Troubleshooting
-    if (!report.config.mcpConfigExists || !report.config.mcpExecutableExists) {
+    if (
+      !report.config.mcpConfigExists ||
+      (report.config.workspaceMcpConfigExists && !report.config.mcpExecutableExists) ||
+      report.config.warnings.length > 0
+    ) {
       lines.push('VSCode MCP Troubleshooting:')
-      if (!report.config.mcpConfigExists) {
+      if (!report.config.workspaceMcpConfigExists) {
         lines.push('  - Run: zeno mcp install')
         lines.push('  - Creates .vscode/mcp.json configuration')
       }
-      if (!report.config.mcpExecutableExists) {
+      if (!report.config.userMcpConfigExists) {
+        lines.push('  - Run: zeno mcp install --global')
+        lines.push('  - Creates the VS Code user-profile mcp.json configuration')
+      }
+      if (report.config.workspaceMcpConfigExists && !report.config.mcpExecutableExists) {
         lines.push('  - Run: npm run build')
         lines.push('  - Compiles TypeScript to bin/mcp-server.js')
+      }
+      if (report.config.duplicateServerNames.length > 0) {
+        lines.push('  - Remove the duplicate server name from either workspace or user scope, or rename one of them')
+      }
+      for (const warning of report.config.warnings) {
+        lines.push(`  - ${warning}`)
       }
       lines.push('  - Restart VSCode MCP server from command palette')
       lines.push('')

@@ -83,12 +83,14 @@ export function registerMcpCommands(program: Command): void {
 
   mcpCommand
     .command('install')
-    .description('Install MCP configuration (auto-detects workspace topology)')
+    .description('Install MCP configuration in the workspace or VS Code user profile')
     .option('--server-name <name>', 'Override the MCP server key')
     .option('--dry-run', 'Do not modify files, only show actions')
+    .option('--global', 'Install in the VS Code user profile instead of the workspace')
     .action(async (opts: {
       serverName?: string
       dryRun?: boolean
+      global?: boolean
     }) => {
       try {
         const { installMcpConfig } = await import('../../mcp/editor-adapters.js')
@@ -99,6 +101,7 @@ export function registerMcpCommands(program: Command): void {
         const result = await installMcpConfig(projectRoot, {
           serverName: opts.serverName,
           dryRun: opts.dryRun,
+          scope: opts.global ? 'user' : 'workspace',
         })
 
         if (opts.dryRun) {
@@ -123,7 +126,7 @@ export function registerMcpCommands(program: Command): void {
           // Config may not exist yet — skip persistence.
         }
 
-        console.log('[mcp-install] Editor MCP config installed.')
+        console.log(`[mcp-install] ${opts.global ? 'Global' : 'Workspace'} MCP config installed.`)
         console.log('[mcp-install] The editor will start the MCP server automatically via stdio.')
         process.exit(0)
       } catch (error) {

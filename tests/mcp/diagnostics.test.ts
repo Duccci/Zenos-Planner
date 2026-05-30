@@ -1,4 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+
+const mockGetDefaultVsCodeUserMcpPath = vi.fn()
+
+vi.mock('../../src/mcp/editor-adapters.js', () => ({
+  getDefaultVsCodeUserMcpPath: (...args: unknown[]) => mockGetDefaultVsCodeUserMcpPath(...args),
+}))
+
 import { McpDiagnostics } from '../../src/mcp/diagnostics.js'
 import { FunctionRegistry } from '../../src/integration/function-registry.js'
 
@@ -13,8 +23,12 @@ vi.mock('../../src/storage/database.js', () => ({
 describe('MCP Diagnostics', () => {
   let diagnostics: McpDiagnostics
   let mockRegistry: FunctionRegistry
+  let cwd: string
+  let tmpDir: string
+  let userMcpPath: string
 
   beforeEach(() => {
+    vi.clearAllMocks()
     diagnostics = new McpDiagnostics()
     mockRegistry = {
       list: vi.fn().mockReturnValue([
@@ -26,6 +40,16 @@ describe('MCP Diagnostics', () => {
       ]),
       invoke: vi.fn(),
     } as any
+    cwd = process.cwd()
+    tmpDir = mkdtempSync(join(tmpdir(), 'zeno-diag-test-'))
+    userMcpPath = join(tmpDir, 'User', 'mcp.json')
+    mockGetDefaultVsCodeUserMcpPath.mockReturnValue(userMcpPath)
+    process.chdir(tmpDir)
+  })
+
+  afterEach(() => {
+    process.chdir(cwd)
+    rmSync(tmpDir, { recursive: true, force: true })
   })
 
   it('reports healthy status with registered tools', async () => {
@@ -77,5 +101,46 @@ describe('MCP Diagnostics', () => {
     expect(formatted).toContain('MCP Server Diagnostics')
     expect(formatted).toContain('Status:')
     expect(formatted).toContain('test_tool')
+  })
+
+  it('detects duplicate MCP server names across workspace and user scope', async () => {
+    mkdirSync(join(tmpDir, '.vscode'), { recursive: true })
+    writeFileSync(
+      join(tmpDir, '.vscode', 'mcp.json'),
+      JSON.stringify({
+        servers: {
+          'zeno-planner': {
+            type: 'stdio',
+            command: 'node',
+            args: ['./bin/mcp-server.js'],
+          },
+        },
+      }),
+      'utf-8'
+    )
+
+    mkdirSync(join(tmpDir, 'User'), { recursive: true })
+    writeFileSync(
+      userMcpPath,
+      JSON.stringify({
+        servers: {
+          'zeno-planner': {
+            type: 'stdio',
+            command: 'zeno-mcp',
+            args: [],
+          },
+        },
+      }),
+      'utf-8'
+    )
+
+    const config = await diagnostics.getConfigStatus()
+
+    expect(config.workspaceMcpConfigExists).toBe(true)
+    expect(config.userMcpConfigExists).toBe(true)
+    expect(config.duplicateServerNames).toContain('zeno-planner')
+    expect(config.warnings).toContain(
+      'Server name configured in both workspace and user MCP config: zeno-planner'
+    )
   })
 })

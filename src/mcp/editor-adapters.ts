@@ -6,11 +6,20 @@
  */
 
 import { basename, dirname, join, resolve } from 'node:path'
+import { homedir } from 'node:os'
 import { existsSync, writeFileSync, readFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { modify, applyEdits, parse as jsoncParse } from 'jsonc-parser'
 import { logger } from '../utils/logger.js'
 import { isSubmoduleLayout, getZenoToolDir, loadConfig, toSlug } from '../utils/config.js'
 import { normalizePath } from '../utils/file.js'
+
+export type McpInstallScope = 'workspace' | 'user'
+
+export interface GlobalMcpLaunch {
+  command: string
+  args: string[]
+  isExplicitPath: boolean
+}
 
 export function getAdapterCommand(
   editor: 'vscode' | 'cursor' | 'windsurf',
@@ -37,6 +46,76 @@ export function getVSCodeInstallUrl(): string {
   }
   const encodedConfig = encodeURIComponent(JSON.stringify(config))
   return `vscode:mcp/install?${encodedConfig}`
+}
+
+function splitPathEntries(pathValue: string, platform: NodeJS.Platform): string[] {
+  const separator = platform === 'win32' ? ';' : ':'
+  return pathValue.split(separator).filter(Boolean)
+}
+
+function findCommandOnPath(
+  executableNames: string[],
+  platform: NodeJS.Platform,
+  env: NodeJS.ProcessEnv
+): string | undefined {
+  const pathValue = env['Path'] ?? env['PATH'] ?? ''
+
+  for (const pathEntry of splitPathEntries(pathValue, platform)) {
+    for (const executableName of executableNames) {
+      const candidate = join(pathEntry, executableName)
+      if (existsSync(candidate)) {
+        return candidate
+      }
+    }
+  }
+
+  return undefined
+}
+
+export function getDefaultVsCodeUserMcpPath(
+  platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  if (platform === 'win32') {
+    const appData = env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming')
+    return join(appData, 'Code', 'User', 'mcp.json')
+  }
+
+  if (platform === 'darwin') {
+    return join(homedir(), 'Library', 'Application Support', 'Code', 'User', 'mcp.json')
+  }
+
+  const xdgConfigHome = env['XDG_CONFIG_HOME'] ?? join(homedir(), '.config')
+  return join(xdgConfigHome, 'Code', 'User', 'mcp.json')
+}
+
+export function resolveGlobalZenoMcpLaunch(
+  platform = process.platform,
+  env: NodeJS.ProcessEnv = process.env
+): GlobalMcpLaunch {
+  if (platform === 'win32') {
+    const explicitCommand =
+      findCommandOnPath(['zeno-mcp.cmd'], platform, env) ??
+      (() => {
+        const appData = env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming')
+        const candidate = join(appData, 'npm', 'zeno-mcp.cmd')
+        return existsSync(candidate) ? candidate : undefined
+      })()
+
+    if (explicitCommand) {
+      return {
+        command: explicitCommand,
+        args: [],
+        isExplicitPath: true,
+      }
+    }
+  }
+
+  return {
+    command: 'zeno-mcp',
+    args: [],
+    isExplicitPath: false,
+  }
 }
 
 /**
@@ -79,20 +158,68 @@ export function isZenoInstalled(
  * @param binaryPath - Path to `mcp-server.js` (relative or absolute for `.vscode/mcp.json`).
  * @param workspace  - When provided, injected as `ZENO_WORKSPACE` in the `env` block.
  */
-export function buildMcpServerEntry(
-  binaryPath: string,
+export function buildMcpCommandEntry(
+  command: string,
+  args: string[] = [],
   workspace?: string
 ): Record<string, unknown> {
   const entry: Record<string, unknown> = {
     type: 'stdio',
-    command: 'node',
-    args: [binaryPath],
+    command,
+    args,
     description: 'Zeno Planner MCP server for AI-powered project management',
   }
   if (workspace !== undefined) {
     entry['env'] = { ZENO_WORKSPACE: workspace }
   }
   return entry
+}
+
+export function buildMcpServerEntry(
+  binaryPath: string,
+  workspace?: string
+): Record<string, unknown> {
+  return buildMcpCommandEntry('node', [binaryPath], workspace)
+}
+
+function upsertMcpConfigEntry(
+  target: string,
+  serverName: string,
+  serverEntry: Record<string, unknown>
+): boolean {
+  const parentDir = dirname(target)
+
+  try {
+    if (!existsSync(parentDir)) {
+      mkdirSync(parentDir, { recursive: true })
+    }
+
+    const existingContent = existsSync(target)
+      ? readFileSync(target, 'utf-8')
+      : JSON.stringify({ servers: {} }, null, 2)
+
+    try {
+      const existing = jsoncParse(existingContent) as Record<string, unknown>
+      const existingServers = existing['servers'] as Record<string, unknown> | undefined
+      const existingEntry = existingServers?.[serverName]
+      if (existingEntry !== undefined && JSON.stringify(existingEntry) === JSON.stringify(serverEntry)) {
+        return false
+      }
+    } catch {
+      // Parse errors fall through to a full rewrite.
+    }
+
+    const edits = modify(existingContent, ['servers', serverName], serverEntry, {
+      formattingOptions: { tabSize: 2, insertSpaces: true, eol: '\n' },
+    })
+    const updatedContent = applyEdits(existingContent, edits)
+    writeFileSync(target, updatedContent, { encoding: 'utf-8' })
+    logger.info(`Wrote workspace mcp.json to ${target}`)
+    return true
+  } catch (err) {
+    logger.warn('Failed to ensure workspace MCP configuration', err)
+    return false
+  }
 }
 
 /**
@@ -121,43 +248,38 @@ export function ensureWorkspaceMcp(
   zenoWorkspace?: string,
   serverName = 'zeno-planner'
 ): boolean {
-  const vscodeDir = join(projectRoot, '.vscode')
-  const target = join(vscodeDir, 'mcp.json')
+  const binaryPath = zenoDir === '.' ? './bin/mcp-server.js' : `./${zenoDir}/bin/mcp-server.js`
 
-  let configWritten = false
+  // Inject ZENO_WORKSPACE so the MCP server targets the consumer project
+  // root regardless of the working directory it is started in. Default to
+  // the VS Code `${workspaceFolder}` variable so the file is portable.
+  const workspace = zenoWorkspace ?? '${workspaceFolder}'
+  const target = join(projectRoot, '.vscode', 'mcp.json')
 
-  try {
-    // Ensure .vscode directory exists
-    if (!existsSync(vscodeDir)) {
-      mkdirSync(vscodeDir, { recursive: true })
-    }
+  return upsertMcpConfigEntry(target, serverName, buildMcpServerEntry(binaryPath, workspace))
+}
 
-    // Write mcp.json if it doesn't exist
-    if (!existsSync(target)) {
-      // When zenoDir is not '.' the binary lives inside the submodule directory.
-      const binaryPath =
-        zenoDir === '.' ? './bin/mcp-server.js' : `./${zenoDir}/bin/mcp-server.js`
+export interface EnsureUserMcpOptions {
+  userMcpPath?: string
+  serverName?: string
+  workspace?: string
+  platform?: NodeJS.Platform
+  env?: NodeJS.ProcessEnv
+}
 
-      // Inject ZENO_WORKSPACE so the MCP server targets the consumer project
-      // root regardless of the working directory it is started in.  Default
-      // to the VS Code `${workspaceFolder}` variable so the file is portable
-      // (same `mcp.json` works on every machine and for every window that
-      // opens the folder).
-      const workspace = zenoWorkspace ?? '${workspaceFolder}'
+export function ensureUserMcp(options: EnsureUserMcpOptions = {}): boolean {
+  const platform = options.platform ?? process.platform
+  const env = options.env ?? process.env
+  const target = options.userMcpPath ?? getDefaultVsCodeUserMcpPath(platform, env)
+  const workspace = options.workspace ?? '${workspaceFolder}'
+  const serverName = options.serverName ?? 'zeno-planner'
+  const launch = resolveGlobalZenoMcpLaunch(platform, env)
 
-      const serverEntry = buildMcpServerEntry(binaryPath, workspace)
-
-      const content = JSON.stringify({ servers: { [serverName]: serverEntry } }, null, 2)
-      writeFileSync(target, content, { encoding: 'utf-8' })
-      logger.info(`Wrote workspace mcp.json to ${target}`)
-      configWritten = true
-    }
-
-    return configWritten
-  } catch (err) {
-    logger.warn('Failed to ensure workspace MCP configuration', err)
-    return false
-  }
+  return upsertMcpConfigEntry(
+    target,
+    serverName,
+    buildMcpCommandEntry(launch.command, launch.args, workspace)
+  )
 }
 
 /**
@@ -306,7 +428,7 @@ export function extractWorkspaceFolders(
 // ── Unified MCP installation ──────────────────────────────────────────────────
 
 export interface McpInstallResult {
-  target: 'mcp-json' | 'code-workspace'
+  target: 'mcp-json' | 'user-mcp-json' | 'code-workspace'
   targetPath: string
   serverName: string
   written: boolean
@@ -318,9 +440,10 @@ export interface McpInstallResult {
  * Auto-detects the workspace topology and writes the correct MCP config:
  *
  * 1. Detects if `zeno/` is a git submodule → binary at `./zeno/bin/`, else at `./bin/`.
- * 2. Searches for a `.code-workspace` file → if found, writes to it using
- *    `${workspaceFolder:name}` variable substitution.
- * 3. Falls back to `.vscode/mcp.json` for single-folder projects.
+ * 2. Searches for a `.code-workspace` file → if found, uses it only to derive
+ *    `${workspaceFolder:name}` variables for sibling roots.
+ * 3. Writes either workspace `.vscode/mcp.json` or the VS Code user-profile
+ *    `mcp.json`, depending on the requested scope.
  *
  * The only user-configurable option is `serverName` (defaults to config value
  * or `'zeno-' + projectSlug`).
@@ -328,12 +451,23 @@ export interface McpInstallResult {
  * @param projectRoot - Project root directory.
  * @param options.serverName - Override MCP server key.
  * @param options.dryRun     - When true, returns the result without writing files.
+ * @param options.scope      - Install into the workspace or VS Code user profile.
  * @returns What was written and where.
  */
 export async function installMcpConfig(
   projectRoot: string,
-  options?: { serverName?: string; dryRun?: boolean }
+  options?: {
+    serverName?: string
+    dryRun?: boolean
+    scope?: McpInstallScope
+    userMcpPath?: string
+    platform?: NodeJS.Platform
+    env?: NodeJS.ProcessEnv
+  }
 ): Promise<McpInstallResult> {
+  const scope = options?.scope ?? 'workspace'
+  const platform = options?.platform ?? process.platform
+  const env = options?.env ?? process.env
   const isSubmod = isSubmoduleLayout(projectRoot)
 
   // Resolve server name: CLI override → config → auto-generated
@@ -346,55 +480,81 @@ export async function installMcpConfig(
   }
   serverName ??= 'zeno-' + toSlug(basename(projectRoot))
 
-  // Check if Zeno binaries are present
+  if (scope === 'user') {
+    const targetPath = options?.userMcpPath ?? getDefaultVsCodeUserMcpPath(platform, env)
+    const launch = resolveGlobalZenoMcpLaunch(platform, env)
+    const workspace = '${workspaceFolder}'
+
+    if (platform === 'win32' && !launch.isExplicitPath) {
+      throw new Error(
+        'Could not resolve an explicit zeno-mcp.cmd on PATH for a global MCP install. Install Zeno globally first or use workspace-scoped `zeno mcp install`.'
+      )
+    }
+
+    if (options?.dryRun) {
+      logger.info(`Dry run: would write user mcp.json to ${targetPath}`)
+      logger.info(`  Command: ${launch.command}`)
+      logger.info(`  Args: ${launch.args.join(' ') || '(none)'}`)
+      logger.info(`  ZENO_WORKSPACE: ${workspace}`)
+      return { target: 'user-mcp-json', targetPath, serverName, written: false }
+    }
+
+    const written = ensureUserMcp({
+      userMcpPath: targetPath,
+      serverName,
+      workspace,
+      platform,
+      env,
+    })
+    return { target: 'user-mcp-json', targetPath, serverName, written }
+  }
+
+  // Check if Zeno binaries are present for workspace-scoped installs.
   const installCheck = isZenoInstalled(projectRoot)
   if (!installCheck.valid) {
     throw new Error(`Zeno is not properly installed: ${installCheck.reason ?? 'unknown'}`)
   }
 
-  // Attempt .code-workspace mode
+  const targetPath = join(projectRoot, '.vscode', 'mcp.json')
+
+  // If a multi-root workspace is present, use it only to derive named
+  // `${workspaceFolder:<name>}` variables. Current VS Code MCP discovery is
+  // documented around `mcp.json`, not `.code-workspace` settings.
   const wsFile = findCodeWorkspaceFile(projectRoot)
   if (wsFile) {
     const folders = extractWorkspaceFolders(wsFile, projectRoot)
     if (folders) {
       const submodulePath = isSubmod ? 'zeno' : undefined
-      const targetPath = wsFile
+      const binaryPath = submodulePath
+        ? `\${workspaceFolder:${folders.consumer}}/${submodulePath}/bin/mcp-server.js`
+        : `\${workspaceFolder:${folders.zeno}}/bin/mcp-server.js`
+      const workspace = `\${workspaceFolder:${folders.consumer}}`
+      const serverEntry = buildMcpServerEntry(binaryPath, workspace)
 
       if (options?.dryRun) {
-        const binaryRef = submodulePath
-          ? `\${workspaceFolder:${folders.consumer}}/${submodulePath}/bin/mcp-server.js`
-          : `\${workspaceFolder:${folders.zeno}}/bin/mcp-server.js`
         logger.info(`Dry run: would write MCP entry '${serverName}' to ${targetPath}`)
-        logger.info(`  Binary: ${binaryRef}`)
-        logger.info(`  ZENO_WORKSPACE: \${workspaceFolder:${folders.consumer}}`)
-        return { target: 'code-workspace', targetPath, serverName, written: false }
+        logger.info(`  Binary: ${binaryPath}`)
+        logger.info(`  ZENO_WORKSPACE: ${workspace}`)
+        return { target: 'mcp-json', targetPath, serverName, written: false }
       }
 
-      const written = ensureCodeWorkspaceMcp(wsFile, {
-        serverName,
-        zenoFolderName: folders.zeno,
-        consumerFolderName: folders.consumer,
-        submodulePath,
-      })
-      return { target: 'code-workspace', targetPath, serverName, written }
+      const written = upsertMcpConfigEntry(targetPath, serverName, serverEntry)
+      return { target: 'mcp-json', targetPath, serverName, written }
     }
   }
 
   // Fall back to .vscode/mcp.json
   const toolDir = isSubmod ? 'zeno' : '.'
-  const targetPath = join(projectRoot, '.vscode', 'mcp.json')
+  const binaryPath = toolDir === '.' ? './bin/mcp-server.js' : `./${toolDir}/bin/mcp-server.js`
+  const workspace = '${workspaceFolder}'
 
   if (options?.dryRun) {
-    const binaryPath = toolDir === '.' ? './bin/mcp-server.js' : `./${toolDir}/bin/mcp-server.js`
     logger.info(`Dry run: would write .vscode/mcp.json`)
     logger.info(`  Binary: ${binaryPath}`)
-    logger.info(`  ZENO_WORKSPACE: \${workspaceFolder}`)
+    logger.info(`  ZENO_WORKSPACE: ${workspace}`)
     return { target: 'mcp-json', targetPath, serverName, written: false }
   }
 
-  // Always inject ZENO_WORKSPACE via ${workspaceFolder} for portability.
-  // ensureWorkspaceMcp defaults to that variable when no explicit value is
-  // passed, so we omit the third argument here.
-  const written = ensureWorkspaceMcp(projectRoot, toolDir, undefined, serverName)
+  const written = upsertMcpConfigEntry(targetPath, serverName, buildMcpServerEntry(binaryPath, workspace))
   return { target: 'mcp-json', targetPath, serverName, written }
 }
