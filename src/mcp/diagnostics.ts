@@ -13,6 +13,7 @@ import { logger } from '../utils/logger.js'
 import { loadConfig } from '../utils/config.js'
 import { getDatabasePath } from '../storage/database.js'
 import { getDefaultVsCodeUserMcpPath } from './editor-adapters.js'
+import { getMcpToolDefinitionInfo } from './tools/index.js'
 
 /**
  * Server health status
@@ -158,11 +159,11 @@ export class McpDiagnostics {
   /**
    * Get tool information
    */
-  getToolInfo(registry: FunctionRegistry): ToolInfo[] {
-    return registry.list().map((func) => ({
-      name: func.name,
-      description: func.description,
-      parameters: func.parameters.map((p) => p.name),
+  getToolInfo(_registry?: FunctionRegistry): ToolInfo[] {
+    return getMcpToolDefinitionInfo().map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
       hasSchema: true, // All registered functions have schemas
     }))
   }
@@ -262,12 +263,13 @@ export class McpDiagnostics {
   /**
    * Generate complete diagnostic report
    */
-  async generateReport(registry: FunctionRegistry): Promise<DiagnosticReport> {
-    const toolsRegistered = registry.list().length
+  async generateReport(registry?: FunctionRegistry): Promise<DiagnosticReport> {
+    const tools = this.getToolInfo(registry)
+    const toolsRegistered = tools.length
 
     return {
       health: this.getHealth(toolsRegistered),
-      tools: this.getToolInfo(registry),
+      tools,
       config: await this.getConfigStatus(),
       recentErrors: this.recentErrors,
     }
@@ -276,7 +278,7 @@ export class McpDiagnostics {
   /**
    * Format diagnostic report as readable text
    */
-  async formatReport(registry: FunctionRegistry): Promise<string> {
+  async formatReport(registry?: FunctionRegistry): Promise<string> {
     const report = await this.generateReport(registry)
     const lines: string[] = []
 

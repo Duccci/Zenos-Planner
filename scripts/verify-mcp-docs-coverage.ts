@@ -1,8 +1,8 @@
 /**
  * CI Verification Script: MCP Tools Documentation Coverage
  *
- * Ensures every registered MCP tool and action has corresponding documentation
- * in docs/MCP-TOOLS.md. Fails the build if any tool/action is not documented.
+ * Ensures every registered MCP handler tool has corresponding documentation in
+ * docs/MCP-TOOLS.md. Fails the build if live tool definitions drift from docs.
  *
  * Usage: npx tsx scripts/verify-mcp-docs-coverage.ts
  */
@@ -10,44 +10,42 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
+import { getMcpToolDefinitionInfo } from '../src/mcp/tools/index.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Import the ToolRegistry to get the authoritative list of tools and actions
-// For CI purposes, we read the source file directly to avoid build dependencies
-const registryPath = path.join(__dirname, '../src/mcp/schemas/registry.ts')
 const docPath = path.join(__dirname, '../docs/MCP-TOOLS.md')
 
-interface Tool {
-  toolName: string
-  actions: readonly string[]
+function getRegisteredTools(): Map<string, string[]> {
+  return new Map(
+    getMcpToolDefinitionInfo().map((tool) => [tool.name, tool.actions] as const)
+  )
 }
 
-/**
- * Parse ToolRegistry from the registry.ts file.
- * Extracts tool names and actions by reading the TypeScript source.
- */
-function parseRegistry(content: string): Map<string, string[]> {
-  const tools = new Map<string, string[]>()
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
 
-  // More robust regex to handle multiline actions and whitespace variations
-  const toolMatches = content.matchAll(
-    /toolName:\s*['"]([^'"]+)['"]\s*,\s*actions:\s*\[([^\]]+)\]\s*as\s*const/gs
+function hasToolReference(docContent: string, toolName: string): boolean {
+  const escapedToolName = escapeRegExp(toolName)
+  const headingPattern = new RegExp('^##\\s+' + escapedToolName + '\\b', 'm')
+  const tablePattern = new RegExp('\\|\\s*`' + escapedToolName + '`\\s*\\|')
+  return headingPattern.test(docContent) || tablePattern.test(docContent)
+}
+
+function hasActionReference(docContent: string, toolName: string, action: string): boolean {
+  const escapedToolName = escapeRegExp(toolName)
+  const escapedAction = escapeRegExp(action)
+  const headingPattern = new RegExp(
+    '^#{3,4}\\s+' + escapedToolName + ':\\s+' + escapedAction + '\\b',
+    'm'
   )
-
-  for (const match of toolMatches) {
-    const [, toolName, actionsStr] = match
-    // Extract action names, handling multiline and extra whitespace
-    const actions = actionsStr
-      .split(',')
-      .map((a) => a.trim().replace(/['"]/g, '').trim())
-      .filter((a) => a.length > 0 && a !== '')
-
-    tools.set(toolName, actions)
-  }
-
-  return tools
+  const tablePattern = new RegExp(
+    '\\|\\s*`' + escapedToolName + '`\\s*\\|\\s*`' + escapedAction + '`\\s*\\|'
+  )
+  const inlinePattern = new RegExp('`' + escapedToolName + '`[^\\n]*`' + escapedAction + '`')
+  return headingPattern.test(docContent) || tablePattern.test(docContent) || inlinePattern.test(docContent)
 }
 
 /**
@@ -61,9 +59,7 @@ function verifyDocumentation(
   const missingActions = new Map<string, string[]>()
 
   for (const [toolName, actions] of tools) {
-    // Check for tool heading: ## toolName anywhere in the document
-    const toolHeading = `## ${toolName}`
-    if (!docContent.includes(toolHeading)) {
+    if (!hasToolReference(docContent, toolName)) {
       missingTools.push(toolName)
       continue
     }
@@ -71,8 +67,7 @@ function verifyDocumentation(
     // Check for action subsections: #### <toolName>: <action>
     const missingForTool: string[] = []
     for (const action of actions) {
-      const actionHeading = `#### ${toolName}: ${action}`
-      if (!docContent.includes(actionHeading)) {
+      if (!hasActionReference(docContent, toolName, action)) {
         missingForTool.push(action)
       }
     }
@@ -94,17 +89,10 @@ async function verify(): Promise<number> {
   console.log('[MCP Documentation Coverage Verification]')
   console.log()
 
-  // Read registry
-  if (!fs.existsSync(registryPath)) {
-    console.error(`[ERROR] Registry file not found: ${registryPath}`)
-    return 1
-  }
-
-  const registryContent = fs.readFileSync(registryPath, 'utf-8')
-  const tools = parseRegistry(registryContent)
+  const tools = getRegisteredTools()
 
   if (tools.size === 0) {
-    console.error('[ERROR] No tools found in registry. Check parsing logic.')
+    console.error('[ERROR] No MCP handler tool definitions found. Check src/mcp/tools/index.ts.')
     return 1
   }
 

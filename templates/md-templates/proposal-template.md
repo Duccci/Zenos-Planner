@@ -20,13 +20,15 @@ zeno:
 **Created**: {{DATE}}
 
 <!-- LLM AGENT — MANDATORY PRE-EXECUTION STEP
-Do NOT read tasks and begin implementing. You MUST call the MCP tool first:
+Do NOT read tasks and begin implementing. You MUST use MCP lifecycle tools first:
 
-  proposal_action:start { "hash": "#{{HASH}}" }
+  proposal_action:validate { "hash": "#{{HASH}}" }
+  proposal_action:start { "hash": "#{{HASH}}", "preReview": { "phase": "apply", "...": "..." }, "qualitativeReview": { "...": "..." } }
 
-This registers the proposal as in_progress and returns the worktree path.
-All file edits and commits must happen inside that worktree — not in the main workspace.
-Skipping this step bypasses worktree isolation and breaks the approve/merge workflow.
+This registers the proposal as in_progress. Gate-tied proposals return a worktree path;
+all file edits and commits must happen inside that worktree. Solitary proposals stay in
+the current workspace and are tracked through progress/validate/approve.
+Skipping this step bypasses lifecycle tracking and breaks the approve workflow.
 -->
 
 ---

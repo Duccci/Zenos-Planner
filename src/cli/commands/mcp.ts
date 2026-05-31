@@ -38,16 +38,13 @@ export function registerMcpCommands(program: Command): void {
     .description('List all registered MCP tools')
     .action(async () => {
       try {
-        const { createFunctionRegistry } =
-          await import('../../integration/function-implementations.js')
-
-        const registry = createFunctionRegistry()
-        const tools = registry.list()
+        const { getMcpToolDefinitionInfo } = await import('../../mcp/tools/index.js')
+        const tools = getMcpToolDefinitionInfo()
 
         console.log('=== Registered MCP Tools ===')
         for (const tool of tools) {
           console.log(`${tool.name}: ${tool.description}`)
-          console.log(`  Parameters: ${tool.parameters.map((p) => p.name).join(', ')}`)
+          console.log(`  Parameters: ${tool.parameters.join(', ')}`)
           console.log()
         }
       } catch (error) {

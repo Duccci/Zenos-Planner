@@ -16,6 +16,13 @@ const mockCreateFunctionRegistry = vi.fn().mockReturnValue({
     },
   ]),
 })
+const mockGetMcpToolDefinitionInfo = vi.fn().mockReturnValue([
+  {
+    name: 'test_tool',
+    description: 'A test tool',
+    parameters: ['param1'],
+  },
+])
 const mockInstallMcpConfig = vi.fn()
 const mockStopServer = vi.fn()
 const mockLoadConfig = vi.fn()
@@ -42,6 +49,10 @@ vi.mock('../../../src/integration/function-implementations.js', () => ({
 
 vi.mock('../../../src/mcp/editor-adapters.js', () => ({
   installMcpConfig: (...args: unknown[]) => mockInstallMcpConfig(...args),
+}))
+
+vi.mock('../../../src/mcp/tools/index.js', () => ({
+  getMcpToolDefinitionInfo: (...args: unknown[]) => mockGetMcpToolDefinitionInfo(...args),
 }))
 
 vi.mock('../../../src/mcp/manager.js', () => ({
@@ -102,7 +113,7 @@ describe('MCP commands action coverage', () => {
     })
 
     it('should handle tools listing errors', async () => {
-      mockCreateFunctionRegistry.mockImplementationOnce(() => {
+      mockGetMcpToolDefinitionInfo.mockImplementationOnce(() => {
         throw new Error('registry failed')
       })
 

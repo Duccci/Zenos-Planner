@@ -94,7 +94,7 @@ export const proposalToolDefinitions = [
       '',
       'SCAFFOLD vs GENERATE: "scaffold" and "generate" are the same action. Both stamp out EMPTY template files with [bracketed placeholders]. The LLM must fill every placeholder before calling validate. Think of it as "create blank forms", not "produce finished proposals".',
       '',
-      'USE start FIRST when asked to "start", "implement", "work on", or "execute" any proposal (gate-tied or solitary). Call start { hash } before editing any files — it transitions the proposal to in_progress and returns the worktree path. All file edits and commits must happen inside that worktree, not in the main workspace. Then validate, then approve.',
+      'USE start FIRST when asked to "start", "implement", "work on", or "execute" any proposal (gate-tied or solitary). Call start { hash } before editing any files — it transitions the proposal to in_progress. Gate-tied proposals return a worktree path and must be edited there; solitary proposals stay in the current workspace and are tracked by the proposal lifecycle. Then validate and complete via progress/approve as directed.',
       '',
       'USE generate with { solitary: true } for work that is not tied to any gate (cross-cutting improvements, tooling, experiments). Solitary proposals live in proposals/solitary/ and have gateId=null. List them with list { gateId: "solitary" }.',
       '',
@@ -934,9 +934,15 @@ export function proposalHandlers(
           const hash = p.hash ?? ''
           const showResult = await r.invoke('proposal_show', { hash })
           if (showResult.success) {
-            const currentStatus = (showResult.data as { status?: string }).status
+            const showData = showResult.data as {
+              status?: string
+              gateId?: string | null
+              gate_id?: string | null
+              solitary?: boolean
+              startedAt?: string
+            }
+            const currentStatus = showData.status
             if (currentStatus === 'in_progress') {
-              const showData = showResult.data as Record<string, unknown>
               return {
                 success: true,
                 data: {
@@ -944,7 +950,7 @@ export function proposalHandlers(
                   previousStatus: 'in_progress',
                   newStatus: 'in_progress' as const,
                   startedAt:
-                    (showData['startedAt'] as string | undefined) ?? new Date().toISOString(),
+                    showData.startedAt ?? new Date().toISOString(),
                 },
               }
             }
@@ -980,9 +986,14 @@ export function proposalHandlers(
             // Strip qualitativeReview before delegating (unknown field to CLI handler)
             const { qualitativeReview: _qr, ...cliPayload } = p
             let rawResult = await r.invoke('proposal_start', cliPayload)
+            const proposalGateId = showData.gateId ?? showData.gate_id
+            const isSolitaryProposal =
+              showData.solitary === true || !proposalGateId || proposalGateId === 'solitary'
 
-            // Create worktree for isolated development (best-effort)
-            if (rawResult.success) {
+            // Create worktree for isolated gate-tied development (best-effort).
+            // Solitary proposals intentionally stay in the current workspace and
+            // are tracked through proposal progress/approval only.
+            if (rawResult.success && !isSolitaryProposal) {
               try {
                 const manager = new WorktreeManager(getWorkspaceRoot())
                 const worktreeInfo = await manager.create(hash)

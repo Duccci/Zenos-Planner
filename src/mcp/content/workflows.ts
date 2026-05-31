@@ -73,7 +73,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
     prerequisites: ['Pre-Apply Review passed'],
     actions: [
       'proposal_action:start { hash: "<hash>", preReview: { ... } }',
-      'Note the worktree path returned for gate-tied proposals',
+      'Gate-tied: note the returned worktree path; solitary: continue in the current workspace',
     ],
     errorHandling:
       'If the proposal is already in_progress, this step is a no-op; continue with implementation.',
@@ -207,6 +207,7 @@ export const APPLY_PHASE_WORKFLOW: WorkflowStep[] = [
       'Manual path — dry-run first: worktree_action:merge { action: "merge", hash, strategy: "rebase"|"squash"|"merge", dryRun: true }',
       'Manual path — apply: worktree_action:merge { action: "merge", hash, strategy: "rebase"|"squash"|"merge" }',
       'On conflict: resolve conflicts in the worktree directory, commit the resolution, then re-run proposal_action:approve',
+      'Solitary: skip worktree_action entirely; use proposal_action:approve only as legacy status recovery if final progress did not complete the proposal',
     ],
     errorHandling:
       'If approve returns MERGE_CONFLICT: the worktree is preserved (not deleted) so no work is lost. Resolve conflicts manually inside the worktree directory, commit the resolution, then call proposal_action:approve again. Do NOT call worktree_action:remove after a conflict — approval handles cleanup once the merge succeeds.',

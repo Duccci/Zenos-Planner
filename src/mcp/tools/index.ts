@@ -12,13 +12,21 @@ import { architectureHandlers, architectureToolDefinitions } from './architectur
 import { projectHandlers, projectToolDefinitions } from './project-tools.js'
 import { contextHandlers, contextToolDefinitions } from './context-tools.js'
 import { projectSyncHandlers, projectSyncToolDefinitions } from './project-sync-tools.js'
-import { ToolRegistry } from '../schemas/registry.js'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import type { FunctionRegistry } from '../../integration/function-registry.js'
 
-// Build a name -> {description, inputSchema} map from all tool definition sources.
-// ToolRegistry (unified action tools) takes precedence, then handler-level definitions.
+export interface McpToolDefinitionInfo {
+  name: string
+  description: string
+  inputSchema: z.ZodType
+  parameters: string[]
+  actions: string[]
+}
+
+// Build a name -> {description, inputSchema} map from the same handler-level
+// definitions used by registerTools(). Keeping registration and metadata on one
+// path prevents stale registry entries from hiding real MCP tools.
 const toolMetaMap = new Map<string, { description: string; inputSchema: z.ZodType }>()
 type HandlerFn = (args: Record<string, unknown>, extra?: unknown) => Promise<unknown>
 type HandlerFactory = (registry: FunctionRegistry) => Record<string, HandlerFn>
@@ -45,20 +53,51 @@ for (const def of handlerToolDefs) {
   })
 }
 
-// ToolRegistry entries override handler-level definitions
-for (const entry of Object.values(ToolRegistry)) {
-  toolMetaMap.set(entry.toolName, {
-    description: entry.description,
-    inputSchema: entry.inputSchema as unknown as z.ZodType,
-  })
+function getInputSchemaParameters(inputSchema: z.ZodType): string[] {
+  const maybeSchema = inputSchema as unknown as {
+    shape?: Record<string, unknown>
+    _def?: { shape?: Record<string, unknown> | (() => Record<string, unknown>) }
+  }
+  const shape = maybeSchema.shape ?? maybeSchema._def?.shape
+  const resolvedShape = typeof shape === 'function' ? shape() : shape
+  return resolvedShape ? Object.keys(resolvedShape) : []
 }
 
-// Preserve the original allToolDefs export shape for backwards compatibility
+function getInputSchemaActions(inputSchema: z.ZodType): string[] {
+  const maybeSchema = inputSchema as unknown as {
+    shape?: Record<string, unknown>
+    _def?: { shape?: Record<string, unknown> | (() => Record<string, unknown>) }
+  }
+  const shape = maybeSchema.shape ?? maybeSchema._def?.shape
+  const resolvedShape = typeof shape === 'function' ? shape() : shape
+  const actionSchema = resolvedShape?.['action'] as
+    | { options?: unknown[]; _def?: { innerType?: { options?: unknown[] } } }
+    | undefined
+  const options = actionSchema?.options ?? actionSchema?._def?.innerType?.options ?? []
+  return options.filter((option): option is string => typeof option === 'string')
+}
+
 const allToolDefs = [...toolMetaMap.entries()].map(([name, meta]) => ({
   name,
   description: meta.description,
   inputSchema: meta.inputSchema,
 }))
+
+export function getMcpToolDefinitionInfo(): McpToolDefinitionInfo[] {
+  return allToolDefs.map((tool) => ({
+    ...tool,
+    parameters: getInputSchemaParameters(tool.inputSchema),
+    actions: getInputSchemaActions(tool.inputSchema),
+  }))
+}
+
+function requireToolMeta(name: string): { description: string; inputSchema: z.ZodType } {
+  const meta = toolMetaMap.get(name)
+  if (!meta?.description) {
+    throw new Error(`Missing MCP tool definition for registered handler "${name}"`)
+  }
+  return meta
+}
 
 /**
  * Centralized MCP tool registration
@@ -89,17 +128,13 @@ export function registerTools(server: McpServer, registry: FunctionRegistry): st
   for (const factory of handlerFactories) {
     const handlers = factory(registry)
     for (const [name, handler] of Object.entries(handlers)) {
-      const meta = toolMetaMap.get(name)
-      const description = meta?.description ?? ''
+      const meta = requireToolMeta(name)
+      const description = meta.description
       // z.any() must NOT be used here: normalizeObjectSchema(z.any()) returns undefined
       // (def.type='any', not 'object'), which causes safeParseAsync(undefined, ...) →
       // isZ4Schema(undefined) → TypeError: Cannot read properties of undefined (reading '_zod').
       // z.object({}).passthrough() has def.type='object' and normalizes correctly.
-      const inputSchema: z.ZodType = meta?.inputSchema ?? z.looseObject({})
-
-      if (!description) {
-        logger.warn(`Tool "${name}" has no description — add it to its ToolDefinitions array`)
-      }
+      const inputSchema: z.ZodType = meta.inputSchema
 
       // Register the handler-based tool (these take precedence).
       // NOTE: outputSchema is intentionally omitted — passing z.any() causes

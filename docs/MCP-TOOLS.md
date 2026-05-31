@@ -6,6 +6,28 @@
 
 ---
 
+## Canonical MCP Tool Surface
+
+This table is the stable tool surface exposed by `registerTools()`. Runtime
+registration, diagnostics, and `zeno mcp tools` must all report this same set.
+
+| Tool | Actions |
+| ---- | ------- |
+| `repos_action` | `list`, `detect`, `deps`, `adjust`, `add`, `remove`, `analyze` |
+| `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `regenerate`, `cancel`, `defer` |
+| `reg_action` | `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate` |
+| `proposal_action` | `list`, `show`, `scaffold`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer`, `delete`, `db_status`, `db_sync`, `purge_orphans`, `regenerate` |
+| `config_get` | None |
+| `artifact_validate` | None |
+| `diagram_action` | `catalogue`, `select`, `generate`, `show`, `render`, `list_template`, `get_template` |
+| `project_action` | `init`, `status` |
+| `context_action` | `gate`, `proposal`, `requirement`, `repository` |
+| `git_trace` | None |
+| `worktree_action` | `list`, `remove`, `prune`, `merge` |
+| `project_sync` | `status`, `commit`, `propagate`, `full`, `diff` |
+
+---
+
 ## Overview
 
 The Model Context Protocol (MCP) tools expose Zeno's Planner functionality to AI agents via a unified **Entity Action Pattern**: each tool accepts an `action` parameter that determines the operation to perform. This document covers:

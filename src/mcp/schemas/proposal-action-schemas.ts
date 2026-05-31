@@ -94,7 +94,7 @@ export const ProposalActionInputSchema = z.object({
         'generate=alias for scaffold (backward compat). ' +
         'approve=merge proposal (needs: hash; zeno frontmatter/header status sync is automatic). ' +
         'reject=reject with feedback (needs: hash, rejectionReason). ' +
-        'start=create worktree for implementation (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems). ' +
+        'start=transition proposal to in_progress (needs: hash, preReview with phase=apply, qualitativeReview with all six booleans + flaggedItems); gate-tied proposals create a worktree, solitary proposals stay in the current workspace. ' +
         'progress=update task status (needs: hash, currentTask; optional: completed, notes, scopeExpansion). ' +
         'cancel=mark proposal as cancelled/dropped (needs: hash, confirmed: true; optional: rejectionReason). ' +
         'defer=move proposal to backlog (needs: hash, confirmed: true; optional: notes as reason). ' +

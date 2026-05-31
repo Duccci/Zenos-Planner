@@ -177,8 +177,8 @@ describe('MCP Server', () => {
       expect(report.config).toBeDefined()
       expect(report.recentErrors).toBeDefined()
 
-      expect(report.tools.length).toBeGreaterThan(12)
-      expect(report.health.toolsRegistered).toBeGreaterThan(12)
+      expect(report.tools.length).toBeGreaterThanOrEqual(12)
+      expect(report.health.toolsRegistered).toBeGreaterThanOrEqual(12)
     })
 
     it('should format diagnostic report as text', async () => {

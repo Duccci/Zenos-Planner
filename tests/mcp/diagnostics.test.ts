@@ -80,18 +80,18 @@ describe('MCP Diagnostics', () => {
     expect(errors[0].error).toBe('Error 14') // most recent first
   })
 
-  it('generates tool info from registry', () => {
+  it('generates tool info from MCP handler definitions', () => {
     const tools = diagnostics.getToolInfo(mockRegistry)
-    expect(tools).toHaveLength(1)
-    expect(tools[0].name).toBe('test_tool')
-    expect(tools[0].parameters).toEqual(['param1', 'param2'])
-    expect(tools[0].hasSchema).toBe(true)
+    expect(tools.length).toBeGreaterThan(0)
+    expect(tools.map((tool) => tool.name)).toContain('proposal_action')
+    expect(tools.map((tool) => tool.name)).not.toContain('proposal_list')
+    expect(tools.every((tool) => tool.hasSchema)).toBe(true)
   })
 
   it('generates complete diagnostic report', async () => {
     const report = await diagnostics.generateReport(mockRegistry)
     expect(report.health).toBeDefined()
-    expect(report.tools).toHaveLength(1)
+    expect(report.tools.map((tool) => tool.name)).toContain('proposal_action')
     expect(report.config).toBeDefined()
     expect(report.recentErrors).toEqual([])
   })
@@ -100,7 +100,7 @@ describe('MCP Diagnostics', () => {
     const formatted = await diagnostics.formatReport(mockRegistry)
     expect(formatted).toContain('MCP Server Diagnostics')
     expect(formatted).toContain('Status:')
-    expect(formatted).toContain('test_tool')
+    expect(formatted).toContain('proposal_action')
   })
 
   it('detects duplicate MCP server names across workspace and user scope', async () => {

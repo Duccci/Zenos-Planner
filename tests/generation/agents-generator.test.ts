@@ -3,6 +3,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import { generateAgentsMD, ZENO_BLOCK_START, ZENO_BLOCK_END } from '../../src/generation/agents-generator.js'
+import { getMcpToolDefinitionInfo } from '../../src/mcp/tools/index.js'
 import type { ZenoConfig } from '../../src/utils/config.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -38,6 +39,19 @@ function parseMcpToolNames(md: string): string[] {
   return [...section.matchAll(/^\| `([^`]+)` \|/gm)].map(m => m[1].trim())
 }
 
+function parseMcpToolActions(md: string): Map<string, string[]> {
+  const section = md.match(/#{2,3} MCP Tool Reference[\s\S]*?(?=\n#{2,3} |\n---)/)?.[0] ?? ''
+  const tools = new Map<string, string[]>()
+
+  for (const match of section.matchAll(/^\| `([^`]+)` \|([^|]+)\|/gm)) {
+    const [, toolName, actionColumn] = match
+    const actions = [...actionColumn.matchAll(/`([^`]+)`/g)].map(action => action[1].trim())
+    tools.set(toolName.trim(), actions)
+  }
+
+  return tools
+}
+
 /**
  * All backtick-wrapped values from the right column of the Quick Navigation
  * table (lines of the form `| ... | \`value\` ...`).
@@ -53,6 +67,7 @@ function parseNavToolRefs(md: string): string[] {
 const ZENO_BLOCK = extractZenoBlock(templateContent)
 const TEMPLATE_HEADERS = parseHeaders(ZENO_BLOCK)
 const TEMPLATE_MCP_TOOLS = parseMcpToolNames(ZENO_BLOCK)
+const TEMPLATE_MCP_TOOL_ACTIONS = parseMcpToolActions(ZENO_BLOCK)
 const TEMPLATE_NAV_TOOLS = parseNavToolRefs(ZENO_BLOCK)
 
 // ---------------------------------------------------------------------------
@@ -93,6 +108,17 @@ describe('Agents Generator', () => {
     expect(TEMPLATE_MCP_TOOLS.length).toBeGreaterThan(0)
     for (const tool of TEMPLATE_MCP_TOOLS) {
       expect(result, `missing MCP tool: "${tool}"`).toContain(tool)
+    }
+  })
+
+  it('template MCP reference includes every live handler tool and action', () => {
+    for (const tool of getMcpToolDefinitionInfo()) {
+      expect(TEMPLATE_MCP_TOOL_ACTIONS.has(tool.name), `missing MCP tool: ${tool.name}`).toBe(true)
+
+      const templateActions = TEMPLATE_MCP_TOOL_ACTIONS.get(tool.name) ?? []
+      for (const action of tool.actions) {
+        expect(templateActions, `missing ${tool.name}:${action}`).toContain(action)
+      }
     }
   })
 

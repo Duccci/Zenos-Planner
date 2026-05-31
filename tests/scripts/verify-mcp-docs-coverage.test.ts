@@ -8,17 +8,25 @@
 import { describe, it, expect } from 'vitest'
 import * as fs from 'fs'
 import * as path from 'path'
+import { getMcpToolDefinitionInfo } from '../../src/mcp/tools/index.js'
 
 describe('verify-mcp-docs-coverage', () => {
-  const registryPath = path.join(process.cwd(), 'src/mcp/schemas/registry.ts')
+  const toolDefinitionsPath = path.join(process.cwd(), 'src/mcp/tools/index.ts')
   const docPath = path.join(process.cwd(), 'docs/MCP-TOOLS.md')
 
   it('should find the MCP documentation file', () => {
     expect(fs.existsSync(docPath)).toBe(true)
   })
 
-  it('should find the ToolRegistry file', () => {
-    expect(fs.existsSync(registryPath)).toBe(true)
+  it('should find the MCP handler definitions file', () => {
+    expect(fs.existsSync(toolDefinitionsPath)).toBe(true)
+  })
+
+  it('should derive canonical tools from handler definitions', () => {
+    const tools = getMcpToolDefinitionInfo().map((tool) => tool.name)
+    expect(tools).toContain('proposal_action')
+    expect(tools).not.toContain('proposal_actions')
+    expect(tools).not.toContain('proposal_list')
   })
 
   it('should have documentation for gates_action tool', () => {
@@ -39,6 +47,19 @@ describe('verify-mcp-docs-coverage', () => {
   it('should have documentation for config_get tool', () => {
     const docContent = fs.readFileSync(docPath, 'utf-8')
     expect(docContent).toContain('## config_get')
+  })
+
+  it('should include every live handler tool in the canonical surface', () => {
+    const docContent = fs.readFileSync(docPath, 'utf-8')
+    for (const tool of getMcpToolDefinitionInfo()) {
+      const toolLine = docContent
+        .split('\n')
+        .find((line) => line.includes(`\`${tool.name}\``))
+      expect(toolLine).toBeDefined()
+      for (const action of tool.actions) {
+        expect(toolLine).toContain(`\`${action}\``)
+      }
+    }
   })
 
   it('should have action sections for gates_action', () => {

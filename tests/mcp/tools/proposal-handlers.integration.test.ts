@@ -248,6 +248,8 @@ describe('Proposal Handlers (integration)', () => {
     })
     // Gate-level test-first check skips for gateId='solitary' — no test-first error
     expect(res).toBeDefined()
+    const parsed = JSON.parse(res.content[0]!.text as string)
+    expect(parsed.worktree).toBeUndefined()
     if (res.isError) {
       const text = String(res.content?.[0]?.text ?? '')
       expect(text.toLowerCase()).not.toContain('test-suite')

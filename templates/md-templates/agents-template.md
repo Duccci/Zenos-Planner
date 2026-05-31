@@ -50,7 +50,7 @@
 | -------- | ------- | ------- |
 | `context_action` | `gate`, `proposal`, `requirement`, `repository` | Get working context or resolve any entity by hash/name |
 | `gates_action` | `list`, `show`, `generate`, `validate`, `start`, `complete`, `regenerate`, `cancel`, `defer` | Gate lifecycle |
-| `proposal_action` | `list`, `show`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer` | Proposal lifecycle |
+| `proposal_action` | `list`, `show`, `scaffold`, `generate`, `validate`, `approve`, `reject`, `start`, `progress`, `cancel`, `defer`, `delete`, `db_status`, `db_sync`, `purge_orphans`, `regenerate` | Proposal lifecycle |
 | `reg_action` | `list`, `show`, `deps`, `transfer`, `search`, `inherit`, `trace`, `update`, `db_sync`, `db_status`, `purge_orphans`, `reset_gate`, `regenerate` | Registry DB queries — all entity lookups, requirements, hashes, and dependencies |
 | `repos_action` | `list`, `detect`, `deps`, `adjust`, `add`, `remove`, `analyze` | Repository management and boundary detection |
 | `project_action` | `init`, `status` | Project initialization and status |
@@ -59,10 +59,26 @@
 | `worktree_action` | `list`, `remove`, `prune`, `merge` | Git worktree management for proposals |
 | `artifact_validate` | — | Unified artifact validator (format/quality/dependency) |
 | `git_trace` | — | Trace git commits for artifacts (gates, proposals, requirements) |
+| `project_sync` | `status`, `commit`, `propagate`, `full`, `diff` | Multi-repo submodule synchronization |
 
 ### Proposal Execution Protocol
 
-**When asked to "start", "implement", "work on", or "execute" a proposal**: extract its `#hash` from the `**Hash**:` line, then call `proposal_action:start { hash }` before touching any files. The response returns the worktree path — all edits and commits belong there, not in the main workspace. Finish with `proposal_action:validate` → `proposal_action:approve`.
+**When asked to "start", "implement", "work on", or "execute" a proposal**: extract its `#hash` from the `**Hash**:` line, run `proposal_action:validate` unless the proposal is already `in_progress`, evaluate the returned checklist, then call `proposal_action:start` with `preReview` and `qualitativeReview` before touching implementation files. Gate-tied proposals return a worktree path and all edits and commits belong there. Solitary proposals stay in the current workspace and are tracked by the proposal lifecycle.
+
+**Collapse & merge (gate-tied proposals):**
+
+- **Collapse (optional):** `worktree_action:merge { action:"merge", hash, strategy:"squash", dryRun:true }` → then without `dryRun`. Use when the branch has many WIP commits.
+- **Merge (normal):** `proposal_action:approve { hash }` — merges worktree branch into main and removes the worktree automatically.
+- **Merge (conflict recovery):** resolve conflicts in the worktree dir → commit → `proposal_action:approve { hash }` again.
+- **Strategies:** `rebase` (default, linear history), `squash` (single commit), `merge` (three-way). Pass via `worktree_action:merge { strategy }`.
+- Solitary proposals skip worktree merge — `approve` finalises status only.
+
+**Solitary proposal lifecycle:**
+
+- **Create/list:** create with `proposal_action:scaffold { solitary: true, title, summary, tasks }` or the `generate` alias; list with `proposal_action:list { gateId: 'solitary' }`.
+- **Start:** use `proposal_action:start` after validation and review evidence; load only the solitary proposal file for execution context.
+- **Apply:** edit the current workspace, mark each finished task checkbox in the proposal, then call `proposal_action:progress { hash, currentTask, completed: true, notes }`.
+- **Complete:** rerun `proposal_action:validate`, then call `proposal_action:approve`; no worktree merge occurs for solitary proposals.
 
 ### Reading Artifacts
 
@@ -78,7 +94,7 @@ Each proposal is self-contained: title, hash, gate, tasks (checkbox list), files
 
 #### Solitary Proposals (`proposals/solitary/<name>.md`)
 
-Solitary proposals are **gate-independent** (`gateId = NULL`). List them with `proposal_action:list { gateId: 'solitary' }`. Create with `proposal_action:generate { solitary: true, title: '...', tasks: [...] }` — no gate PRD is loaded, only `AGENTS.md`. The `Gate` header field reads `Solitary`. RED and GREEN phases are combined inline. Dependency validation skips gate-ordering checks.
+Solitary proposals are **gate-independent** (`gateId = NULL`). List them with `proposal_action:list { gateId: 'solitary' }`. Create with `proposal_action:scaffold { solitary: true, title: '...', summary: '...', tasks: [...] }` or the `generate` alias — no gate PRD is loaded, only `AGENTS.md`. The `Gate` header field reads `Solitary`. RED and GREEN phases are combined inline. Dependency validation skips gate-ordering checks.
 
 #### Commits & Traceability
 
